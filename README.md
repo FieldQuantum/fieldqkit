@@ -35,7 +35,6 @@ result = client.run_auto(
   shots=8192,
   observables=["IIZZII", "ZZIIII"],
   readout_mitigation=True,
-  rank_weights={"queue": 0.2, "nqubits": 0.3, "error": 0.5},
 )
 
 print(result.observable_values)
@@ -53,6 +52,4 @@ print(result.probabilities)
 ## 说明
 
 - Pauli string 暂定格式：
-  - 带显式索引：`"Z0 X2 Y3 I4"`
-  - 或固定长度字符串：`"ZZIX"`
-- 对于 X/Y 测量，请确保样本来自对应测量基（例如已做基变换）。
+  - 固定长度字符串：`"ZZIX"`
