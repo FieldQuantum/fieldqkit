@@ -18,6 +18,20 @@ pip install -e .
 > 作图示例需要 `matplotlib`。
 > 可选依赖：`pip install -e .[quark,viz]`。
 
+### Quafu 安装与 Token
+
+使用 Quafu 前请先安装依赖：
+
+```bash
+pip install quarkstudio
+pip install quarkcircuit
+```
+
+Token 需要自行配置：
+
+- 运行时在代码里显式传入 `token=...`
+- 或按 Quafu 官方文档在本地配置 Token（环境变量/配置文件）
+
 ## 快速使用
 
 见 [examples/demo.py](examples/demo.py)。
