@@ -6,7 +6,7 @@
 - 其它线路：用户提供 OpenQASM2 字符串
 - ZNE（将编译后所有 CZ 门替换为 3 个 CZ 门）
 - Readout 误差缓解（根据编译后的真实物理比特进行 readout benchmark，按比特缓存）
-- 结果处理：样本（比特顺序反转）、Pauli string observables、完整概率分布 $p$
+- 结果处理：样本、Pauli string observables、完整概率分布 $p$
 
 ## 安装
 
