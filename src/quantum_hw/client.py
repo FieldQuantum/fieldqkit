@@ -11,6 +11,16 @@ from quark import Task
 from quark.circuit import Backend, QuantumCircuit, Transpiler
 
 from .circuits import build_cluster, build_ghz, build_ising_time_evolution, build_qft
+from .algorithms.shadow import run_shadow_with_backend
+from .algorithms.vqe import (
+    build_custom_hamiltonian,
+    build_heisenberg_hamiltonian,
+    build_ising_hamiltonian,
+    build_xy_hamiltonian,
+    build_xxz_hamiltonian,
+    run_vqe_with_backend,
+)
+from .algorithms.qaoa import build_custom_cost_hamiltonian, build_maxcut_hamiltonian, run_qaoa_with_backend
 from .observables import (
     append_measurement_basis,
     group_observables,
@@ -23,7 +33,7 @@ from .readout import (
     expectation_from_probabilities,
     marginal_probabilities,
 )
-from .types import CalibrationResult, RunResult
+from .types import CalibrationResult, QAOAResult, RunResult, ShadowResult, VQEResult
 from .utils import extract_qubits_from_openqasm2, get_probabilities, get_samples
 from .zne import apply_zne_cz_tripling, zne_linear_extrapolate
 
@@ -64,7 +74,8 @@ class QuantumHardwareClient:
         """Transpile with a specific backend and optional target qubits."""
         if target_qubits is None:
             return Transpiler(backend).run(qc)
-        return Transpiler(backend).run(qc, target_qubits=list(target_qubits))
+        return Transpiler(backend).run(qc, target_qubits=list(target_qubits), use_dd=True)
+    # TODO: rewrite the Transpiler class
 
     def _submit_openqasm(
         self,
@@ -492,11 +503,13 @@ class QuantumHardwareClient:
         shots: int = 8192,
         zne: bool = False,
         readout_mitigation: bool = False,
+        estimator: str = "mean",
+        mom_groups: Optional[int] = None,
         readout_shots: Optional[int] = None,
         observables: Optional[Sequence[str] | str] = None,
         return_probabilities: bool = False,
         target_qubits: Optional[Sequence[int]] = None,
-        prefer_chips: Optional[Sequence[str] | str] = None,
+        batch_size: int = 1,
         rank_weights: Optional[Dict[str, float]] = None,
     ) -> RunResult:
         """Automatically select hardware, run, and return results."""
@@ -540,3 +553,244 @@ class QuantumHardwareClient:
             #     continue
 
         raise RuntimeError("all candidate chips failed to transpile or run") from last_error
+
+    def run_shadow(
+        self,
+        circuit: str,
+        name: str,
+        num_qubits: int,
+        *,
+        shots: int = 8192,
+        observables: Optional[Sequence[str] | str] = None,
+        zne: bool = False,
+        estimator: str = "mean",
+        mom_groups: Optional[int] = None,
+        target_qubits: Optional[Sequence[int]] = None,
+        prefer_chips: Optional[Sequence[str] | str] = None,
+        rank_weights: Optional[Dict[str, float]] = None,
+        seed: Optional[int] = None,
+        batch_size: int = 1,
+    ) -> RunResult:
+        """Run classical shadow tomography on selected hardware."""
+        print("[shadow] read hardware information and select")
+        if circuit[:4] == "OPEN":
+            qc = QuantumCircuit.from_openqasm2(openqasm2_str=circuit)
+        else:
+            qc = self.build_circuit(circuit, num_qubits=num_qubits)
+
+        ranked_chips = rank_chips(
+            self.tmgr,
+            num_qubits=num_qubits,
+            prefer_chips=prefer_chips,
+            weights=rank_weights,
+        )
+        if not ranked_chips:
+            raise RuntimeError("no available chips satisfy num_qubits requirement")
+
+        if isinstance(observables, str):
+            observables = [observables]
+
+        last_error: Optional[Exception] = None
+        for chip_name in ranked_chips:
+            backend = Backend(chip_name)
+            self.chip_name = chip_name
+            self.chip_backend = backend
+            try:
+                return run_shadow_with_backend(
+                    self,
+                    qc,
+                    name=name,
+                    num_qubits=num_qubits,
+                    backend=backend,
+                    chip_name=chip_name,
+                    shots=shots,
+                    batch_size=batch_size,
+                    observables=observables,
+                    target_qubits=target_qubits,
+                    zne=zne,
+                    estimator=estimator,
+                    mom_groups=mom_groups,
+                    seed=seed,
+                )
+            except Exception as exc:
+                last_error = exc
+                continue
+
+        raise RuntimeError("all candidate chips failed to run shadow tomography") from last_error
+
+    def run_vqe(
+        self,
+        *,
+        name: str,
+        num_qubits: int,
+        model: str = "ising",
+        hamiltonian: Optional[List[Tuple[float, str]]] = None,
+        j: float = 1.0,
+        h: float = 1.0,
+        jx: float = 1.0,
+        jy: float = 1.0,
+        jz: float = 1.0,
+        jxy: float = 1.0,
+        hz: float = 0.0,
+        layers: int = 1,
+        shots: int = 1024,
+        max_iters: int = 20,
+        learning_rate: float = 0.1,
+        beta1: float = 0.9,
+        beta2: float = 0.999,
+        eps: float = 1e-8,
+        shift: float = np.pi / 2.0,
+        zne: bool = False,
+        readout_mitigation: bool = False,
+        target_qubits: Optional[Sequence[int]] = None,
+        init_params: Optional[Sequence[float]] = None,
+        callback: Optional[object] = None,
+        seed: Optional[int] = None,
+        prefer_chips: Optional[Sequence[str] | str] = None,
+        rank_weights: Optional[Dict[str, float]] = None,
+    ) -> VQEResult:
+        """Run VQE optimization on selected hardware."""
+        print("[vqe] read hardware information and select")
+
+        if hamiltonian is None:
+            model_lower = model.lower()
+            if model_lower == "ising":
+                hamiltonian = build_ising_hamiltonian(num_qubits, j=j, h=h)
+            elif model_lower == "heisenberg":
+                hamiltonian = build_heisenberg_hamiltonian(num_qubits, jx=jx, jy=jy, jz=jz, hz=hz)
+            elif model_lower == "xxz":
+                hamiltonian = build_xxz_hamiltonian(num_qubits, jxy=jxy, jz=jz, hz=hz)
+            elif model_lower == "xy":
+                hamiltonian = build_xy_hamiltonian(num_qubits, jx=jx, jy=jy, hz=hz)
+            else:
+                raise ValueError("hamiltonian must be provided for custom model")
+        else:
+            hamiltonian = build_custom_hamiltonian(hamiltonian, num_qubits=num_qubits)
+
+        ranked_chips = rank_chips(
+            self.tmgr,
+            num_qubits=num_qubits,
+            prefer_chips=prefer_chips,
+            weights=rank_weights,
+        )
+        if not ranked_chips:
+            raise RuntimeError("no available chips satisfy num_qubits requirement")
+
+        last_error: Optional[Exception] = None
+        for chip_name in ranked_chips:
+            backend = Backend(chip_name)
+            self.chip_name = chip_name
+            self.chip_backend = backend
+            try:
+                return run_vqe_with_backend(
+                    self,
+                    name=name,
+                    num_qubits=num_qubits,
+                    backend=backend,
+                    chip_name=chip_name,
+                    hamiltonian=hamiltonian,
+                    layers=layers,
+                    shots=shots,
+                    max_iters=max_iters,
+                    learning_rate=learning_rate,
+                    beta1=beta1,
+                    beta2=beta2,
+                    eps=eps,
+                    shift=shift,
+                    zne=zne,
+                    readout_mitigation=readout_mitigation,
+                    target_qubits=target_qubits,
+                    seed=seed,
+                    init_params=init_params,
+                    callback=callback,
+                )
+            except Exception as exc:
+                last_error = exc
+                continue
+
+        raise RuntimeError("all candidate chips failed to run VQE") from last_error
+
+    def run_qaoa(
+        self,
+        *,
+        name: str,
+        num_qubits: int,
+        problem: str = "maxcut",
+        edges: Optional[Sequence[Tuple[int, int]]] = None,
+        weights: Optional[Sequence[float]] = None,
+        cost_hamiltonian: Optional[List[Tuple[float, str]]] = None,
+        cost_constant: float = 0.0,
+        p: int = 1,
+        shots: int = 1024,
+        max_iters: int = 20,
+        learning_rate: float = 0.1,
+        beta1: float = 0.9,
+        beta2: float = 0.999,
+        eps: float = 1e-8,
+        shift: float = np.pi / 2.0,
+        zne: bool = False,
+        readout_mitigation: bool = False,
+        target_qubits: Optional[Sequence[int]] = None,
+        init_params: Optional[Sequence[float]] = None,
+        callback: Optional[object] = None,
+        seed: Optional[int] = None,
+        prefer_chips: Optional[Sequence[str] | str] = None,
+        rank_weights: Optional[Dict[str, float]] = None,
+    ) -> QAOAResult:
+        """Run QAOA for a classical combinatorial optimization problem."""
+        print("[qaoa] read hardware information and select")
+        problem_lower = problem.lower()
+        if problem_lower == "maxcut":
+            if edges is None:
+                raise ValueError("edges must be provided for maxcut")
+            terms, constant = build_maxcut_hamiltonian(num_qubits, edges, weights=weights)
+        else:
+            if cost_hamiltonian is None:
+                raise ValueError("cost_hamiltonian must be provided for custom QAOA")
+            terms, constant = build_custom_cost_hamiltonian(cost_hamiltonian, num_qubits, constant=cost_constant)
+
+        ranked_chips = rank_chips(
+            self.tmgr,
+            num_qubits=num_qubits,
+            prefer_chips=prefer_chips,
+            weights=rank_weights,
+        )
+        if not ranked_chips:
+            raise RuntimeError("no available chips satisfy num_qubits requirement")
+
+        last_error: Optional[Exception] = None
+        for chip_name in ranked_chips:
+            backend = Backend(chip_name)
+            self.chip_name = chip_name
+            self.chip_backend = backend
+            try:
+                return run_qaoa_with_backend(
+                    self,
+                    name=name,
+                    num_qubits=num_qubits,
+                    backend=backend,
+                    chip_name=chip_name,
+                    edges=edges or [],
+                    weights=weights,
+                    terms=terms,
+                    constant=constant,
+                    p=p,
+                    shots=shots,
+                    max_iters=max_iters,
+                    learning_rate=learning_rate,
+                    beta1=beta1,
+                    beta2=beta2,
+                    eps=eps,
+                    shift=shift,
+                    zne=zne,
+                    readout_mitigation=readout_mitigation,
+                    target_qubits=target_qubits,
+                    seed=seed,
+                    init_params=init_params,
+                    callback=callback,
+                )
+            except Exception as exc:
+                last_error = exc
+                continue
+
+        raise RuntimeError("all candidate chips failed to run QAOA") from last_error

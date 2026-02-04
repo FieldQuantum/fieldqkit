@@ -64,6 +64,98 @@
 - 当 `return_probabilities=False` 且 `observables` 为空时，`probabilities` 可能为 `None`。
 - Readout 缓存默认有效期 1 小时，按芯片存单文件，按比特更新时间戳。
 
+#### `run_shadow(...) -> ShadowResult`
+
+用于 classical shadow tomography，按批次随机测量基运行。
+
+参数：
+
+- `circuit: str`
+- `name: str`
+- `num_qubits: int`
+- `shots: int = 8192`
+- `observables: Optional[Sequence[str] | str] = None`
+- `batch_size: int = 1`（每个随机基的 shots，经典 shadow 常用 1）
+- `seed: Optional[int] = None`
+- `zne: bool = False`
+- `estimator: str = "mean"`（可选：`"mom"`）
+- `mom_groups: Optional[int] = None`
+
+返回：`ShadowResult`。
+
+**返回结构 `ShadowResult`**
+
+- `task_ids: Optional[List[str]]`
+- `samples: Optional[List[List[int]]]`
+- `basis_patterns: Optional[List[List[str]]]`
+- `observable_estimates: Optional[Dict[str, float]]`
+- `observable_estimates_raw: Optional[Dict[str, float]]`（仅 ZNE 时）
+- `observable_stderr: Optional[Dict[str, float]]`
+- `observable_stderr_raw: Optional[Dict[str, float]]`（仅 ZNE 时）
+- `num_samples: Optional[int]`
+
+#### `run_vqe(...) -> VQEResult`
+
+基于量子测量的变分优化，默认采用横场 Ising 模型，使用参数移位法估计梯度与 Adam 优化。
+
+参数：
+
+- `name: str`
+- `num_qubits: int`
+- `model: str = "ising"`
+- `j: float = 1.0`, `h: float = 1.0`
+- `jx/jy/jz/hz`（Heisenberg/XY）
+- `jxy/jz/hz`（XXZ）
+- `layers: int = 1`
+- `shots: int = 1024`
+- `max_iters: int = 20`
+- `learning_rate: float = 0.1`
+- `beta1: float = 0.9`, `beta2: float = 0.999`, `eps: float = 1e-8`
+- `shift: float = π/2`
+
+常用哈密顿量构建：
+
+- `build_ising_hamiltonian`
+- `build_heisenberg_hamiltonian`
+- `build_xxz_hamiltonian`
+- `build_xy_hamiltonian`
+- `build_custom_hamiltonian`
+
+返回：`VQEResult`。
+
+**返回结构 `VQEResult`**
+
+- `best_energy: float`
+- `best_params: List[float]`
+- `energy_history: List[float]`
+- `params_history: Optional[List[List[float]]]`
+- `grad_history: Optional[List[List[float]]]`
+
+#### `run_qaoa(...) -> QAOAResult`
+
+QAOA 组合优化接口，当前支持 MaxCut。
+
+参数：
+
+- `name: str`
+- `num_qubits: int`
+- `problem: str = "maxcut"`
+- `edges: List[Tuple[int,int]]`
+- `weights: Optional[List[float]] = None`
+- `p: int = 1`
+- `learning_rate: float = 0.1`
+- `beta1: float = 0.9`, `beta2: float = 0.999`, `eps: float = 1e-8`
+
+返回：`QAOAResult`。
+
+**返回结构 `QAOAResult`**
+
+- `best_cost: float`
+- `best_params: List[float]`
+- `cost_history: List[float]`
+- `params_history: Optional[List[List[float]]]`
+- `grad_history: Optional[List[List[float]]]`
+
 ## 线路构建函数（`quantum_hw.circuits`）
 
 - `build_ghz(num_qubits: int, measure: bool = False)`

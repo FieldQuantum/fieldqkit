@@ -7,6 +7,9 @@
 - ZNE：将编译后所有 CZ 门三倍插入并做线性外推
 - Readout 误差缓解：按物理比特做校准并缓存
 - 结果处理：采样、Pauli observables、概率分布 $p$
+- Shadow tomography：随机测量基的可观测量估计
+- VQE：基于量子测量的变分优化框架（Adam 优化，默认 Ising 模型）
+- QAOA：经典组合优化问题到量子电路的接口（MaxCut）
 
 ## 安装
 
@@ -95,5 +98,80 @@ print(result.probabilities)
 - `samples`：采样结果
 - `probabilities` / `probabilities_raw`
 - `observable_values` / `observable_values_raw`
+
+### `QuantumHardwareClient.run_shadow(...)`
+
+用于 classical shadow tomography。
+
+常用参数：
+
+- `circuit: str`：线路名称或 OpenQASM2
+- `name: str`
+- `num_qubits: int`
+- `shots: int = 8192`
+- `observables: Optional[Sequence[str] | str] = None`
+- `batch_size: int = 1`（每个随机基的 shots，经典 shadow 常用 1）
+- `seed: Optional[int] = None`
+- `zne: bool = False`
+- `estimator: str = "mean"`（可选：`"mom"`）
+- `mom_groups: Optional[int] = None`
+
+返回 `ShadowResult`，包含：
+
+- `task_ids`
+- `samples`、`basis_patterns`
+- `observable_estimates`、`observable_stderr`
+- `observable_estimates_raw`、`observable_stderr_raw`（仅 ZNE 时）
+
+### `QuantumHardwareClient.run_vqe(...)`
+
+VQE 变分优化，当前默认模型为 Ising（横场 Ising），优化器为 Adam。
+
+常用参数：
+
+- `name: str`
+- `num_qubits: int`
+- `model: str = "ising"`
+- `j: float = 1.0`, `h: float = 1.0`（Ising）
+- `jx/jy/jz/hz`（Heisenberg/XY）
+- `jxy/jz/hz`（XXZ）
+- `layers: int = 1`
+- `shots: int = 1024`
+- `max_iters: int = 20`
+- `learning_rate: float = 0.1`
+- `beta1: float = 0.9`, `beta2: float = 0.999`, `eps: float = 1e-8`
+- `shift: float = π/2`
+
+常用哈密顿量构建：
+
+- `build_ising_hamiltonian`
+- `build_heisenberg_hamiltonian`
+- `build_xxz_hamiltonian`
+- `build_xy_hamiltonian`
+- `build_custom_hamiltonian`
+
+返回 `VQEResult`，包含：
+
+- `best_energy`、`best_params`
+- `energy_history`
+
+### `QuantumHardwareClient.run_qaoa(...)`
+
+QAOA 组合优化（当前支持 MaxCut）。
+
+常用参数：
+
+- `name: str`
+- `num_qubits: int`
+- `problem: str = "maxcut"`
+- `edges: List[Tuple[int,int]]`
+- `weights: Optional[List[float]] = None`
+- `p: int = 1`
+- `learning_rate: float = 0.1`
+
+返回 `QAOAResult`，包含：
+
+- `best_cost`、`best_params`
+- `cost_history`
 
 更详细的函数说明请见 [docs/DOCUMENTATION.md](docs/DOCUMENTATION.md)。
