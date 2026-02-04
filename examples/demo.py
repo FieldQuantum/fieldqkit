@@ -1,36 +1,17 @@
 import datetime
-import matplotlib.pyplot as plt
 
 from quantum_hw import QuantumHardwareClient
-
-
-def _plot_probabilities(probabilities, num_qubits: int) -> None:
-    if probabilities is None:
-        return
-    probs = probabilities
-    if isinstance(probabilities, list) and probabilities and isinstance(probabilities[0], list):
-        probs = probabilities[0]
-    x = list(range(len(probs)))
-    plt.figure(figsize=(10, 4))
-    plt.bar(x, probs, color="#4C78A8")
-    if len(probs) <= 32:
-        labels = [format(i, f"0{num_qubits}b") for i in x]
-        plt.xticks(x, labels, rotation=90)
-    plt.xlabel("Basis state")
-    plt.ylabel("Probability")
-    plt.title("Measurement probabilities")
-    plt.tight_layout()
-    plt.show()
+from quantum_hw.plotting import plot_observables_compare, plot_probabilities_compare
 
 if __name__ == "__main__":
     num_qubits = 6
-    circuit = 'ghz'
+    circuit = 'ghz' # 'cluster', 'QFT', 'Ising evolution'
     date = datetime.date.today()
     name = f'Demo_{circuit}_{num_qubits}_{date}'
     zne = True
     shots = 50000
     readout_mitigation = True
-    observables = ['IIZZII']
+    observables = ['ZIIIIZ']
     return_probabilities = True
 
     token = "5gjq36bZsMvqFoSNomvnfPy4y[iDJWe[tBx9fIndISQ/:m{O5FEPyRkM4B{N{RkNyd{OypkJxiY[jxjJ4RkPyBkPxJEJ4FUMyBUM3JENzJjPjRYZqKDMxpkJtWnemynJtJTcwOnMtmXZueHRu2XcwW4[vWHbkWYfjpkJzW3d2Kzf"
@@ -44,8 +25,10 @@ if __name__ == "__main__":
         zne=zne,
         readout_mitigation=readout_mitigation,
         observables=observables,
-        return_probabilities=return_probabilities
+        return_probabilities=return_probabilities,
+        prefer_chips='Yudu'
     )
-    print("Expectation Value:", results.observable_values)
-    print("Probabilities:", results.probabilities)
-    _plot_probabilities(results.probabilities, num_qubits)
+    print("Expectation Value (Raw):", results.observable_values_raw)
+    print("Expectation Value (Mitigated):", results.observable_values)
+    plot_probabilities_compare(results.probabilities_raw, results.probabilities, num_qubits)
+    plot_observables_compare(results.observable_values_raw, results.observable_values)

@@ -67,7 +67,6 @@ class QuantumHardwareClient:
         name: str,
         qasm: str,
         shots: int,
-        compile: bool = False,
         chip_name: Optional[str] = None,
     ):
         if chip_name is None and self.chip_name is None:
@@ -77,7 +76,7 @@ class QuantumHardwareClient:
             "name": name,
             "circuit": qasm,
             "shots": shots,
-            "compile": compile,
+            "compile": False,
         }
         task_id = self.tmgr.run(task)
         while True:
@@ -93,7 +92,6 @@ class QuantumHardwareClient:
         name: str,
         qasm: str,
         shots: int,
-        compile: bool = False,
         chip_name: Optional[str] = None,
     ):
         if chip_name is None and self.chip_name is None:
@@ -103,7 +101,7 @@ class QuantumHardwareClient:
             "name": name,
             "circuit": qasm,
             "shots": shots,
-            "compile": compile,
+            "compile": False,
         }
         return self.tmgr.run(task)
 
@@ -144,6 +142,7 @@ class QuantumHardwareClient:
                 continue
             cached_confusion[int(q)] = mat
         if not missing:
+            print("[readout] use cached readout calibration")
             return CalibrationResult(
                 target_qubits=target_qubits,
                 per_qubit_confusion=cached_confusion,
@@ -155,6 +154,7 @@ class QuantumHardwareClient:
             backend = self.chip_backend
 
         per_qubit_confusion: Dict[int, np.ndarray] = {}
+        print("[readout] run readout calibration on hardware")
         pending: List[Tuple[object, int, str]] = []
         for q in missing:
             for bits, qc in self._readout_calibration_circuits():
@@ -163,7 +163,6 @@ class QuantumHardwareClient:
                     name=f"readout_cal_q{q}_{bits}",
                     qasm=qct.to_openqasm2,
                     shots=shots,
-                    compile=False,
                     chip_name=chip_name,
                 )
                 pending.append((task_id, q, bits))
@@ -287,13 +286,14 @@ class QuantumHardwareClient:
         observables: Optional[Sequence[str] | str] = None,
         return_probabilities: bool = False,
         target_qubits: Optional[Sequence[int]] = None,
-        compile: bool = False,
     ) -> RunResult:
         if isinstance(observables, str):
             observables = [observables]
         if observables is None:
             observables = []
         observables = list(observables)
+
+        print("[hardware] which hardware:", chip_name)
 
         supports_by_obs = {obs: pauli_support(obs, num_qubits=num_qubits) for obs in observables}
 
@@ -322,9 +322,9 @@ class QuantumHardwareClient:
                 name=f"{name}_g{gi}",
                 qasm=qasm_1,
                 shots=shots,
-                compile=compile,
                 chip_name=chip_name,
             )
+            print("[run] compile and run circuit:", f"{name}_g{gi}")
             pending.append((gi, "1", task_id_1))
             task_ids.append(task_id_1)
 
@@ -334,13 +334,20 @@ class QuantumHardwareClient:
                     name=f"{name}_g{gi}_zne3",
                     qasm=qasm_3,
                     shots=shots,
-                    compile=compile,
                     chip_name=chip_name,
                 )
+                print("[run] run circuit:", f"zero-noise extrapolation")
                 pending.append((gi, "3", task_id_3))
                 task_ids.append(task_id_3)
 
             group_meta.append({"basis": basis_pattern, "observables": group["observables"], "qasm_1": qasm_1})
+
+        if target_qubits is None:
+            target_qubits_group = extract_qubits_from_openqasm2(qasm_1)
+        else:
+            target_qubits_group = target_qubits
+
+        print("[run] which qubits:", list(target_qubits_group) if target_qubits_group is not None else "auto")
 
         group_counts: Dict[int, Dict[str, Dict[str, int]]] = {i: {} for i in range(len(group_meta))}
         for gi, scale, task_id in pending:
@@ -352,7 +359,9 @@ class QuantumHardwareClient:
 
         samples_list: List[List[List[int]] | None] = []
         probabilities_list: List[List[float] | None] = []
+        probabilities_raw_list: List[List[float] | None] = []
         observable_values: Dict[str, float] = {}
+        observable_values_raw: Dict[str, float] = {}
 
         for gi, meta in enumerate(group_meta):
             counts_1 = group_counts[gi]["1"]
@@ -370,13 +379,23 @@ class QuantumHardwareClient:
                 probs = probs / s
 
             samples = get_samples(counts_1, num_qubits)
-            probabilities = probs if return_probabilities or readout_mitigation or meta["observables"] else None
+            raw_probabilities = probs if return_probabilities or readout_mitigation or meta["observables"] else None
+            if raw_probabilities is not None:
+                raw_probabilities = raw_probabilities.copy()
+            probabilities = raw_probabilities.copy() if raw_probabilities is not None else None
+
+            for obs in meta["observables"]:
+                if obs in observable_values_raw:
+                    continue
+                support = supports_by_obs[obs]
+                if raw_probabilities is not None and support:
+                    local_probs = marginal_probabilities(raw_probabilities, num_qubits, support)
+                    val = expectation_from_probabilities(local_probs, support)
+                else:
+                    val = pauli_expectation(samples, obs)
+                observable_values_raw[obs] = float(np.clip(val, -1.0, 1.0))
 
             if readout_mitigation:
-                if target_qubits is None:
-                    target_qubits_group = extract_qubits_from_openqasm2(meta["qasm_1"])
-                else:
-                    target_qubits_group = target_qubits
                 if len(target_qubits_group) != num_qubits:
                     raise ValueError(
                         f"num_qubits ({num_qubits}) must match len(target_qubits) ({len(target_qubits_group)}) for readout mitigation"
@@ -419,19 +438,33 @@ class QuantumHardwareClient:
 
             samples_list.append(samples.tolist() if isinstance(samples, np.ndarray) else samples)
             probabilities_list.append(probabilities.tolist() if probabilities is not None else None)
+            probabilities_raw_list.append(raw_probabilities.tolist() if raw_probabilities is not None else None)
 
         observable_values_out = observable_values if observables else None
         if len(observables) == 1 and observable_values_out is not None:
             observable_values_out = observable_values_out.get(observables[0])
 
+        observable_values_raw_out = None
+        if readout_mitigation and observables:
+            observable_values_raw_out = observable_values_raw
+            if len(observables) == 1 and observable_values_raw_out is not None:
+                observable_values_raw_out = observable_values_raw_out.get(observables[0])
+
         samples_out = samples_list[0] if len(samples_list) == 1 else samples_list
         probabilities_out = probabilities_list[0] if len(probabilities_list) == 1 else probabilities_list
+        probabilities_raw_out = None
+        if readout_mitigation:
+            probabilities_raw_out = probabilities_raw_list[0] if len(probabilities_raw_list) == 1 else probabilities_raw_list
+
+        print("[finish] returning results")
 
         return RunResult(
             task_ids=[str(t) for t in task_ids] if task_ids else None,
             samples=samples_out,
             probabilities=probabilities_out,
+            probabilities_raw=probabilities_raw_out,
             observable_values=observable_values_out,
+            observable_values_raw=observable_values_raw_out,
         )
 
     def run_auto(
@@ -447,15 +480,14 @@ class QuantumHardwareClient:
         observables: Optional[Sequence[str] | str] = None,
         return_probabilities: bool = False,
         target_qubits: Optional[Sequence[int]] = None,
-        compile: bool = False,
         prefer_chips: Optional[Sequence[str] | str] = None,
         rank_weights: Optional[Dict[str, float]] = None,
     ) -> RunResult:
+        print("[hardware] read hardware information and select")
         if circuit[:4] == "OPEN":
-            qc = QuantumCircuit.from_openqasm2(circuit)
+            qc = QuantumCircuit.from_openqasm2(openqasm2_str=circuit)
         else:
             qc = self.build_circuit(circuit, num_qubits=num_qubits)
-
         ranked_chips = rank_chips(
             self.tmgr,
             num_qubits=num_qubits,
@@ -484,7 +516,6 @@ class QuantumHardwareClient:
                 observables=observables,
                 return_probabilities=return_probabilities,
                 target_qubits=target_qubits,
-                compile=compile,
             )
             #     break
             # except Exception as exc:

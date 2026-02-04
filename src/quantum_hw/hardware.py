@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from typing import Dict, List, Optional, Sequence, Tuple, Union
+from pathlib import Path
 
 from quark.circuit import Backend
 
@@ -14,7 +15,21 @@ def get_available_chip_status(tmgr) -> Dict[str, int]:
 
 def get_chip_info(chip_name: str) -> Dict[str, Union[int, float]]:
     try:
-        info = Backend(chip_name).chip_info
+        backend = Backend(chip_name)
+        info = backend.chip_info
+        try:
+            cache_dir = Path(__file__).resolve().parent / ".cache"
+            cache_dir.mkdir(parents=True, exist_ok=True)
+            fig_path = cache_dir / f"{chip_name}_chip"
+            backend.draw(
+                show_couplers_fidelity=True,
+                show_qubits_attributes="fidelity",
+                save_svg_fname=str(fig_path),
+                show_qubits_index=True,
+                edge_fidelity_thres=0.9,
+            )
+        except Exception:
+            pass
         if isinstance(info, dict):
             return info
     except Exception:
