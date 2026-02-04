@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import List
 
 import numpy as np
-from quark.circuit import QuantumCircuit
+from ..circuit import QuantumCircuit
 
 
 def build_ghz(num_qubits: int, measure: bool = False) -> QuantumCircuit:

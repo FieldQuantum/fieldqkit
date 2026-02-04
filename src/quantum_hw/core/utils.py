@@ -33,6 +33,8 @@ def counts_dict_to_vector(result: Dict[str, int], num_qubits: int, reverse_bits:
 
 def get_probabilities(result: Dict[str, int], num_qubits: int) -> np.ndarray:
 	"""Normalize counts into a probability vector (hardware bit order handled)."""
+	# Hardware results typically report bitstrings in little-endian order.
+	# We reverse bits to keep a consistent logical ordering across the stack.
 	counts = counts_dict_to_vector(result, num_qubits, reverse_bits=True)
 	total = counts.sum()
 	if total == 0:
@@ -42,6 +44,7 @@ def get_probabilities(result: Dict[str, int], num_qubits: int) -> np.ndarray:
 
 def get_samples(result: Dict[str, int], num_qubits: int) -> np.ndarray:
 	"""Expand counts into a sample array aligned with get_probabilities bit order."""
+	# Match the same logical ordering as get_probabilities by reversing bitstrings.
 	samples = []
 	for key, count in result.items():
 		bits = [int(b) for b in key[::-1]]

@@ -24,7 +24,7 @@ import networkx as nx
 from typing import Literal
 from .basepasses import TranspilerPass
 from .dag import qc2dag, dag2qc
-from quark.circuit.quantumcircuit_helpers import (
+from ..circuit.quantumcircuit_helpers import (
     one_qubit_gates_available,
     two_qubit_gates_available,
     one_qubit_parameter_gates_available,

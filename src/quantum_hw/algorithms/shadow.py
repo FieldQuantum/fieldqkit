@@ -27,6 +27,7 @@ def _observable_to_codes(observable: str, num_qubits: int) -> np.ndarray:
 
 
 def _median_of_means(values: np.ndarray, groups: int) -> Tuple[float, float]:
+    """Median-of-means estimator for heavy-tailed noise robustness."""
     if groups <= 1:
         mean = float(values.mean())
         stderr = float(values.std(ddof=1) / np.sqrt(values.size)) if values.size > 1 else 0.0
@@ -73,6 +74,7 @@ def estimate_observables(
         if not np.any(mask):
             sample_values = np.ones(nshots, dtype=float)
         else:
+            # Only samples measured in the matching basis contribute.
             basis_match = np.all(basis_codes[:, mask] == op_codes[mask], axis=1)
             eigen = 1.0 - 2.0 * samples[:, mask]
             values = np.prod(3.0 * eigen, axis=1)
@@ -131,6 +133,7 @@ def run_shadow_with_backend(
 
     while remaining > 0:
         shots_batch = min(batch_size, remaining)
+        # Randomly draw a measurement basis per batch.
         basis_pattern = rng.choice(_BASIS_CHOICES, size=num_qubits).tolist()
         qc_batch = deepcopy(qc)
         append_measurement_basis(qc_batch, basis_pattern)
@@ -146,6 +149,7 @@ def run_shadow_with_backend(
         task_ids.append(str(task_id_1))
 
         if zne:
+            # Run a 3x-noise scaled circuit for linear extrapolation.
             qct_3 = apply_zne_cz_tripling(qct)
             qasm_3 = qct_3.to_openqasm2
             task_id_3 = client._submit_openqasm_async(

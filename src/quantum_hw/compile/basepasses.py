@@ -22,7 +22,8 @@ This module contains the TranspilerPass class, an abstract base class for defini
 """
 
 from abc import ABC, abstractmethod
-from quark.circuit.quantumcircuit import QuantumCircuit
+
+from ..circuit import QuantumCircuit
 
 
 class TranspilerPass(ABC):

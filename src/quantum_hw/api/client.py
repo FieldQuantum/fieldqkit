@@ -8,7 +8,9 @@ from pathlib import Path
 
 import numpy as np
 from quark import Task
-from quark.circuit import Backend, QuantumCircuit
+from quark.circuit import Backend
+
+from ..circuit import QuantumCircuit
 
 from ..compile import Transpiler
 from ..core.circuits import build_cluster, build_ghz, build_ising_time_evolution, build_qft
@@ -47,6 +49,16 @@ class QuantumHardwareClient:
 		self.chip_name = None
 		self.tmgr = Task(token)
 		self.chip_backend = None
+
+	@staticmethod
+	def _is_openqasm2(source: str) -> bool:
+		"""Return True when the string looks like an OpenQASM2 program."""
+		return source.strip().upper().startswith("OPENQASM")
+
+	@staticmethod
+	def _has_measurements(qc: QuantumCircuit) -> bool:
+		"""Check whether the circuit already contains measurement operations."""
+		return any(gate[0] == "measure" for gate in getattr(qc, "gates", []))
 
 	def build_circuit(self, kind: str, **kwargs) -> QuantumCircuit:
 		"""Build a predefined circuit by name."""
@@ -325,6 +337,7 @@ class QuantumHardwareClient:
 
 		supports_by_obs = {obs: pauli_support(obs, num_qubits=num_qubits) for obs in observables}
 
+		# Group observables by compatible measurement bases to reduce task count.
 		if observables:
 			groups = group_observables(observables, num_qubits=num_qubits)
 		else:
@@ -335,6 +348,9 @@ class QuantumHardwareClient:
 			qc = deepcopy(qc)
 			if basis_pattern is not None:
 				append_measurement_basis(qc, basis_pattern)
+			elif not self._has_measurements(qc):
+				# Ensure we can always collect counts/samples even without observables.
+				qc.measure_all()
 			qct = self._transpile_with_backend(qc, backend, target_qubits=target_qubits)
 			if scale_zne:
 				qct = apply_zne_cz_tripling(qct)
@@ -379,6 +395,7 @@ class QuantumHardwareClient:
 		print("[run] which qubits:", list(target_qubits_group) if target_qubits_group is not None else "auto")
 
 		group_counts: Dict[int, Dict[str, Dict[str, int]]] = {i: {} for i in range(len(group_meta))}
+		# Collect counts for each group (and ZNE scale if enabled).
 		for gi, scale, task_id in pending:
 			status = self._wait_task(task_id)
 			if status != "Finished":
@@ -514,8 +531,8 @@ class QuantumHardwareClient:
 	) -> RunResult:
 		"""Automatically select hardware, run, and return results."""
 		print("[hardware] read hardware information and select")
-		if circuit[:4] == "OPEN":
-			qc = QuantumCircuit.from_openqasm2(openqasm2_str=circuit)
+		if self._is_openqasm2(circuit):
+			qc = QuantumCircuit().from_openqasm2(openqasm2_str=circuit)
 		else:
 			qc = self.build_circuit(circuit, num_qubits=num_qubits)
 		ranked_chips = rank_chips(
@@ -565,11 +582,11 @@ class QuantumHardwareClient:
 		rank_weights: Optional[Dict[str, float]] = None,
 		seed: Optional[int] = None,
 		batch_size: int = 1,
-	) -> RunResult:
+	) -> ShadowResult:
 		"""Run classical shadow tomography on selected hardware."""
 		print("[shadow] read hardware information and select")
-		if circuit[:4] == "OPEN":
-			qc = QuantumCircuit.from_openqasm2(openqasm2_str=circuit)
+		if self._is_openqasm2(circuit):
+			qc = QuantumCircuit().from_openqasm2(openqasm2_str=circuit)
 		else:
 			qc = self.build_circuit(circuit, num_qubits=num_qubits)
 

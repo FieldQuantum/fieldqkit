@@ -65,6 +65,8 @@
 
 - 当 `return_probabilities=False` 且 `observables` 为空时，`probabilities` 可能为 `None`。
 - Readout 缓存默认有效期 1 小时，按芯片存单文件，按比特更新时间戳。
+- 当 `readout_mitigation=True` 且未提供 `target_qubits` 时，会使用转译后 QASM 中的物理比特集合；
+  为避免逻辑-物理映射不一致，建议显式传入 `target_qubits`。
 
 #### `run_shadow(...) -> ShadowResult`
 
@@ -90,6 +92,7 @@
 - `task_ids: Optional[List[str]]`
 - `samples: Optional[List[List[int]]]`
 - `basis_patterns: Optional[List[List[str]]]`
+- `observables: Optional[List[str]]`
 - `observable_estimates: Optional[Dict[str, float]]`
 - `observable_estimates_raw: Optional[Dict[str, float]]`（仅 ZNE 时）
 - `observable_stderr: Optional[Dict[str, float]]`
@@ -135,6 +138,7 @@
 - `energy_history: List[float]`
 - `params_history: Optional[List[List[float]]]`
 - `grad_history: Optional[List[List[float]]]`
+- `last_expectations: Optional[Dict[str, float]]`
 
 #### `run_qaoa(...) -> QAOAResult`
 
@@ -163,6 +167,7 @@ QAOA 组合优化接口，当前支持 MaxCut。
 - `cost_history: List[float]`
 - `params_history: Optional[List[List[float]]]`
 - `grad_history: Optional[List[List[float]]]`
+- `last_expectations: Optional[Dict[str, float]]`
 
 ## 线路构建函数（`quantum_hw.core.circuits`）
 

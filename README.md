@@ -73,6 +73,8 @@ print(result.probabilities)
 - `samples`、`probabilities`、`observable_values` 会随输入形态自动折叠（单个 vs 多个）。
 - Readout 缓存按芯片单文件保存，按比特更新时间戳，默认有效期 1 小时。
 - `run_auto()` 支持 `prefer_chips`（字符串或列表）与 `rank_weights`（加权排序）。
+- 当 `readout_mitigation=True` 且未提供 `target_qubits` 时，会使用转译后 QASM 中的物理比特集合；
+    为避免逻辑-物理映射不一致，建议显式传入 `target_qubits`。
 
 ## Pauli string 格式
 
@@ -128,8 +130,10 @@ print(result.probabilities)
 
 - `task_ids`
 - `samples`、`basis_patterns`
+- `observables`
 - `observable_estimates`、`observable_stderr`
 - `observable_estimates_raw`、`observable_stderr_raw`（仅 ZNE 时）
+- `num_samples`
 
 ### `QuantumHardwareClient.run_vqe(...)`
 
@@ -165,6 +169,7 @@ VQE 变分优化，当前默认模型为 Ising（横场 Ising），优化器为 
 
 - `best_energy`、`best_params`
 - `energy_history`
+- `last_expectations`（最后一次评估的可观测量期望值）
 
 也可使用 `VQERunner`：
 
@@ -197,6 +202,7 @@ QAOA 组合优化（当前支持 MaxCut）。
 
 - `best_cost`、`best_params`
 - `cost_history`
+- `last_expectations`（最后一次评估的可观测量期望值）
 
 也可使用 `QAOARunner`：
 

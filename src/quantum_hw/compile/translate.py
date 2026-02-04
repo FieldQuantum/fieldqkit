@@ -21,15 +21,15 @@ r"""Translate single- and two-qubit gates in the quantum circuit into basis gate
 
 from typing import Literal
 import numpy as np
-from quark.circuit.quantumcircuit import QuantumCircuit
-from quark.circuit.quantumcircuit_helpers import (
+from ..circuit import QuantumCircuit
+from ..circuit.quantumcircuit_helpers import (
     one_qubit_gates_available,
     one_qubit_parameter_gates_available,
     two_qubit_gates_available,
     two_qubit_parameter_gates_available,
     functional_gates_available,
 )
-from quark.circuit.matrix import gate_matrix_dict
+from ..circuit.matrix import gate_matrix_dict
 from .decompose import (
     cx_decompose,
     cz_decompose,
