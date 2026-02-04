@@ -17,6 +17,8 @@
 
 **用途**：封装硬件任务提交、自动选芯片、readout 校准缓存、ZNE 等逻辑。
 
+> 模块结构：API 层为 `quantum_hw.api`，通用工具在 `quantum_hw.core`，编译入口在 `quantum_hw.compile`。
+
 **构造函数**
 
 - `QuantumHardwareClient(token: str)`
@@ -112,6 +114,9 @@
 - `learning_rate: float = 0.1`
 - `beta1: float = 0.9`, `beta2: float = 0.999`, `eps: float = 1e-8`
 - `shift: float = π/2`
+- `target_qubits: Optional[Sequence[int]] = None`
+- `prefer_chips: Optional[Sequence[str] | str] = None`
+- `rank_weights: Optional[Dict[str, float]] = None`
 
 常用哈密顿量构建：
 
@@ -145,6 +150,9 @@ QAOA 组合优化接口，当前支持 MaxCut。
 - `p: int = 1`
 - `learning_rate: float = 0.1`
 - `beta1: float = 0.9`, `beta2: float = 0.999`, `eps: float = 1e-8`
+- `target_qubits: Optional[Sequence[int]] = None`
+- `prefer_chips: Optional[Sequence[str] | str] = None`
+- `rank_weights: Optional[Dict[str, float]] = None`
 
 返回：`QAOAResult`。
 
@@ -156,7 +164,7 @@ QAOA 组合优化接口，当前支持 MaxCut。
 - `params_history: Optional[List[List[float]]]`
 - `grad_history: Optional[List[List[float]]]`
 
-## 线路构建函数（`quantum_hw.circuits`）
+## 线路构建函数（`quantum_hw.core.circuits`）
 
 - `build_ghz(num_qubits: int, measure: bool = False)`
   - 构建 GHZ 线路。
@@ -169,7 +177,7 @@ QAOA 组合优化接口，当前支持 MaxCut。
 
 `measure=True` 时自动追加测量。
 
-## Observables（`quantum_hw.observables`）
+## Observables（`quantum_hw.core.observables`）
 
 主要函数：
 
@@ -183,7 +191,7 @@ Pauli string 支持两种格式：
 - 显式索引：`"Z0 X2 Y3 I4"`
 - 固定长度字符串：`"ZZIX"`
 
-## Readout（`quantum_hw.readout`）
+## Readout（`quantum_hw.core.readout`）
 
 主要函数：
 
@@ -197,7 +205,7 @@ Pauli string 支持两种格式：
 - 按芯片单文件缓存（`readout_<chip>.json`）。
 - 按比特独立时间戳，缺失/过期只重跑该比特。
 
-## ZNE（`quantum_hw.zne`）
+## ZNE（`quantum_hw.core.zne`）
 
 - `apply_zne_cz_tripling(qct)`：对编译后电路 CZ 门做三倍插入。
 - `zne_linear_extrapolate(probs_1, probs_3)`：线性外推去噪。

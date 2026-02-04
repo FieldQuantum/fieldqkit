@@ -1,7 +1,7 @@
 import datetime
 
 from quantum_hw import QuantumHardwareClient
-from quantum_hw.plotting import plot_observables_compare, plot_probabilities_compare
+from quantum_hw.core.plotting import plot_observables_compare, plot_probabilities_compare
 
 if __name__ == "__main__":
     num_qubits = 6
@@ -26,7 +26,7 @@ if __name__ == "__main__":
         readout_mitigation=readout_mitigation,
         observables=observables,
         return_probabilities=return_probabilities,
-        # prefer_chips='Yudu'
+        prefer_chips='Yudu'
     )
     print("Expectation Value (Raw):", results.observable_values_raw)
     print("Expectation Value (Mitigated):", results.observable_values)

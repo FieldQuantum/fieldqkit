@@ -6,8 +6,8 @@ from typing import Callable, Dict, List, Optional, Sequence, Tuple
 import numpy as np
 from quark.circuit import Backend, QuantumCircuit
 
-from ..observables import pauli_support
-from ..types import QAOAResult
+from ..core.observables import pauli_support
+from ..core.types import QAOAResult
 
 
 Edge = Tuple[int, int]

@@ -6,10 +6,10 @@ from typing import Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
 
-from ..observables import append_measurement_basis, pauli_basis_pattern
-from ..types import ShadowResult
-from ..utils import get_samples
-from ..zne import apply_zne_cz_tripling, zne_linear_extrapolate
+from ..core.observables import append_measurement_basis, pauli_basis_pattern
+from ..core.types import ShadowResult
+from ..core.utils import get_samples
+from ..core.zne import apply_zne_cz_tripling, zne_linear_extrapolate
 
 
 _BASIS_CHOICES = ("X", "Y", "Z")
