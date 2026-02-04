@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 
 
 def _flatten_probabilities(probabilities):
+    """Flatten probability lists from grouped runs into a single vector."""
     if probabilities is None:
         return None
     if isinstance(probabilities, list) and probabilities and isinstance(probabilities[0], list):
@@ -12,6 +13,7 @@ def _flatten_probabilities(probabilities):
 
 
 def _select_key_basis(raw_probs, mit_probs, num_qubits: int, max_states: int = 16):
+    """Select representative basis states for visualization."""
     total = len(raw_probs)
     if total <= max_states:
         return list(range(total))
@@ -24,6 +26,7 @@ def _select_key_basis(raw_probs, mit_probs, num_qubits: int, max_states: int = 1
 
 
 def plot_probabilities_compare(raw, mitigated, num_qubits: int, max_labels: int = 16) -> None:
+    """Plot raw vs mitigated probabilities for selected basis states."""
     raw_probs = _flatten_probabilities(raw)
     mit_probs = _flatten_probabilities(mitigated)
     if raw_probs is None and mit_probs is None:
@@ -50,6 +53,7 @@ def plot_probabilities_compare(raw, mitigated, num_qubits: int, max_labels: int 
 
 
 def plot_observables_compare(raw, mitigated) -> None:
+    """Plot comparison of observable expectations (scalar or dict)."""
     if raw is None and mitigated is None:
         return
     if isinstance(mitigated, dict) or isinstance(raw, dict):

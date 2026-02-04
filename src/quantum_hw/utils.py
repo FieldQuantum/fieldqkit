@@ -10,6 +10,7 @@ QASM_QUBIT_PATTERN = re.compile(r"q\[(\d+)\]")
 
 
 def extract_qubits_from_openqasm2(qasm: str) -> List[int]:
+    """Extract qubit indices referenced by an OpenQASM2 string."""
     qubits = set()
     for line in qasm.splitlines():
         stripped = line.strip()
@@ -21,6 +22,7 @@ def extract_qubits_from_openqasm2(qasm: str) -> List[int]:
 
 
 def counts_dict_to_vector(result: Dict[str, int], num_qubits: int, reverse_bits: bool = False) -> np.ndarray:
+    """Convert a counts dict to a dense vector ordered by basis index."""
     bases = [format(i, f"0{num_qubits}b") for i in range(2**num_qubits)]
     counts = np.zeros(len(bases), dtype=int)
     for i, base in enumerate(bases):
@@ -30,6 +32,7 @@ def counts_dict_to_vector(result: Dict[str, int], num_qubits: int, reverse_bits:
 
 
 def get_probabilities(result: Dict[str, int], num_qubits: int) -> np.ndarray:
+    """Normalize counts into a probability vector (hardware bit order handled)."""
     counts = counts_dict_to_vector(result, num_qubits, reverse_bits=True)
     total = counts.sum()
     if total == 0:
@@ -38,9 +41,11 @@ def get_probabilities(result: Dict[str, int], num_qubits: int) -> np.ndarray:
 
 
 def get_samples(result: Dict[str, int], num_qubits: int) -> np.ndarray:
+    """Expand counts into a sample array aligned with get_probabilities bit order."""
     samples = []
     for key, count in result.items():
-        bits = [int(b) for b in key]
+        # Reverse bit order to align with probability vector convention.
+        bits = [int(b) for b in key[::-1]]
         samples.extend([bits] * count)
-    return np.array(samples, dtype=int)[::-1]
+    return np.array(samples, dtype=int)
 

@@ -7,6 +7,7 @@ from quark.circuit import Backend
 
 
 def get_available_chip_status(tmgr) -> Dict[str, int]:
+    """Fetch chip queue status from task manager."""
     status = tmgr.status()
     if not isinstance(status, dict):
         raise RuntimeError("tmgr.status() must return a dict of chip -> queue length")
@@ -14,6 +15,7 @@ def get_available_chip_status(tmgr) -> Dict[str, int]:
 
 
 def get_chip_info(chip_name: str) -> Dict[str, Union[int, float]]:
+    """Get chip metadata and optionally cache a topology drawing."""
     try:
         backend = Backend(chip_name)
         info = backend.chip_info
@@ -44,6 +46,7 @@ def rank_chips(
     prefer_chips: Optional[Sequence[str] | str] = None,
     weights: Optional[Dict[str, float]] = None,
 ) -> List[str]:
+    """Rank chips by queue length, size, and error rate with weights."""
     status = get_available_chip_status(tmgr)
     if isinstance(prefer_chips, str):
         prefer_chips = [prefer_chips]

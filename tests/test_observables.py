@@ -4,6 +4,7 @@ from quantum_hw.observables import pauli_expectation
 
 
 def test_pauli_expectation_z():
+    """Verify Z-basis expectation for a simple sample set."""
     samples = np.array([
         [0, 0, 0],
         [1, 0, 1],

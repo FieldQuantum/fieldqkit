@@ -10,6 +10,7 @@ from .utils import get_probabilities
 
 
 def build_readout_calibration_circuits(num_qubits: int):
+    """Build calibration circuits for all computational basis states."""
     circuits = []
     for i in range(2**num_qubits):
         bits = format(i, f"0{num_qubits}b")
@@ -26,6 +27,7 @@ def build_readout_calibration_circuits(num_qubits: int):
 
 
 def build_confusion_matrix(res_list: Sequence[Dict[str, int]], num_qubits: int) -> np.ndarray:
+    """Build a confusion matrix from calibration results."""
     dim = 2**num_qubits
     mat = np.zeros((dim, dim), dtype=float)
     for i, res in enumerate(res_list):
@@ -35,6 +37,7 @@ def build_confusion_matrix(res_list: Sequence[Dict[str, int]], num_qubits: int) 
 
 
 def build_local_confusion_matrix(per_qubit_confusion: Dict[int, np.ndarray], target_qubits: Sequence[int]) -> np.ndarray:
+    """Tensor product local per-qubit confusion matrices."""
     if not target_qubits:
         raise ValueError("target_qubits is empty")
     mats = [per_qubit_confusion[q] for q in target_qubits]
@@ -45,6 +48,7 @@ def build_local_confusion_matrix(per_qubit_confusion: Dict[int, np.ndarray], tar
 
 
 def mitigate_readout(probabilities: np.ndarray, confusion_matrix: np.ndarray) -> np.ndarray:
+    """Apply readout mitigation using a pseudo-inverse."""
     if confusion_matrix.shape[0] != confusion_matrix.shape[1]:
         raise ValueError("confusion_matrix must be square")
     pinv = np.linalg.pinv(confusion_matrix)
@@ -57,6 +61,7 @@ def mitigate_readout(probabilities: np.ndarray, confusion_matrix: np.ndarray) ->
 
 
 def marginal_probabilities(probabilities: np.ndarray, num_qubits: int, support: Sequence[int]) -> np.ndarray:
+    """Compute marginal probabilities on a subset of qubits."""
     support = list(support)
     if not support:
         return np.array([1.0])
@@ -67,6 +72,7 @@ def marginal_probabilities(probabilities: np.ndarray, num_qubits: int, support: 
 
 
 def expectation_from_probabilities(probabilities: np.ndarray, support: Sequence[int]) -> float:
+    """Compute Z-basis expectation value from probabilities."""
     if not support:
         return 1.0
     num = len(support)
@@ -88,6 +94,7 @@ def apply_readout_mitigation(
     target_qubits: Sequence[int],
     per_qubit_confusion: Dict[int, np.ndarray],
 ):
+    """Mitigate probabilities and return observable expectation when requested."""
     observable_value = None
     if probabilities is not None:
         if len(target_qubits) == num_qubits:
@@ -112,6 +119,7 @@ def apply_readout_mitigation_multi(
     target_qubits: Sequence[int],
     per_qubit_confusion: Dict[int, np.ndarray],
 ):
+    """Mitigate probabilities and compute multiple observables at once."""
     observable_values: Dict[str, float] = {}
     if probabilities is not None:
         if len(target_qubits) == num_qubits:
@@ -132,6 +140,7 @@ def apply_readout_mitigation_multi(
 
 
 def calibrate_readout(Task, Backend, Transpiler, token: str, chip_name: str, target_qubits: List[int], shots: int):
+    """Standalone readout calibration helper (legacy interface)."""
     tmgr = Task(token)
     chip_backend = Backend(chip_name)
 

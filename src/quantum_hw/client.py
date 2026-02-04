@@ -30,12 +30,14 @@ from .zne import apply_zne_cz_tripling, zne_linear_extrapolate
 
 class QuantumHardwareClient:
     def __init__(self, token: str):
+        """Create a hardware client with an access token."""
         self.token = token
         self.chip_name = None
         self.tmgr = Task(token)
         self.chip_backend = None
 
     def build_circuit(self, kind: str, **kwargs) -> QuantumCircuit:
+        """Build a predefined circuit by name."""
         kind = kind.lower()
         if kind == "ghz":
             return build_ghz(**kwargs)
@@ -48,6 +50,7 @@ class QuantumHardwareClient:
         raise ValueError(f"unsupported circuit kind: {kind}")
 
     def transpile(self, qc: QuantumCircuit, target_qubits: Optional[Sequence[int]] = None):
+        """Transpile a circuit using the selected backend."""
         if self.chip_backend is None:
             raise RuntimeError("chip_backend is not set; use run_auto or provide chip_name")
         return self._transpile_with_backend(qc, self.chip_backend, target_qubits=target_qubits)
@@ -58,6 +61,7 @@ class QuantumHardwareClient:
         backend: Backend,
         target_qubits: Optional[Sequence[int]] = None,
     ):
+        """Transpile with a specific backend and optional target qubits."""
         if target_qubits is None:
             return Transpiler(backend).run(qc)
         return Transpiler(backend).run(qc, target_qubits=list(target_qubits))
@@ -69,6 +73,7 @@ class QuantumHardwareClient:
         shots: int,
         chip_name: Optional[str] = None,
     ):
+        """Submit a blocking OpenQASM task and return its counts."""
         if chip_name is None and self.chip_name is None:
             raise RuntimeError("chip_name is not set; use run_auto or provide chip_name")
         task = {
@@ -94,6 +99,7 @@ class QuantumHardwareClient:
         shots: int,
         chip_name: Optional[str] = None,
     ):
+        """Submit an asynchronous OpenQASM task and return its task id."""
         if chip_name is None and self.chip_name is None:
             raise RuntimeError("chip_name is not set; use run_auto or provide chip_name")
         task = {
@@ -106,6 +112,7 @@ class QuantumHardwareClient:
         return self.tmgr.run(task)
 
     def _wait_task(self, task_id):
+        """Wait for a task to finish and return its final status."""
         while True:
             status = self.tmgr.status(task_id)
             if status in {"Finished", "Failed", "Canceled"}:
@@ -119,6 +126,7 @@ class QuantumHardwareClient:
         chip_name: Optional[str] = None,
         backend: Optional[Backend] = None,
     ) -> CalibrationResult:
+        """Calibrate readout error for selected qubits with caching."""
         target_qubits = list(target_qubits)
         if shots is None:
             shots = 1024
@@ -190,12 +198,14 @@ class QuantumHardwareClient:
         return result
 
     def _readout_cache_path(self, *, chip_name: Optional[str]) -> Path:
+        """Resolve the on-disk cache path for readout calibration."""
         cache_dir = Path(__file__).resolve().parent / ".cache"
         cache_dir.mkdir(parents=True, exist_ok=True)
         name = chip_name if chip_name is not None else "unknown"
         return cache_dir / f"readout_{name}.json"
 
     def _load_readout_cache_raw(self, *, chip_name: Optional[str]) -> Dict[str, object]:
+        """Load cached readout data from disk (raw dictionary)."""
         path = self._readout_cache_path(chip_name=chip_name)
         if not path.exists():
             return {"timestamps": {}, "per_qubit_confusion": {}}
@@ -212,6 +222,7 @@ class QuantumHardwareClient:
             return {"timestamps": {}, "per_qubit_confusion": {}}
 
     def _load_readout_cache(self, target_qubits: Sequence[int], *, chip_name: Optional[str]) -> Optional[CalibrationResult]:
+        """Load cached readout data and validate freshness."""
         raw = self._load_readout_cache_raw(chip_name=chip_name)
         timestamps = raw.get("timestamps", {})
         per_qubit = raw.get("per_qubit_confusion", {})
@@ -236,6 +247,7 @@ class QuantumHardwareClient:
         )
 
     def _save_readout_cache(self, result: CalibrationResult, *, chip_name: Optional[str]) -> None:
+        """Persist readout calibration data to cache."""
         path = self._readout_cache_path(chip_name=chip_name)
         raw = self._load_readout_cache_raw(chip_name=chip_name)
         timestamps = raw.get("timestamps", {}) if isinstance(raw, dict) else {}
@@ -251,6 +263,7 @@ class QuantumHardwareClient:
         path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
 
     def _readout_calibration_circuits(self):
+        """Build minimal calibration circuits for a single qubit."""
         circuits = []
         for i in range(2):
             bits = format(i, "01b")
@@ -265,6 +278,7 @@ class QuantumHardwareClient:
         return circuits
 
     def _build_confusion_matrix(self, res_list: Sequence[Dict[str, int]]) -> np.ndarray:
+        """Build a 2x2 confusion matrix from two calibration results."""
         mat = np.zeros((2, 2), dtype=float)
         for i, res in enumerate(res_list):
             probs = get_probabilities(res, 1)
@@ -287,6 +301,7 @@ class QuantumHardwareClient:
         return_probabilities: bool = False,
         target_qubits: Optional[Sequence[int]] = None,
     ) -> RunResult:
+        """Run a circuit on a specific backend with optional mitigation."""
         if isinstance(observables, str):
             observables = [observables]
         if observables is None:
@@ -303,6 +318,7 @@ class QuantumHardwareClient:
             groups = [{"basis": None, "observables": []}]
 
         def _prepare_qasm(qc, basis_pattern: Optional[Sequence[str]], scale_zne: bool) -> str:
+            """Prepare OpenQASM with optional basis rotation and ZNE scaling."""
             qc = deepcopy(qc)
             if basis_pattern is not None:
                 append_measurement_basis(qc, basis_pattern)
@@ -483,6 +499,7 @@ class QuantumHardwareClient:
         prefer_chips: Optional[Sequence[str] | str] = None,
         rank_weights: Optional[Dict[str, float]] = None,
     ) -> RunResult:
+        """Automatically select hardware, run, and return results."""
         print("[hardware] read hardware information and select")
         if circuit[:4] == "OPEN":
             qc = QuantumCircuit.from_openqasm2(openqasm2_str=circuit)

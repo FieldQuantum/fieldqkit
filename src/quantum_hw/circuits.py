@@ -7,6 +7,7 @@ from quark.circuit import QuantumCircuit
 
 
 def build_ghz(num_qubits: int, measure: bool = False) -> QuantumCircuit:
+    """Build a GHZ state circuit with optional measurements."""
     qc = QuantumCircuit(num_qubits)
     qc.h(0)
     for i in range(num_qubits - 1):
@@ -18,6 +19,7 @@ def build_ghz(num_qubits: int, measure: bool = False) -> QuantumCircuit:
 
 
 def build_cluster(num_qubits: int, measure: bool = False) -> QuantumCircuit:
+    """Build a 1D cluster-like circuit with optional measurements."""
     qc = QuantumCircuit(num_qubits)
     for i in range(num_qubits):
         qc.h(i)
@@ -34,6 +36,7 @@ def build_cluster(num_qubits: int, measure: bool = False) -> QuantumCircuit:
 
 
 def _apply_controlled_phase(qc: QuantumCircuit, control: int, target: int, angle: float) -> None:
+    """Apply a controlled phase gate with API fallback."""
     if hasattr(qc, "cp"):
         qc.cp(angle, control, target)
         return
@@ -47,6 +50,7 @@ def _apply_controlled_phase(qc: QuantumCircuit, control: int, target: int, angle
 
 
 def build_qft(num_qubits: int, measure: bool = False, with_swaps: bool = True) -> QuantumCircuit:
+    """Build a QFT circuit with optional swaps and measurements."""
     qc = QuantumCircuit(num_qubits)
     for i in range(num_qubits):
         qc.h(i)
@@ -70,6 +74,7 @@ def build_ising_time_evolution(
     steps: int = 1,
     measure: bool = False,
 ) -> QuantumCircuit:
+    """Build a trotterized Ising time-evolution circuit."""
     qc = QuantumCircuit(num_qubits)
     dt = t / steps
     for _ in range(steps):

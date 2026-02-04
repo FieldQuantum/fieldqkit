@@ -6,6 +6,7 @@ import numpy as np
 
 
 def _parse_pauli_string(pauli: str, num_qubits: int | None = None) -> List[Tuple[int, str]]:
+    """Parse Pauli strings in either compact or indexed form."""
     pauli = pauli.strip()
     if not pauli:
         raise ValueError("pauli string is empty")
@@ -34,18 +35,26 @@ def _parse_pauli_string(pauli: str, num_qubits: int | None = None) -> List[Tuple
 
 
 def pauli_support(pauli: str, num_qubits: int | None = None) -> List[int]:
+    """Return the sorted support indices of non-identity Pauli terms."""
     terms = _parse_pauli_string(pauli, num_qubits=num_qubits)
     return sorted({idx for idx, _ in terms})
 
 
 def append_pauli_measurement(qc, pauli: str) -> None:
+    """Append basis rotations and final measurements for a Pauli string."""
     num_qubits = qc.num_qubits if hasattr(qc, "num_qubits") else None
     terms = _parse_pauli_string(pauli, num_qubits=num_qubits)
     for idx, op in terms:
         if op == "X":
             qc.h(idx)
         elif op == "Y":
-            qc.s(idx)
+            # Use Sdg then H to rotate Y basis to Z.
+            if hasattr(qc, "sdg"):
+                qc.sdg(idx)
+            else:
+                qc.s(idx)
+                qc.s(idx)
+                qc.s(idx)
             qc.h(idx)
         elif op == "Z":
             pass
@@ -54,6 +63,7 @@ def append_pauli_measurement(qc, pauli: str) -> None:
 
 
 def pauli_basis_pattern(pauli: str, num_qubits: int) -> List[str]:
+    """Return basis pattern (I/X/Y/Z) per qubit for a Pauli string."""
     pattern = ["I"] * num_qubits
     terms = _parse_pauli_string(pauli, num_qubits=num_qubits)
     for idx, op in terms:
@@ -62,11 +72,18 @@ def pauli_basis_pattern(pauli: str, num_qubits: int) -> List[str]:
 
 
 def append_measurement_basis(qc, basis_pattern: Sequence[str]) -> None:
+    """Apply basis rotations for a full pattern and append measurements."""
     for idx, op in enumerate(basis_pattern):
         if op == "X":
             qc.h(idx)
         elif op == "Y":
-            qc.s(idx)
+            # Use Sdg then H to rotate Y basis to Z.
+            if hasattr(qc, "sdg"):
+                qc.sdg(idx)
+            else:
+                qc.s(idx)
+                qc.s(idx)
+                qc.s(idx)
             qc.h(idx)
         elif op == "Z" or op == "I":
             pass
@@ -77,6 +94,7 @@ def append_measurement_basis(qc, basis_pattern: Sequence[str]) -> None:
 
 
 def _compatible_with_basis(pattern: Sequence[str], basis: Sequence[str]) -> bool:
+    """Check whether two basis patterns are compatible for grouping."""
     for p, b in zip(pattern, basis):
         if p != "I" and b != "I" and p != b:
             return False
@@ -84,6 +102,7 @@ def _compatible_with_basis(pattern: Sequence[str], basis: Sequence[str]) -> bool
 
 
 def _merge_basis(pattern: Sequence[str], basis: Sequence[str]) -> List[str]:
+    """Merge two compatible basis patterns into a single pattern."""
     merged = list(basis)
     for i, p in enumerate(pattern):
         if merged[i] == "I" and p != "I":
@@ -92,6 +111,7 @@ def _merge_basis(pattern: Sequence[str], basis: Sequence[str]) -> List[str]:
 
 
 def group_observables(observables: Sequence[str], num_qubits: int) -> List[Dict[str, object]]:
+    """Group observables that can share a single measurement basis."""
     groups: List[Dict[str, object]] = []
     for obs in observables:
         pattern = pauli_basis_pattern(obs, num_qubits=num_qubits)
@@ -109,6 +129,7 @@ def group_observables(observables: Sequence[str], num_qubits: int) -> List[Dict[
 
 
 def pauli_expectation(samples: np.ndarray, pauli: str) -> float:
+    """Compute expectation value from measurement samples in a Pauli basis."""
     if samples.ndim != 2:
         raise ValueError("samples must be 2D")
     num_qubits = samples.shape[1]
