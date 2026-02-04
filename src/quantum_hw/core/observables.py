@@ -12,6 +12,7 @@ def _parse_pauli_string(pauli: str, num_qubits: int | None = None) -> List[Tuple
 		raise ValueError("pauli string is empty")
 
 	tokens = pauli.split()
+	# Compact form: "ZZIX" (no indices, fixed length).
 	if len(tokens) == 1 and tokens[0].isalpha():
 		if num_qubits is None:
 			num_qubits = len(tokens[0])
@@ -19,6 +20,7 @@ def _parse_pauli_string(pauli: str, num_qubits: int | None = None) -> List[Tuple
 			raise ValueError("pauli length mismatch with num_qubits")
 		return [(i, p.upper()) for i, p in enumerate(tokens[0]) if p.upper() != "I"]
 
+	# Indexed form: "Z0 X2 Y3" (order doesn't matter).
 	parsed = []
 	for tok in tokens:
 		op = tok[0].upper()
@@ -113,6 +115,7 @@ def group_observables(observables: Sequence[str], num_qubits: int) -> List[Dict[
 	groups: List[Dict[str, object]] = []
 	for obs in observables:
 		pattern = pauli_basis_pattern(obs, num_qubits=num_qubits)
+		# Greedy grouping: merge into the first compatible basis.
 		placed = False
 		for group in groups:
 			basis = group["basis"]
@@ -136,6 +139,7 @@ def pauli_expectation(samples: np.ndarray, pauli: str) -> float:
 	if not terms:
 		return 1.0
 
+	# After basis rotations, measurement bits encode eigenvalues: 0 -> +1, 1 -> -1.
 	eigenvalues = np.ones(samples.shape[0], dtype=float)
 	for idx, op in terms:
 		if op in {"Z", "X", "Y"}:

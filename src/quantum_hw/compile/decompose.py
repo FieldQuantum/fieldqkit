@@ -21,9 +21,10 @@ r"""Some common decomposition methods for two-qubit and three-qubit gates."""
 
 import numpy as np
 from typing import Literal
-from quark.circuit.utils import u3_decompose
-from quark.circuit.matrix import u_mat
-from quark.circuit.quantumcircuit import QuantumCircuit
+
+from ..circuit.utils import u3_decompose
+from ..circuit.matrix import u_mat
+from ..circuit import QuantumCircuit
 from .basepasses import TranspilerPass
 
 

@@ -19,8 +19,9 @@
 
 r"""This module contains the Transpiler class, which is designed to convert quantum circuits into formats that are more suitable for execution on hardware backends"""
 
-from quark.circuit.quantumcircuit import QuantumCircuit
 from quark.circuit.backend import Backend
+
+from ..circuit import QuantumCircuit
 from .decompose import ThreeQubitGateDecompose
 from .layout import Layout
 from .routing import SabreRouting

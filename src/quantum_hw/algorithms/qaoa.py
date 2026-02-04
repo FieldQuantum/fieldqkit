@@ -4,7 +4,9 @@ from dataclasses import dataclass
 from typing import Callable, Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
-from quark.circuit import Backend, QuantumCircuit
+from quark.circuit import Backend
+
+from ..circuit import QuantumCircuit
 
 from ..core.observables import pauli_support
 from ..core.types import QAOAResult
@@ -104,10 +106,12 @@ def build_qaoa_circuit(
         qc.h(q)
 
     for gamma, beta in zip(gammas, betas):
+        # Cost unitary for MaxCut.
         for (i, j), w in zip(edges, weights):
             qc.cx(i, j)
             qc.rz(2.0 * float(gamma) * float(w), j)
             qc.cx(i, j)
+        # Mixer unitary.
         for q in range(num_qubits):
             qc.rx(2.0 * float(beta), q)
     return qc
@@ -239,6 +243,7 @@ def _parameter_shift_gradient_qaoa(
     readout_mitigation: bool,
     target_qubits: Optional[Sequence[int]],
 ) -> np.ndarray:
+    """Parameter-shift gradient for QAOA parameters (gammas, betas)."""
     p = params.size // 2
     grads = np.zeros_like(params, dtype=float)
     for i in range(params.size):
@@ -340,6 +345,7 @@ def run_qaoa_with_backend(
     for it in range(max_iters):
         gammas = params[:p]
         betas = params[p:]
+        # Build the cost + mixer circuit at current parameters.
         if use_terms:
             qc = build_qaoa_circuit_from_terms(num_qubits, gammas, betas, terms)
         else:
@@ -358,6 +364,7 @@ def run_qaoa_with_backend(
             readout_mitigation=readout_mitigation,
             target_qubits=target_qubits,
         )
+        # Gradient via parameter-shift evaluations.
         grads = _parameter_shift_gradient_qaoa(
             client,
             params,

@@ -31,7 +31,8 @@ from itertools import combinations, zip_longest, product
 from multiprocessing import Pool
 from functools import partial
 from quark.circuit.backend import Backend
-from quark.circuit.quantumcircuit import QuantumCircuit
+
+from ..circuit import QuantumCircuit
 from .dag import split_qubits
 
 

@@ -23,8 +23,9 @@ Tools for converting between directed acyclic graphs (DAGs) and quantum circuits
 
 import numpy as np
 import networkx as nx
-from quark.circuit.quantumcircuit import QuantumCircuit
-from quark.circuit.quantumcircuit_helpers import (
+
+from ..circuit import QuantumCircuit
+from ..circuit.quantumcircuit_helpers import (
     one_qubit_gates_available,
     two_qubit_gates_available,
     three_qubit_gates_available,

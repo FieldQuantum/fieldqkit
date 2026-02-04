@@ -4,7 +4,7 @@ from typing import Dict, Iterable, List, Sequence, Tuple
 
 import numpy as np
 
-from quark.circuit import QuantumCircuit
+from ..circuit import QuantumCircuit
 
 from .utils import get_probabilities
 
@@ -65,6 +65,7 @@ def marginal_probabilities(probabilities: np.ndarray, num_qubits: int, support: 
 	support = list(support)
 	if not support:
 		return np.array([1.0])
+	# Reshape into an n-dimensional tensor and sum out non-support axes.
 	probs = probabilities.reshape([2] * num_qubits)
 	axes_to_sum = tuple(i for i in range(num_qubits) if i not in support)
 	marginal = probs.sum(axis=axes_to_sum)
@@ -128,6 +129,7 @@ def apply_readout_mitigation_multi(
 
 	for obs, support in supports_by_observable.items():
 		if support:
+			# Map logical support indices to physical qubits.
 			support_phys = [target_qubits[i] for i in support]
 			local_cm = build_local_confusion_matrix(per_qubit_confusion, support_phys)
 			local_probs = marginal_probabilities(probs, num_qubits, support)

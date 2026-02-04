@@ -23,8 +23,9 @@ merging or compressing adjacent gates.
 """
 
 import numpy as np
-from quark.circuit.quantumcircuit import QuantumCircuit
-from quark.circuit.quantumcircuit_helpers import (
+
+from ..circuit import QuantumCircuit
+from ..circuit.quantumcircuit_helpers import (
     one_qubit_gates_available,
     two_qubit_gates_available,
     one_qubit_parameter_gates_available,
@@ -32,8 +33,8 @@ from quark.circuit.quantumcircuit_helpers import (
     three_qubit_gates_available,
 )
 from .dag import qc2dag, dag2qc
-from quark.circuit.utils import u3_decompose
-from quark.circuit.matrix import u_mat, gate_matrix_dict
+from ..circuit.utils import u3_decompose
+from ..circuit.matrix import u_mat, gate_matrix_dict
 from .basepasses import TranspilerPass
 
 

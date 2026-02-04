@@ -25,7 +25,7 @@ import random
 from typing import Literal
 import networkx as nx
 from networkx import floyd_warshall_numpy
-from quark.circuit.quantumcircuit_helpers import (
+from ..circuit.quantumcircuit_helpers import (
     one_qubit_gates_available,
     two_qubit_gates_available,
     one_qubit_parameter_gates_available,
@@ -33,7 +33,7 @@ from quark.circuit.quantumcircuit_helpers import (
     three_qubit_gates_available,
     functional_gates_available,
 )
-from quark.circuit.quantumcircuit import QuantumCircuit
+from ..circuit import QuantumCircuit
 from .dag import qc2dag, split_qubits
 from .basepasses import TranspilerPass
 import re

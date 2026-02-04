@@ -26,7 +26,7 @@ if __name__ == "__main__":
         readout_mitigation=readout_mitigation,
         observables=observables,
         return_probabilities=return_probabilities,
-        prefer_chips='Yudu'
+        # prefer_chips='Yudu'
     )
     print("Expectation Value (Raw):", results.observable_values_raw)
     print("Expectation Value (Mitigated):", results.observable_values)

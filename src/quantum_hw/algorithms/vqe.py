@@ -4,7 +4,9 @@ from dataclasses import dataclass
 from typing import Callable, Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
-from quark.circuit import QuantumCircuit, Backend
+from quark.circuit import Backend
+
+from ..circuit import QuantumCircuit
 
 from ..core.observables import pauli_support
 from ..core.types import VQEResult
@@ -109,12 +111,14 @@ def build_hardware_efficient_ansatz(
     qc = QuantumCircuit(num_qubits)
     idx = 0
     for _ in range(layers):
+        # Single-qubit rotations.
         for q in range(num_qubits):
             qc.rx(float(params[idx]), q)
             idx += 1
         for q in range(num_qubits):
             qc.ry(float(params[idx]), q)
             idx += 1
+        # Linear entangling layer.
         for q in range(num_qubits - 1):
             qc.cz(q, q + 1)
     return qc
@@ -183,6 +187,7 @@ def _parameter_shift_gradient(
     readout_mitigation: bool,
     target_qubits: Optional[Sequence[int]],
 ) -> np.ndarray:
+    """Compute gradients via parameter-shift rule."""
     grads = np.zeros_like(params, dtype=float)
     for i in range(params.size):
         params_plus = params.copy()
@@ -287,6 +292,7 @@ def run_vqe_with_backend(
     v = np.zeros_like(params, dtype=float)
 
     for it in range(max_iters):
+        # Forward energy evaluation.
         qc = build_hardware_efficient_ansatz(num_qubits, params, layers=layers)
         energy, expectations = _evaluate_energy_with_backend(
             client,
@@ -301,6 +307,7 @@ def run_vqe_with_backend(
             readout_mitigation=readout_mitigation,
             target_qubits=target_qubits,
         )
+        # Gradient via two shifted evaluations per parameter.
         grads = _parameter_shift_gradient(
             client,
             params,
