@@ -6,8 +6,8 @@ from typing import Callable, Dict, List, Optional, Sequence, Tuple
 import numpy as np
 from quark.circuit import QuantumCircuit, Backend
 
-from ..observables import pauli_support
-from ..types import VQEResult
+from ..core.observables import pauli_support
+from ..core.types import VQEResult
 
 
 Hamiltonian = List[Tuple[float, str]]

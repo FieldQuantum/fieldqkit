@@ -1,0 +1,179 @@
+# Copyright (c) 2024 XX Xiao
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files(the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and / or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in
+# all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+"""A toolkit for applying dynamical decoupling (DD) sequences to quantum circuits."""
+
+import copy
+import networkx as nx
+from typing import Literal
+from .basepasses import TranspilerPass
+from .dag import qc2dag, dag2qc
+from quark.circuit.quantumcircuit_helpers import (
+    one_qubit_gates_available,
+    two_qubit_gates_available,
+    one_qubit_parameter_gates_available,
+    two_qubit_parameter_gates_available,
+)
+
+
+class DynamicalDecoupling(TranspilerPass):
+    def __init__(self, t1g, t2g):
+        self.t1g = t1g
+        self.t2g = t2g
+        self._count = 86751
+
+    def counter(self):
+        self._count += 1
+        return self._count
+
+    def _get_max_idle_time(self, nodes):
+        gates = [node.split("_")[0] for node in nodes]
+        one_qubit_gates = list(one_qubit_gates_available.keys()) + list(one_qubit_parameter_gates_available.keys())
+        two_qubit_gates = list(two_qubit_gates_available.keys()) + list(two_qubit_parameter_gates_available.keys())
+        if bool(set(two_qubit_gates) & set(gates)):
+            max_idle_time = self.t2g
+        elif bool(set(one_qubit_gates) & set(gates)):
+            max_idle_time = self.t1g
+        else:
+            max_idle_time = 0
+        return max_idle_time
+
+    def _update_idle_time(self, node, max_idle_time):
+        gate = node.split("_")[0]
+        if gate in one_qubit_gates_available.keys() or gate in one_qubit_parameter_gates_available.keys():
+            return max_idle_time - self.t1g
+        if gate in two_qubit_gates_available.keys():
+            return max_idle_time - self.t2g
+        return 0
+
+    def run(self, qc, sequence: Literal["XY4", "CPMG"] = "XY4", align_right: bool = True, insert_before_barrier: bool = False):
+        if sequence == "XY4":
+            sequence_length = 4
+        elif sequence == "CPMG":
+            sequence_length = 2
+        else:
+            raise ValueError(f"Sequence {sequence} is not support now!")
+
+        dag = qc2dag(qc, show_qubits=False)
+        qubit_idle_time = {k: {"current_node": None, "idle_time": 0} for k in qc.qubits}
+        dag_copy = copy.deepcopy(dag)
+
+        if align_right is True:
+            topological_generations = []
+            rev_dag = dag_copy.reverse()
+            for nodes in nx.topological_generations(rev_dag):
+                topological_generations.insert(0, nodes)
+        else:
+            topological_generations = nx.topological_generations(dag_copy)
+
+        for nodes in topological_generations:
+            max_idle_time = self._get_max_idle_time(nodes)
+            node_qubits_dic = {node: dag_copy.nodes[node]["qubits"] for node in nodes}
+            qubit_node_dic = {}
+            for k, vv in node_qubits_dic.items():
+                for v in vv:
+                    qubit_node_dic[v] = k
+            for qubit, node in qubit_node_dic.items():
+                pre_node = qubit_idle_time[qubit]["current_node"]
+                idle_time = qubit_idle_time[qubit]["idle_time"]
+                if pre_node is None:
+                    if idle_time > 0:
+                        delay_nodes = [(f"delay_{self.counter()}_[{qubit}]", {"qubits": [qubit], "duration": idle_time})]
+                        delay_edges = [(delay_nodes[0][0], node, {"qubit": [qubit]})]
+                        dag.add_nodes_from(delay_nodes)
+                        dag.add_edges_from(delay_edges)
+                    qubit_idle_time[qubit]["idle_time"] = self._update_idle_time(node, max_idle_time)
+                    qubit_idle_time[qubit]["current_node"] = node
+                else:
+                    if idle_time >= self.t1g * sequence_length:
+                        if node.split("_")[0] == "barrier" and insert_before_barrier is False:
+                            qubit_idle_time[qubit]["idle_time"] = self._update_idle_time(node, max_idle_time)
+                            qubit_idle_time[qubit]["current_node"] = node
+                        else:
+                            dag.remove_edge(pre_node, node)
+                            n_dd = int(idle_time // (self.t1g * sequence_length))
+                            GRID_NS = 0.1
+                            tgap_units = round((idle_time - n_dd * sequence_length * self.t1g) / sequence_length / n_dd / (GRID_NS * 1e-9))
+                            tgap = tgap_units * GRID_NS * 1e-9
+                            tgap_half = tgap / 2
+                            if sequence == "XY4":
+                                dd_nodes = []
+                                for idx in range(n_dd):
+                                    if idx == 0:
+                                        if tgap > 0:
+                                            dd_nodes += [(f"delay_{self.counter()}_[{qubit}]", {"qubits": [qubit], "duration": tgap_half})]
+                                    else:
+                                        if tgap > 0:
+                                            dd_nodes += [(f"delay_{self.counter()}_[{qubit}]", {"qubits": [qubit], "duration": tgap})]
+                                    if idx % 2 == 0:
+                                        dd_nodes += [(f"x_{self.counter()}_[{qubit}]", {"qubits": [qubit]})]
+                                        if tgap > 0:
+                                            dd_nodes += [(f"delay_{self.counter()}_[{qubit}]", {"qubits": [qubit], "duration": tgap})]
+                                        dd_nodes += [(f"y_{self.counter()}_[{qubit}]", {"qubits": [qubit]})]
+                                        if tgap > 0:
+                                            dd_nodes += [(f"delay_{self.counter()}_[{qubit}]", {"qubits": [qubit], "duration": tgap})]
+                                        dd_nodes += [(f"x_{self.counter()}_[{qubit}]", {"qubits": [qubit]})]
+                                        if tgap > 0:
+                                            dd_nodes += [(f"delay_{self.counter()}_[{qubit}]", {"qubits": [qubit], "duration": tgap})]
+                                        dd_nodes += [(f"y_{self.counter()}_[{qubit}]", {"qubits": [qubit]})]
+                                    else:
+                                        dd_nodes += [(f"y_{self.counter()}_[{qubit}]", {"qubits": [qubit]})]
+                                        if tgap > 0:
+                                            dd_nodes += [(f"delay_{self.counter()}_[{qubit}]", {"qubits": [qubit], "duration": tgap})]
+                                        dd_nodes += [(f"x_{self.counter()}_[{qubit}]", {"qubits": [qubit]})]
+                                        if tgap > 0:
+                                            dd_nodes += [(f"delay_{self.counter()}_[{qubit}]", {"qubits": [qubit], "duration": tgap})]
+                                        dd_nodes += [(f"y_{self.counter()}_[{qubit}]", {"qubits": [qubit]})]
+                                        if tgap > 0:
+                                            dd_nodes += [(f"delay_{self.counter()}_[{qubit}]", {"qubits": [qubit], "duration": tgap})]
+                                        dd_nodes += [(f"x_{self.counter()}_[{qubit}]", {"qubits": [qubit]})]
+                                    if idx == n_dd - 1:
+                                        if tgap > 0:
+                                            dd_nodes += [(f"delay_{self.counter()}_[{qubit}]", {"qubits": [qubit], "duration": tgap_half})]
+                            else:
+                                dd_nodes = []
+                                for idx in range(n_dd):
+                                    if idx == 0:
+                                        if tgap > 0:
+                                            dd_nodes += [(f"delay_{self.counter()}_[{qubit}]", {"qubits": [qubit], "duration": tgap_half})]
+                                    else:
+                                        if tgap > 0:
+                                            dd_nodes += [(f"delay_{self.counter()}_[{qubit}]", {"qubits": [qubit], "duration": tgap})]
+                                    dd_nodes += [(f"x_{self.counter()}_[{qubit}]", {"qubits": [qubit]})]
+                                    if tgap > 0:
+                                        dd_nodes += [(f"delay_{self.counter()}_[{qubit}]", {"qubits": [qubit], "duration": tgap})]
+                                    dd_nodes += [(f"x_{self.counter()}_[{qubit}]", {"qubits": [qubit]})]
+                                    if idx == n_dd - 1:
+                                        if tgap > 0:
+                                            dd_nodes += [(f"delay_{self.counter()}_[{qubit}]", {"qubits": [qubit], "duration": tgap_half})]
+                            dd_edges = [(dd_nodes[i][0], dd_nodes[i + 1][0], {"qubit": [qubit]}) for i in range(len(dd_nodes) - 1)]
+                            dd_edges.append((pre_node, dd_nodes[0][0], {"qubit": [qubit]}))
+                            dd_edges.append((dd_nodes[-1][0], node, {"qubit": [qubit]}))
+                            dag.add_nodes_from(dd_nodes)
+                            dag.add_edges_from(dd_edges)
+                            qubit_idle_time[qubit]["idle_time"] = self._update_idle_time(node, max_idle_time)
+                            qubit_idle_time[qubit]["current_node"] = node
+                    else:
+                        qubit_idle_time[qubit]["idle_time"] = self._update_idle_time(node, max_idle_time)
+                        qubit_idle_time[qubit]["current_node"] = node
+            for q in qubit_idle_time.keys():
+                if q not in qubit_node_dic.keys():
+                    qubit_idle_time[q]["idle_time"] += max_idle_time
+        qc_new = dag2qc(dag)
+        return qc_new

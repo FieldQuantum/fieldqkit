@@ -1,9 +1,9 @@
-from .client import QuantumHardwareClient
-from .circuits import build_ghz, build_cluster, build_qft, build_ising_time_evolution
-from .observables import pauli_expectation
-from .readout import calibrate_readout, mitigate_readout
-from .types import QAOAResult, ShadowResult, VQEResult
-from .zne import apply_zne_cz_tripling
+from .api import QuantumHardwareClient
+from .core.circuits import build_ghz, build_cluster, build_qft, build_ising_time_evolution
+from .core.observables import pauli_expectation
+from .core.readout import calibrate_readout, mitigate_readout
+from .core.types import QAOAResult, ShadowResult, VQEResult
+from .core.zne import apply_zne_cz_tripling
 from .algorithms.shadow import ShadowTomography
 from .algorithms.vqe import (
     VQERunner,

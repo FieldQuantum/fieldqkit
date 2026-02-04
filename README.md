@@ -58,6 +58,14 @@ print(result.observable_values)
 print(result.probabilities)
 ```
 
+## 模块结构
+
+- `quantum_hw.api`：面向用户的 API 层（`QuantumHardwareClient`）。
+- `quantum_hw.core`：通用工具与数据结构（circuits / observables / readout / zne / plotting / types）。
+- `quantum_hw.compile`：编译与转译入口（`Transpiler`）。
+
+> 旧的平铺模块已移除，请改用 `quantum_hw.core.*` 与 `quantum_hw.api`。
+
 ## 关键设计与行为
 
 - 推荐入口：`run_auto()` 自动选择硬件并执行。
@@ -141,6 +149,9 @@ VQE 变分优化，当前默认模型为 Ising（横场 Ising），优化器为 
 - `learning_rate: float = 0.1`
 - `beta1: float = 0.9`, `beta2: float = 0.999`, `eps: float = 1e-8`
 - `shift: float = π/2`
+- `target_qubits: Optional[Sequence[int]] = None`
+- `prefer_chips: Optional[Sequence[str] | str] = None`
+- `rank_weights: Optional[Dict[str, float]] = None`
 
 常用哈密顿量构建：
 
@@ -155,6 +166,16 @@ VQE 变分优化，当前默认模型为 Ising（横场 Ising），优化器为 
 - `best_energy`、`best_params`
 - `energy_history`
 
+也可使用 `VQERunner`：
+
+```python
+from quantum_hw import QuantumHardwareClient, VQERunner
+
+client = QuantumHardwareClient(token="...")
+runner = VQERunner(client, layers=2, shots=1024)
+result = runner.run_ising(name="vqe", num_qubits=4)
+```
+
 ### `QuantumHardwareClient.run_qaoa(...)`
 
 QAOA 组合优化（当前支持 MaxCut）。
@@ -168,10 +189,23 @@ QAOA 组合优化（当前支持 MaxCut）。
 - `weights: Optional[List[float]] = None`
 - `p: int = 1`
 - `learning_rate: float = 0.1`
+- `target_qubits: Optional[Sequence[int]] = None`
+- `prefer_chips: Optional[Sequence[str] | str] = None`
+- `rank_weights: Optional[Dict[str, float]] = None`
 
 返回 `QAOAResult`，包含：
 
 - `best_cost`、`best_params`
 - `cost_history`
+
+也可使用 `QAOARunner`：
+
+```python
+from quantum_hw import QuantumHardwareClient, QAOARunner
+
+client = QuantumHardwareClient(token="...")
+runner = QAOARunner(client, p=2, shots=1024)
+result = runner.run_maxcut(name="qaoa", num_qubits=4, edges=[(0, 1), (1, 2)])
+```
 
 更详细的函数说明请见 [docs/DOCUMENTATION.md](docs/DOCUMENTATION.md)。

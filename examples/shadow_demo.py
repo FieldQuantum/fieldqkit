@@ -5,7 +5,7 @@ from quantum_hw import QuantumHardwareClient, ShadowTomography
 
 
 if __name__ == "__main__":
-    num_qubits = 6
+    num_qubits = 2
     circuit = "ghz"
     date = datetime.date.today()
     name = f"Shadow_{circuit}_{num_qubits}_{date}"
@@ -19,8 +19,8 @@ if __name__ == "__main__":
         circuit=circuit,
         name=name,
         num_qubits=num_qubits,
-        shots=16384,
-        observables=["ZIIIIZ", "IIZZII", "IZIIZI"],
+        shots=4096,
+        observables=["ZZ", "XX", "ZI", "IZ", "YY"],
         prefer_chips=["Baihua"], # only Baihua support small batch shots currently
         zne=True,
         estimator="mom",
