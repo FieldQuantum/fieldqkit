@@ -1,3 +1,5 @@
+"""High-level hardware client for circuit execution and algorithms."""
+
 from __future__ import annotations
 
 from typing import Callable, Dict, List, Optional, Sequence, Tuple, Union
@@ -37,7 +39,7 @@ from ..core.readout import (
 	marginal_probabilities,
 )
 from ..core.types import CalibrationResult, QAOAResult, RunResult, ShadowResult, VQEResult
-from ..core.utils import extract_qubits_from_openqasm2, get_probabilities, get_samples
+from ..core.utils import get_probabilities, get_samples
 from ..core.zne import apply_zne_cz_tripling, zne_linear_extrapolate
 
 
@@ -53,7 +55,12 @@ class QuantumHardwareClient:
 	@staticmethod
 	def _is_openqasm2(source: str) -> bool:
 		"""Return True when the string looks like an OpenQASM2 program."""
-		return source.strip().upper().startswith("OPENQASM")
+		return source.strip().upper().startswith("OPENQASM 2.0")
+	
+	@staticmethod
+	def _is_openqasm3(source: str) -> bool:
+		"""Return True when the string looks like an OpenQASM3 program."""
+		return source.strip().upper().startswith("OPENQASM 3.0")
 
 	@staticmethod
 	def _has_measurements(qc: QuantumCircuit) -> bool:
@@ -89,7 +96,6 @@ class QuantumHardwareClient:
 		if target_qubits is None:
 			return Transpiler(backend).run(qc)
 		return Transpiler(backend).run(qc, target_qubits=list(target_qubits), use_dd=True)
-	# TODO: rewrite the Transpiler class
 
 	def _submit_openqasm(
 		self,
@@ -150,6 +156,7 @@ class QuantumHardwareClient:
 		*,
 		chip_name: Optional[str] = None,
 		backend: Optional[Backend] = None,
+		qasm_version: str = "2.0",
 	) -> CalibrationResult:
 		"""Calibrate readout error for selected qubits with caching."""
 		target_qubits = list(target_qubits)
@@ -194,7 +201,7 @@ class QuantumHardwareClient:
 				qct = self._transpile_with_backend(qc, backend, target_qubits=[q])
 				task_id = self._submit_openqasm_async(
 					name=f"readout_cal_q{q}_{bits}",
-					qasm=qct.to_openqasm2,
+					qasm=qct.to_openqasm2 if qasm_version == "2.0" else qct.to_openqasm3,
 					shots=shots,
 					chip_name=chip_name,
 				)
@@ -325,6 +332,7 @@ class QuantumHardwareClient:
 		observables: Optional[Sequence[str] | str] = None,
 		return_probabilities: bool = False,
 		target_qubits: Optional[Sequence[int]] = None,
+		qasm_version: str = "2.0",
 	) -> RunResult:
 		"""Run a circuit on a specific backend with optional mitigation."""
 		if isinstance(observables, str):
@@ -343,8 +351,8 @@ class QuantumHardwareClient:
 		else:
 			groups = [{"basis": None, "observables": []}]
 
-		def _prepare_qasm(qc, basis_pattern: Optional[Sequence[str]], scale_zne: bool) -> str:
-			"""Prepare OpenQASM with optional basis rotation and ZNE scaling."""
+		def _prepare_circuit(qc, basis_pattern: Optional[Sequence[str]], scale_zne: bool) -> QuantumCircuit:
+			"""Prepare transpiled circuit with optional basis rotation and ZNE scaling."""
 			qc = deepcopy(qc)
 			if basis_pattern is not None:
 				append_measurement_basis(qc, basis_pattern)
@@ -354,7 +362,7 @@ class QuantumHardwareClient:
 			qct = self._transpile_with_backend(qc, backend, target_qubits=target_qubits)
 			if scale_zne:
 				qct = apply_zne_cz_tripling(qct)
-			return qct.to_openqasm2
+			return qct
 
 		pending: List[Tuple[int, str, object]] = []
 		group_meta: List[Dict[str, object]] = []
@@ -362,7 +370,8 @@ class QuantumHardwareClient:
 
 		for gi, group in enumerate(groups):
 			basis_pattern = group["basis"]
-			qasm_1 = _prepare_qasm(qc, basis_pattern, scale_zne=False)
+			qct = _prepare_circuit(qc, basis_pattern, scale_zne=False)
+			qasm_1 = qct.to_openqasm2 if qasm_version == "2.0" else qct.to_openqasm3
 			task_id_1 = self._submit_openqasm_async(
 				name=f"{name}_g{gi}",
 				qasm=qasm_1,
@@ -374,10 +383,10 @@ class QuantumHardwareClient:
 			task_ids.append(task_id_1)
 
 			if zne:
-				qasm_3 = _prepare_qasm(qc, basis_pattern, scale_zne=True)
+				qct = _prepare_circuit(qc, basis_pattern, scale_zne=True)
 				task_id_3 = self._submit_openqasm_async(
 					name=f"{name}_g{gi}_zne3",
-					qasm=qasm_3,
+					qasm=qct.to_openqasm2 if qasm_version == "2.0" else qct.to_openqasm3,
 					shots=shots,
 					chip_name=chip_name,
 				)
@@ -388,7 +397,7 @@ class QuantumHardwareClient:
 			group_meta.append({"basis": basis_pattern, "observables": group["observables"], "qasm_1": qasm_1})
 
 		if target_qubits is None:
-			target_qubits_group = extract_qubits_from_openqasm2(qasm_1)
+			target_qubits_group = qct.qubits_in_use
 		else:
 			target_qubits_group = target_qubits
 
@@ -533,6 +542,8 @@ class QuantumHardwareClient:
 		print("[hardware] read hardware information and select")
 		if self._is_openqasm2(circuit):
 			qc = QuantumCircuit().from_openqasm2(openqasm2_str=circuit)
+		elif self._is_openqasm3(circuit):
+			qc = QuantumCircuit().from_openqasm3(openqasm3_str=circuit)
 		else:
 			qc = self.build_circuit(circuit, num_qubits=num_qubits)
 		ranked_chips = rank_chips(
@@ -587,6 +598,8 @@ class QuantumHardwareClient:
 		print("[shadow] read hardware information and select")
 		if self._is_openqasm2(circuit):
 			qc = QuantumCircuit().from_openqasm2(openqasm2_str=circuit)
+		elif self._is_openqasm3(circuit):
+			qc = QuantumCircuit().from_openqasm3(openqasm3_str=circuit)
 		else:
 			qc = self.build_circuit(circuit, num_qubits=num_qubits)
 

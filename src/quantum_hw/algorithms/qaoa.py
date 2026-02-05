@@ -1,3 +1,5 @@
+"""QAOA construction and optimization helpers."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass

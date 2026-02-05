@@ -1,3 +1,5 @@
+"""Public package exports for the quantum hardware interface."""
+
 from .api import QuantumHardwareClient
 from .core.circuits import build_ghz, build_cluster, build_qft, build_ising_time_evolution
 from .core.observables import pauli_expectation

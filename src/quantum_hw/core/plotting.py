@@ -1,3 +1,5 @@
+"""Plotting helpers for probabilities and observables."""
+
 from __future__ import annotations
 
 import matplotlib.pyplot as plt
@@ -52,7 +54,7 @@ def plot_probabilities_compare(raw, mitigated, num_qubits: int, max_labels: int 
 	plt.show()
 
 
-def plot_observables_compare(raw, mitigated) -> None:
+def plot_observables_compare(raw, mitigated, observables=None) -> None:
 	"""Plot comparison of observable expectations (scalar or dict)."""
 	if raw is None and mitigated is None:
 		return
@@ -65,9 +67,11 @@ def plot_observables_compare(raw, mitigated) -> None:
 		plt.figure(figsize=(10, 3))
 		plt.bar([i - width / 2 for i in x], raw_vals, width=width, color="#9E9E9E", label="Raw")
 		plt.bar([i + width / 2 for i in x], mit_vals, width=width, color="#4C78A8", label="Mitigated")
-		plt.xticks(x, keys, rotation=45, ha="right")
+		xtick_labels = observables if observables else keys
+		plt.xticks(x, xtick_labels, rotation=45, ha="right")
 		plt.ylabel("Expectation")
 		plt.title("Observable comparison")
+		plt.tick_params(right=True, top=True)
 		plt.legend()
 		plt.tight_layout()
 		plt.show()
@@ -75,7 +79,8 @@ def plot_observables_compare(raw, mitigated) -> None:
 		plt.figure(figsize=(4, 3))
 		plt.bar([0, 1], [raw or 0.0, mitigated or 0.0], color=["#9E9E9E", "#4C78A8"])
 		plt.xticks([0, 1], ["Raw", "Mitigated"])
-		plt.ylabel("Expectation")
-		plt.title("Observable comparison")
+		if observables:
+			plt.ylabel(observables)
+		plt.tick_params(right=True, top=True)
 		plt.tight_layout()
 		plt.show()

@@ -1,3 +1,5 @@
+"""Preset circuit builders for common algorithms."""
+
 from __future__ import annotations
 
 from typing import List
@@ -27,8 +29,6 @@ def build_cluster(num_qubits: int, measure: bool = False) -> QuantumCircuit:
 		qc.cz(2 * i, 2 * i + 1)
 	for i in range((num_qubits - 1) // 2):
 		qc.cz(2 * i + 1, 2 * i + 2)
-	for i in range((num_qubits - 1) // 2):
-		qc.h(2 * i + 1)
 	if measure:
 		qc.barrier()
 		qc.measure_all()

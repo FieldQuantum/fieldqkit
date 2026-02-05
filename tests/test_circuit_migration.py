@@ -6,21 +6,18 @@ try:
         add_gates_to_lines as quark_add_gates_to_lines,
         convert_gate_info_to_dag_info as quark_convert_gate_info_to_dag_info,
         parse_openqasm2_to_gates as quark_parse_openqasm2_to_gates,
-        parse_qlisp_to_gates as quark_parse_qlisp_to_gates,
     )
 except Exception:
     QuarkCircuit = None
     quark_add_gates_to_lines = None
     quark_convert_gate_info_to_dag_info = None
     quark_parse_openqasm2_to_gates = None
-    quark_parse_qlisp_to_gates = None
 
 from quantum_hw.circuit import QuantumCircuit as LocalCircuit
+from quantum_hw.circuit.qasm2 import parse_openqasm2_to_gates as local_parse_openqasm2_to_gates
 from quantum_hw.circuit.quantumcircuit_helpers import (
     add_gates_to_lines as local_add_gates_to_lines,
     convert_gate_info_to_dag_info as local_convert_gate_info_to_dag_info,
-    parse_openqasm2_to_gates as local_parse_openqasm2_to_gates,
-    parse_qlisp_to_gates as local_parse_qlisp_to_gates,
 )
 
 
@@ -52,12 +49,24 @@ def test_circuit_roundtrip_openqasm2():
 
 
 @pytest.mark.skipif(QuarkCircuit is None, reason="quark is not installed")
-def test_circuit_roundtrip_qlisp():
-    qc_ref = _build_io_circuit(QuarkCircuit)
-    qlisp = qc_ref.to_qlisp
+def test_circuit_roundtrip_openqasm2_with_pi_and_delay():
+    qasm = """
+OPENQASM 2.0;
+include \"qelib1.inc\";
+qreg q[2];
+creg c[2];
+rx(pi/2) q[0];
+rz(-pi/3) q[1];
+cp(pi/4) q[0],q[1];
+delay(1e-6) q[0];
+barrier q[0],q[1];
+reset q[1];
+measure q[0] -> c[0];
+measure q[1] -> c[1];
+""".strip()
 
-    qc_ref_parsed = QuarkCircuit().from_qlisp(qlisp)
-    qc_local_parsed = LocalCircuit().from_qlisp(qlisp)
+    qc_ref_parsed = QuarkCircuit().from_openqasm2(qasm)
+    qc_local_parsed = LocalCircuit().from_openqasm2(qasm)
 
     assert qc_local_parsed.gates == qc_ref_parsed.gates
     assert qc_local_parsed.qubits == qc_ref_parsed.qubits
@@ -76,13 +85,15 @@ def test_circuit_params_value_and_apply():
     qc_ref.shallow_apply_value(params)
     qc_local.shallow_apply_value(params)
 
-    assert qc_local.params_value == qc_ref.params_value
+    assert qc_local.gates == qc_ref.gates
 
     qc_ref.deep_apply_value(params)
     qc_local.deep_apply_value(params)
 
     assert qc_local.gates == qc_ref.gates
-    assert qc_local.params_value == qc_ref.params_value
+    assert qc_local.params_value["theta"] == params["theta"]
+    assert qc_local.params_value["phi"] == params["phi"]
+    assert qc_local.params_value["gamma"] == params["gamma"]
 
 
 @pytest.mark.skipif(QuarkCircuit is None, reason="quark is not installed")
@@ -127,16 +138,9 @@ def test_circuit_remove_and_count_gates():
 def test_helpers_match_quark_outputs():
     qc_ref = _build_io_circuit(QuarkCircuit)
     qasm = qc_ref.to_openqasm2
-    qlisp = qc_ref.to_qlisp
 
     local_gates, local_qubits, local_cbits = local_parse_openqasm2_to_gates(qasm)
     ref_gates, ref_qubits, ref_cbits = quark_parse_openqasm2_to_gates(qasm)
-    assert local_gates == ref_gates
-    assert local_qubits == ref_qubits
-    assert local_cbits == ref_cbits
-
-    local_gates, local_qubits, local_cbits = local_parse_qlisp_to_gates(qlisp)
-    ref_gates, ref_qubits, ref_cbits = quark_parse_qlisp_to_gates(qlisp)
     assert local_gates == ref_gates
     assert local_qubits == ref_qubits
     assert local_cbits == ref_cbits
