@@ -2,6 +2,8 @@
 
 本文档给出更详细的使用说明、API 参数、返回结构、以及实现细节。示例代码见 [examples/demo.py](../examples/demo.py)。
 
+OpenQASM3 解析依赖 `openqasm3` 包。
+
 ## 快速流程
 
 1. 配置线路与实验参数（`num_qubits`、`shots`、`zne`、`readout_mitigation`、`observables`）。
@@ -32,7 +34,7 @@
 
 参数：
 
-- `circuit: str`：线路名称（如 `"ghz"`）或 OpenQASM2 字符串（以 `OPENQASM` 开头）。
+- `circuit: str`：线路名称（如 `"ghz"`）或 OpenQASM2 / OpenQASM3 字符串（以 `OPENQASM` 开头）。
 - `name: str`：任务名称。
 - `num_qubits: int`：线路逻辑比特数。
 - `shots: int = 8192`：采样次数。
@@ -74,7 +76,7 @@
 
 参数：
 
-- `circuit: str`
+- `circuit: str`（线路名称或 OpenQASM2 / OpenQASM3）
 - `name: str`
 - `num_qubits: int`
 - `shots: int = 8192`

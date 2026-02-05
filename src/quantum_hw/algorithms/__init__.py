@@ -1,3 +1,5 @@
+"""Algorithm entry points for VQE, QAOA, and shadow tomography."""
+
 from .shadow import ShadowTomography, estimate_observables, run_shadow_with_backend
 from .vqe import (
     VQERunner,

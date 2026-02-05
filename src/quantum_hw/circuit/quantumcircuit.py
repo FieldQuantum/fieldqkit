@@ -19,12 +19,11 @@
 
 r""" 
 This module contains the QuantumCircuit class, which offers an intuitive interface for designing, visualizing, 
-and converting quantum circuits in various formats such as OpenQASM 2.0 and qlisp.
+and converting quantum circuits in various formats such as OpenQASM 2.0 and 3.0.
 """
 
 import copy
 from typing import Iterable
-from IPython.display import display, HTML
 import numpy as np
 from .quantumcircuit_helpers import (
     one_qubit_gates_available,
@@ -34,10 +33,11 @@ from .quantumcircuit_helpers import (
     three_qubit_gates_available,
     functional_gates_available,
     convert_gate_info_to_dag_info,
-    parse_openqasm2_to_gates,
-    parse_qlisp_to_gates,
     add_gates_to_lines,
     )
+from .qasm2 import parse_openqasm2_to_gates
+from .qasm3 import parse_openqasm3_to_gates
+from .render import draw_circuit, draw_circuit_simply
 from .utils import u3_decompose, zyz_decompose, kak_decompose
 from .matrix import h_mat
 
@@ -87,8 +87,8 @@ class QuantumCircuit:
             ValueError: If more than two arguments are provided, or if the arguments are not in one of the specified valid forms.
         """
         if len(args) == 0:
-            self.nqubits = None
-            self.ncbits = self.nqubits
+            self.nqubits = 0
+            self.ncbits = 0
         elif len(args) == 1:
             self.nqubits = args[0]
             self.ncbits = self.nqubits
@@ -147,10 +147,25 @@ class QuantumCircuit:
         return sorted(set(cbits))
 
     def _add_qubits(self,*args):
-        # qubits 去重 排序
+        # Deduplicate and sort qubits.
         temp_set = set(self.qubits).union(args)
         self.qubits = sorted(temp_set)
         return self
+
+    def _resolve_param(self, param):
+        if isinstance(param, (float, int)):
+            return float(param)
+        if isinstance(param, str):
+            if param not in self.params_value:
+                raise ValueError(f"please apply value for parameter {param}")
+            value = self.params_value[param]
+            if isinstance(value, (float, int)):
+                return float(value)
+            raise ValueError(f"please apply value for parameter {value}")
+        raise TypeError(f"Wrong param type! {param}")
+
+    def _resolve_param_list(self, params):
+        return [self._resolve_param(param) for param in params]
 
     def from_openqasm2(self,openqasm2_str: str) -> 'QuantumCircuit':
         r"""
@@ -161,29 +176,27 @@ class QuantumCircuit:
         """
         assert('OPENQASM 2.0' in openqasm2_str)
         new_gates,qubit_used,cbit_used = parse_openqasm2_to_gates(openqasm2_str)
-        self.nqubits = max(qubit_used, default=0) + 1 
-        self.ncbits = max(cbit_used, default=0) + 1
+        self.nqubits = max(qubit_used) + 1 if qubit_used else 0
+        self.ncbits = max(cbit_used) + 1 if cbit_used else 0
         self.qubits = list(qubit_used) #[i for i in range(self.nqubits)]
         self.gates = new_gates
         return self
     
-    def from_qlisp(self, qlisp: list|str) -> 'QuantumCircuit':
+    def from_openqasm3(self, openqasm3_str: str) -> 'QuantumCircuit':
         r"""
-        Initializes the QuantumCircuit object based on the given qlisp list.
+        Initializes the QuantumCircuit object based on the given OpenQASM 3 string.
 
         Args:
-            qlisp (list): A list representing a quantum circuit in qlisp format.
+            openqasm3_str (str): A string representing a quantum circuit in OpenQASM 3 format.
         """
-        if isinstance(qlisp, str):
-            import ast
-            qlisp = ast.literal_eval(qlisp)
-        new_gates, qubit_used,cbit_used = parse_qlisp_to_gates(qlisp)
-        self.nqubits = max(qubit_used, default=0) + 1 
-        self.ncbits = max(cbit_used, default=0) + 1
-        self.qubits = list(qubit_used) #[i for i in range(self.nqubits)]
+        assert('OPENQASM 3.0' in openqasm3_str)
+        new_gates, qubit_used, cbit_used = parse_openqasm3_to_gates(openqasm3_str)
+        self.nqubits = max(qubit_used) + 1 if qubit_used else 0
+        self.ncbits = max(cbit_used) + 1 if cbit_used else 0
+        self.qubits = list(qubit_used)
         self.gates = new_gates
         return self
-
+    
     def id(self, qubit: int) -> 'QuantumCircuit':
         r"""
         Add a Identity gate.
@@ -889,14 +902,12 @@ class QuantumCircuit:
         return self
 
     def shallow_apply_value(self,params_dic):
-        for k,v in self.params_value.items():
-            self.params_value[k] = k
         for k,v in params_dic.items():
             self.params_value[k] = v
 
     def deep_apply_value(self,params_dic):
-        for k,v in self.params_value.items():
-            self.params_value[k] = k
+        for k,v in params_dic.items():
+            self.params_value[k] = v
 
         gates = []
         for gate_info in self.gates:
@@ -919,8 +930,6 @@ class QuantumCircuit:
                 gates.append(gate_info)
             else:
                 gates.append(gate_info)
-        for key in params_dic.keys():
-            del self.params_value[key]
         self.gates = gates
 
     def u3_for_unitary(self, unitary: np.ndarray, qubit: int):
@@ -1128,248 +1137,95 @@ class QuantumCircuit:
         Returns:
             str: An OpenQASM 2 string representing the circuit.
         """
-        qasm_str = "OPENQASM 2.0;\n"
-        qasm_str += "include \"qelib1.inc\";\n"
-        gates0 = [gate[0] for gate in self.gates]
-        if 'delay' in gates0:
-            qasm_str += "opaque delay(param0) q0;\n"
-        if 'r' in gates0:
-            qasm_str += "gate r(param0,param1) q0 { u3(param0,param1 - pi/2,pi/2 - param1) q0; }\n"
-        qasm_str += f"qreg q[{self.nqubits}];\n"
-        qasm_str += f"creg c[{self.ncbits}];\n"
-        for gate in self.gates:
-            if gate[0] in one_qubit_gates_available.keys(): # single qubit gate 
-                qasm_str += f"{gate[0]} q[{gate[1]}];\n"
-            elif gate[0] in two_qubit_gates_available.keys(): # two qubit gate 
-                qasm_str += f"{gate[0]} q[{gate[1]}],q[{gate[2]}];\n"
-            elif gate[0] in three_qubit_gates_available.keys():
-                qasm_str += f"{gate[0]} q[{gate[1]}],q[{gate[2]}],q[{gate[3]}];\n"
-            elif gate[0] in two_qubit_parameter_gates_available.keys():
-                if isinstance(gate[1],(float,int)):
-                    theta = gate[1]
-                elif isinstance(gate[1],str):
-                    param = self.params_value[gate[1]]
-                    if isinstance(param,(float,int)):
-                        theta = param
-                    else:
-                        raise(ValueError(f'please apply value for parameter {param}')) 
-                else:
-                    raise(TypeError(f'Wrong param type! {gate[1]}'))
-                qasm_str += f"{gate[0]}({theta}) q[{gate[2]}],q[{gate[3]}];\n"                        
-            elif gate[0] in one_qubit_parameter_gates_available.keys():
-                if gate[0] == 'u':
-                    if isinstance(gate[1],(float,int)):
-                        theta = gate[1]
-                    elif isinstance(gate[1],str):
-                        param = self.params_value[gate[1]]
-                        if isinstance(param,(float,int)):
-                            theta = param
-                        else:
-                            raise(ValueError(f'please apply value for parameter {param}')) 
-                    else:
-                        raise(TypeError(f'Wrong param type! {gate[1]}'))
-                        
-                    if isinstance(gate[2],(float,int)):
-                        phi = gate[2]
-                    elif isinstance(gate[2],str):
-                        param = self.params_value[gate[2]]
-                        if isinstance(param,(float,int)):
-                            phi = param
-                        else:
-                            raise(ValueError(f'please apply value for parameter {param}')) 
-                    else:
-                        raise(TypeError(f'Wrong param type! {gate[2]}'))
-                        
-                    if isinstance(gate[3],(float,int)):
-                        lamda = gate[3]
-                    elif isinstance(gate[3],str):
-                        param = self.params_value[gate[3]]
-                        if isinstance(param,(float,int)):
-                            lamda = param
-                        else:
-                            raise(ValueError(f'please apply value for parameter {param}')) 
-                    else:
-                        raise(TypeError(f'Wrong param type! {gate[3]}'))
-                        
-                    qasm_str += f"{gate[0]}({theta},{phi},{lamda}) q[{gate[-1]}];\n"
-                elif gate[0] == 'r':
-                    if isinstance(gate[1],(float,int)):
-                        theta = gate[1]
-                    elif isinstance(gate[1],str):
-                        param = self.params_value[gate[1]]
-                        if isinstance(param,(float,int)):
-                            theta = param
-                        else:
-                            raise(ValueError(f'please apply value for parameter {param}')) 
-                    else:
-                        raise(TypeError(f'Wrong param type! {gate[1]}'))
-                        
-                    if isinstance(gate[2],(float,int)):
-                        phi = gate[2]
-                    elif isinstance(gate[2],str):
-                        param = self.params_value[gate[2]]
-                        if isinstance(param,(float,int)):
-                            phi = param
-                        else:
-                            raise(ValueError(f'please apply value for parameter {param}')) 
-                    else:
-                        raise(TypeError(f'Wrong param type! {gate[2]}'))
-                        
-                    qasm_str += f"{gate[0]}({theta},{phi}) q[{gate[-1]}];\n"
+        return self._to_openqasm(version="2.0")
 
-                else:
-                    if isinstance(gate[1],(float,int)):
-                        qasm_str += f"{gate[0]}({gate[1]}) q[{gate[2]}];\n"
-                    elif isinstance(gate[1],str):
-                        param = self.params_value[gate[1]]
-                        if isinstance(param,(float,int)):
-                            qasm_str += f"{gate[0]}({param}) q[{gate[2]}];\n"
-                        else:
-                            raise(ValueError(f'please apply value for parameter {param}')) 
-                    else:
-                        raise(TypeError(f'Wrong param type! {gate[1]}'))
-            elif gate[0] in ['reset']:
-                qasm_str += f"{gate[0]} q[{gate[1]}];\n"
-            elif gate[0] in ['delay']:
-                for qubit in gate[2]:
-                    qasm_str += f"{gate[0]}({gate[1]}) q[{qubit}];\n"
-            elif gate[0] in ['barrier']:
-                qasm_str += f"{gate[0]} q[{gate[1][0]}]"
-                for idx in gate[1][1:]:
-                    qasm_str += f",q[{idx}]"
-                qasm_str += ';\n'
-            elif gate[0] in ['measure']:
-                for idx in range(len(gate[1])):
-                    qasm_str += f"{gate[0]} q[{gate[1][idx]}] -> c[{gate[2][idx]}];\n"
-            else:
-                raise(ValueError(f"Sorry, Quark could not find the corresponding OpenQASM 2.0 syntax for now. Please contact the developer for assistance.{gate[0]}"))
-        return qasm_str.rstrip('\n')
-    
     @property
-    def to_qlisp(self) -> list:
-        r"""Export the quantum circuit to qlisp list.
+    def to_openqasm3(self) -> str:
+        r"""
+        Export the quantum circuit to an OpenQASM 3 program in a string.
 
         Returns:
-            list: qlisp list
+            str: An OpenQASM 3 string representing the circuit.
         """
-        qlisp = []
+        return self._to_openqasm(version="3.0")
+
+    def _to_openqasm(self, version: str) -> str:
+        lines = self._openqasm_header(version)
         for gate_info in self.gates:
-            gate = gate_info[0]
-            if gate in ['x', 'y', 'z', 's', 't', 'h']:
-                qlisp.append((gate.upper(), 'Q'+str(gate_info[1])))
-            elif gate in ['id']:
-                qlisp.append(('I', 'Q'+str(gate_info[1])))
-            elif gate in ['sdg','tdg']:
-                qlisp.append(('-' + gate[0].upper(), 'Q'+str(gate_info[1])))
-            elif gate in ['sx']:
-                qlisp.append(('X/2', 'Q'+str(gate_info[1])))
-            elif gate in ['sxdg']:
-                qlisp.append(('-X/2', 'Q'+str(gate_info[1])))
-            elif gate in ['u']:
-                if isinstance(gate_info[1],(float,int)):
-                    theta = gate_info[1]
-                elif isinstance(gate_info[1],str):
-                    param = self.params_value[gate_info[1]]
-                    if isinstance(param,(float,int)):
-                        theta = param
-                    else:
-                        raise(ValueError(f'please apply value for parameter {param}')) 
+            lines.extend(self._openqasm_gate_lines(gate_info, version))
+        return "\n".join(lines)
+
+    def _openqasm_header(self, version: str) -> list[str]:
+        gates0 = [gate[0] for gate in self.gates]
+        lines = []
+        if version == "2.0":
+            lines.append("OPENQASM 2.0;")
+            lines.append("include \"qelib1.inc\";")
+            if 'delay' in gates0:
+                lines.append("opaque delay(param0) q0;")
+            if 'r' in gates0:
+                lines.append("gate r(param0,param1) q0 { u3(param0,param1 - pi/2,pi/2 - param1) q0; }")
+            lines.append(f"qreg q[{self.nqubits}];")
+            lines.append(f"creg c[{self.ncbits}];")
+        elif version == "3.0":
+            lines.append("OPENQASM 3.0;")
+            lines.append("include \"stdgates.inc\";")
+            if 'delay' in gates0:
+                lines.append("defcalgrammar \"openpulse\";")
+            if 'r' in gates0:
+                lines.append("gate r(theta,phi) q { u(theta,phi - pi/2,pi/2 - phi) q; }")
+            lines.append(f"qubit[{self.nqubits}] q;")
+            lines.append(f"bit[{self.ncbits}] c;")
+        else:
+            raise ValueError(f"Unsupported OpenQASM version: {version}")
+        return lines
+
+    def _openqasm_gate_lines(self, gate_info, version: str) -> list[str]:
+        gate = gate_info[0]
+        if gate in one_qubit_gates_available.keys():
+            return [f"{gate} q[{gate_info[1]}];"]
+        if gate in two_qubit_gates_available.keys():
+            return [f"{gate} q[{gate_info[1]}],q[{gate_info[2]}];"]
+        if gate in three_qubit_gates_available.keys():
+            return [f"{gate} q[{gate_info[1]}],q[{gate_info[2]}],q[{gate_info[3]}];"]
+        if gate in two_qubit_parameter_gates_available.keys():
+            theta = self._resolve_param(gate_info[1])
+            return [f"{gate}({theta}) q[{gate_info[2]}],q[{gate_info[3]}];"]
+        if gate in one_qubit_parameter_gates_available.keys():
+            if gate == 'u':
+                theta, phi, lamda = self._resolve_param_list(gate_info[1:4])
+                return [f"{gate}({theta},{phi},{lamda}) q[{gate_info[-1]}];"]
+            if gate == 'r':
+                theta, phi = self._resolve_param_list(gate_info[1:3])
+                return [f"{gate}({theta},{phi}) q[{gate_info[-1]}];"]
+            param_value = self._resolve_param(gate_info[1])
+            return [f"{gate}({param_value}) q[{gate_info[2]}];"]
+        if gate in ['reset']:
+            return [f"{gate} q[{gate_info[1]}];"]
+        if gate in ['delay']:
+            lines = []
+            for qubit in gate_info[2]:
+                if version == "2.0":
+                    lines.append(f"{gate}({gate_info[1]}) q[{qubit}];")
                 else:
-                    raise(TypeError(f'Wrong param type! {gate_info[1]}'))
-                    
-                if isinstance(gate_info[2],(float,int)):
-                    phi = gate_info[2]
-                elif isinstance(gate_info[2],str):
-                    param = self.params_value[gate_info[2]]
-                    if isinstance(param,(float,int)):
-                        phi = param
-                    else:
-                        raise(ValueError(f'please apply value for parameter {param}')) 
+                    lines.append(f"{gate}[{gate_info[1]}] q[{qubit}];")
+            return lines
+        if gate in ['barrier']:
+            line = f"{gate} q[{gate_info[1][0]}]"
+            for idx in gate_info[1][1:]:
+                line += f",q[{idx}]"
+            return [line + ";"]
+        if gate in ['measure']:
+            lines = []
+            for idx in range(len(gate_info[1])):
+                if version == "2.0":
+                    lines.append(f"measure q[{gate_info[1][idx]}] -> c[{gate_info[2][idx]}];")
                 else:
-                    raise(TypeError(f'Wrong param type! {gate_info[2]}'))
-                    
-                if isinstance(gate_info[3],(float,int)):
-                    lamda = gate_info[3]
-                elif isinstance(gate_info[3],str):
-                    param = self.params_value[gate_info[3]]
-                    if isinstance(param,(float,int)):
-                        lamda = param
-                    else:
-                        raise(ValueError(f'please apply value for parameter {param}'))                    
-                else:
-                    raise(TypeError(f'Wrong param type! {gate_info[3]}'))
-                qlisp.append((('U', theta, phi, lamda),'Q'+str(gate_info[4])))
-            elif gate in ['r']:
-                if isinstance(gate_info[1],(float,int)):
-                    theta = gate_info[1]
-                elif isinstance(gate_info[1],str):
-                    param = self.params_value[gate_info[1]]
-                    if isinstance(param,(float,int)):
-                        theta = param
-                    else:
-                        raise(ValueError(f'please apply value for parameter {param}')) 
-                else:
-                    raise(TypeError(f'Wrong param type! {gate_info[1]}'))
-                    
-                if isinstance(gate_info[2],(float,int)):
-                    phi = gate_info[2]
-                elif isinstance(gate_info[2],str):
-                    param = self.params_value[gate_info[2]]
-                    if isinstance(param,(float,int)):
-                        phi = param
-                    else:
-                        raise(ValueError(f'please apply value for parameter {param}')) 
-                else:
-                    raise(TypeError(f'Wrong param type! {gate_info[2]}'))
-                if abs(theta-np.pi/2) < 1e-9:
-                    qlisp.append((('R', phi),'Q'+str(gate_info[3])))
-                else:
-                    qlisp.append((('U', theta, phi-np.pi/2, np.pi/2-phi),'Q'+str(gate_info[3])))
-                    #qlisp.append((('rfUnitary', theta, phi),'Q'+str(gate_info[3])))
-            elif gate in ['cx','cy', 'cz', 'swap']:
-                if gate == 'cx':
-                    qlisp.append(('Cnot', tuple('Q'+str(i) for i in gate_info[1:])))
-                else:
-                    qlisp.append((gate.upper(), tuple('Q'+str(i) for i in gate_info[1:])))
-            elif gate in ['iswap']:
-                qlisp.append(('iSWAP', tuple('Q'+str(i) for i in gate_info[1:])))
-            elif gate in three_qubit_gates_available.keys():
-                qlisp.append((gate.upper(), tuple('Q'+str(i) for i in gate_info[1:])))
-            elif gate in ['cp']:
-                if isinstance(gate_info[1],(float,int)):
-                    qlisp.append(((gate.upper(), gate_info[1]),tuple('Q'+str(i) for i in gate_info[1:])))
-                elif isinstance(gate_info[1],str):
-                    param = self.params_value[gate_info[1]]
-                    if isinstance(param,(float,int)):
-                        qlisp.append(((gate.upper(), param),tuple('Q'+str(i) for i in gate_info[2:])))
-                    else:
-                        raise(ValueError(f'please apply value for parameter {param}')) 
-                else:
-                    raise(TypeError(f'Wrong param type! {gate_info[1]}'))
-            elif gate in ['rx', 'ry', 'rz', 'p']:
-                if isinstance(gate_info[1],(float,int)):
-                    qlisp.append(((gate.capitalize(), gate_info[1]), 'Q'+str(gate_info[2])))
-                elif isinstance(gate_info[1],str):
-                    param = self.params_value[gate_info[1]]
-                    if isinstance(param,(float,int)):
-                        qlisp.append(((gate.capitalize(),param), 'Q'+str(gate_info[2])))
-                    else:
-                        raise(ValueError(f'please apply value for parameter {param}')) 
-                else:
-                    raise(TypeError(f'Wrong param type! {gate_info[1]}'))
-            elif gate in ['delay']:#qlisp unit in s
-                for qubit in gate_info[-1]:
-                    qlisp.append(((gate.capitalize(),gate_info[1]),'Q'+str(qubit)))
-            elif gate in ['reset']:
-                qlisp.append((gate.capitalize(), 'Q'+str(gate_info[1])))
-            elif gate in ['barrier']:
-                qlisp.append((gate.capitalize(), tuple('Q'+str(i) for i in gate_info[1])))
-            elif gate in ['measure']:
-                for idx,cbit in enumerate(gate_info[2]):
-                    qlisp.append(((gate.capitalize(), cbit), 'Q'+str(gate_info[1][idx])))
-            else:
-                raise(ValueError(f'Sorry, quarkcircuit could not find the corresponding qlisp syntax for now. Please contact the developer for assistance. {gate}'))
-        return qlisp
+                    lines.append(f"c[{gate_info[2][idx]}] = measure q[{gate_info[1][idx]}];")
+            return lines
+        raise ValueError(
+            f"Sorry, Quark could not find the corresponding OpenQASM {version} syntax for now. Please contact the developer for assistance.{gate}"
+        )
 
     @property
     def depth(self) -> int:
@@ -1411,6 +1267,44 @@ class QuantumCircuit:
                 continue
         return ncz
     
+    @property
+    def qubits_in_use(self) -> list[int]:
+        r"""Get the list of qubits that have gates applied to them.
+
+        Returns:
+            list[int]: A list of qubit indices that are used in the circuit.
+        """
+        used_qubits = set()
+        for gate_info in self.gates:
+            gate = gate_info[0]
+            if gate in one_qubit_gates_available.keys():
+                used_qubits.add(gate_info[1])
+            elif gate in two_qubit_gates_available.keys():
+                used_qubits.add(gate_info[1])
+                used_qubits.add(gate_info[2])
+            elif gate in three_qubit_gates_available.keys():
+                used_qubits.add(gate_info[1])
+                used_qubits.add(gate_info[2])
+                used_qubits.add(gate_info[3])
+            elif gate in one_qubit_parameter_gates_available.keys():
+                used_qubits.add(gate_info[-1])
+            elif gate in two_qubit_parameter_gates_available.keys():
+                used_qubits.add(gate_info[-2])
+                used_qubits.add(gate_info[-1])
+            elif gate in functional_gates_available.keys():
+                if gate == 'measure':
+                    for q in gate_info[1]:
+                        used_qubits.add(q)
+                elif gate == 'barrier':
+                    for q in gate_info[1]:
+                        used_qubits.add(q)
+                elif gate == 'delay':
+                    for q in gate_info[-1]:
+                        used_qubits.add(q)
+                elif gate == 'reset':
+                    used_qubits.add(gate_info[1])
+        return sorted(list(used_qubits))
+    
     def draw(self, width: int = 4) -> None:
         r"""
         Draw the quantum circuit.
@@ -1419,14 +1313,7 @@ class QuantumCircuit:
             width (int, optional): The width between gates. Defaults to 4.
         """
         lines1,lines_use = add_gates_to_lines(self.nqubits,self.ncbits,self.gates,self.params_value, width = width)
-        fline = str()
-        for line in lines1:
-            fline += '\n'
-            fline += line
-            
-        formatted_string = fline.replace("\n", "<br>").replace(" ", "&nbsp;")
-        html_content = f'<div style="overflow-x: auto; white-space: nowrap; font-family: consolas;">{formatted_string}</div>'
-        display(HTML(html_content))
+        draw_circuit(lines1)
 
     def draw_simply(self, width: int = 4) -> None:
         r"""
@@ -1439,15 +1326,4 @@ class QuantumCircuit:
             width (int, optional): The width between gates. Defaults to 4.
         """
         lines1,lines_use = add_gates_to_lines(self.nqubits,self.ncbits,self.gates,self.params_value, width=width)
-        fline = str()
-        for idx in range(2 * self.nqubits):
-            if idx in lines_use:
-                fline += '\n'
-                fline += lines1[idx]
-        for idx in range(2 * self.nqubits, len(lines1)):
-            fline += '\n'
-            fline += lines1[idx]
-            
-        formatted_string = fline.replace("\n", "<br>").replace(" ", "&nbsp;")
-        html_content = f'<div style="overflow-x: auto; white-space: nowrap; font-family: consolas;">{formatted_string}</div>'
-        display(HTML(html_content))
+        draw_circuit_simply(lines1, lines_use, self.nqubits)

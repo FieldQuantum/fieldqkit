@@ -3,7 +3,7 @@
 该项目提供面向用户的量子硬件控制接口，涵盖：
 
 - 预置线路：GHZ / Cluster / QFT / Ising 时间演化
-- 自定义线路：OpenQASM2 字符串
+- 自定义线路：OpenQASM2 / OpenQASM3 字符串
 - ZNE：将编译后所有 CZ 门三倍插入并做线性外推
 - Readout 误差缓解：按物理比特做校准并缓存
 - 结果处理：采样、Pauli observables、概率分布 $p$
@@ -18,6 +18,7 @@ pip install -e .
 ```
 
 > 依赖：Python >= 3.9，`numpy>=1.24`。
+> OpenQASM3 解析依赖 `openqasm3`。
 > 需要访问硬件时请安装 `quark` 及其环境依赖。
 > 作图示例需要 `matplotlib`。
 > 可选依赖：`pip install -e .[quark,viz]`。
@@ -63,6 +64,7 @@ print(result.probabilities)
 - `quantum_hw.api`：面向用户的 API 层（`QuantumHardwareClient`）。
 - `quantum_hw.core`：通用工具与数据结构（circuits / observables / readout / zne / plotting / types）。
 - `quantum_hw.compile`：编译与转译入口（`Transpiler`）。
+- `quantum_hw.circuit.qasm2` / `quantum_hw.circuit.qasm3`：OpenQASM2/3 解析实现。
 
 > 旧的平铺模块已移除，请改用 `quantum_hw.core.*` 与 `quantum_hw.api`。
 
@@ -89,7 +91,7 @@ print(result.probabilities)
 
 常用参数：
 
-- `circuit: str`：线路名称（如 `"ghz"`）或 OpenQASM2 字符串
+- `circuit: str`：线路名称（如 `"ghz"`）或 OpenQASM2 / OpenQASM3 字符串
 - `name: str`：任务名称
 - `num_qubits: int`：逻辑比特数
 - `shots: int = 8192`
@@ -115,7 +117,7 @@ print(result.probabilities)
 
 常用参数：
 
-- `circuit: str`：线路名称或 OpenQASM2
+- `circuit: str`：线路名称或 OpenQASM2 / OpenQASM3
 - `name: str`
 - `num_qubits: int`
 - `shots: int = 8192`

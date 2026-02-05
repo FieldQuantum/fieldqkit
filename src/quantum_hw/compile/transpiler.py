@@ -41,15 +41,11 @@ class Transpiler:
     def __init__(self, chip_backend: Backend | None = None):
         self.chip_backend = chip_backend
 
-    def run(self, qc: QuantumCircuit | str | list, target_qubits: list = [], optimize_level=1, niter=5, use_dd=False):
+    def run(self, qc: QuantumCircuit, target_qubits: list = [], optimize_level=1, niter=5, use_dd=False):
         if isinstance(qc, QuantumCircuit):
             pass
-        elif isinstance(qc, str):
-            qc = QuantumCircuit().from_openqasm2(qc)
-        elif isinstance(qc, list):
-            qc = QuantumCircuit().from_qlisp(qc)
         else:
-            raise TypeError("Expected a Quark QuantumCircuit or OpenQASM 2.0 or qlisp, but got a {}.".format(type(qc)))
+            raise TypeError("Expected a QuantumCircuit, but got a {}.".format(type(qc)))
 
         if self.chip_backend is None:
             print("Warning: No chip specified, defaulting to a linearly connected layout for simulation.")

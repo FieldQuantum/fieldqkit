@@ -1,3 +1,5 @@
+"""Readout calibration and mitigation utilities."""
+
 from __future__ import annotations
 
 from typing import Dict, Iterable, List, Sequence, Tuple
@@ -141,7 +143,7 @@ def apply_readout_mitigation_multi(
 	return probabilities, observable_values
 
 
-def calibrate_readout(Task, Backend, Transpiler, token: str, chip_name: str, target_qubits: List[int], shots: int):
+def calibrate_readout(Task, Backend, Transpiler, token: str, chip_name: str, target_qubits: List[int], shots: int, qasm_version: str = "2.0") -> Dict[int, np.ndarray]:
 	"""Standalone readout calibration helper (legacy interface)."""
 	tmgr = Task(token)
 	chip_backend = Backend(chip_name)
@@ -155,7 +157,7 @@ def calibrate_readout(Task, Backend, Transpiler, token: str, chip_name: str, tar
 			task = {
 				"chip": chip_name,
 				"name": f"readout_cal_q{q}_{bits}",
-				"circuit": qct.to_openqasm2,
+				"circuit": qct.to_openqasm2 if qasm_version == "2.0" else qct.to_openqasm3,
 				"shots": shots,
 				"compile": False,
 			}

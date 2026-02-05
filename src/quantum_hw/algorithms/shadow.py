@@ -1,3 +1,5 @@
+"""Classical shadow tomography utilities."""
+
 from __future__ import annotations
 
 from copy import deepcopy
@@ -193,7 +195,6 @@ def run_shadow_with_backend(
         estimator=estimator,
         mom_groups=mom_groups,
     )
-    print("Shadow estimates (1x):", estimates_1)
 
     estimates = estimates_1
     stderrs = stderrs_1
@@ -209,7 +210,6 @@ def run_shadow_with_backend(
             estimator=estimator,
             mom_groups=mom_groups,
         )
-        print("Shadow estimates (3x):", estimates_3)
         estimates = {
             obs: float(zne_linear_extrapolate(estimates_1[obs], estimates_3[obs]))
             for obs in observables

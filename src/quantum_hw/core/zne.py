@@ -1,3 +1,5 @@
+"""Zero-noise extrapolation helpers."""
+
 from __future__ import annotations
 
 from copy import copy
