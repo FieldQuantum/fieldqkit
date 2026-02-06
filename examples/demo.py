@@ -4,14 +4,14 @@ from quantum_hw import QuantumHardwareClient
 from quantum_hw.core.plotting import plot_observables_compare, plot_probabilities_compare
 
 if __name__ == "__main__":
-    num_qubits = 9
+    num_qubits = 7
     circuit = 'cluster' # 'qft', 'cluster', 'QFT', 'Ising evolution'
     date = datetime.date.today()
     name = f'Demo_{circuit}_{num_qubits}_{date}'
     zne = True
     shots = 50000
     readout_mitigation = True
-    observables = ['ZXIXIXIXZ', 'IZXIXIXZI', 'IIZXIXZII']
+    observables = ['ZXIXIXZ', 'IZXIXZI', 'IIZXZII']
     return_probabilities = True
 
     token = "5gjq36bZsMvqFoSNomvnfPy4y[iDJWe[tBx9fIndISQ/:m{O5FEPyRkM4B{N{RkNyd{OypkJxiY[jxjJ4RkPyBkPxJEJ4FUMyBUM3JENzJjPjRYZqKDMxpkJtWnemynJtJTcwOnMtmXZueHRu2XcwW4[vWHbkWYfjpkJzW3d2Kzf"
