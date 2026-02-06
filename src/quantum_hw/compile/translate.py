@@ -36,6 +36,7 @@ from .decompose import (
     cy_decompose,
     swap_decompose,
     iswap_decompose,
+    ecr_decompose,
     rxx_decompose,
     ryy_decompose,
     rzz_decompose,
@@ -51,7 +52,7 @@ class TranslateToBasisGates(TranspilerPass):
     def __init__(
         self,
         convert_single_qubit_gate_to_u: bool = True,
-        two_qubit_gate_basis: Literal["cz", "cx", "iswap"] = "cz",
+        two_qubit_gate_basis: Literal["cz", "cx", "iswap", "ecr"] = "cz",
     ):
         super().__init__()
         self.convert_single_qubit_gate_to_u = convert_single_qubit_gate_to_u
@@ -85,16 +86,13 @@ class TranslateToBasisGates(TranspilerPass):
                     new.append(gate_info)
             elif gate in two_qubit_gates_available.keys():
                 if gate in ["cz"]:
-                    if self.two_qubit_gate_basis in ["cx", "cz"]:
-                        new += [gate_info]
-                    else:
-                        _cz = cz_decompose(
-                            gate_info[1],
-                            gate_info[2],
-                            self.convert_single_qubit_gate_to_u,
-                            self.two_qubit_gate_basis,
-                        )
-                        new += _cz
+                    _cz = cz_decompose(
+                        gate_info[1],
+                        gate_info[2],
+                        self.convert_single_qubit_gate_to_u,
+                        self.two_qubit_gate_basis,
+                    )
+                    new += _cz
                 elif gate in ["cx", "cnot"]:
                     _cx = cx_decompose(
                         gate_info[1],
@@ -119,6 +117,14 @@ class TranslateToBasisGates(TranspilerPass):
                         self.two_qubit_gate_basis,
                     )
                     new += _iswap
+                elif gate in ["ecr"]:
+                    _ecr = ecr_decompose(
+                        gate_info[1],
+                        gate_info[2],
+                        self.convert_single_qubit_gate_to_u,
+                        self.two_qubit_gate_basis,
+                    )
+                    new += _ecr
                 elif gate in ["cy"]:
                     _cy = cy_decompose(
                         gate_info[1],

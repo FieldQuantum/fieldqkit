@@ -4,14 +4,14 @@ from quantum_hw import QuantumHardwareClient
 from quantum_hw.core.plotting import plot_observables_compare, plot_probabilities_compare
 
 if __name__ == "__main__":
-    num_qubits = 7
+    num_qubits = 9
     circuit = 'cluster' # 'qft', 'cluster', 'QFT', 'Ising evolution'
     date = datetime.date.today()
     name = f'Demo_{circuit}_{num_qubits}_{date}'
     zne = True
     shots = 50000
     readout_mitigation = True
-    observables = ['ZXIXIXZ', 'IZXIXZI']
+    observables = ['ZXIXIXIXZ', 'IZXIXIXZI', 'IIZXIXZII']
     return_probabilities = True
 
     token = "5gjq36bZsMvqFoSNomvnfPy4y[iDJWe[tBx9fIndISQ/:m{O5FEPyRkM4B{N{RkNyd{OypkJxiY[jxjJ4RkPyBkPxJEJ4FUMyBUM3JENzJjPjRYZqKDMxpkJtWnemynJtJTcwOnMtmXZueHRu2XcwW4[vWHbkWYfjpkJzW3d2Kzf"
@@ -26,7 +26,7 @@ if __name__ == "__main__":
         readout_mitigation=readout_mitigation,
         observables=observables,
         return_probabilities=return_probabilities,
-        prefer_chips='Yudu'
+        prefer_chips='Baihua'
     )
     print("Expectation Value (Raw):", results.observable_values_raw)
     print("Expectation Value (Mitigated):", results.observable_values)

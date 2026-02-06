@@ -10,7 +10,7 @@ from pathlib import Path
 
 import numpy as np
 from quark import Task
-from quark.circuit import Backend
+from .backend import Backend
 
 from ..circuit import QuantumCircuit
 
@@ -49,6 +49,7 @@ class QuantumHardwareClient:
 		"""Create a hardware client with an access token."""
 		self.token = token
 		self.chip_name = None
+		# Task manager is the single entry point for submitting hardware jobs.
 		self.tmgr = Task(token)
 		self.chip_backend = None
 
@@ -95,6 +96,7 @@ class QuantumHardwareClient:
 		"""Transpile with a specific backend and optional target qubits."""
 		if target_qubits is None:
 			return Transpiler(backend).run(qc)
+		# When target qubits are provided, enable DD to reduce idle errors.
 		return Transpiler(backend).run(qc, target_qubits=list(target_qubits), use_dd=True)
 
 	def _submit_openqasm(
@@ -107,6 +109,7 @@ class QuantumHardwareClient:
 		"""Submit a blocking OpenQASM task and return its counts."""
 		if chip_name is None and self.chip_name is None:
 			raise RuntimeError("chip_name is not set; use run_auto or provide chip_name")
+		# Submit tasks in raw QASM mode to keep transpilation under our control.
 		task = {
 			"chip": self.chip_name if chip_name is None else chip_name,
 			"name": name,

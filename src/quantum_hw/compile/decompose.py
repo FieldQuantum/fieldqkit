@@ -38,218 +38,188 @@ def u_dot_u(u_info1: tuple, u_info2: tuple) -> tuple:
     return ("u", theta, phi, lamda, u_info1[-1])
 
 
-def h2u(qubit: int) -> tuple:
-    return ("u", np.pi / 2, 0.0, np.pi, qubit)
-
-
 def x2u(qubit: int) -> tuple:
     return ("u", np.pi, np.pi / 2, -np.pi / 2, qubit)
 
+def y2u(qubit: int) -> tuple:
+    return ("u", np.pi, 0.0, 0, qubit)
 
-def sdg2u(qubit: int) -> tuple:
-    return ("u", 0.0, -0.7853981633974483, -0.7853981633974483, qubit)
+def z2u(qubit: int) -> tuple:
+    return ("u", 0.0, 0.0, np.pi, qubit)
 
+def h2u(qubit: int) -> tuple:
+    return ("u", np.pi / 2, 0.0, np.pi, qubit)
 
 def s2u(qubit: int) -> tuple:
-    return ("u", 0.0, 0.7853981633974483, 0.7853981633974483, qubit)
+    return ("u", 0.0, np.pi / 4, np.pi / 4, qubit)
 
+def sdg2u(qubit: int) -> tuple:
+    return ("u", 0.0, -np.pi / 4, -np.pi / 4, qubit)
+
+def t2u(qubit: int) -> tuple:
+    return ("u", 0.0, np.pi / 8, np.pi / 8, qubit)
+
+def tdg2u(qubit: int) -> tuple:
+    return ("u", 0.0, -np.pi / 8, -np.pi / 8, qubit)
+
+def sx2u(qubit: int) -> tuple:
+    return ("u", np.pi / 2, -np.pi / 2, np.pi / 2, qubit)
+
+def sxdg2u(qubit: int) -> tuple:
+    return ("u", np.pi / 2, np.pi / 2, -np.pi / 2, qubit)
 
 def rx2u(theta: float, qubit: int) -> tuple:
     return ("u", theta, -np.pi / 2, np.pi / 2, qubit)
 
-
 def ry2u(theta: float, qubit: int) -> tuple:
     return ("u", theta, 0.0, 0.0, qubit)
 
-
 def rz2u(theta: float, qubit: int) -> tuple:
     return ("u", 0.0, 0.0, theta, qubit)
-
-
-def convert_cx_to_iswap(control_qubit, target_qubit, convert_single_qubit_gate_to_u: bool):
-    gates0 = [
-        ("rz", -1.5707963267948966, control_qubit),
-        ("ry", 1.5707963267948966, control_qubit),
-        ("rz", 1.5707963267948966, control_qubit),
-        ("ry", -1.5707963267948966, target_qubit),
-        ("rz", -1.0094094858814842, target_qubit),
-        ("iswap", control_qubit, target_qubit),
-        ("rz", -1.5707963267948966, control_qubit),
-        ("ry", 3.141592653589793, control_qubit),
-        ("rz", 1.5707963267948966, target_qubit),
-        ("ry", -1.5707963267948966, target_qubit),
-        ("iswap", control_qubit, target_qubit),
-        ("rz", -3.141592653589793, control_qubit),
-        ("ry", -1.5707963267948966, control_qubit),
-        ("rz", -1.0094094858814842, target_qubit),
-        ("ry", -1.5707963267948966, target_qubit),
-    ]
-
-    new = []
-    if convert_single_qubit_gate_to_u:
-        for gate_info in gates0:
-            if gate_info[0] == "rz":
-                new_gate_info = rz2u(gate_info[1], gate_info[2])
-                new.append(new_gate_info)
-            elif gate_info[0] == "ry":
-                new_gate_info = ry2u(gate_info[1], gate_info[2])
-                new.append(new_gate_info)
-            else:
-                new.append(gate_info)
-        gates0 = new
-    return gates0
-
-
-def convert_cz_to_iswap(control_qubit, target_qubit, convert_single_qubit_gate_to_u: bool):
-    gates0 = [
-        ("rz", -1.5707963267948966, control_qubit),
-        ("ry", 1.5707963267948966, control_qubit),
-        ("rz", 1.5707963267948966, control_qubit),
-        ("rz", -1.5707963267948966, target_qubit),
-        ("ry", 3.141592653589793, target_qubit),
-        ("iswap", control_qubit, target_qubit),
-        ("rz", -1.5707963267948966, control_qubit),
-        ("ry", 3.141592653589793, control_qubit),
-        ("rz", 1.5707963267948966, target_qubit),
-        ("ry", -1.5707963267948966, target_qubit),
-        ("iswap", control_qubit, target_qubit),
-        ("ry", 1.5707963267948966, control_qubit),
-        ("rz", 1.5707963267948966, target_qubit),
-    ]
-    new = []
-    if convert_single_qubit_gate_to_u:
-        for gate_info in gates0:
-            if gate_info[0] == "rz":
-                new_gate_info = rz2u(gate_info[1], gate_info[2])
-                new.append(new_gate_info)
-            elif gate_info[0] == "ry":
-                new_gate_info = ry2u(gate_info[1], gate_info[2])
-                new.append(new_gate_info)
-            else:
-                new.append(gate_info)
-        gates0 = new
-    return gates0
 
 
 def cz_decompose(
     control_qubit: int,
     target_qubit: int,
     convert_single_qubit_gate_to_u: bool,
-    two_qubit_gate_basis: Literal["cx", "cz", "iswap"],
+    two_qubit_gate_basis: Literal["cz", "cx", "iswap", "ecr"],
 ) -> list:
-    gates = []
     if two_qubit_gate_basis == "cz":
-        gates.append(("cz", control_qubit, target_qubit))
+        gates = [("cz", control_qubit, target_qubit)]
     elif two_qubit_gate_basis == "cx":
         if convert_single_qubit_gate_to_u:
-            gates.append(h2u(target_qubit))
+            gates = [
+                h2u(target_qubit), 
+                ("cx", control_qubit, target_qubit), 
+                h2u(target_qubit)
+            ]
         else:
-            gates.append(("h", target_qubit))
-        gates.append(("cx", control_qubit, target_qubit))
+            gates = [
+                ("h", target_qubit), 
+                ("cx", control_qubit, target_qubit), 
+                ("h", target_qubit)
+            ]
+    elif two_qubit_gate_basis == "ecr":
         if convert_single_qubit_gate_to_u:
-            gates.append(h2u(target_qubit))
+            gates = [
+                h2u(target_qubit),
+                sdg2u(control_qubit),
+                sxdg2u(target_qubit),
+                ("ecr", control_qubit, target_qubit),
+                x2u(control_qubit),
+                h2u(target_qubit),
+            ]
         else:
-            gates.append(("h", target_qubit))
+            gates = [
+                ("h", target_qubit),
+                ("sdg", control_qubit),
+                ("sxdg", target_qubit),
+                ("ecr", control_qubit, target_qubit),
+                ("x", control_qubit),
+                ("h", target_qubit),
+            ]
     elif two_qubit_gate_basis == "iswap":
-        gates += convert_cz_to_iswap(control_qubit, target_qubit, convert_single_qubit_gate_to_u)
-
+        if convert_single_qubit_gate_to_u:
+            gates = [
+                rz2u(np.pi / 2, target_qubit),
+                rx2u(np.pi / 2, target_qubit),
+                ("iswap", control_qubit, target_qubit),
+                rx2u(np.pi / 2, control_qubit),
+                rz2u(-np.pi / 2, control_qubit),
+                rz2u(np.pi / 2, target_qubit),
+                ("iswap", control_qubit, target_qubit),
+                rz2u(np.pi / 2, target_qubit),
+                rx2u(np.pi / 2, target_qubit),
+            ]
+        else:
+            gates = [
+                ("rz", np.pi / 2, target_qubit),
+                ("rx", np.pi / 2, target_qubit),
+                ("iswap", control_qubit, target_qubit),
+                ("rx", np.pi / 2, control_qubit),
+                ("rz", -np.pi / 2, control_qubit),
+                ("rz", np.pi / 2, target_qubit),
+                ("iswap", control_qubit, target_qubit),
+                ("rz", np.pi / 2, target_qubit),
+                ("rx", np.pi / 2, target_qubit),
+            ]
     return gates
-
 
 def cx_decompose(
     control_qubit: int,
     target_qubit: int,
     convert_single_qubit_gate_to_u: bool,
-    two_qubit_gate_basis: Literal["cx", "cz", "iswap"],
+    two_qubit_gate_basis: Literal["cz", "cx", "iswap", "ecr"],
 ) -> list:
-    gates = []
-    if two_qubit_gate_basis == "cz":
+    if two_qubit_gate_basis in ["cz", "iswap", "ecr"]:
         if convert_single_qubit_gate_to_u:
-            gates.append(h2u(target_qubit))
+            gates = [
+                h2u(target_qubit),
+            ] + cz_decompose(control_qubit, target_qubit, convert_single_qubit_gate_to_u, two_qubit_gate_basis) + [
+                h2u(target_qubit),
+            ]
         else:
-            gates.append(("h", target_qubit))
-        gates.append(("cz", control_qubit, target_qubit))
-        if convert_single_qubit_gate_to_u:
-            gates.append(h2u(target_qubit))
-        else:
-            gates.append(("h", target_qubit))
+            gates = [
+                ("h", target_qubit),
+            ] + cz_decompose(control_qubit, target_qubit, convert_single_qubit_gate_to_u, two_qubit_gate_basis) + [
+                ("h", target_qubit),
+            ]
     elif two_qubit_gate_basis == "cx":
-        gates.append(("cx", control_qubit, target_qubit))
-    elif two_qubit_gate_basis == "iswap":
-        gates += convert_cx_to_iswap(control_qubit, target_qubit, convert_single_qubit_gate_to_u)
+        gates = [("cx", control_qubit, target_qubit)]
+    
     return gates
-
 
 def cy_decompose(
     control_qubit: int,
     target_qubit: int,
     convert_single_qubit_gate_to_u: bool,
-    two_qubit_gate_basis: Literal["cz", "cx", "iswap"],
+    two_qubit_gate_basis: Literal["cz", "cx", "iswap", "ecr"],
 ) -> list:
-    gates = []
     if convert_single_qubit_gate_to_u:
-        gates.append(sdg2u(target_qubit))
+        gates = [
+            sdg2u(target_qubit),
+        ] + cx_decompose(control_qubit, target_qubit, convert_single_qubit_gate_to_u, two_qubit_gate_basis) + [
+            s2u(target_qubit),
+        ]
     else:
-        gates.append(("sdg", target_qubit))
-
-    if two_qubit_gate_basis == "cz":
-        gates += cx_decompose(control_qubit, target_qubit, convert_single_qubit_gate_to_u, two_qubit_gate_basis)
-    elif two_qubit_gate_basis == "cx":
-        gates.append(("cx", control_qubit, target_qubit))
-    elif two_qubit_gate_basis == "iswap":
-        gates += convert_cx_to_iswap(control_qubit, target_qubit, convert_single_qubit_gate_to_u)
-
-    if convert_single_qubit_gate_to_u:
-        gates.append(s2u(target_qubit))
-    else:
-        gates.append(("s", target_qubit))
+        gates = [
+            ("sdg", target_qubit),
+        ] + cx_decompose(control_qubit, target_qubit, convert_single_qubit_gate_to_u, two_qubit_gate_basis) + [
+            ("s", target_qubit),
+        ]
     return gates
-
 
 def swap_decompose(
     qubit1: int,
     qubit2: int,
     convert_single_qubit_gate_to_u: bool,
-    two_qubit_gate_basis: Literal["cz", "cx", "iswap"],
+    two_qubit_gate_basis: Literal["cz", "cx", "iswap", "ecr"],
 ) -> list:
-    if two_qubit_gate_basis == "cz":
-        gates = []
-        if convert_single_qubit_gate_to_u:
-            gates.append(h2u(qubit2))
-        else:
-            gates.append(("h", qubit2))
-        gates.append(("cz", qubit1, qubit2))
-        if convert_single_qubit_gate_to_u:
-            gates.append(h2u(qubit2))
-            gates.append(h2u(qubit1))
-        else:
-            gates.append(("h", qubit2))
-            gates.append(("h", qubit1))
-        gates.append(("cz", qubit1, qubit2))
-        if convert_single_qubit_gate_to_u:
-            gates.append(h2u(qubit1))
-            gates.append(h2u(qubit2))
-        else:
-            gates.append(("h", qubit1))
-            gates.append(("h", qubit2))
-        gates.append(("cz", qubit1, qubit2))
-        if convert_single_qubit_gate_to_u:
-            gates.append(h2u(qubit2))
-        else:
-            gates.append(("h", qubit2))
-    elif two_qubit_gate_basis == "cx":
-        gates = []
-        gates.append(("cx", qubit1, qubit2))
-        gates.append(("cx", qubit2, qubit1))
-        gates.append(("cx", qubit1, qubit2))
+    if two_qubit_gate_basis in ["cz", "cx", "ecr"]:
+        gates = (
+            cx_decompose(qubit1, qubit2, convert_single_qubit_gate_to_u, two_qubit_gate_basis)
+            + cx_decompose(qubit2, qubit1, convert_single_qubit_gate_to_u, two_qubit_gate_basis)
+            + cx_decompose(qubit1, qubit2, convert_single_qubit_gate_to_u, two_qubit_gate_basis)
+        )
     elif two_qubit_gate_basis == "iswap":
-        gates = []
-        gates.append(("iswap", qubit1, qubit2))
-        gates.append(("sx", qubit2))
-        gates.append(("iswap", qubit1, qubit2))
-        gates.append(("sx", qubit1))
-        gates.append(("iswap", qubit1, qubit2))
-        gates.append(("sx", qubit2))
+        if convert_single_qubit_gate_to_u:
+            gates = [
+                ("iswap", qubit1, qubit2),
+                sx2u(qubit2),
+                ("iswap", qubit1, qubit2),
+                sx2u(qubit1),
+                ("iswap", qubit1, qubit2),
+                sx2u(qubit2),
+            ]
+        else:
+            gates = [
+                ("iswap", qubit1, qubit2),
+                ("sx", qubit2),
+                ("iswap", qubit1, qubit2),
+                ("sx", qubit1),
+                ("iswap", qubit1, qubit2),
+                ("sx", qubit2),
+            ]
     return gates
 
 
@@ -257,43 +227,56 @@ def iswap_decompose(
     qubit1: int,
     qubit2: int,
     convert_single_qubit_gate_to_u: bool,
-    two_qubit_gate_basis: Literal["cz", "cx", "iswap"],
+    two_qubit_gate_basis: Literal["cz", "cx", "iswap", "ecr"],
 ) -> list:
     if two_qubit_gate_basis == "iswap":
-        gates = []
-        gates.append(("iswap", qubit1, qubit2))
-    else:
-        gates = []
+        gates = [("iswap", qubit1, qubit2)]
+    elif two_qubit_gate_basis in ["cz", "cx", "ecr"]:
         if convert_single_qubit_gate_to_u:
-            gates.append(x2u(qubit1))
-            gates.append(rx2u(np.pi / 2, qubit1))
-            gates.append(rx2u(-np.pi / 2, qubit2))
+            gates = [
+                s2u(qubit1),
+                s2u(qubit2),
+                h2u(qubit1),
+            ] + cx_decompose(qubit1, qubit2, convert_single_qubit_gate_to_u, two_qubit_gate_basis) + [
+            ] + cx_decompose(qubit2, qubit1, convert_single_qubit_gate_to_u, two_qubit_gate_basis) + [
+                h2u(qubit2),
+            ]
         else:
-            gates.append(("x", qubit1))
-            gates.append(("rx", np.pi / 2, qubit1))
-            gates.append(("rx", -np.pi / 2, qubit2))
-        if two_qubit_gate_basis == "cx":
-            gates.append(("cx", qubit1, qubit2))
-        elif two_qubit_gate_basis == "cz":
-            gates += cx_decompose(qubit1, qubit2, convert_single_qubit_gate_to_u, two_qubit_gate_basis)
+            gates = [
+                ("s", qubit1),
+                ("s", qubit2),
+                ("h", qubit1),
+            ] + cx_decompose(qubit1, qubit2, convert_single_qubit_gate_to_u, two_qubit_gate_basis) + [
+            ] + cx_decompose(qubit2, qubit1, convert_single_qubit_gate_to_u, two_qubit_gate_basis) + [
+                ("h", qubit2),
+            ]
+
+    return gates
+
+
+def ecr_decompose(
+    qubit1: int,
+    qubit2: int,
+    convert_single_qubit_gate_to_u: bool,
+    two_qubit_gate_basis: Literal["cz", "cx", "iswap", "ecr"],
+) -> list:
+    if two_qubit_gate_basis == "ecr":
+        gates = [("ecr", qubit1, qubit2)]
+    elif two_qubit_gate_basis in ["cz", "cx", "iswap"]:
         if convert_single_qubit_gate_to_u:
-            gates.append(rx2u(-np.pi / 2, qubit1))
-            gates.append(rz2u(-np.pi / 2, qubit2))
+            gates = [
+                s2u(qubit1),
+                sx2u(qubit2),
+            ] + cx_decompose(qubit1, qubit2, convert_single_qubit_gate_to_u, two_qubit_gate_basis) + [
+                x2u(qubit1),
+            ]
         else:
-            gates.append(("rx", -np.pi / 2, qubit1))
-            gates.append(("rz", -np.pi / 2, qubit2))
-        if two_qubit_gate_basis == "cx":
-            gates.append(("cx", qubit1, qubit2))
-        elif two_qubit_gate_basis == "cz":
-            gates += cx_decompose(qubit1, qubit2, convert_single_qubit_gate_to_u, two_qubit_gate_basis)
-        if convert_single_qubit_gate_to_u:
-            gates.append(rx2u(-np.pi / 2, qubit1))
-            gates.append(rx2u(np.pi / 2, qubit2))
-            gates.append(x2u(qubit1))
-        else:
-            gates.append(("rx", -np.pi / 2, qubit1))
-            gates.append(("rx", np.pi / 2, qubit2))
-            gates.append(("x", qubit1))
+            gates = [
+                ("s", qubit1),
+                ("sx", qubit2),
+            ] + cx_decompose(qubit1, qubit2, convert_single_qubit_gate_to_u, two_qubit_gate_basis) + [
+                ("x", qubit1),
+            ]
     return gates
 
 
@@ -302,39 +285,28 @@ def rxx_decompose(
     qubit1: int,
     qubit2: int,
     convert_single_qubit_gate_to_u: bool,
-    two_qubit_gate_basis: Literal["cz", "cx", "iswap"],
+    two_qubit_gate_basis: Literal["cz", "cx", "iswap", "ecr"],
 ) -> list:
-    gates = []
     if convert_single_qubit_gate_to_u:
-        gates.append(h2u(qubit1))
-        gates.append(h2u(qubit2))
+        gates = [
+            h2u(qubit1),
+            h2u(qubit2),
+        ] + cx_decompose(qubit1, qubit2, convert_single_qubit_gate_to_u, two_qubit_gate_basis) + [
+            rz2u(theta, qubit2),
+        ] + cx_decompose(qubit1, qubit2, convert_single_qubit_gate_to_u, two_qubit_gate_basis) + [
+            h2u(qubit1),
+            h2u(qubit2),
+        ]
     else:
-        gates.append(("h", qubit1))
-        gates.append(("h", qubit2))
-    if two_qubit_gate_basis == "cx":
-        gates.append(("cx", qubit1, qubit2))
-    elif two_qubit_gate_basis == "cz":
-        gates += cx_decompose(qubit1, qubit2, convert_single_qubit_gate_to_u, two_qubit_gate_basis)
-    elif two_qubit_gate_basis == "iswap":
-        gates += convert_cx_to_iswap(qubit1, qubit2, convert_single_qubit_gate_to_u)
-
-    if convert_single_qubit_gate_to_u:
-        gates.append(rz2u(theta, qubit2))
-    else:
-        gates.append(("rz", theta, qubit2))
-    if two_qubit_gate_basis == "cx":
-        gates.append(("cx", qubit1, qubit2))
-    elif two_qubit_gate_basis == "cz":
-        gates += cx_decompose(qubit1, qubit2, convert_single_qubit_gate_to_u, two_qubit_gate_basis)
-    elif two_qubit_gate_basis == "iswap":
-        gates += convert_cx_to_iswap(qubit1, qubit2, convert_single_qubit_gate_to_u)
-
-    if convert_single_qubit_gate_to_u:
-        gates.append(h2u(qubit1))
-        gates.append(h2u(qubit2))
-    else:
-        gates.append(("h", qubit1))
-        gates.append(("h", qubit2))
+        gates = [
+            ("h", qubit1),
+            ("h", qubit2),
+        ] + cx_decompose(qubit1, qubit2, convert_single_qubit_gate_to_u, two_qubit_gate_basis) + [
+            ("rz", theta, qubit2),
+        ] + cx_decompose(qubit1, qubit2, convert_single_qubit_gate_to_u, two_qubit_gate_basis) + [
+            ("h", qubit1),
+            ("h", qubit2),
+        ]
     return gates
 
 
@@ -343,37 +315,28 @@ def ryy_decompose(
     qubit1: int,
     qubit2: int,
     convert_single_qubit_gate_to_u: bool,
-    two_qubit_gate_basis: Literal["cz", "cx", "iswap"],
+    two_qubit_gate_basis: Literal["cz", "cx", "iswap", "ecr"],
 ) -> list:
-    gates = []
     if convert_single_qubit_gate_to_u:
-        gates.append(rx2u(np.pi / 2, qubit1))
-        gates.append(rx2u(np.pi / 2, qubit2))
+        gates = [
+            rx2u(np.pi / 2, qubit1),
+            rx2u(np.pi / 2, qubit2),
+        ] + cx_decompose(qubit1, qubit2, convert_single_qubit_gate_to_u, two_qubit_gate_basis) + [
+            rz2u(theta, qubit2),
+        ] + cx_decompose(qubit1, qubit2, convert_single_qubit_gate_to_u, two_qubit_gate_basis) + [
+            rx2u(-np.pi / 2, qubit1),
+            rx2u(-np.pi / 2, qubit2),
+        ]
     else:
-        gates.append(("rx", np.pi / 2, qubit1))
-        gates.append(("rx", np.pi / 2, qubit2))
-    if two_qubit_gate_basis == "cx":
-        gates.append(("cx", qubit1, qubit2))
-    elif two_qubit_gate_basis == "cz":
-        gates += cx_decompose(qubit1, qubit2, convert_single_qubit_gate_to_u, two_qubit_gate_basis)
-    elif two_qubit_gate_basis == "iswap":
-        gates += convert_cx_to_iswap(qubit1, qubit2, convert_single_qubit_gate_to_u)
-    if convert_single_qubit_gate_to_u:
-        gates.append(rz2u(theta, qubit2))
-    else:
-        gates.append(("rz", theta, qubit2))
-    if two_qubit_gate_basis == "cx":
-        gates.append(("cx", qubit1, qubit2))
-    elif two_qubit_gate_basis == "cz":
-        gates += cx_decompose(qubit1, qubit2, convert_single_qubit_gate_to_u, two_qubit_gate_basis)
-    elif two_qubit_gate_basis == "iswap":
-        gates += convert_cx_to_iswap(qubit1, qubit2, convert_single_qubit_gate_to_u)
-    if convert_single_qubit_gate_to_u:
-        gates.append(rx2u(-np.pi / 2, qubit1))
-        gates.append(rx2u(-np.pi / 2, qubit2))
-    else:
-        gates.append(("rx", -np.pi / 2, qubit1))
-        gates.append(("rx", -np.pi / 2, qubit2))
+        gates = [
+            ("rx", np.pi / 2, qubit1),
+            ("rx", np.pi / 2, qubit2),
+        ] + cx_decompose(qubit1, qubit2, convert_single_qubit_gate_to_u, two_qubit_gate_basis) + [
+            ("rz", theta, qubit2),
+        ] + cx_decompose(qubit1, qubit2, convert_single_qubit_gate_to_u, two_qubit_gate_basis) + [
+            ("rx", -np.pi / 2, qubit1),
+            ("rx", -np.pi / 2, qubit2),
+        ]
     return gates
 
 
@@ -382,25 +345,16 @@ def rzz_decompose(
     qubit1: int,
     qubit2: int,
     convert_single_qubit_gate_to_u: bool,
-    two_qubit_gate_basis: Literal["cz", "cx", "iswap"],
+    two_qubit_gate_basis: Literal["cz", "cx", "iswap", "ecr"],
 ) -> list:
-    gates = []
-    if two_qubit_gate_basis == "cx":
-        gates.append(("cx", qubit1, qubit2))
-    elif two_qubit_gate_basis == "cz":
-        gates += cx_decompose(qubit1, qubit2, convert_single_qubit_gate_to_u, two_qubit_gate_basis)
-    elif two_qubit_gate_basis == "iswap":
-        gates += convert_cx_to_iswap(qubit1, qubit2, convert_single_qubit_gate_to_u)
     if convert_single_qubit_gate_to_u:
-        gates.append(rz2u(theta, qubit2))
+        gates = cx_decompose(qubit1, qubit2, convert_single_qubit_gate_to_u, two_qubit_gate_basis) + [
+            rz2u(theta, qubit2),
+        ] + cx_decompose(qubit1, qubit2, convert_single_qubit_gate_to_u, two_qubit_gate_basis)
     else:
-        gates.append(("rz", theta, qubit2))
-    if two_qubit_gate_basis == "cx":
-        gates.append(("cx", qubit1, qubit2))
-    elif two_qubit_gate_basis == "cz":
-        gates += cx_decompose(qubit1, qubit2, convert_single_qubit_gate_to_u, two_qubit_gate_basis)
-    elif two_qubit_gate_basis == "iswap":
-        gates += convert_cx_to_iswap(qubit1, qubit2, convert_single_qubit_gate_to_u)
+        gates = cx_decompose(qubit1, qubit2, convert_single_qubit_gate_to_u, two_qubit_gate_basis) + [
+            ("rz", theta, qubit2),
+        ] + cx_decompose(qubit1, qubit2, convert_single_qubit_gate_to_u, two_qubit_gate_basis)
     return gates
 
 
@@ -409,31 +363,22 @@ def cp_decompose(
     control_qubit: int,
     target_qubit: int,
     convert_single_qubit_gate_to_u: bool,
-    two_qubit_gate_basis: Literal["cz", "cx", "iswap"],
+    two_qubit_gate_basis: Literal["cz", "cx", "iswap", "ecr"],
 ) -> list:
-    gates = []
     if convert_single_qubit_gate_to_u:
-        gates.append(h2u(target_qubit))
+        gates = [
+            rz2u(theta / 2, control_qubit),
+            rz2u(theta / 2, target_qubit),
+        ] + cx_decompose(control_qubit, target_qubit, convert_single_qubit_gate_to_u, two_qubit_gate_basis) + [
+            rz2u(-theta / 2, target_qubit),
+        ] + cx_decompose(control_qubit, target_qubit, convert_single_qubit_gate_to_u, two_qubit_gate_basis)
     else:
-        gates.append(("h", target_qubit))
-
-    gates += cz_decompose(control_qubit, target_qubit, convert_single_qubit_gate_to_u, two_qubit_gate_basis)
-
-    if convert_single_qubit_gate_to_u:
-        gates.append(rx2u(theta / 2, target_qubit))
-    else:
-        gates.append(("rx", theta / 2, target_qubit))
-
-    gates += cz_decompose(control_qubit, target_qubit, convert_single_qubit_gate_to_u, two_qubit_gate_basis)
-
-    if convert_single_qubit_gate_to_u:
-        gates.append(rz2u(-1 * theta / 2, control_qubit))
-        gates.append(h2u(target_qubit))
-        gates.append(rz2u(-1 * theta / 2, target_qubit))
-    else:
-        gates.append(("rz", -1 * theta / 2, control_qubit))
-        gates.append(("h", target_qubit))
-        gates.append(("rz", -1 * theta / 2, target_qubit))
+        gates = [
+            ("rz", theta / 2, control_qubit),
+            ("rz", theta / 2, target_qubit),
+        ] + cx_decompose(control_qubit, target_qubit, convert_single_qubit_gate_to_u, two_qubit_gate_basis) + [
+            ("rz", -theta / 2, target_qubit),
+        ] + cx_decompose(control_qubit, target_qubit, convert_single_qubit_gate_to_u, two_qubit_gate_basis)
     return gates
 
 

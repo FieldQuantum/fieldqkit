@@ -27,7 +27,7 @@ one_qubit_gates_available = {
     'h':'H', 'sx':'√X','sxdg':'√Xdg',
     }
 two_qubit_gates_available = {
-    'cx':'●X', 'cnot':'●X', 'cy':'●Y', 'cz':'●Z', 'swap':'XX', 'iswap':'✶✶',
+    'cx':'●X', 'cnot':'●X', 'cy':'●Y', 'cz':'●Z', 'swap':'XX', 'iswap':'✶✶', 'ecr':'╬╬'
     } 
 three_qubit_gates_available = {'ccz':'●●●','ccx':'●●X','cswap':'●XX'} 
 one_qubit_parameter_gates_available = {'rx':'Rx', 'ry':'Ry', 'rz':'Rz', 'p':'P', 'u':'U', 'u3':'U', 'r':'R'}
