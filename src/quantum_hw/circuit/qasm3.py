@@ -1,4 +1,7 @@
-"""OpenQASM 3.0 Parser（using openqasm3 AST）。"""
+"""
+BY CODEX AND NEED CHECK!
+OpenQASM 3.0 Parser（using openqasm3 AST）。
+"""
 
 import numpy as np
 

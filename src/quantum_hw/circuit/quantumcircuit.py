@@ -412,6 +412,26 @@ class QuantumCircuit:
         else:
             raise ValueError("Qubit index out of range")
         
+    def ecr(self, qubit1: int, qubit2: int) -> 'QuantumCircuit':
+        r"""
+        Add a ECR gate.
+
+        Args:
+            qubit1 (int): The first qubit to apply the gate to.
+            qubit2 (int): The second qubit to apply the gate to.
+
+        Raises:
+            ValueError: If qubit out of circuit range.
+        """
+        if max(qubit1, qubit2) < self.nqubits:
+            if qubit1 != qubit2:
+                self.gates.append(('ecr', qubit1,qubit2))
+                self._add_qubits(qubit1,qubit2)
+            else:
+                raise ValueError(f"Qubit index conflict: qubit1 and qubit2 are both {qubit1}")
+        else:
+            raise ValueError("Qubit index out of range")
+        
     def cx(self, control_qubit: int, target_qubit: int) -> 'QuantumCircuit':
         r"""
         Add a CX gate.

@@ -3,6 +3,7 @@
 本文档给出更详细的使用说明、API 参数、返回结构、以及实现细节。示例代码见 [examples/demo.py](../examples/demo.py)。
 
 OpenQASM3 解析依赖 `openqasm3` 包。
+Backend 拓扑与请求依赖 `networkx` 与 `requests`。
 
 ## 快速流程
 

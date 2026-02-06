@@ -30,7 +30,7 @@ from typing import Literal
 from itertools import combinations, zip_longest, product
 from multiprocessing import Pool
 from functools import partial
-from quark.circuit.backend import Backend
+from ..api.backend import Backend
 
 from ..circuit import QuantumCircuit
 from .dag import split_qubits

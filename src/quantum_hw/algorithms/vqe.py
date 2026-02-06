@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from typing import Callable, Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
-from quark.circuit import Backend
+from ..api.backend import Backend
 
 from ..circuit import QuantumCircuit
 

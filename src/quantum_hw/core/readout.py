@@ -20,10 +20,7 @@ def build_readout_calibration_circuits(num_qubits: int):
 		for q, b in enumerate(bits[::-1]):
 			if b == "1":
 				qc.x(q)
-			else:
-				qc.x(q)
-				qc.x(q)
-		qc.measure_all()
+		qc.measure(q)
 		circuits.append((bits, qc))
 	return circuits
 

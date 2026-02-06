@@ -17,11 +17,11 @@
 pip install -e .
 ```
 
-> 依赖：Python >= 3.9，`numpy>=1.24`。
+> 依赖：Python >= 3.9，`numpy>=1.24`，`networkx>=3.0`，`requests>=2.31`。
 > OpenQASM3 解析依赖 `openqasm3`。
-> 需要访问硬件时请安装 `quark` 及其环境依赖。
+> 请安装 `quark` 及其环境依赖以访问硬件时。
 > 作图示例需要 `matplotlib`。
-> 可选依赖：`pip install -e .[quark,viz]`。
+> 一键安装依赖：`pip install -e .[quark,viz]`。
 
 ### Quafu 安装与 Token
 

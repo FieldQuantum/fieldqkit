@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Dict, List, Optional, Sequence, Tuple, Union
 from pathlib import Path
 
-from quark.circuit import Backend
+from .backend import Backend
 
 
 def get_available_chip_status(tmgr) -> Dict[str, int]:
