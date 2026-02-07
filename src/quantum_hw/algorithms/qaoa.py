@@ -10,7 +10,7 @@ from ..api.backend import Backend
 
 from ..circuit import QuantumCircuit
 
-from ..core.observables import pauli_support
+from ..core.observables import pauli_support, shift_pauli_string
 from ..core.types import QAOAResult
 
 
@@ -195,10 +195,81 @@ def _evaluate_maxcut_cost_with_backend(
         observables=observables,
         return_probabilities=False,
         target_qubits=target_qubits,
+        print_true=False,
     )
     expectations = _ensure_observable_map(observables, result.observable_values)
     cost = constant + sum(coeff * expectations.get(obs, 0.0) for coeff, obs in terms)
     return float(cost), expectations
+
+
+def _shift_terms(terms: Hamiltonian, offset: int) -> Hamiltonian:
+    return [(coeff, shift_pauli_string(obs, offset)) for coeff, obs in terms]
+
+
+def _pack_circuits(circuits: Sequence[QuantumCircuit], num_qubits: int) -> QuantumCircuit:
+    total_qubits = num_qubits * len(circuits)
+    packed = QuantumCircuit(total_qubits)
+    packed.gates = []
+    packed.qubits = []
+    for idx, qc in enumerate(circuits):
+        offset = idx * num_qubits
+        local = qc.deepcopy()
+        local.adjust_index(offset, cbit_offset=offset)
+        packed.gates.extend(local.gates)
+        packed.qubits.extend(local.qubits)
+    packed.qubits = sorted(set(packed.qubits))
+    return packed
+
+
+def _estimate_parallel_batches(backend: Backend, num_qubits: int) -> int:
+    if num_qubits <= 0:
+        return 1
+    total_qubits = len(backend.graph.nodes)
+    max_blocks = total_qubits // num_qubits
+    return max(1, max_blocks // 2)
+
+
+def _evaluate_costs_with_backend_batch(
+    client,
+    circuits: Sequence[QuantumCircuit],
+    *,
+    name: str,
+    num_qubits: int,
+    backend: Backend,
+    chip_name: str,
+    shots: int,
+    terms: Hamiltonian,
+    constant: float,
+    zne: bool,
+    readout_mitigation: bool,
+) -> List[float]:
+    offsets = [i * num_qubits for i in range(len(circuits))]
+    packed = _pack_circuits(circuits, num_qubits)
+    total_qubits = num_qubits * len(circuits)
+
+    shifted_terms = [_shift_terms(terms, offset) for offset in offsets]
+    observables = [term[1] for ham in shifted_terms for term in ham]
+
+    result = client._run_with_backend(
+        packed,
+        name,
+        total_qubits,
+        backend=backend,
+        chip_name=chip_name,
+        shots=shots,
+        zne=zne,
+        readout_mitigation=readout_mitigation,
+        observables=observables,
+        return_probabilities=False,
+        target_qubits=None,
+        print_true=False,
+    )
+    expectations = _ensure_observable_map(observables, result.observable_values)
+    costs = []
+    for ham in shifted_terms:
+        cost = constant + sum(coeff * expectations.get(obs, 0.0) for coeff, obs in ham)
+        costs.append(float(cost))
+    return costs
 
 
 def _adam_update(
@@ -248,6 +319,107 @@ def _parameter_shift_gradient_qaoa(
     """Parameter-shift gradient for QAOA parameters (gammas, betas)."""
     p = params.size // 2
     grads = np.zeros_like(params, dtype=float)
+    if target_qubits is not None:
+        for i in range(params.size):
+            params_plus = params.copy()
+            params_minus = params.copy()
+            params_plus[i] += shift
+            params_minus[i] -= shift
+            gammas_plus = params_plus[:p]
+            betas_plus = params_plus[p:]
+            gammas_minus = params_minus[:p]
+            betas_minus = params_minus[p:]
+
+            if use_terms:
+                qc_plus = build_qaoa_circuit_from_terms(num_qubits, gammas_plus, betas_plus, terms)
+                qc_minus = build_qaoa_circuit_from_terms(num_qubits, gammas_minus, betas_minus, terms)
+            else:
+                qc_plus = build_qaoa_circuit(num_qubits, gammas_plus, betas_plus, edges, weights=weights)
+                qc_minus = build_qaoa_circuit(num_qubits, gammas_minus, betas_minus, edges, weights=weights)
+
+            c_plus, _ = _evaluate_maxcut_cost_with_backend(
+                client,
+                qc_plus,
+                name=f"{name}_grad_p{i}",
+                num_qubits=num_qubits,
+                backend=backend,
+                chip_name=chip_name,
+                shots=shots,
+                terms=terms,
+                constant=constant,
+                zne=zne,
+                readout_mitigation=readout_mitigation,
+                target_qubits=target_qubits,
+            )
+            c_minus, _ = _evaluate_maxcut_cost_with_backend(
+                client,
+                qc_minus,
+                name=f"{name}_grad_m{i}",
+                num_qubits=num_qubits,
+                backend=backend,
+                chip_name=chip_name,
+                shots=shots,
+                terms=terms,
+                constant=constant,
+                zne=zne,
+                readout_mitigation=readout_mitigation,
+                target_qubits=target_qubits,
+            )
+            grads[i] = 0.5 * (c_plus - c_minus)
+        return grads
+
+    total_circuits = params.size * 2
+    pack_size = min(_estimate_parallel_batches(backend, num_qubits), total_circuits)
+    if pack_size < 2:
+        for i in range(params.size):
+            params_plus = params.copy()
+            params_minus = params.copy()
+            params_plus[i] += shift
+            params_minus[i] -= shift
+            gammas_plus = params_plus[:p]
+            betas_plus = params_plus[p:]
+            gammas_minus = params_minus[:p]
+            betas_minus = params_minus[p:]
+
+            if use_terms:
+                qc_plus = build_qaoa_circuit_from_terms(num_qubits, gammas_plus, betas_plus, terms)
+                qc_minus = build_qaoa_circuit_from_terms(num_qubits, gammas_minus, betas_minus, terms)
+            else:
+                qc_plus = build_qaoa_circuit(num_qubits, gammas_plus, betas_plus, edges, weights=weights)
+                qc_minus = build_qaoa_circuit(num_qubits, gammas_minus, betas_minus, edges, weights=weights)
+
+            c_plus, _ = _evaluate_maxcut_cost_with_backend(
+                client,
+                qc_plus,
+                name=f"{name}_grad_p{i}",
+                num_qubits=num_qubits,
+                backend=backend,
+                chip_name=chip_name,
+                shots=shots,
+                terms=terms,
+                constant=constant,
+                zne=zne,
+                readout_mitigation=readout_mitigation,
+                target_qubits=target_qubits,
+            )
+            c_minus, _ = _evaluate_maxcut_cost_with_backend(
+                client,
+                qc_minus,
+                name=f"{name}_grad_m{i}",
+                num_qubits=num_qubits,
+                backend=backend,
+                chip_name=chip_name,
+                shots=shots,
+                terms=terms,
+                constant=constant,
+                zne=zne,
+                readout_mitigation=readout_mitigation,
+                target_qubits=target_qubits,
+            )
+            grads[i] = 0.5 * (c_plus - c_minus)
+        return grads
+
+    circuits_info: List[Tuple[int, str, QuantumCircuit]] = []
     for i in range(params.size):
         params_plus = params.copy()
         params_minus = params.copy()
@@ -265,35 +437,46 @@ def _parameter_shift_gradient_qaoa(
             qc_plus = build_qaoa_circuit(num_qubits, gammas_plus, betas_plus, edges, weights=weights)
             qc_minus = build_qaoa_circuit(num_qubits, gammas_minus, betas_minus, edges, weights=weights)
 
-        c_plus, _ = _evaluate_maxcut_cost_with_backend(
-            client,
-            qc_plus,
-            name=f"{name}_grad_p{i}",
-            num_qubits=num_qubits,
-            backend=backend,
-            chip_name=chip_name,
-            shots=shots,
-            terms=terms,
-            constant=constant,
-            zne=zne,
-            readout_mitigation=readout_mitigation,
-            target_qubits=target_qubits,
-        )
-        c_minus, _ = _evaluate_maxcut_cost_with_backend(
-            client,
-            qc_minus,
-            name=f"{name}_grad_m{i}",
-            num_qubits=num_qubits,
-            backend=backend,
-            chip_name=chip_name,
-            shots=shots,
-            terms=terms,
-            constant=constant,
-            zne=zne,
-            readout_mitigation=readout_mitigation,
-            target_qubits=target_qubits,
-        )
-        grads[i] = 0.5 * (c_plus - c_minus)
+        circuits_info.append((i, "plus", qc_plus))
+        circuits_info.append((i, "minus", qc_minus))
+
+    costs_plus: Dict[int, float] = {}
+    costs_minus: Dict[int, float] = {}
+    idx = 0
+    batch_id = 0
+    while idx < len(circuits_info):
+        current = min(pack_size, len(circuits_info) - idx)
+        if current <= 0:
+            raise RuntimeError("no available circuit batches for packed gradients")
+        try:
+            batch = circuits_info[idx : idx + current]
+            costs = _evaluate_costs_with_backend_batch(
+                client,
+                [info[2] for info in batch],
+                name=f"{name}_grad_batch{batch_id}",
+                num_qubits=num_qubits,
+                backend=backend,
+                chip_name=chip_name,
+                shots=shots,
+                terms=terms,
+                constant=constant,
+                zne=zne,
+                readout_mitigation=readout_mitigation,
+            )
+            for cost, info in zip(costs, batch):
+                if info[1] == "plus":
+                    costs_plus[info[0]] = cost
+                else:
+                    costs_minus[info[0]] = cost
+            idx += current
+            batch_id += 1
+        except Exception:
+            if current <= 1:
+                raise
+            pack_size = max(1, current // 2)
+
+    for i in range(params.size):
+        grads[i] = 0.5 * (costs_plus[i] - costs_minus[i])
     return grads
 
 

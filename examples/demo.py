@@ -11,7 +11,7 @@ if __name__ == "__main__":
     zne = True
     shots = 50000
     readout_mitigation = True
-    observables = ['ZXIXIXZ', 'IZXIXZI', 'IIZXZII']
+    observables = ['ZXIXIXZ']
     return_probabilities = True
 
     token = "5gjq36bZsMvqFoSNomvnfPy4y[iDJWe[tBx9fIndISQ/:m{O5FEPyRkM4B{N{RkNyd{OypkJxiY[jxjJ4RkPyBkPxJEJ4FUMyBUM3JENzJjPjRYZqKDMxpkJtWnemynJtJTcwOnMtmXZueHRu2XcwW4[vWHbkWYfjpkJzW3d2Kzf"
@@ -26,7 +26,7 @@ if __name__ == "__main__":
         readout_mitigation=readout_mitigation,
         observables=observables,
         return_probabilities=return_probabilities,
-        prefer_chips='Baihua'
+        prefer_chips='Simulator'
     )
     print("Expectation Value (Raw):", results.observable_values_raw)
     print("Expectation Value (Mitigated):", results.observable_values)

@@ -51,6 +51,7 @@ class Transpiler:
             print("Warning: No chip specified, defaulting to a linearly connected layout for simulation.")
             import networkx as nx
 
+            # Build a simple line topology based on logical qubit order.
             subgraph = nx.Graph()
             qubits = list(sorted(qc.qubits))
             subgraph.add_edges_from([(qubits[i], qubits[i + 1]) for i in range(len(qubits) - 1)])
@@ -58,6 +59,7 @@ class Transpiler:
             self.two_qubit_gate_basis = "cx"
             self.convert_single_qubit_gate_to_u = False
         else:
+            # Use the backend's basis and topology-aware layout selection.
             self.two_qubit_gate_basis = self.chip_backend.two_qubit_gate_basis
             self.convert_single_qubit_gate_to_u = True
             subgraph = Layout(self.chip_backend).select_layout(
@@ -70,6 +72,7 @@ class Transpiler:
                 },
             )
         if optimize_level == 0:
+            # Minimal pass set: decompose + route + translate.
             passes = [
                 ThreeQubitGateDecompose(),
                 SabreRouting(subgraph, initial_mapping="trivial", do_random_choice=False, iterations=1),
@@ -79,6 +82,7 @@ class Transpiler:
                 ),
             ]
         elif optimize_level == 1:
+            # Default pass set: add gate compression after translation.
             passes = [
                 ThreeQubitGateDecompose(),
                 SabreRouting(subgraph, initial_mapping="trivial", do_random_choice=False, iterations=niter),
@@ -93,6 +97,7 @@ class Transpiler:
                 raise ValueError(
                     "If quantum circuit can be divided along the qubits, the optimize_level is restricted to 0 or 1"
                 )
+            # Aggressive routing with random initial mapping.
             passes = [
                 ThreeQubitGateDecompose(),
                 SabreRouting(subgraph, initial_mapping="random", do_random_choice=True, iterations=niter),
@@ -106,6 +111,7 @@ class Transpiler:
             raise ValueError("Currently, only optimize_level values of 0 or 1 or 2 are supported.")
         if use_dd:
             try:
+                # Append dynamical decoupling using backend gate lengths.
                 t1g = self.chip_backend.chip_info["global_info"]["one_qubit_gate_length"]
                 t2g = self.chip_backend.chip_info["global_info"]["two_qubit_gate_length"]
                 passes.append(DynamicalDecoupling(t1g, t2g))

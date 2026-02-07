@@ -9,7 +9,7 @@ import json
 from pathlib import Path
 
 import numpy as np
-from quark import Task
+from .task import Task
 from .backend import Backend
 
 from ..circuit import QuantumCircuit
@@ -41,6 +41,7 @@ from ..core.readout import (
 from ..core.types import CalibrationResult, QAOAResult, RunResult, ShadowResult, VQEResult
 from ..core.utils import get_probabilities, get_samples
 from ..core.zne import apply_zne_cz_tripling, zne_linear_extrapolate
+from ..sim.statevector import simulate_counts
 
 
 # NOTE: API layer client. Keeps hardware selection + algorithm orchestration in one place.
@@ -152,6 +153,17 @@ class QuantumHardwareClient:
 			if status in {"Finished", "Failed", "Canceled"}:
 				return status
 
+	def _compact_for_sim(self, qct: QuantumCircuit) -> Tuple[QuantumCircuit, Dict[int, int]]:
+		qct_sim = qct.deepcopy()
+		used = qct_sim.qubits_in_use
+		if not used:
+			return qct_sim, {}
+		# Remap sparse physical qubits to a dense 0..n-1 range for simulation.
+		qct_sim.qubits = used
+		mapping = {q: i for i, q in enumerate(used)}
+		qct_sim.mapping_to_others(mapping)
+		return qct_sim
+	
 	def calibrate_readout(
 		self,
 		target_qubits: Sequence[int],
@@ -160,6 +172,7 @@ class QuantumHardwareClient:
 		chip_name: Optional[str] = None,
 		backend: Optional[Backend] = None,
 		qasm_version: str = "2.0",
+		print_true: bool = False,
 	) -> CalibrationResult:
 		"""Calibrate readout error for selected qubits with caching."""
 		target_qubits = list(target_qubits)
@@ -167,6 +180,8 @@ class QuantumHardwareClient:
 			shots = 1024
 		if chip_name is None:
 			chip_name = self.chip_name
+		use_simulator = str(chip_name).lower() == "simulator"
+		# Cache is per-chip; only stale/missing qubits are recalibrated.
 		raw = self._load_readout_cache_raw(chip_name=chip_name)
 		timestamps = raw.get("timestamps", {}) if isinstance(raw, dict) else {}
 		per_qubit_raw = raw.get("per_qubit_confusion", {}) if isinstance(raw, dict) else {}
@@ -185,7 +200,8 @@ class QuantumHardwareClient:
 				continue
 			cached_confusion[int(q)] = mat
 		if not missing:
-			print("[readout] use cached readout calibration")
+			if print_true:
+				print("[readout] using cached readout calibration")
 			return CalibrationResult(
 				target_qubits=target_qubits,
 				per_qubit_confusion=cached_confusion,
@@ -197,31 +213,36 @@ class QuantumHardwareClient:
 			backend = self.chip_backend
 
 		per_qubit_confusion: Dict[int, np.ndarray] = {}
-		print("[readout] run readout calibration on hardware")
+		if print_true:
+			print("[readout] run readout calibration on hardware")
 		pending: List[Tuple[object, int, str]] = []
+		res_map: Dict[int, Dict[str, Dict[str, int]]] = {q: {} for q in missing}
 		for q in missing:
 			for bits, qc in self._readout_calibration_circuits():
 				qct = self._transpile_with_backend(qc, backend, target_qubits=[q])
-				task_id = self._submit_openqasm_async(
-					name=f"readout_cal_q{q}_{bits}",
-					qasm=qct.to_openqasm2 if qasm_version == "2.0" else qct.to_openqasm3,
-					shots=shots,
-					chip_name=chip_name,
-				)
-				pending.append((task_id, q, bits))
+				if use_simulator:
+					# Simulator uses the same calibration flow but via statevector sampling.
+					qct_sim = self._compact_for_sim(qct)
+					res_map[q][bits] = simulate_counts(qct_sim, shots)
+				else:
+					task_id = self._submit_openqasm_async(
+						name=f"readout_cal_q{q}_{bits}",
+						qasm=qct.to_openqasm2 if qasm_version == "2.0" else qct.to_openqasm3,
+						shots=shots,
+						chip_name=chip_name,
+					)
+					pending.append((task_id, q, bits))
 
-		res_map: Dict[int, Dict[str, Dict[str, int]]] = {q: {} for q in missing}
-		for task_id, q, bits in pending:
-			status = self._wait_task(task_id)
-			if status != "Finished":
-				raise RuntimeError(f"readout calibration task {task_id} ended with status {status}")
-			counts = self.tmgr.result(task_id)["count"]
-			res_map[q][bits] = counts
-
+		if not use_simulator:
+			for task_id, q, bits in pending:
+				status = self._wait_task(task_id)
+				if status != "Finished":
+					raise RuntimeError(f"readout calibration task {task_id} ended with status {status}")
+				counts = self.tmgr.result(task_id)["count"]
+				res_map[q][bits] = counts
 		for q in missing:
 			counts_list = [res_map[q]["0"], res_map[q]["1"]]
 			per_qubit_confusion[q] = self._build_confusion_matrix(counts_list)
-
 		result = CalibrationResult(
 			target_qubits=target_qubits,
 			per_qubit_confusion={
@@ -336,6 +357,7 @@ class QuantumHardwareClient:
 		return_probabilities: bool = False,
 		target_qubits: Optional[Sequence[int]] = None,
 		qasm_version: str = "2.0",
+		print_true: bool = False,
 	) -> RunResult:
 		"""Run a circuit on a specific backend with optional mitigation."""
 		if isinstance(observables, str):
@@ -344,8 +366,12 @@ class QuantumHardwareClient:
 			observables = []
 		observables = list(observables)
 
-		print("[hardware] which hardware:", chip_name)
+		if print_true:
+			print("[hardware] which hardware:", chip_name)
 
+		use_simulator = str(chip_name).lower() == "simulator"
+
+		# Precompute which qubits each observable touches for fast marginalization.
 		supports_by_obs = {obs: pauli_support(obs, num_qubits=num_qubits) for obs in observables}
 
 		# Group observables by compatible measurement bases to reduce task count.
@@ -362,58 +388,79 @@ class QuantumHardwareClient:
 			elif not self._has_measurements(qc):
 				# Ensure we can always collect counts/samples even without observables.
 				qc.measure_all()
+			# Transpile to the target backend/topology before execution.
 			qct = self._transpile_with_backend(qc, backend, target_qubits=target_qubits)
 			if scale_zne:
+				# Insert CZ tripling after transpilation for ZNE.
 				qct = apply_zne_cz_tripling(qct)
 			return qct
 
 		pending: List[Tuple[int, str, object]] = []
 		group_meta: List[Dict[str, object]] = []
 		task_ids: List[object] = []
+		group_counts: Dict[int, Dict[str, Dict[str, int]]] = {i: {} for i in range(len(groups))}
 
 		for gi, group in enumerate(groups):
 			basis_pattern = group["basis"]
 			qct = _prepare_circuit(qc, basis_pattern, scale_zne=False)
-			qasm_1 = qct.to_openqasm2 if qasm_version == "2.0" else qct.to_openqasm3
-			task_id_1 = self._submit_openqasm_async(
-				name=f"{name}_g{gi}",
-				qasm=qasm_1,
-				shots=shots,
-				chip_name=chip_name,
-			)
-			print("[run] compile and run circuit:", f"{name}_g{gi}")
-			pending.append((gi, "1", task_id_1))
-			task_ids.append(task_id_1)
-
-			if zne:
-				qct = _prepare_circuit(qc, basis_pattern, scale_zne=True)
-				task_id_3 = self._submit_openqasm_async(
-					name=f"{name}_g{gi}_zne3",
-					qasm=qct.to_openqasm2 if qasm_version == "2.0" else qct.to_openqasm3,
+			if use_simulator:
+				qct_sim = self._compact_for_sim(qct)
+				group_counts[gi]["1"] = simulate_counts(qct_sim, shots)
+			else:
+				# Hardware: submit async task and collect later.
+				qasm_1 = qct.to_openqasm2 if qasm_version == "2.0" else qct.to_openqasm3
+				task_id_1 = self._submit_openqasm_async(
+					name=f"{name}_g{gi}",
+					qasm=qasm_1,
 					shots=shots,
 					chip_name=chip_name,
 				)
-				print("[run] run circuit:", f"zero-noise extrapolation")
-				pending.append((gi, "3", task_id_3))
-				task_ids.append(task_id_3)
+				if print_true:
+					print("[run] compile and run circuit:", f"{name}_g{gi}")
+				pending.append((gi, "1", task_id_1))
+				task_ids.append(task_id_1)
 
-			group_meta.append({"basis": basis_pattern, "observables": group["observables"], "qasm_1": qasm_1})
+			if zne:
+				qct = _prepare_circuit(qc, basis_pattern, scale_zne=True)
+				if use_simulator:
+					qct_sim = self._compact_for_sim(qct)
+					group_counts[gi]["3"] = simulate_counts(qct_sim, shots)
+				else:
+					# ZNE scale=3 path runs as an extra hardware task.
+					task_id_3 = self._submit_openqasm_async(
+						name=f"{name}_g{gi}_zne3",
+						qasm=qct.to_openqasm2 if qasm_version == "2.0" else qct.to_openqasm3,
+						shots=shots,
+						chip_name=chip_name,
+					)
+					if print_true:
+						print("[run] run circuit:", "zero-noise extrapolation")
+					pending.append((gi, "3", task_id_3))
+					task_ids.append(task_id_3)
+
+			meta = {
+				"basis": basis_pattern,
+				"observables": group["observables"],
+				"qasm_1": qasm_1 if not use_simulator else None,
+			}
+			group_meta.append(meta)
 
 		if target_qubits is None:
 			target_qubits_group = qct.qubits_in_use
 		else:
 			target_qubits_group = target_qubits
 
-		print("[run] which qubits:", list(target_qubits_group) if target_qubits_group is not None else "auto")
+		if print_true:
+			print("[run] which qubits:", list(target_qubits_group) if target_qubits_group is not None else "auto")
 
-		group_counts: Dict[int, Dict[str, Dict[str, int]]] = {i: {} for i in range(len(group_meta))}
 		# Collect counts for each group (and ZNE scale if enabled).
-		for gi, scale, task_id in pending:
-			status = self._wait_task(task_id)
-			if status != "Finished":
-				raise RuntimeError(f"task {task_id} ended with status {status}")
-			counts = self.tmgr.result(task_id)["count"]
-			group_counts[gi][scale] = counts
+		if not use_simulator:
+			for gi, scale, task_id in pending:
+				status = self._wait_task(task_id)
+				if status != "Finished":
+					raise RuntimeError(f"task {task_id} ended with status {status}")
+				counts = self.tmgr.result(task_id)["count"]
+				group_counts[gi][scale] = counts
 
 		samples_list: List[List[List[int]] | None] = []
 		probabilities_list: List[List[float] | None] = []
@@ -445,8 +492,9 @@ class QuantumHardwareClient:
 			for obs in meta["observables"]:
 				if obs in observable_values_raw:
 					continue
-				support = supports_by_obs[obs]
+				support = supports_by_obs.get(obs)
 				if raw_probabilities is not None and support:
+					# Marginalize to the observable support when probabilities are available.
 					local_probs = marginal_probabilities(raw_probabilities, num_qubits, support)
 					val = expectation_from_probabilities(local_probs, support)
 				else:
@@ -458,11 +506,14 @@ class QuantumHardwareClient:
 					raise ValueError(
 						f"num_qubits ({num_qubits}) must match len(target_qubits) ({len(target_qubits_group)}) for readout mitigation"
 					)
+				# Readout mitigation uses per-qubit confusion matrices.
 				cal = self.calibrate_readout(
 					target_qubits_group,
 					shots=readout_shots,
 					chip_name=chip_name,
 					backend=backend,
+					qasm_version=qasm_version,
+					print_true=print_true,
 				)
 				per_qubit = {k: np.asarray(v) for k, v in cal.per_qubit_confusion.items()}
 				supports_subset = {obs: supports_by_obs[obs] for obs in meta["observables"]}
@@ -514,7 +565,8 @@ class QuantumHardwareClient:
 		if readout_mitigation:
 			probabilities_raw_out = probabilities_raw_list[0] if len(probabilities_raw_list) == 1 else probabilities_raw_list
 
-		print("[finish] returning results")
+		if print_true:
+			print("[finish] returning results")
 
 		return RunResult(
 			task_ids=[str(t) for t in task_ids] if task_ids else None,
@@ -540,6 +592,7 @@ class QuantumHardwareClient:
 		target_qubits: Optional[Sequence[int]] = None,
 		prefer_chips: Optional[Sequence[str] | str] = None,
 		rank_weights: Optional[Dict[str, float]] = None,
+		print_true: bool = True,
 	) -> RunResult:
 		"""Automatically select hardware, run, and return results."""
 		print("[hardware] read hardware information and select")
@@ -576,6 +629,7 @@ class QuantumHardwareClient:
 				observables=observables,
 				return_probabilities=return_probabilities,
 				target_qubits=target_qubits,
+				print_true=print_true,
 			)
 
 		raise RuntimeError("all candidate chips failed to transpile or run") from last_error
@@ -652,13 +706,7 @@ class QuantumHardwareClient:
 		name: str,
 		num_qubits: int,
 		model: str = "ising",
-		j: float = 1.0,
-		h: float = 1.0,
-		jx: float = 1.0,
-		jy: float = 1.0,
-		jz: float = 1.0,
-		hz: float = 0.0,
-		jxy: float = 1.0,
+		model_params: Optional[Dict[str, float]] = None,
 		hamiltonian: Optional[Sequence[Tuple[float, str]]] = None,
 		layers: int = 1,
 		shots: int = 1024,
@@ -678,15 +726,25 @@ class QuantumHardwareClient:
 		rank_weights: Optional[Dict[str, float]] = None,
 	) -> VQEResult:
 		"""Run VQE using the selected hardware backend."""
+		print(
+			"[vqe] prepare run:",
+			f"name={name}",
+			f"num_qubits={num_qubits}",
+			f"model={model}",
+			f"layers={layers}",
+			f"shots={shots}",
+			f"max_iters={max_iters}",
+		)
 		model = model.lower()
+		params = model_params or {}
 		if model == "ising":
-			hamiltonian = build_ising_hamiltonian(num_qubits, j=j, h=h)
+			hamiltonian = build_ising_hamiltonian(num_qubits, **params)
 		elif model == "heisenberg":
-			hamiltonian = build_heisenberg_hamiltonian(num_qubits, jx=jx, jy=jy, jz=jz, hz=hz)
+			hamiltonian = build_heisenberg_hamiltonian(num_qubits, **params)
 		elif model == "xxz":
-			hamiltonian = build_xxz_hamiltonian(num_qubits, jxy=jxy, jz=jz, hz=hz)
+			hamiltonian = build_xxz_hamiltonian(num_qubits, **params)
 		elif model == "xy":
-			hamiltonian = build_xy_hamiltonian(num_qubits, jx=jx, jy=jy, hz=hz)
+			hamiltonian = build_xy_hamiltonian(num_qubits, **params)
 		elif model == "custom":
 			if hamiltonian is None:
 				raise ValueError("custom model requires hamiltonian")
@@ -701,6 +759,7 @@ class QuantumHardwareClient:
 			prefer_chips=prefer_chips,
 			weights=rank_weights,
 		)
+		print("[vqe] candidate chips:", ranked_chips)
 		if not ranked_chips:
 			raise RuntimeError("no available chips satisfy num_qubits requirement")
 
@@ -710,6 +769,7 @@ class QuantumHardwareClient:
 			self.chip_name = chip_name
 			self.chip_backend = backend
 			try:
+				print("[vqe] running on chip:", chip_name)
 				return run_vqe_with_backend(
 					self,
 					name=name,

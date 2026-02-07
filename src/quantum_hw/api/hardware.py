@@ -49,9 +49,14 @@ def rank_chips(
 	weights: Optional[Dict[str, float]] = None,
 ) -> List[str]:
 	"""Rank chips by queue length, size, and error rate with weights."""
-	status = get_available_chip_status(tmgr)
 	if isinstance(prefer_chips, str):
 		prefer_chips = [prefer_chips]
+	if prefer_chips is not None:
+		prefer_lower = {c.lower() for c in prefer_chips}
+		if "simulator" in prefer_lower:
+			return ["Simulator"] if num_qubits <= 12 else []
+
+	status = get_available_chip_status(tmgr)
 	if prefer_chips is not None:
 		prefer_set = {c for c in prefer_chips}
 		status = {k: v for k, v in status.items() if k in prefer_set}

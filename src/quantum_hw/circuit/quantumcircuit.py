@@ -23,7 +23,7 @@ and converting quantum circuits in various formats such as OpenQASM 2.0 and 3.0.
 """
 
 import copy
-from typing import Iterable
+from typing import Iterable, Optional
 import numpy as np
 from .quantumcircuit_helpers import (
     one_qubit_gates_available,
@@ -109,7 +109,9 @@ class QuantumCircuit:
         new_qc.gates = copy.deepcopy(self.gates)
         return new_qc
 
-    def adjust_index(self,num:int):
+    def adjust_index(self, num: int, *, cbit_offset: Optional[int] = None):
+        if cbit_offset is None:
+            cbit_offset = num
         gates = []
         for gate_info in self.gates:
             gate = gate_info[0]
@@ -131,9 +133,11 @@ class QuantumCircuit:
                 gates.append((gate,tuple(qubits)))
             elif gate in ['measure']:
                 qubits = [idx + num for idx in gate_info[1]]
-                gates.append((gate,qubits,gate_info[-1]))
+                cbits = [idx + cbit_offset for idx in gate_info[-1]]
+                gates.append((gate,qubits,cbits))
         self.gates = gates   
         self.nqubits = self.nqubits + num
+        self.ncbits = self.ncbits + cbit_offset
         self.qubits = [idx + num for idx in self.qubits] 
 
     @property

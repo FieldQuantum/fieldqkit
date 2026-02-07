@@ -27,6 +27,43 @@ from typing import Literal
 import requests
 import json
 
+
+def _build_simulator_chip_info(nqubits: int = 12) -> dict:
+    qubits_info = {
+        f"Q{i}": {
+            "fidelity": 1.0,
+            "coordinate": [float(i), 0.0],
+            "T1": 0.0,
+            "T2": 0.0,
+            "frequency": 0.0,
+        }
+        for i in range(nqubits)
+    }
+    couplers_info = {}
+    idx = 0
+    for i in range(nqubits-1):
+        couplers_info[f"C{idx}"] = {
+            "qubits_index": [i, i+1],
+            "fidelity": 1.0,
+            "index": idx,
+        }
+        idx += 1
+    global_info = {
+        "two_qubit_gate_basis": "cz",
+        "nqubits_available": nqubits,
+        "error_rate_2q": 0.0,
+        "one_qubit_gate_length": 1.0,
+        "two_qubit_gate_length": 1.0,
+    }
+    return {
+        "size": (nqubits, 1),
+        "priority_qubits": [list(range(nqubits))],
+        "qubits_info": qubits_info,
+        "couplers_info": couplers_info,
+        "global_info": global_info,
+        "calibration_time": "simulator",
+    }
+
 def load_chip_basic_info(chip_name):
     # Pull chip metadata from the Quafu backend service.
     session = requests.Session()
@@ -80,6 +117,15 @@ class Backend:
             self.couplers_with_attributes = list()
             self.priority_qubits = []
             self.two_qubit_gate_basis = 'cz'
+        elif chip in ['Simulator', 'simulator']:
+            # Built-in simulator chip (fully connected).
+            self.chip_name = 'Simulator'
+            self.chip_info = _build_simulator_chip_info()
+            self.size = self.chip_info['size']
+            self.priority_qubits = self.chip_info['priority_qubits']
+            self.qubits_with_attributes = self._collect_qubits_with_attributes()
+            self.couplers_with_attributes = self._collect_couplers_with_attributes()
+            self.two_qubit_gate_basis = self.chip_info['global_info']['two_qubit_gate_basis'].lower()
         else:
             raise(ValueError(f'Wrong chip name! {chip}'))
     

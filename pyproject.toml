@@ -18,7 +18,6 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-quark = ["quarkstudio", "quarkcircuit"]
 viz = ["matplotlib>=3.7"]
 
 [tool.setuptools]

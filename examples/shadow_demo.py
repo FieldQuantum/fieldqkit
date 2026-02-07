@@ -21,7 +21,7 @@ if __name__ == "__main__":
         num_qubits=num_qubits,
         shots=4096,
         observables=["ZZ", "XX", "ZI", "IZ", "YY"],
-        prefer_chips=["Baihua"], # only Baihua support small batch shots currently
+        prefer_chips=["simulator"], # only Baihua support small batch shots currently
         zne=True,
         estimator="mom",
         mom_groups=20,

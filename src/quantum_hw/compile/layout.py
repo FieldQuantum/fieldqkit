@@ -233,7 +233,7 @@ class Layout:
         node_fidelity_dic = nx.get_node_attributes(subgraph, "fidelity")
         sorted_dict = dict(sorted(node_fidelity_dic.items(), key=lambda item: item[1], reverse=True))
         qubit = [list(sorted_dict.keys())[0]]
-        print(f"Physical qubits layout {qubit} is selected based on maximum single-qubit gate fidelity.")
+        # print(f"Physical qubits layout {qubit} is selected based on maximum single-qubit gate fidelity.")
         return qubit
 
     def select_few_qubits_from_backend(
@@ -257,9 +257,9 @@ class Layout:
             raise ValueError(
                 f"There is no {nqubits} qubits that meets both key = {key} and topology = {topology}. Please change the conditions."
             )
-        print(
-            f"Physical qubits layout {layouts[0][0]} are selected by the local algorithm using key = {key} and topology = {topology}."
-        )
+        # print(
+        #     f"Physical qubits layout {layouts[0][0]} are selected by the local algorithm using key = {key} and topology = {topology}."
+        # )
         return list(layouts[0][0])
 
     def _get_largest_component(self):
@@ -288,7 +288,7 @@ class Layout:
                     queue.append((neighbor, depth + 1))
                     if len(visited) == nqubits:
                         break
-        print(f"Physical qubits layout {list(visited)} are selected by BFS algorithm.")
+        # print(f"Physical qubits layout {list(visited)} are selected by BFS algorithm.")
         return list(visited)
 
     def select_qubits_by_local_algorithm(self, nqubits, select_criteria):
@@ -386,7 +386,7 @@ class Layout:
                         break
                     continue
                 if is_priority_provided is False:
-                    print("No more priority qubits were found. it will check the select_criteria for search")
+                    # print("No more priority qubits were found. it will check the select_criteria for search")
                     self.graph.remove_nodes_from([x for sub in new_qubits for x in sub])
                     qubits = self.select_qubits_by_local_algorithm(len(qubits0), select_criteria)
                     new_qubits.append(qubits)

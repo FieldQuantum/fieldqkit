@@ -11,6 +11,7 @@ from ..circuit import QuantumCircuit
 def build_ghz(num_qubits: int, measure: bool = False) -> QuantumCircuit:
 	"""Build a GHZ state circuit with optional measurements."""
 	qc = QuantumCircuit(num_qubits)
+	# Prepare |+> on q0, then entangle along a chain with CX.
 	qc.h(0)
 	for i in range(num_qubits - 1):
 		qc.cx(i, i + 1)
@@ -53,11 +54,13 @@ def build_qft(num_qubits: int, measure: bool = False, with_swaps: bool = True) -
 	"""Build a QFT circuit with optional swaps and measurements."""
 	qc = QuantumCircuit(num_qubits)
 	for i in range(num_qubits):
+		# Hadamard on each qubit plus controlled-phase rotations.
 		qc.h(i)
 		for j in range(i + 1, num_qubits):
 			angle = np.pi / (2 ** (j - i))
 			_apply_controlled_phase(qc, j, i, angle)
 	if with_swaps:
+		# Optional bit-reversal to match canonical QFT output order.
 		for i in range(num_qubits // 2):
 			qc.swap(i, num_qubits - 1 - i)
 	if measure:
@@ -76,6 +79,7 @@ def build_ising_time_evolution(
 ) -> QuantumCircuit:
 	"""Build a trotterized Ising time-evolution circuit."""
 	qc = QuantumCircuit(num_qubits)
+	# First-order Trotter: split into ZZ interactions and X rotations.
 	dt = t / steps
 	for _ in range(steps):
 		for i in range(num_qubits - 1):
