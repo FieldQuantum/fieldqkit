@@ -185,6 +185,8 @@ def parse_openqasm3_to_gates(openqasm3_str: str) -> tuple[list, set, set]:
 		return int(_expr_to_float(index_expr))
 
 	def _qubit_index(qref):
+		if isinstance(qref, (int, np.integer)):
+			return int(qref)
 		name = _name_of(qref)
 		indices = getattr(qref, "indices", None)
 		if indices:
@@ -201,6 +203,8 @@ def parse_openqasm3_to_gates(openqasm3_str: str) -> tuple[list, set, set]:
 		raise ValueError(f"Unsupported qubit reference: {name}")
 
 	def _bit_index(bref):
+		if isinstance(bref, (int, np.integer)):
+			return int(bref)
 		name = _name_of(bref)
 		indices = getattr(bref, "indices", None)
 		if indices:

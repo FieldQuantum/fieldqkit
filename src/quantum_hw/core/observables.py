@@ -44,6 +44,14 @@ def pauli_support(pauli: str, num_qubits: int | None = None) -> List[int]:
 	return sorted({idx for idx, _ in terms})
 
 
+def shift_pauli_string(pauli: str, offset: int) -> str:
+	"""Shift all qubit indices in a Pauli string by an offset."""
+	terms = _parse_pauli_string(pauli)
+	if not terms:
+		return ""
+	return " ".join(f"{op}{idx + offset}" for idx, op in terms)
+
+
 def append_pauli_measurement(qc, pauli: str) -> None:
 	"""Append basis rotations and final measurements for a Pauli string."""
 	num_qubits = qc.num_qubits if hasattr(qc, "num_qubits") else None

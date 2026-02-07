@@ -4,7 +4,7 @@ import fnmatch
 # Set the directory to search in
 directory = os.path.dirname(__file__)
 # Set the string to search for
-search_string = r'ccx_decompose_mute_phase'
+search_string = r'quark'
 
 # Loop over all the .py files in the directory
 for root, dirnames, filenames in os.walk(directory):

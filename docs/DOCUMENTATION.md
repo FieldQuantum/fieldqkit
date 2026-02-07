@@ -14,6 +14,40 @@ Backend 拓扑与请求依赖 `networkx` 与 `requests`。
 
 当 `observables` 为列表时，会自动合并可共用测量基的线路并批量提交任务。
 
+## 代码结构与执行数据流
+
+**核心模块**
+
+- `quantum_hw.api`：高层接口与硬件任务管理。
+- `quantum_hw.compile`：线路转译（布局/路由/门集转换/压缩）。
+- `quantum_hw.sim`：本地模拟（statevector + 采样）。
+- `quantum_hw.core`：通用工具（observables/readout/zne/plotting/types）。
+
+**执行流程（run_auto）**
+
+1. 解析线路（内置/OPENQASM2/3）。
+2. 选择芯片（`rank_chips`）。
+3. 转译线路（`Transpiler.run`）。
+4. 合并可观测量测量基并追加测量。
+5. 执行与采样（硬件任务或模拟器）。
+6. 概率归一化、ZNE 外推、readout 缓解与期望值计算。
+
+## 模拟器与位序约定
+
+- 状态向量轴顺序与 `ketn0` 一致（q0 为第一个轴）。
+- 计数输出为小端序 bitstring，并通过 `core.utils.get_probabilities` 统一位序。
+
+## 依赖说明（quark）
+
+- 当前核心路径不依赖 `quark`。
+- 如需迁移测试对比旧实现，可自行安装 `quark`。
+
+## 任务提交与 Token
+
+- 任务提交通过 REST API 完成，Token 优先从环境变量 `QPU_API_TOKEN` 读取。
+- 也可在初始化 `QuantumHardwareClient(token=...)` 时显式传入。
+
+
 ## 核心类与结果结构
 
 ### `QuantumHardwareClient`
@@ -45,7 +79,7 @@ Backend 拓扑与请求依赖 `networkx` 与 `requests`。
 - `observables: Optional[Sequence[str] | str] = None`：Pauli string 或列表。
 - `return_probabilities: bool = False`：是否返回概率分布。
 - `target_qubits: Optional[Sequence[int]] = None`：指定物理比特映射。
-- `prefer_chips: Optional[Sequence[str] | str] = None`：偏好芯片。
+- `prefer_chips: Optional[Sequence[str] | str] = None`：偏好芯片。若要使用模拟器，请传入 `"Simulator"`。
 - `rank_weights: Optional[Dict[str, float]] = None`：芯片排序权重（`queue`/`nqubits`/`error`）。
 
 返回：`RunResult`。
@@ -102,18 +136,26 @@ Backend 拓扑与请求依赖 `networkx` 与 `requests`。
 - `observable_stderr_raw: Optional[Dict[str, float]]`（仅 ZNE 时）
 - `num_samples: Optional[int]`
 
+**实现细节**
+
+- 每个 batch 随机生成一次测量基（`X/Y/Z`）。
+- `batch_size` 表示每个随机基的 shots 数。
+- `estimator` 支持均值与 median-of-means（`mom`）。
+- `zne=True` 时，会额外运行 3x 噪声缩放并线性外推。
+
 #### `run_vqe(...) -> VQEResult`
 
-基于量子测量的变分优化，默认采用横场 Ising 模型，使用参数移位法估计梯度与 Adam 优化。
+基于量子测量的变分优化，使用参数移位法估计梯度与 Adam 优化。
 
 参数：
 
 - `name: str`
 - `num_qubits: int`
 - `model: str = "ising"`
-- `j: float = 1.0`, `h: float = 1.0`
-- `jx/jy/jz/hz`（Heisenberg/XY）
-- `jxy/jz/hz`（XXZ）
+- `model_params: Optional[Dict[str, float]] = None`
+  - Ising: `{"j": ..., "h": ...}`
+  - Heisenberg/XY: `{"jx": ..., "jy": ..., "jz": ..., "hz": ...}`
+  - XXZ: `{"jxy": ..., "jz": ..., "hz": ...}`
 - `layers: int = 1`
 - `shots: int = 1024`
 - `max_iters: int = 20`
@@ -123,6 +165,7 @@ Backend 拓扑与请求依赖 `networkx` 与 `requests`。
 - `target_qubits: Optional[Sequence[int]] = None`
 - `prefer_chips: Optional[Sequence[str] | str] = None`
 - `rank_weights: Optional[Dict[str, float]] = None`
+- `init_params: Optional[Sequence[float]] = None`
 
 常用哈密顿量构建：
 
@@ -143,9 +186,16 @@ Backend 拓扑与请求依赖 `networkx` 与 `requests`。
 - `grad_history: Optional[List[List[float]]]`
 - `last_expectations: Optional[Dict[str, float]]`
 
+**实现细节**
+
+- Ansatz：硬件友好结构（每层 `RX` + `RY`，再接线性 `CZ` 纠缠）。
+- 参数量：$2 \times \text{num\_qubits} \times \text{layers}$。
+- 梯度：参数移位法（每个参数两次评估）。
+- 当未指定 `target_qubits` 且硬件比特充足时，会尝试打包并行评估梯度以减少轮次。
+
 #### `run_qaoa(...) -> QAOAResult`
 
-QAOA 组合优化接口，当前支持 MaxCut。
+QAOA 组合优化接口，支持 MaxCut 与自定义 Z/ZZ 代价项。
 
 参数：
 
@@ -154,6 +204,8 @@ QAOA 组合优化接口，当前支持 MaxCut。
 - `problem: str = "maxcut"`
 - `edges: List[Tuple[int,int]]`
 - `weights: Optional[List[float]] = None`
+- `terms: Optional[Sequence[Tuple[float, str]]] = None`（`problem="custom"`）
+- `constant: float = 0.0`（`problem="custom"`）
 - `p: int = 1`
 - `learning_rate: float = 0.1`
 - `beta1: float = 0.9`, `beta2: float = 0.999`, `eps: float = 1e-8`
@@ -163,6 +215,8 @@ QAOA 组合优化接口，当前支持 MaxCut。
 
 返回：`QAOAResult`。
 
+> 说明：`QAOARunner` 目前仅封装 MaxCut，如需自定义代价项请直接调用 `run_qaoa(problem="custom", terms=..., constant=...)`。
+
 **返回结构 `QAOAResult`**
 
 - `best_cost: float`
@@ -171,6 +225,12 @@ QAOA 组合优化接口，当前支持 MaxCut。
 - `params_history: Optional[List[List[float]]]`
 - `grad_history: Optional[List[List[float]]]`
 - `last_expectations: Optional[Dict[str, float]]`
+
+**实现细节**
+
+- 支持 MaxCut 与自定义 `Z/ZZ` 代价项（自定义项仅支持 `Z` 或 `ZZ`）。
+- 梯度：参数移位法，优化使用 Adam（默认做最大化，ascent）。
+- 当未指定 `target_qubits` 且硬件比特充足时，会尝试打包并行评估梯度。
 
 ## 线路构建函数（`quantum_hw.core.circuits`）
 
