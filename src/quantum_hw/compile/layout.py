@@ -365,9 +365,9 @@ class Layout:
                 subgraph_fidelity = np.array([self.edge_fidelitys[(min(edge), max(edge))] for edge in subgraph.edges])
                 fidelity_mean = np.mean(subgraph_fidelity)
                 fidelity_var = np.var(subgraph_fidelity)
-                print(
-                    f"The average fidelity of the coupler(s) between the selected qubits is {fidelity_mean}, and the variance of the fidelity is {fidelity_var}."
-                )
+                # print(
+                #     f"The average fidelity of the coupler(s) between the selected qubits is {fidelity_mean}, and the variance of the fidelity is {fidelity_var}."
+                # )
             return subgraph
 
         if use_chip_priority is True:

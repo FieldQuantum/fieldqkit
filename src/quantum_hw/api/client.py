@@ -4,8 +4,6 @@ from __future__ import annotations
 
 from typing import Callable, Dict, List, Optional, Sequence, Tuple, Union
 from copy import deepcopy
-from datetime import datetime, timedelta, timezone
-import json
 from pathlib import Path
 
 import numpy as np
@@ -38,7 +36,8 @@ from ..core.readout import (
 	expectation_from_probabilities,
 	marginal_probabilities,
 )
-from ..core.types import CalibrationResult, QAOAResult, RunResult, ShadowResult, VQEResult
+from ..calibration.readout import ReadoutCalibrationManager
+from ..core.types import QAOAResult, RunResult, ShadowResult, VQEResult
 from ..core.utils import get_probabilities, get_samples
 from ..core.zne import apply_zne_cz_tripling, zne_linear_extrapolate
 from ..sim.statevector import simulate_counts
@@ -93,12 +92,13 @@ class QuantumHardwareClient:
 		qc: QuantumCircuit,
 		backend: Backend,
 		target_qubits: Optional[Sequence[int]] = None,
+		optimize_level: int = 1,
 	):
 		"""Transpile with a specific backend and optional target qubits."""
 		if target_qubits is None:
 			return Transpiler(backend).run(qc)
 		# When target qubits are provided, enable DD to reduce idle errors.
-		return Transpiler(backend).run(qc, target_qubits=list(target_qubits), use_dd=True)
+		return Transpiler(backend).run(qc, target_qubits=list(target_qubits), use_dd=True, optimize_level=optimize_level)
 
 	def _submit_openqasm(
 		self,
@@ -164,183 +164,6 @@ class QuantumHardwareClient:
 		qct_sim.mapping_to_others(mapping)
 		return qct_sim
 	
-	def calibrate_readout(
-		self,
-		target_qubits: Sequence[int],
-		shots: Optional[int] = None,
-		*,
-		chip_name: Optional[str] = None,
-		backend: Optional[Backend] = None,
-		qasm_version: str = "2.0",
-		print_true: bool = False,
-	) -> CalibrationResult:
-		"""Calibrate readout error for selected qubits with caching."""
-		target_qubits = list(target_qubits)
-		if shots is None:
-			shots = 1024
-		if chip_name is None:
-			chip_name = self.chip_name
-		use_simulator = str(chip_name).lower() == "simulator"
-		# Cache is per-chip; only stale/missing qubits are recalibrated.
-		raw = self._load_readout_cache_raw(chip_name=chip_name)
-		timestamps = raw.get("timestamps", {}) if isinstance(raw, dict) else {}
-		per_qubit_raw = raw.get("per_qubit_confusion", {}) if isinstance(raw, dict) else {}
-		now = datetime.now(timezone.utc)
-		cached_confusion: Dict[int, List[List[float]]] = {}
-		missing: List[int] = []
-		for q in target_qubits:
-			ts_str = timestamps.get(str(q)) if isinstance(timestamps, dict) else None
-			mat = per_qubit_raw.get(str(q)) if isinstance(per_qubit_raw, dict) else None
-			if ts_str is None or mat is None:
-				missing.append(q)
-				continue
-			ts = datetime.fromisoformat(ts_str)
-			if now - ts > timedelta(hours=1):
-				missing.append(q)
-				continue
-			cached_confusion[int(q)] = mat
-		if not missing:
-			if print_true:
-				print("[readout] using cached readout calibration")
-			return CalibrationResult(
-				target_qubits=target_qubits,
-				per_qubit_confusion=cached_confusion,
-			)
-
-		if backend is None:
-			if self.chip_backend is None:
-				raise RuntimeError("chip_backend is not set; use run_auto or provide backend")
-			backend = self.chip_backend
-
-		per_qubit_confusion: Dict[int, np.ndarray] = {}
-		if print_true:
-			print("[readout] run readout calibration on hardware")
-		pending: List[Tuple[object, int, str]] = []
-		res_map: Dict[int, Dict[str, Dict[str, int]]] = {q: {} for q in missing}
-		for q in missing:
-			for bits, qc in self._readout_calibration_circuits():
-				qct = self._transpile_with_backend(qc, backend, target_qubits=[q])
-				if use_simulator:
-					# Simulator uses the same calibration flow but via statevector sampling.
-					qct_sim = self._compact_for_sim(qct)
-					res_map[q][bits] = simulate_counts(qct_sim, shots)
-				else:
-					task_id = self._submit_openqasm_async(
-						name=f"readout_cal_q{q}_{bits}",
-						qasm=qct.to_openqasm2 if qasm_version == "2.0" else qct.to_openqasm3,
-						shots=shots,
-						chip_name=chip_name,
-					)
-					pending.append((task_id, q, bits))
-
-		if not use_simulator:
-			for task_id, q, bits in pending:
-				status = self._wait_task(task_id)
-				if status != "Finished":
-					raise RuntimeError(f"readout calibration task {task_id} ended with status {status}")
-				counts = self.tmgr.result(task_id)["count"]
-				res_map[q][bits] = counts
-		for q in missing:
-			counts_list = [res_map[q]["0"], res_map[q]["1"]]
-			per_qubit_confusion[q] = self._build_confusion_matrix(counts_list)
-		result = CalibrationResult(
-			target_qubits=target_qubits,
-			per_qubit_confusion={
-				**cached_confusion,
-				**{k: v.tolist() for k, v in per_qubit_confusion.items()},
-			},
-		)
-		self._save_readout_cache(result, chip_name=chip_name)
-		return result
-
-	def _readout_cache_path(self, *, chip_name: Optional[str]) -> Path:
-		"""Resolve the on-disk cache path for readout calibration."""
-		cache_dir = Path(__file__).resolve().parent / ".cache"
-		cache_dir.mkdir(parents=True, exist_ok=True)
-		name = chip_name if chip_name is not None else "unknown"
-		return cache_dir / f"readout_{name}.json"
-
-	def _load_readout_cache_raw(self, *, chip_name: Optional[str]) -> Dict[str, object]:
-		"""Load cached readout data from disk (raw dictionary)."""
-		path = self._readout_cache_path(chip_name=chip_name)
-		if not path.exists():
-			return {"timestamps": {}, "per_qubit_confusion": {}}
-		try:
-			data = json.loads(path.read_text(encoding="utf-8"))
-			if not isinstance(data, dict):
-				return {"timestamps": {}, "per_qubit_confusion": {}}
-			timestamps = data.get("timestamps", {})
-			per_qubit = data.get("per_qubit_confusion", {})
-			if not isinstance(timestamps, dict) or not isinstance(per_qubit, dict):
-				return {"timestamps": {}, "per_qubit_confusion": {}}
-			return {"timestamps": timestamps, "per_qubit_confusion": per_qubit}
-		except Exception:
-			return {"timestamps": {}, "per_qubit_confusion": {}}
-
-	def _load_readout_cache(self, target_qubits: Sequence[int], *, chip_name: Optional[str]) -> Optional[CalibrationResult]:
-		"""Load cached readout data and validate freshness."""
-		raw = self._load_readout_cache_raw(chip_name=chip_name)
-		timestamps = raw.get("timestamps", {})
-		per_qubit = raw.get("per_qubit_confusion", {})
-		if not isinstance(timestamps, dict) or not isinstance(per_qubit, dict):
-			return None
-		now = datetime.now(timezone.utc)
-		selected_confusion: Dict[int, List[List[float]]] = {}
-		for q in target_qubits:
-			ts_str = timestamps.get(str(q))
-			if ts_str is None:
-				return None
-			ts = datetime.fromisoformat(ts_str)
-			if now - ts > timedelta(hours=1):
-				return None
-			mat = per_qubit.get(str(q))
-			if mat is None:
-				return None
-			selected_confusion[int(q)] = mat
-		return CalibrationResult(
-			target_qubits=list(target_qubits),
-			per_qubit_confusion=selected_confusion,
-		)
-
-	def _save_readout_cache(self, result: CalibrationResult, *, chip_name: Optional[str]) -> None:
-		"""Persist readout calibration data to cache."""
-		path = self._readout_cache_path(chip_name=chip_name)
-		raw = self._load_readout_cache_raw(chip_name=chip_name)
-		timestamps = raw.get("timestamps", {}) if isinstance(raw, dict) else {}
-		per_qubit = raw.get("per_qubit_confusion", {}) if isinstance(raw, dict) else {}
-		now = datetime.now(timezone.utc).isoformat()
-		for q in result.target_qubits:
-			timestamps[str(q)] = now
-			per_qubit[str(q)] = result.per_qubit_confusion[q]
-		payload = {
-			"timestamps": timestamps,
-			"per_qubit_confusion": per_qubit,
-		}
-		path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
-
-	def _readout_calibration_circuits(self):
-		"""Build minimal calibration circuits for a single qubit."""
-		circuits = []
-		for i in range(2):
-			bits = format(i, "01b")
-			qc = QuantumCircuit(1)
-			if bits == "1":
-				qc.x(0)
-			else:
-				qc.x(0)
-				qc.x(0)
-			qc.measure_all()
-			circuits.append((bits, qc))
-		return circuits
-
-	def _build_confusion_matrix(self, res_list: Sequence[Dict[str, int]]) -> np.ndarray:
-		"""Build a 2x2 confusion matrix from two calibration results."""
-		mat = np.zeros((2, 2), dtype=float)
-		for i, res in enumerate(res_list):
-			probs = get_probabilities(res, 1)
-			mat[i, :] = probs
-		return mat
-
 	def _run_with_backend(
 		self,
 		qc: QuantumCircuit,
@@ -507,8 +330,17 @@ class QuantumHardwareClient:
 						f"num_qubits ({num_qubits}) must match len(target_qubits) ({len(target_qubits_group)}) for readout mitigation"
 					)
 				# Readout mitigation uses per-qubit confusion matrices.
-				cal = self.calibrate_readout(
-					target_qubits_group,
+				calibration_manager = ReadoutCalibrationManager(
+					cache_dir=Path(__file__).resolve().parent / ".cache",
+					transpile_with_backend=self._transpile_with_backend,
+					submit_openqasm_async=self._submit_openqasm_async,
+					wait_task=self._wait_task,
+					get_task_result=self.tmgr.result,
+					compact_for_sim=self._compact_for_sim,
+					simulate_counts=simulate_counts,
+				)
+				cal = calibration_manager.calibrate_readout(
+					target_qubits=target_qubits_group,
 					shots=readout_shots,
 					chip_name=chip_name,
 					backend=backend,
