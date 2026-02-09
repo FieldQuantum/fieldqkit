@@ -95,8 +95,8 @@ def simult_svd(mat1: np.ndarray, mat2: np.ndarray) -> tuple[tuple[np.ndarray, np
     u_a_h = u_a.conj().T
     v_a = v_a_h.conj().T
 
-    if np.count_nonzero(d_a) != d:
-        raise ValueError('Not implemented yet for the situation that mat1 is not full-rank')
+    # if np.count_nonzero(d_a) != d:
+    #     raise ValueError('Not implemented yet for the situation that mat1 is not full-rank')
     # g commutes with d
     g = u_a_h @ mat2 @ v_a
     # because g is hermitian, eigen-decomposition is its spectral decomposition

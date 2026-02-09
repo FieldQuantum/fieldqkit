@@ -4,6 +4,7 @@ from .api import QuantumHardwareClient
 from .core.circuits import build_ghz, build_cluster, build_qft, build_ising_time_evolution
 from .core.observables import pauli_expectation
 from .core.readout import calibrate_readout, mitigate_readout
+from .calibration import ReadoutCalibrationManager, NativeTwoQubitRBManager
 from .core.types import QAOAResult, ShadowResult, VQEResult
 from .core.zne import apply_zne_cz_tripling
 from .algorithms.shadow import ShadowTomography
@@ -32,6 +33,8 @@ __all__ = [
     "pauli_expectation",
     "calibrate_readout",
     "mitigate_readout",
+    "ReadoutCalibrationManager",
+    "NativeTwoQubitRBManager",
     "apply_zne_cz_tripling",
     "ShadowTomography",
     "ShadowResult",
