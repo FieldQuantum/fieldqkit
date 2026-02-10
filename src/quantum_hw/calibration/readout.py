@@ -68,6 +68,7 @@ class ReadoutCalibrationManager:
 		cached_confusion: Dict[int, List[List[float]]] = {}
 		missing: List[int] = []
 		for q in target_qubits:
+			# Skip qubits with zero fidelity (unavailable for calibration).
 			ts_str = timestamps.get(str(q)) if isinstance(timestamps, dict) else None
 			mat = per_qubit_raw.get(str(q)) if isinstance(per_qubit_raw, dict) else None
 			if ts_str is None or mat is None:
@@ -78,6 +79,7 @@ class ReadoutCalibrationManager:
 				missing.append(q)
 				continue
 			cached_confusion[int(q)] = mat
+		# Cache TTL is one hour.
 		if not missing:
 			if print_true:
 				print("[readout] using cached readout calibration")

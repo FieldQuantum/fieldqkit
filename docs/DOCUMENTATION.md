@@ -22,6 +22,7 @@ Backend 拓扑与请求依赖 `networkx` 与 `requests`。
 - `quantum_hw.compile`：线路转译（布局/路由/门集转换/压缩）。
 - `quantum_hw.sim`：本地模拟（statevector + 采样）。
 - `quantum_hw.core`：通用工具（observables/readout/zne/plotting/types）。
+- `quantum_hw.calibration`：校准模块（readout / native two-qubit RB）。
 
 **执行流程（run_auto）**
 
@@ -104,6 +105,36 @@ Backend 拓扑与请求依赖 `networkx` 与 `requests`。
 - Readout 缓存默认有效期 1 小时，按芯片存单文件，按比特更新时间戳。
 - 当 `readout_mitigation=True` 且未提供 `target_qubits` 时，会使用转译后 QASM 中的物理比特集合；
   为避免逻辑-物理映射不一致，建议显式传入 `target_qubits`。
+
+### Calibration
+
+#### `ReadoutCalibrationManager`
+
+**用途**：单比特 readout 校准与缓存管理。
+
+主要方法：
+
+- `calibrate_readout(target_qubits, shots=1024, chip_name, backend, qasm_version="2.0")`
+
+说明：
+
+- 当 `target_qubits=None` 时，会从 `backend.qubits_with_attributes` 获取可用比特并过滤 `fidelity=0` 的比特。
+- 缓存按芯片存储，默认有效期 1 小时。
+
+#### `NativeTwoQubitRBManager`
+
+**用途**：基于 native two-qubit gate 的 RB，支持 readout 校正与缓存。
+
+主要方法：
+
+- `calibrate_native_two_qubit_rb(couplers=None, lengths=None, num_sequences=20, shots=1024, chip_name, backend, readout_mitigation=True, readout_shots=None)`
+
+说明：
+
+- `couplers=None` 时会自动筛选 `couplers_with_attributes` 中 `fidelity>0` 的连线。
+- RB 采用 Pauli 单比特 twirl + native 两比特门，随后显式应用逆序列。
+- `lengths` 表示随机序列长度；结果中 `total_lengths` 表示包含逆序列的总门数（拟合横轴）。
+- 缓存文件只保存每个 coupler 的 `fidelity`，避免体积过大。
 
 #### `run_shadow(...) -> ShadowResult`
 

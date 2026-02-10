@@ -362,7 +362,8 @@ class Backend:
         ax.invert_yaxis() # y 轴正半轴朝下
 
         if save_svg_fname:
-            plt.savefig(save_svg_fname + '.svg', transparent=True, dpi=300, bbox_inches='tight') 
+            # plt.savefig(save_svg_fname + '.svg', transparent=True, dpi=300, bbox_inches='tight') 
+            plt.savefig(save_svg_fname + '.pdf', bbox_inches='tight') 
         plt.clf()
         plt.close()
         return None
