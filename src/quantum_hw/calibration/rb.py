@@ -78,6 +78,7 @@ class NativeTwoQubitRBManager:
 
 		per_qubit_confusion: Optional[Dict[int, np.ndarray]] = None
 		if readout_mitigation:
+			# Reuse readout cache to mitigate measured probabilities for RB survival.
 			readout_manager = ReadoutCalibrationManager(
 				cache_dir=self._cache_dir,
 				transpile_with_backend=self._transpile_with_backend,
@@ -106,6 +107,7 @@ class NativeTwoQubitRBManager:
 			if readout_mitigation:
 				if per_qubit_confusion is None:
 					raise RuntimeError("readout mitigation requested but calibration is missing")
+				# Two-qubit local confusion matrix for the coupler.
 				local_cm = build_local_confusion_matrix(per_qubit_confusion, [q1, q2])
 			key = self._coupler_key(q1, q2)
 			ts_str = timestamps.get(key) if isinstance(timestamps, dict) else None
@@ -120,6 +122,7 @@ class NativeTwoQubitRBManager:
 				print(f"[rb] run native two-qubit RB on coupler {key}")
 
 			survival_samples: Dict[int, List[float]] = {length: [] for length in lengths}
+			# Total gate count includes forward sequence plus explicit inverse sequence.
 			total_length_by_length: Dict[int, int] = {}
 			for length in lengths:
 				for m in range(num_sequences):
@@ -202,6 +205,7 @@ class NativeTwoQubitRBManager:
 				}
 			print(f"Coupler {key}: fidelity={results[key]['fit']['fidelity']}")
 
+			# Cache stores fidelity only to keep payload minimal.
 			self._save_rb_cache(results, chip_name=chip_name)
 		return results
 
@@ -230,6 +234,7 @@ class NativeTwoQubitRBManager:
 	) -> Tuple[QuantumCircuit, np.ndarray]:
 		qc = QuantumCircuit(2)
 		total = np.eye(4, dtype=complex)
+		# Pauli-only single-qubit twirl for native two-qubit RB.
 		single_gates = ["id", "x", "y", "z"]
 
 		basis_gate = "cx" if basis_gate in {"cnot", "cx"} else basis_gate
@@ -237,6 +242,7 @@ class NativeTwoQubitRBManager:
 		if basis_mat is None:
 			raise ValueError(f"unsupported two-qubit basis gate: {basis_gate}")
 		gates_list = []
+		# Build forward sequence, then apply explicit inverse sequence.
 		for l in range(length):
 			g1 = rng.choice(single_gates)
 			g2 = rng.choice(single_gates)
