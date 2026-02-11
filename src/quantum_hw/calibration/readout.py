@@ -22,7 +22,6 @@ class ReadoutCalibrationManager:
 		self,
 		*,
 		cache_dir: Path,
-		transpile_with_backend: Callable[[QuantumCircuit, object, Optional[Sequence[int]]], QuantumCircuit],
 		submit_openqasm_async: Callable[[str, str, int, Optional[str]], object],
 		wait_task: Callable[[object], str],
 		get_task_result: Callable[[object], Dict[str, object]],
@@ -31,7 +30,6 @@ class ReadoutCalibrationManager:
 	) -> None:
 		self._cache_dir = cache_dir
 		self._cache_dir.mkdir(parents=True, exist_ok=True)
-		self._transpile_with_backend = transpile_with_backend
 		self._submit_openqasm_async = submit_openqasm_async
 		self._wait_task = wait_task
 		self._get_task_result = get_task_result
@@ -52,7 +50,6 @@ class ReadoutCalibrationManager:
 		if backend is None:
 			raise RuntimeError("backend is not set; use run_auto or provide backend")
 		target_qubits = self._resolve_target_qubits(target_qubits, backend)
-		print(target_qubits)
 		if shots is None:
 			shots = 1024
 		if chip_name is None:
@@ -94,8 +91,8 @@ class ReadoutCalibrationManager:
 		pending: List[Tuple[object, int, str]] = []
 		res_map: Dict[int, Dict[str, Dict[str, int]]] = {q: {} for q in missing}
 		for q in missing:
-			for bits, qc in self._readout_calibration_circuits():
-				qct = self._transpile_with_backend(qc, backend, target_qubits=[q])
+			for bits, qc in self._readout_calibration_circuits(q):
+				qct = qc
 				if use_simulator:
 					# Simulator uses the same calibration flow but via statevector sampling.
 					qct_sim = self._compact_for_sim(qct)
@@ -217,15 +214,15 @@ class ReadoutCalibrationManager:
 		}
 		path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
 
-	def _readout_calibration_circuits(self) -> List[Tuple[str, QuantumCircuit]]:
+	def _readout_calibration_circuits(self, q: int) -> List[Tuple[str, QuantumCircuit]]:
 		"""Build minimal calibration circuits for a single qubit."""
 		circuits: List[Tuple[str, QuantumCircuit]] = []
 		for i in range(2):
 			bits = format(i, "01b")
-			qc = QuantumCircuit(1)
+			qc = QuantumCircuit(q+1)
 			if bits == "1":
-				qc.x(0)
-			qc.measure([0], [0])
+				qc.x(q)
+			qc.measure([q], [0])
 			circuits.append((bits, qc))
 		return circuits
 

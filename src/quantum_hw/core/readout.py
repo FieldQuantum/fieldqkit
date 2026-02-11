@@ -140,9 +140,9 @@ def apply_readout_mitigation_multi(
 	return probabilities, observable_values
 
 
-def calibrate_readout(Task, Backend, Transpiler, token: str, chip_name: str, target_qubits: List[int], shots: int, qasm_version: str = "2.0") -> Dict[int, np.ndarray]:
+def calibrate_readout(Task, Backend, Transpiler, chip_name: str, target_qubits: List[int], shots: int, qasm_version: str = "2.0") -> Dict[int, np.ndarray]:
 	"""Standalone readout calibration helper (legacy interface)."""
-	tmgr = Task(token)
+	tmgr = Task()
 	chip_backend = Backend(chip_name)
 
 	per_qubit_confusion: Dict[int, np.ndarray] = {}

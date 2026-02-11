@@ -23,6 +23,7 @@ Backend 拓扑与请求依赖 `networkx` 与 `requests`。
 - `quantum_hw.sim`：本地模拟（statevector + 采样）。
 - `quantum_hw.core`：通用工具（observables/readout/zne/plotting/types）。
 - `quantum_hw.calibration`：校准模块（readout / native two-qubit RB）。
+- `quantum_hw.calibration`：校准模块（readout / native two-qubit RB / two-qubit process tomography）。
 
 **执行流程（run_auto）**
 
@@ -135,6 +136,21 @@ Backend 拓扑与请求依赖 `networkx` 与 `requests`。
 - RB 采用 Pauli 单比特 twirl + native 两比特门，随后显式应用逆序列。
 - `lengths` 表示随机序列长度；结果中 `total_lengths` 表示包含逆序列的总门数（拟合横轴）。
 - 缓存文件只保存每个 coupler 的 `fidelity`，避免体积过大。
+
+#### `NativeTwoQubitTomographyManager`
+
+**用途**：native two-qubit gate 的 process tomography，并输出 error channel（Choi 矩阵）用于 PEC。
+
+主要方法：
+
+- `calibrate_native_two_qubit_tomography(couplers=None, shots=1024, chip_name, backend, readout_mitigation=True, readout_shots=None)`
+
+说明：
+
+- 输入态为每个比特 6 个 Pauli 本征态（共 36 个输入态）。
+- 测量基为 `X/Y/Z` 组合（共 9 个测量设置）。
+- 内部做 linear inversion 得到 PTM，并与理想门 PTM 做组合得到 error channel。
+- error channel 以 Choi 矩阵形式存储在 cache（`real`/`imag` 两个矩阵）。
 
 #### `run_shadow(...) -> ShadowResult`
 

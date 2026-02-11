@@ -24,7 +24,6 @@ class NativeTwoQubitRBManager:
 		self,
 		*,
 		cache_dir: Path,
-		transpile_with_backend: Callable[[QuantumCircuit, object, Optional[Sequence[int]]], QuantumCircuit],
 		submit_openqasm_async: Callable[[str, str, int, Optional[str]], object],
 		wait_task: Callable[[object], str],
 		get_task_result: Callable[[object], Dict[str, object]],
@@ -33,7 +32,6 @@ class NativeTwoQubitRBManager:
 	) -> None:
 		self._cache_dir = cache_dir
 		self._cache_dir.mkdir(parents=True, exist_ok=True)
-		self._transpile_with_backend = transpile_with_backend
 		self._submit_openqasm_async = submit_openqasm_async
 		self._wait_task = wait_task
 		self._get_task_result = get_task_result
@@ -81,7 +79,6 @@ class NativeTwoQubitRBManager:
 			# Reuse readout cache to mitigate measured probabilities for RB survival.
 			readout_manager = ReadoutCalibrationManager(
 				cache_dir=self._cache_dir,
-				transpile_with_backend=self._transpile_with_backend,
 				submit_openqasm_async=self._submit_openqasm_async,
 				wait_task=self._wait_task,
 				get_task_result=self._get_task_result,
@@ -127,13 +124,14 @@ class NativeTwoQubitRBManager:
 			for length in lengths:
 				for m in range(num_sequences):
 					qc, total_length = self._build_random_sequence(
+						[q1, q2],
 						length,
 						backend.two_qubit_gate_basis,
 						rng,
 					)
 					total_length_by_length[length] = total_length
-					qc.measure([0, 1], [0, 1])
-					qct = self._transpile_with_backend(qc, backend, target_qubits=[q1, q2], optimize_level=0)
+					qc.measure([q1, q2], [0, 1])
+					qct = qc
 
 					if use_simulator:
 						qct_sim = self._compact_for_sim(qct)
@@ -228,12 +226,12 @@ class NativeTwoQubitRBManager:
 
 	def _build_random_sequence(
 		self,
+		qubits: List[int],
 		length: int,
 		basis_gate: str,
 		rng: np.random.Generator,
 	) -> Tuple[QuantumCircuit, np.ndarray]:
-		qc = QuantumCircuit(2)
-		total = np.eye(4, dtype=complex)
+		qc = QuantumCircuit(max(qubits) + 1)
 		# Pauli-only single-qubit twirl for native two-qubit RB.
 		single_gates = ["id", "x", "y", "z"]
 
@@ -246,14 +244,14 @@ class NativeTwoQubitRBManager:
 		for l in range(length):
 			g1 = rng.choice(single_gates)
 			g2 = rng.choice(single_gates)
-			self._apply_single_gate(qc, g1, 0)
-			self._apply_single_gate(qc, g2, 1)
-			self._apply_two_qubit_gate(qc, basis_gate, 0, 1)
+			self._apply_single_gate(qc, g1, qubits[0])
+			self._apply_single_gate(qc, g2, qubits[1])
+			self._apply_two_qubit_gate(qc, basis_gate, qubits[0], qubits[1])
 			gates_list.append([g1, g2, basis_gate])
 		for l in range(length):
-			self._apply_two_qubit_gate_dg(qc, gates_list[length - 1 - l][2], 0, 1)	
-			self._apply_single_gate_dg(qc, gates_list[length - 1 - l][0], 0)
-			self._apply_single_gate_dg(qc, gates_list[length - 1 - l][1], 1)
+			self._apply_two_qubit_gate_dg(qc, gates_list[length - 1 - l][2], qubits[0], qubits[1])	
+			self._apply_single_gate_dg(qc, gates_list[length - 1 - l][0], qubits[0])
+			self._apply_single_gate_dg(qc, gates_list[length - 1 - l][1], qubits[1])
 
 		if basis_gate == "iswap":
 			total_length = 4 * length

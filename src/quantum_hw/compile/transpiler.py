@@ -41,11 +41,26 @@ class Transpiler:
     def __init__(self, chip_backend: Backend | None = None):
         self.chip_backend = chip_backend
 
-    def run(self, qc: QuantumCircuit, target_qubits: list = [], optimize_level=1, niter=5, use_dd=False):
+    def run(
+        self,
+        qc: QuantumCircuit,
+        target_qubits: list | None = None,
+        niter: int = 5,
+        use_dd: bool = False,
+        use_three_qubit_decompose: bool = True,
+        use_sabre_routing: bool = True,
+        use_translate_to_basis: bool = True,
+        use_gate_compressor: bool = True,
+        routing_initial_mapping: str = "trivial",
+        routing_random_choice: bool = False,
+    ):
         if isinstance(qc, QuantumCircuit):
             pass
         else:
             raise TypeError("Expected a QuantumCircuit, but got a {}.".format(type(qc)))
+
+        if target_qubits is None:
+            target_qubits = []
 
         if self.chip_backend is None:
             print("Warning: No chip specified, defaulting to a linearly connected layout for simulation.")
@@ -71,44 +86,33 @@ class Transpiler:
                     "topology": "linear",
                 },
             )
-        if optimize_level == 0:
-            # Minimal pass set: decompose + route + translate.
-            passes = [
-                ThreeQubitGateDecompose(),
-                SabreRouting(subgraph, initial_mapping="trivial", do_random_choice=False, iterations=1),
-                TranslateToBasisGates(
-                    convert_single_qubit_gate_to_u=self.convert_single_qubit_gate_to_u,
-                    two_qubit_gate_basis=self.two_qubit_gate_basis,
-                ),
-            ]
-        elif optimize_level == 1:
-            # Default pass set: add gate compression after translation.
-            passes = [
-                ThreeQubitGateDecompose(),
-                SabreRouting(subgraph, initial_mapping="trivial", do_random_choice=False, iterations=niter),
-                TranslateToBasisGates(
-                    convert_single_qubit_gate_to_u=self.convert_single_qubit_gate_to_u,
-                    two_qubit_gate_basis=self.two_qubit_gate_basis,
-                ),
-                GateCompressor(),
-            ]
-        elif optimize_level == 2:
+        if use_sabre_routing and routing_initial_mapping == "random":
             if len(split_qubits(qc)) > 1:
                 raise ValueError(
-                    "If quantum circuit can be divided along the qubits, the optimize_level is restricted to 0 or 1"
+                    "If quantum circuit can be divided along the qubits, random initial mapping is restricted."
                 )
-            # Aggressive routing with random initial mapping.
-            passes = [
-                ThreeQubitGateDecompose(),
-                SabreRouting(subgraph, initial_mapping="random", do_random_choice=True, iterations=niter),
+
+        passes = []
+        if use_three_qubit_decompose:
+            passes.append(ThreeQubitGateDecompose())
+        if use_sabre_routing:
+            passes.append(
+                SabreRouting(
+                    subgraph,
+                    initial_mapping=routing_initial_mapping,
+                    do_random_choice=routing_random_choice,
+                    iterations=niter,
+                )
+            )
+        if use_translate_to_basis:
+            passes.append(
                 TranslateToBasisGates(
                     convert_single_qubit_gate_to_u=self.convert_single_qubit_gate_to_u,
                     two_qubit_gate_basis=self.two_qubit_gate_basis,
-                ),
-                GateCompressor(),
-            ]
-        else:
-            raise ValueError("Currently, only optimize_level values of 0 or 1 or 2 are supported.")
+                )
+            )
+        if use_gate_compressor:
+            passes.append(GateCompressor())
         if use_dd:
             try:
                 # Append dynamical decoupling using backend gate lengths.

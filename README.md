@@ -6,7 +6,7 @@
 - 自定义线路：OpenQASM2 / OpenQASM3 字符串
 - ZNE：将编译后所有 CZ 门三倍插入并做线性外推
 - Readout 误差缓解：按物理比特做校准并缓存
-- Calibration：readout 校准与 native two-qubit RB
+- Calibration：readout 校准、native two-qubit RB、two-qubit process tomography
 - 结果处理：采样、Pauli observables、概率分布 $p$
 - Shadow tomography：随机测量基的可观测量估计
 - VQE：基于量子测量的变分优化框架（Adam 优化）
@@ -56,6 +56,7 @@ print(result.probabilities)
 
 - Readout calibration: [examples/demo_calibrate.py](examples/demo_calibrate.py)
 - Native two-qubit RB: [examples/demo_rb.py](examples/demo_rb.py)
+- Native two-qubit process tomography: see `NativeTwoQubitTomographyManager`
 
 RB 缓存文件只保存每个 coupler 的 `fidelity`，避免大体积缓存。
 
@@ -63,7 +64,7 @@ RB 缓存文件只保存每个 coupler 的 `fidelity`，避免大体积缓存。
 
 - `quantum_hw.api`：面向用户的 API 层（`QuantumHardwareClient`）。
 - `quantum_hw.core`：通用工具与数据结构（circuits / observables / readout / zne / plotting / types）。
-- `quantum_hw.calibration`：校准模块（readout / native two-qubit RB）。
+- `quantum_hw.calibration`：校准模块（readout / native two-qubit RB / two-qubit tomography）。
 - `quantum_hw.compile`：编译与转译入口（`Transpiler`）。
 - `quantum_hw.circuit.qasm2` / `quantum_hw.circuit.qasm3`：OpenQASM2/3 解析实现。
 

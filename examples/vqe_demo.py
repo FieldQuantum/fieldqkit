@@ -10,9 +10,8 @@ if __name__ == "__main__":
     model = 'ising'
     name = f"VQE_{model}_{num_qubits}_{date}"
 
-    token = "5gjq36bZsMvqFoSNomvnfPy4y[iDJWe[tBx9fIndISQ/:m{O5FEPyRkM4B{N{RkNyd{OypkJxiY[jxjJ4RkPyBkPxJEJ4FUMyBUM3JENzJjPjRYZqKDMxpkJtWnemynJtJTcwOnMtmXZueHRu2XcwW4[vWHbkWYfjpkJzW3d2Kzf"
 
-    client = QuantumHardwareClient(token=token)
+    client = QuantumHardwareClient()
     vqe = VQERunner(
         client=client,
         layers=1,
@@ -32,7 +31,7 @@ if __name__ == "__main__":
         num_qubits=num_qubits,
         model=model,
         model_params={"j": 1.0, "h": 1.0},
-        prefer_chips="Baihua",
+        prefer_chips="Simulator",
     )
 
     print("Best energy:", result.best_energy)
