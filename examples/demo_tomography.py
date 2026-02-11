@@ -1,23 +1,22 @@
 import os
 from pathlib import Path
-import numpy as np
+
 from quantum_hw import QuantumHardwareClient
 from quantum_hw.api.backend import Backend
-from quantum_hw.calibration import NativeTwoQubitRBManager
+from quantum_hw.calibration import NativeTwoQubitTomographyManager
 from quantum_hw.sim.statevector import simulate_counts
 
 
 if __name__ == "__main__":
-    chip_name = 'Simulator'
-    
-    client = QuantumHardwareClient()
+    chip_name = "Simulator"
 
+    client = QuantumHardwareClient()
     client.chip_name = chip_name
     client.chip_backend = Backend(chip_name)
 
     cache_dir = Path(__file__).resolve().parent.parent / "src/quantum_hw/api/.cache"
 
-    rb_manager = NativeTwoQubitRBManager(
+    tomo_manager = NativeTwoQubitTomographyManager(
         cache_dir=cache_dir,
         submit_openqasm_async=client._submit_openqasm_async,
         wait_task=client._wait_task,
@@ -26,17 +25,19 @@ if __name__ == "__main__":
         simulate_counts=simulate_counts,
     )
 
-    results = rb_manager.calibrate_native_two_qubit_rb(
+    results = tomo_manager.calibrate_native_two_qubit_tomography(
         couplers=None,
-        lengths=[1, 2, 3, 4, 5],
-        num_sequences=100,
-        shots=1024,
+        shots=256,
         chip_name=chip_name,
         backend=client.chip_backend,
         qasm_version="2.0",
+        readout_mitigation=True,
         print_true=True,
     )
 
     for key, payload in results.items():
-        fit = payload.get("fit", {})
-        print(f"Coupler {key}: p={fit.get('p')}, fidelity={fit.get('fidelity')}, epc={fit.get('epc')}")
+        choi = payload.get("choi_error")
+        if choi is None:
+            print(f"Coupler {key}: missing choi_error")
+            continue
+        print(f"Coupler {key}: choi_error shape={choi.shape}")

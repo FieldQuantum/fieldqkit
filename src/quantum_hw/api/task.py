@@ -37,8 +37,9 @@ class Task(object):
             cls.instance = super().__new__(cls)
         return cls.instance
 
-    def __init__(self, token: str = '') -> None:
+    def __init__(self) -> None:
         # Task client for Quafu REST API; token can come from env or argument.
+        token = "5gjq36bZsMvqFoSNomvnfPy4y[iDJWe[tBx9fIndISQ/:m{O5FEPyRkM4B{N{RkNyd{OypkJxiY[jxjJ4RkPyBkPxJEJ4FUMyBUM3JENzJjPjRYZqKDMxpkJtWnemynJtJTcwOnMtmXZueHRu2XcwW4[vWHbkWYfjpkJzW3d2Kzf"
         self.token = os.getenv('QPU_API_TOKEN', token)
         assert self.token, 'token cannot be empty!'
 

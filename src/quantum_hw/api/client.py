@@ -45,12 +45,11 @@ from ..sim.statevector import simulate_counts
 
 # NOTE: API layer client. Keeps hardware selection + algorithm orchestration in one place.
 class QuantumHardwareClient:
-	def __init__(self, token: str):
-		"""Create a hardware client with an access token."""
-		self.token = token
+	def __init__(self):
+		"""Create a hardware client."""
 		self.chip_name = None
 		# Task manager is the single entry point for submitting hardware jobs.
-		self.tmgr = Task(token)
+		self.tmgr = Task()
 		self.chip_backend = None
 
 	@staticmethod
@@ -92,13 +91,12 @@ class QuantumHardwareClient:
 		qc: QuantumCircuit,
 		backend: Backend,
 		target_qubits: Optional[Sequence[int]] = None,
-		optimize_level: int = 1,
 	):
 		"""Transpile with a specific backend and optional target qubits."""
 		if target_qubits is None:
 			return Transpiler(backend).run(qc)
 		# When target qubits are provided, enable DD to reduce idle errors.
-		return Transpiler(backend).run(qc, target_qubits=list(target_qubits), use_dd=True, optimize_level=optimize_level)
+		return Transpiler(backend).run(qc, target_qubits=list(target_qubits), use_dd=True)
 
 	def _submit_openqasm(
 		self,
@@ -332,7 +330,6 @@ class QuantumHardwareClient:
 				# Readout mitigation uses per-qubit confusion matrices.
 				calibration_manager = ReadoutCalibrationManager(
 					cache_dir=Path(__file__).resolve().parent / ".cache",
-					transpile_with_backend=self._transpile_with_backend,
 					submit_openqasm_async=self._submit_openqasm_async,
 					wait_task=self._wait_task,
 					get_task_result=self.tmgr.result,

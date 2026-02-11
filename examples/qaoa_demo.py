@@ -9,14 +9,10 @@ if __name__ == "__main__":
     date = datetime.date.today()
     name = f"QAOA_MaxCut_{num_qubits}_{date}"
 
-    token = os.getenv("QUARK_TOKEN")
-    if not token:
-        raise RuntimeError("Missing QUARK_TOKEN in environment")
-
     edges = [(0, 1), (1, 2), (2, 3), (3, 0)]
     weights = [1.0, 1.0, 1.0, 1.0]
 
-    client = QuantumHardwareClient(token=token)
+    client = QuantumHardwareClient()
     qaoa = QAOARunner(
         client=client,
         p=1,
@@ -31,7 +27,7 @@ if __name__ == "__main__":
         num_qubits=num_qubits,
         edges=edges,
         weights=weights,
-        prefer_chips=["Yudu"],
+        prefer_chips=["Simulator"],
     )
 
     print("Best cost:", result.best_cost)

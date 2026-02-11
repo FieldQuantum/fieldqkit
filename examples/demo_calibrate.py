@@ -8,10 +8,9 @@ from pathlib import Path
 
 
 if __name__ == "__main__":
-    chip_name = 'Baihua'
+    chip_name = 'Simulator'
     
-    token = "5gjq36bZsMvqFoSNomvnfPy4y[iDJWe[tBx9fIndISQ/:m{O5FEPyRkM4B{N{RkNyd{OypkJxiY[jxjJ4RkPyBkPxJEJ4FUMyBUM3JENzJjPjRYZqKDMxpkJtWnemynJtJTcwOnMtmXZueHRu2XcwW4[vWHbkWYfjpkJzW3d2Kzf"
-    client = QuantumHardwareClient(token=token)
+    client = QuantumHardwareClient()
 
     client.chip_name = chip_name
     client.chip_backend = Backend(chip_name)
@@ -19,7 +18,6 @@ if __name__ == "__main__":
 
     calibration_manager = ReadoutCalibrationManager(
         cache_dir=cache_dir,
-        transpile_with_backend=client._transpile_with_backend,
         submit_openqasm_async=client._submit_openqasm_async,
         wait_task=client._wait_task,
         get_task_result=client.tmgr.result,

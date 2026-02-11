@@ -71,7 +71,7 @@ def test_transpiler_layout_smoke():
     qc.cx(0, 1)
     qc.measure([0, 1], [0, 1])
 
-    transpiled = Transpiler(backend).run(qc, optimize_level=0)
+    transpiled = Transpiler(backend).run(qc, use_gate_compressor=False)
 
     assert transpiled.nqubits >= 2
     assert len(transpiled.gates) > 0
