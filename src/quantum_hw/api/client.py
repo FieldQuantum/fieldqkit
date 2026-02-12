@@ -13,6 +13,7 @@ from .backend import Backend
 from ..circuit import QuantumCircuit
 
 from ..compile import Transpiler
+from ..compile.translate import TranslateToBasisGates
 from ..core.circuits import build_cluster, build_ghz, build_ising_time_evolution, build_qft
 from ..algorithms.shadow import run_shadow_with_backend
 from ..algorithms.vqe import (
@@ -405,6 +406,331 @@ class QuantumHardwareClient:
 			observable_values=observable_values_out,
 			observable_values_raw=observable_values_raw_out,
 		)
+
+	def _run_with_backend_batch(
+		self,
+		circuits: Sequence[QuantumCircuit],
+		name: str,
+		num_qubits: int,
+		*,
+		backend: Backend,
+		chip_name: str,
+		shots: int | Sequence[int] = 1024,
+		zne: bool = False,
+		readout_mitigation: bool = False,
+		readout_shots: Optional[int] = None,
+		observables: Optional[Sequence[str] | Sequence[Sequence[str]] | str] = None,
+		return_probabilities: bool = False,
+		target_qubits: Optional[Sequence[int]] = None,
+		qasm_version: str = "2.0",
+		print_true: bool = False,
+		post_transpile_transform: Optional[Callable[[QuantumCircuit], QuantumCircuit]] = None,
+		reuse_transpiled_base: bool = False,
+		basis_patterns: Optional[Sequence[Sequence[str]]] = None,
+	) -> List[RunResult]:
+		"""Run a batch of circuits, submitting all tasks before waiting.
+		TODO: maybe merge with _run_with_backend to reduce code duplication?"""
+		if not circuits:
+			raise ValueError("circuits must be non-empty")
+		for qc in circuits:
+			if not isinstance(qc, QuantumCircuit):
+				raise TypeError("circuits must contain QuantumCircuit instances")
+		if basis_patterns is not None and len(basis_patterns) != len(circuits):
+			raise ValueError("basis_patterns length must match circuits length")
+
+		if isinstance(shots, (list, tuple, np.ndarray)):
+			shots_list = list(shots)
+			if len(shots_list) != len(circuits):
+				raise ValueError("shots length must match circuits length")
+		else:
+			shots_list = [shots] * len(circuits)
+
+		per_circuit_obs = None
+		if observables is not None and not isinstance(observables, str):
+			obs_seq = list(observables)
+			if obs_seq and isinstance(obs_seq[0], (list, tuple)):
+				if len(obs_seq) != len(circuits):
+					raise ValueError("observables length must match circuits length")
+				per_circuit_obs = obs_seq
+
+		def _normalize_observables(local_observables):
+			if isinstance(local_observables, str):
+				return [local_observables]
+			if local_observables is None:
+				return []
+			return list(local_observables)
+
+		base_transpiled_cache: Dict[int, QuantumCircuit] = {}
+
+		def _translate_to_basis(qct: QuantumCircuit) -> QuantumCircuit:
+			translator = TranslateToBasisGates(
+				convert_single_qubit_gate_to_u=True,
+				two_qubit_gate_basis=backend.two_qubit_gate_basis,
+			)
+			return translator.run(qct)
+
+		def _prepare_circuit(
+			qc,
+			basis_pattern: Optional[Sequence[str]],
+			scale_zne: bool,
+			base_qct: Optional[QuantumCircuit],
+		) -> QuantumCircuit:
+			if base_qct is None:
+				qc = deepcopy(qc)
+				if basis_pattern is not None:
+					append_measurement_basis(qc, basis_pattern)
+				elif not self._has_measurements(qc):
+					qc.measure_all()
+				qct = self._transpile_with_backend(qc, backend, target_qubits=target_qubits)
+			else:
+				qct = base_qct.deepcopy()
+				if basis_pattern is not None:
+					append_measurement_basis(qct, basis_pattern)
+				elif not self._has_measurements(qct):
+					qct.measure_all()
+				if basis_pattern is not None or not self._has_measurements(qct):
+					qct = _translate_to_basis(qct)
+			if scale_zne:
+				qct = apply_zne_cz_tripling(qct)
+			if post_transpile_transform is not None:
+				qct = post_transpile_transform(qct)
+			return qct
+
+		def _submit_one(qc, suffix, local_observables, local_shots, basis_pattern_override):
+			observables_list = _normalize_observables(local_observables)
+			if basis_pattern_override is not None and observables_list:
+				raise ValueError("basis_patterns cannot be combined with observables")
+			if print_true:
+				print("[hardware] which hardware:", chip_name)
+			use_simulator = str(chip_name).lower() == "simulator"
+			supports_by_obs = {obs: pauli_support(obs, num_qubits=num_qubits) for obs in observables_list}
+			if basis_pattern_override is not None:
+				groups = [{"basis": basis_pattern_override, "observables": observables_list}]
+			elif observables_list:
+				groups = group_observables(observables_list, num_qubits=num_qubits)
+			else:
+				groups = [{"basis": None, "observables": []}]
+
+			pending: List[Tuple[int, str, object]] = []
+			group_meta: List[Dict[str, object]] = []
+			task_ids: List[object] = []
+			group_counts: Dict[int, Dict[str, Dict[str, int]]] = {i: {} for i in range(len(groups))}
+			base_qct = None
+			if reuse_transpiled_base:
+				cache_key = id(qc)
+				base_qct = base_transpiled_cache.get(cache_key)
+				if base_qct is None:
+					base_qct = self._transpile_with_backend(deepcopy(qc), backend, target_qubits=target_qubits)
+					base_transpiled_cache[cache_key] = base_qct
+
+			for gi, group in enumerate(groups):
+				basis_pattern = group["basis"]
+				qct = _prepare_circuit(qc, basis_pattern, scale_zne=False, base_qct=base_qct)
+				if use_simulator:
+					qct_sim = self._compact_for_sim(qct)
+					group_counts[gi]["1"] = simulate_counts(qct_sim, local_shots)
+				else:
+					qasm_1 = qct.to_openqasm2 if qasm_version == "2.0" else qct.to_openqasm3
+					task_id_1 = self._submit_openqasm_async(
+						name=f"{name}{suffix}_g{gi}",
+						qasm=qasm_1,
+						shots=local_shots,
+						chip_name=chip_name,
+					)
+					if print_true:
+						print("[run] compile and run circuit:", f"{name}{suffix}_g{gi}")
+					pending.append((gi, "1", task_id_1))
+					task_ids.append(task_id_1)
+
+				if zne:
+					qct = _prepare_circuit(qc, basis_pattern, scale_zne=True, base_qct=base_qct)
+					if use_simulator:
+						qct_sim = self._compact_for_sim(qct)
+						group_counts[gi]["3"] = simulate_counts(qct_sim, local_shots)
+					else:
+						task_id_3 = self._submit_openqasm_async(
+							name=f"{name}{suffix}_g{gi}_zne3",
+							qasm=qct.to_openqasm2 if qasm_version == "2.0" else qct.to_openqasm3,
+							shots=local_shots,
+							chip_name=chip_name,
+						)
+						if print_true:
+							print("[run] run circuit:", "zero-noise extrapolation")
+						pending.append((gi, "3", task_id_3))
+						task_ids.append(task_id_3)
+
+				meta = {
+					"basis": basis_pattern,
+					"observables": group["observables"],
+					"qasm_1": qasm_1 if not use_simulator else None,
+				}
+				group_meta.append(meta)
+
+			if target_qubits is None:
+				target_qubits_group = qct.qubits_in_use
+			else:
+				target_qubits_group = target_qubits
+
+			if print_true:
+				print("[run] which qubits:", list(target_qubits_group) if target_qubits_group is not None else "auto")
+
+			return {
+				"use_simulator": use_simulator,
+				"pending": pending,
+				"group_meta": group_meta,
+				"task_ids": task_ids,
+				"group_counts": group_counts,
+				"supports_by_obs": supports_by_obs,
+				"target_qubits_group": target_qubits_group,
+				"observables": observables_list,
+			}
+
+		def _finalize_one(ctx):
+			use_simulator = ctx["use_simulator"]
+			pending = ctx["pending"]
+			group_meta = ctx["group_meta"]
+			task_ids = ctx["task_ids"]
+			group_counts = ctx["group_counts"]
+			supports_by_obs = ctx["supports_by_obs"]
+			target_qubits_group = ctx["target_qubits_group"]
+			observables_list = ctx["observables"]
+
+			if not use_simulator:
+				for gi, scale, task_id in pending:
+					status = self._wait_task(task_id)
+					if status != "Finished":
+						raise RuntimeError(f"task {task_id} ended with status {status}")
+					counts = self.tmgr.result(task_id)["count"]
+					group_counts[gi][scale] = counts
+
+			samples_list: List[List[List[int]] | None] = []
+			probabilities_list: List[List[float] | None] = []
+			probabilities_raw_list: List[List[float] | None] = []
+			observable_values: Dict[str, float] = {}
+			observable_values_raw: Dict[str, float] = {}
+
+			for gi, meta in enumerate(group_meta):
+				counts_1 = group_counts[gi]["1"]
+				probs_1 = get_probabilities(counts_1, num_qubits)
+				if zne:
+					counts_3 = group_counts[gi]["3"]
+					probs_3 = get_probabilities(counts_3, num_qubits)
+					probs = zne_linear_extrapolate(probs_1, probs_3)
+				else:
+					probs = probs_1
+
+				probs = np.clip(probs, 0.0, 1.0)
+				s = probs.sum()
+				if s > 0:
+					probs = probs / s
+
+				samples = get_samples(counts_1, num_qubits)
+				raw_probabilities = probs if return_probabilities or readout_mitigation or meta["observables"] else None
+				if raw_probabilities is not None:
+					raw_probabilities = raw_probabilities.copy()
+				probabilities = raw_probabilities.copy() if raw_probabilities is not None else None
+
+				for obs in meta["observables"]:
+					if obs in observable_values_raw:
+						continue
+					support = supports_by_obs.get(obs)
+					if raw_probabilities is not None and support:
+						local_probs = marginal_probabilities(raw_probabilities, num_qubits, support)
+						val = expectation_from_probabilities(local_probs, support)
+					else:
+						val = pauli_expectation(samples, obs)
+					observable_values_raw[obs] = float(np.clip(val, -1.0, 1.0))
+
+				if readout_mitigation:
+					if len(target_qubits_group) != num_qubits:
+						raise ValueError(
+							f"num_qubits ({num_qubits}) must match len(target_qubits) ({len(target_qubits_group)}) for readout mitigation"
+						)
+					calibration_manager = ReadoutCalibrationManager(
+						cache_dir=Path(__file__).resolve().parent / ".cache",
+						submit_openqasm_async=self._submit_openqasm_async,
+						wait_task=self._wait_task,
+						get_task_result=self.tmgr.result,
+						compact_for_sim=self._compact_for_sim,
+						simulate_counts=simulate_counts,
+					)
+					cal = calibration_manager.calibrate_readout(
+						target_qubits=target_qubits_group,
+						shots=readout_shots,
+						chip_name=chip_name,
+						backend=backend,
+						qasm_version=qasm_version,
+						print_true=print_true,
+					)
+					per_qubit = {k: np.asarray(v) for k, v in cal.per_qubit_confusion.items()}
+					supports_subset = {obs: supports_by_obs[obs] for obs in meta["observables"]}
+					probabilities, mitigated_obs_values = apply_readout_mitigation_multi(
+						probabilities,
+						probs,
+						num_qubits,
+						supports_subset,
+						target_qubits_group,
+						per_qubit,
+					)
+					for obs, val in mitigated_obs_values.items():
+						observable_values[obs] = float(np.clip(val, -1.0, 1.0))
+
+				for obs in meta["observables"]:
+					if obs in observable_values:
+						continue
+					support = supports_by_obs[obs]
+					if probabilities is not None and support:
+						local_probs = marginal_probabilities(probabilities, num_qubits, support)
+						val = expectation_from_probabilities(local_probs, support)
+					else:
+						val = pauli_expectation(samples, obs)
+					observable_values[obs] = float(np.clip(val, -1.0, 1.0))
+
+				if probabilities is not None:
+					probabilities = np.clip(probabilities, 0.0, 1.0)
+					s = probabilities.sum()
+					if s > 0:
+						probabilities = probabilities / s
+
+				samples_list.append(samples.tolist() if isinstance(samples, np.ndarray) else samples)
+				probabilities_list.append(probabilities.tolist() if probabilities is not None else None)
+				probabilities_raw_list.append(raw_probabilities.tolist() if raw_probabilities is not None else None)
+
+			observable_values_out = observable_values if observables_list else None
+			if len(observables_list) == 1 and observable_values_out is not None:
+				observable_values_out = observable_values_out.get(observables_list[0])
+
+			observable_values_raw_out = None
+			if readout_mitigation and observables_list:
+				observable_values_raw_out = observable_values_raw
+				if len(observables_list) == 1 and observable_values_raw_out is not None:
+					observable_values_raw_out = observable_values_raw_out.get(observables_list[0])
+
+			samples_out = samples_list[0] if len(samples_list) == 1 else samples_list
+			probabilities_out = probabilities_list[0] if len(probabilities_list) == 1 else probabilities_list
+			probabilities_raw_out = None
+			if readout_mitigation:
+				probabilities_raw_out = probabilities_raw_list[0] if len(probabilities_raw_list) == 1 else probabilities_raw_list
+
+			if print_true:
+				print("[finish] returning results")
+
+			return RunResult(
+				task_ids=[str(t) for t in task_ids] if task_ids else None,
+				samples=samples_out,
+				probabilities=probabilities_out,
+				probabilities_raw=probabilities_raw_out,
+				observable_values=observable_values_out,
+				observable_values_raw=observable_values_raw_out,
+			)
+
+		contexts = []
+		for idx, qc in enumerate(circuits):
+			obs = per_circuit_obs[idx] if per_circuit_obs is not None else observables
+			basis_pattern_override = basis_patterns[idx] if basis_patterns is not None else None
+			contexts.append(_submit_one(qc, f"_b{idx}", obs, shots_list[idx], basis_pattern_override))
+
+		return [_finalize_one(ctx) for ctx in contexts]
 
 	def run_auto(
 		self,
