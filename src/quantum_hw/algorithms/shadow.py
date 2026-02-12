@@ -2,15 +2,13 @@
 
 from __future__ import annotations
 
-from copy import deepcopy
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
 
-from ..core.observables import append_measurement_basis, pauli_basis_pattern
+from ..core.observables import pauli_basis_pattern
 from ..core.types import ShadowResult
-from ..core.utils import get_samples
 from ..core.zne import apply_zne_cz_tripling, zne_linear_extrapolate
 
 
@@ -128,63 +126,72 @@ def run_shadow_with_backend(
 
     rng = np.random.default_rng(seed)
 
-    pending: List[Tuple[List[str], str, object]] = []
-    task_ids: List[str] = []
+    circuits = []
+    basis_patterns: List[List[str]] = []
+    shots_list: List[int] = []
     remaining = shots
-    batch_index = 0
-
     while remaining > 0:
         shots_batch = min(batch_size, remaining)
         # Randomly draw a measurement basis per batch.
         basis_pattern = rng.choice(_BASIS_CHOICES, size=num_qubits).tolist()
-        qc_batch = deepcopy(qc)
-        append_measurement_basis(qc_batch, basis_pattern)
-        qct = client._transpile_with_backend(qc_batch, backend, target_qubits=target_qubits)
-        qasm_1 = qct.to_openqasm2
-        task_id_1 = client._submit_openqasm_async(
-            name=f"{name}_shadow{batch_index}",
-            qasm=qasm_1,
-            shots=shots_batch,
-            chip_name=chip_name,
-        )
-        pending.append((basis_pattern, "1", task_id_1))
-        task_ids.append(str(task_id_1))
-
-        if zne:
-            # Run a 3x-noise scaled circuit for linear extrapolation.
-            qct_3 = apply_zne_cz_tripling(qct)
-            qasm_3 = qct_3.to_openqasm2
-            task_id_3 = client._submit_openqasm_async(
-                name=f"{name}_shadow{batch_index}_zne3",
-                qasm=qasm_3,
-                shots=shots_batch,
-                chip_name=chip_name,
-            )
-            pending.append((basis_pattern, "3", task_id_3))
-            task_ids.append(str(task_id_3))
+        circuits.append(qc)
+        basis_patterns.append(basis_pattern)
+        shots_list.append(shots_batch)
         remaining -= shots_batch
-        batch_index += 1
+
+    batch_name = f"{name}_shadow"
+    results_1 = client._run_with_backend_batch(
+        circuits,
+        batch_name,
+        num_qubits,
+        backend=backend,
+        chip_name=chip_name,
+        shots=shots_list,
+        observables=None,
+        return_probabilities=False,
+        target_qubits=target_qubits,
+        zne=False,
+        print_true=False,
+        reuse_transpiled_base=True,
+        basis_patterns=basis_patterns,
+    )
 
     all_samples_1: List[List[int]] = []
     all_basis_1: List[List[str]] = []
     all_samples_3: List[List[int]] = []
     all_basis_3: List[List[str]] = []
+    task_ids: List[str] = []
 
-    for basis_pattern, scale, task_id in pending:
-        status = client._wait_task(task_id)
-        if status != "Finished":
-            raise RuntimeError(f"shadow task {task_id} ended with status {status}")
-        counts = client.tmgr.result(task_id)["count"]
-        samples = get_samples(counts, num_qubits)
-        if samples.size == 0:
-            continue
-        sample_list = samples.tolist()
-        if scale == "1":
-            all_samples_1.extend(sample_list)
-            all_basis_1.extend([basis_pattern] * len(sample_list))
-        else:
-            all_samples_3.extend(sample_list)
-            all_basis_3.extend([basis_pattern] * len(sample_list))
+    for basis_pattern, res in zip(basis_patterns, results_1):
+        if res.task_ids:
+            task_ids.extend([str(t) for t in res.task_ids])
+        if res.samples:
+            all_samples_1.extend(res.samples)
+            all_basis_1.extend([basis_pattern] * len(res.samples))
+
+    if zne:
+        results_3 = client._run_with_backend_batch(
+            circuits,
+            f"{batch_name}_zne3",
+            num_qubits,
+            backend=backend,
+            chip_name=chip_name,
+            shots=shots_list,
+            observables=None,
+            return_probabilities=False,
+            target_qubits=target_qubits,
+            zne=False,
+            print_true=False,
+            post_transpile_transform=apply_zne_cz_tripling,
+            reuse_transpiled_base=True,
+            basis_patterns=basis_patterns,
+        )
+        for basis_pattern, res in zip(basis_patterns, results_3):
+            if res.task_ids:
+                task_ids.extend([str(t) for t in res.task_ids])
+            if res.samples:
+                all_samples_3.extend(res.samples)
+                all_basis_3.extend([basis_pattern] * len(res.samples))
 
     samples_arr_1 = np.asarray(all_samples_1, dtype=int)
     estimates_1, stderrs_1 = estimate_observables(

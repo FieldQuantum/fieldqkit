@@ -527,7 +527,17 @@ def run_qaoa_with_backend(
     m = np.zeros_like(params, dtype=float)
     v = np.zeros_like(params, dtype=float)
 
+    print(
+        "[qaoa] start optimization:",
+        f"iters={max_iters}",
+        f"p={p}",
+        f"shots={shots}",
+        f"params={num_params}",
+        f"shift={shift}",
+    )
+
     for it in range(max_iters):
+        print(f"[qaoa] iter {it} start")
         gammas = params[:p]
         betas = params[p:]
         # Build the cost + mixer circuit at current parameters.
@@ -569,6 +579,9 @@ def run_qaoa_with_backend(
             target_qubits=target_qubits,
         )
 
+        grad_norm = float(np.linalg.norm(grads))
+        print(f"[qaoa] iter {it} cost={cost:.6f} grad_norm={grad_norm:.6f}")
+
         params, m, v = _adam_update(
             params,
             grads,
@@ -589,6 +602,7 @@ def run_qaoa_with_backend(
         if cost > best_cost:
             best_cost = float(cost)
             best_params = params.copy()
+            print(f"[qaoa] iter {it} new best cost={best_cost:.6f}")
 
         if callback is not None:
             callback(it, float(cost), params)

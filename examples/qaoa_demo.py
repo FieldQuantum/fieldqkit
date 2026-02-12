@@ -5,12 +5,12 @@ from quantum_hw import QuantumHardwareClient, QAOARunner
 
 
 if __name__ == "__main__":
-    num_qubits = 4
+    num_qubits = 2
     date = datetime.date.today()
     name = f"QAOA_MaxCut_{num_qubits}_{date}"
 
-    edges = [(0, 1), (1, 2), (2, 3), (3, 0)]
-    weights = [1.0, 1.0, 1.0, 1.0]
+    edges = [(0, 1)]
+    weights = [1.0]
 
     client = QuantumHardwareClient()
     qaoa = QAOARunner(
