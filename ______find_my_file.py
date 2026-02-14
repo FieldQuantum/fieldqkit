@@ -4,7 +4,7 @@ import fnmatch
 # Set the directory to search in
 directory = os.path.dirname(__file__)
 # Set the string to search for
-search_string = r'token'
+search_string = r'run_with_backend_batch'
 
 # Loop over all the .py files in the directory
 for root, dirnames, filenames in os.walk(directory):

@@ -138,7 +138,6 @@ def run_shadow_with_backend(
         basis_patterns.append(basis_pattern)
         shots_list.append(shots_batch)
         remaining -= shots_batch
-
     batch_name = f"{name}_shadow"
     results_1 = client._run_with_backend_batch(
         circuits,

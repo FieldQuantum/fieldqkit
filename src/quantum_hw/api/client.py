@@ -474,6 +474,7 @@ class QuantumHardwareClient:
 			basis_pattern: Optional[Sequence[str]],
 			scale_zne: bool,
 			base_qct: Optional[QuantumCircuit],
+			target_qubits_in_use: Optional[Sequence[int]] = None,
 		) -> QuantumCircuit:
 			if base_qct is None:
 				qc = deepcopy(qc)
@@ -485,9 +486,9 @@ class QuantumHardwareClient:
 			else:
 				qct = base_qct.deepcopy()
 				if basis_pattern is not None:
-					append_measurement_basis(qct, basis_pattern)
+					append_measurement_basis(qct, basis_pattern, target_qubits=target_qubits_in_use)
 				elif not self._has_measurements(qct):
-					qct.measure_all()
+					qct.measure(target_qubits_in_use, list(range(len(target_qubits_in_use))))
 				if basis_pattern is not None or not self._has_measurements(qct):
 					qct = _translate_to_basis(qct)
 			if scale_zne:
@@ -522,10 +523,11 @@ class QuantumHardwareClient:
 				if base_qct is None:
 					base_qct = self._transpile_with_backend(deepcopy(qc), backend, target_qubits=target_qubits)
 					base_transpiled_cache[cache_key] = base_qct
+				target_qubits_in_use = base_qct.qubits_in_use
 
 			for gi, group in enumerate(groups):
 				basis_pattern = group["basis"]
-				qct = _prepare_circuit(qc, basis_pattern, scale_zne=False, base_qct=base_qct)
+				qct = _prepare_circuit(qc, basis_pattern, scale_zne=False, base_qct=base_qct, target_qubits_in_use=target_qubits_in_use)
 				if use_simulator:
 					qct_sim = self._compact_for_sim(qct)
 					group_counts[gi]["1"] = simulate_counts(qct_sim, local_shots)
@@ -543,7 +545,7 @@ class QuantumHardwareClient:
 					task_ids.append(task_id_1)
 
 				if zne:
-					qct = _prepare_circuit(qc, basis_pattern, scale_zne=True, base_qct=base_qct)
+					qct = _prepare_circuit(qc, basis_pattern, scale_zne=True, base_qct=base_qct, target_qubits_in_use=target_qubits_in_use)
 					if use_simulator:
 						qct_sim = self._compact_for_sim(qct)
 						group_counts[gi]["3"] = simulate_counts(qct_sim, local_shots)
