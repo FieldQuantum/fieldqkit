@@ -82,9 +82,11 @@ def pauli_basis_pattern(pauli: str, num_qubits: int) -> List[str]:
 	return pattern
 
 
-def append_measurement_basis(qc, basis_pattern: Sequence[str]) -> None:
+def append_measurement_basis(qc, basis_pattern: Sequence[str], target_qubits: Sequence[int] = None) -> None:
 	"""Apply basis rotations for a full pattern and append measurements."""
-	for idx, op in enumerate(basis_pattern):
+	if target_qubits is None:
+		target_qubits = list(range(len(basis_pattern)))
+	for idx, op in zip(target_qubits, basis_pattern):
 		if op == "X":
 			qc.h(idx)
 		elif op == "Y":
@@ -100,8 +102,7 @@ def append_measurement_basis(qc, basis_pattern: Sequence[str]) -> None:
 		else:
 			raise ValueError(f"unsupported basis op: {op}")
 	qc.barrier()
-	qc.measure_all()
-
+	qc.measure(target_qubits, list(range(len(target_qubits))))
 
 def _compatible_with_basis(pattern: Sequence[str], basis: Sequence[str]) -> bool:
 	"""Check whether two basis patterns are compatible for grouping."""
