@@ -52,7 +52,7 @@ def convert_gate_info_to_dag_info(nqubits:int,qubits:list,gates:list,show_qubits
             node_list.append(node_info)
             qubit_dic[qubit] = node_info[0]
 
-    # seperate_measure_instruction
+    # separate_measure_instruction
     gates0 = []
     for gate_info in gates:
        gate = gate_info[0]
