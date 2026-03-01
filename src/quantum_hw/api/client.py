@@ -161,7 +161,7 @@ class QuantumHardwareClient:
 		qct_sim.qubits = used
 		mapping = {q: i for i, q in enumerate(used)}
 		qct_sim.mapping_to_others(mapping)
-		return qct_sim
+		return qct_sim, mapping
 	
 	def _run_with_backend(
 		self,
@@ -226,7 +226,7 @@ class QuantumHardwareClient:
 			basis_pattern = group["basis"]
 			qct = _prepare_circuit(qc, basis_pattern, scale_zne=False)
 			if use_simulator:
-				qct_sim = self._compact_for_sim(qct)
+				qct_sim, _ = self._compact_for_sim(qct)
 				group_counts[gi]["1"] = simulate_counts(qct_sim, shots)
 			else:
 				# Hardware: submit async task and collect later.
@@ -245,7 +245,7 @@ class QuantumHardwareClient:
 			if zne:
 				qct = _prepare_circuit(qc, basis_pattern, scale_zne=True)
 				if use_simulator:
-					qct_sim = self._compact_for_sim(qct)
+					qct_sim, _ = self._compact_for_sim(qct)
 					group_counts[gi]["3"] = simulate_counts(qct_sim, shots)
 				else:
 					# ZNE scale=3 path runs as an extra hardware task.
@@ -517,6 +517,7 @@ class QuantumHardwareClient:
 			task_ids: List[object] = []
 			group_counts: Dict[int, Dict[str, Dict[str, int]]] = {i: {} for i in range(len(groups))}
 			base_qct = None
+			target_qubits_in_use = None
 			if reuse_transpiled_base:
 				cache_key = id(qc)
 				base_qct = base_transpiled_cache.get(cache_key)
@@ -529,7 +530,7 @@ class QuantumHardwareClient:
 				basis_pattern = group["basis"]
 				qct = _prepare_circuit(qc, basis_pattern, scale_zne=False, base_qct=base_qct, target_qubits_in_use=target_qubits_in_use)
 				if use_simulator:
-					qct_sim = self._compact_for_sim(qct)
+					qct_sim, _ = self._compact_for_sim(qct)
 					group_counts[gi]["1"] = simulate_counts(qct_sim, local_shots)
 				else:
 					qasm_1 = qct.to_openqasm2 if qasm_version == "2.0" else qct.to_openqasm3
@@ -547,7 +548,7 @@ class QuantumHardwareClient:
 				if zne:
 					qct = _prepare_circuit(qc, basis_pattern, scale_zne=True, base_qct=base_qct, target_qubits_in_use=target_qubits_in_use)
 					if use_simulator:
-						qct_sim = self._compact_for_sim(qct)
+						qct_sim, _ = self._compact_for_sim(qct)
 						group_counts[gi]["3"] = simulate_counts(qct_sim, local_shots)
 					else:
 						task_id_3 = self._submit_openqasm_async(

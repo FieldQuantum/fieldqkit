@@ -1,8 +1,22 @@
 """Tests for batch circuit execution helper."""
 
+from unittest.mock import patch
+
+import pytest
+
 from quantum_hw.api.backend import Backend
 from quantum_hw.api.client import QuantumHardwareClient
 from quantum_hw.circuit import QuantumCircuit
+
+
+@pytest.fixture(autouse=True)
+def _patch_task(monkeypatch):
+	class _DummyTask:
+		def __init__(self, *args, **kwargs):
+			pass
+
+	monkeypatch.setattr("quantum_hw.api.client.Task", _DummyTask)
+
 
 
 def test_run_with_backend_batch_matches_single_simulator():
@@ -61,3 +75,24 @@ def test_run_with_backend_batch_matches_single_simulator():
 	assert batch[1].samples == res1.samples
 	assert batch[1].probabilities == res1.probabilities
 	assert batch[1].observable_values == res1.observable_values
+
+
+def test_run_with_backend_simulator_passes_circuit_to_simulator():
+	client = QuantumHardwareClient()
+	backend = Backend("Simulator")
+	qc = QuantumCircuit(2)
+	qc.x(1)
+
+	with patch("quantum_hw.api.client.simulate_counts", return_value={"00": 8}) as mock_simulate_counts:
+		client._run_with_backend(
+			qc,
+			"single",
+			2,
+			backend=backend,
+			chip_name="Simulator",
+			shots=8,
+			print_true=False,
+		)
+
+	first_arg = mock_simulate_counts.call_args.args[0]
+	assert isinstance(first_arg, QuantumCircuit)
