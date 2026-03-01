@@ -27,8 +27,7 @@ pip install -e .
 
 Token 建议通过环境变量或配置文件注入，避免硬编码：
 
-- 运行时显式传入 `QuantumHardwareClient(token=...)`
-- 或按 Quafu 官方文档配置 Token
+- 按 Quafu 官方文档配置 Token（例如环境变量或配置文件）
 
 ## 快速开始
 
@@ -37,7 +36,7 @@ Token 建议通过环境变量或配置文件注入，避免硬编码：
 ```python
 from quantum_hw import QuantumHardwareClient
 
-client = QuantumHardwareClient(token="...")
+client = QuantumHardwareClient()
 result = client.run_auto(
     circuit="ghz",
     name="demo",
