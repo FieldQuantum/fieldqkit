@@ -1,13 +1,13 @@
 import datetime
 
-from quantum_hw import QuantumHardwareClient
+from quantum_hw import QuantumHardwareClient, QuantumCircuit
 from quantum_hw.core.plotting import plot_observables_compare, plot_probabilities_compare
 
 if __name__ == "__main__":
     num_qubits = 7
-    circuit = 'ghz' # 'ghz', 'cluster', 'QFT', 'Ising evolution'
+    circuit_name = "ghz"
     date = datetime.date.today()
-    name = f'Demo_{circuit}_{num_qubits}_{date}'
+    name = f'Demo_{circuit_name}_{num_qubits}_{date}'
     zne = True
     shots = 50000
     readout_mitigation = True
@@ -15,7 +15,14 @@ if __name__ == "__main__":
     return_probabilities = True
 
     client = QuantumHardwareClient()
-    
+
+    # User can also use a custom circuit or one of the built-in templates.    
+    circuit = "ghz"  # "ghz", "cluster", "QFT", "Ising evolution"
+    # circuit = QuantumCircuit(num_qubits)
+    # circuit.h(0)
+    # for i in range(num_qubits - 1):
+    #     circuit.cx(i, i + 1)
+
     results = client.run_auto(
         circuit,
         name,
@@ -25,7 +32,7 @@ if __name__ == "__main__":
         readout_mitigation=readout_mitigation,
         observables=observables,
         return_probabilities=return_probabilities,
-        prefer_chips=['Simulator']
+        # prefer_chips=['Simulator']
     )
     print("Expectation Value (Raw):", results.observable_values_raw)
     print("Expectation Value (Mitigated):", results.observable_values)

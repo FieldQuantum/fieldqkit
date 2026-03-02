@@ -59,6 +59,33 @@ class QuantumHardwareClient:
 		"""Check whether the circuit already contains measurement operations."""
 		return any(gate[0] == "measure" for gate in getattr(qc, "gates", []))
 
+	@staticmethod
+	def _infer_circuit_qubits(qc: QuantumCircuit) -> int:
+		qubits = getattr(qc, "qubits", None) or []
+		if qubits:
+			return max(qubits) + 1
+		return int(getattr(qc, "nqubits", 0) or 0)
+
+	def _normalize_input_circuit(self, circuit: Union[str, QuantumCircuit], num_qubits: int) -> QuantumCircuit:
+		"""Convert input into a QuantumCircuit and sanitize measurements."""
+		if isinstance(circuit, QuantumCircuit):
+			qc = circuit.deepcopy()
+			# Measurements are appended later based on basis/targets.
+			if self._has_measurements(qc):
+				qc.remove_gate("measure")
+			qc_qubits = self._infer_circuit_qubits(qc)
+			if qc_qubits and qc_qubits != num_qubits:
+				raise ValueError("num_qubits mismatch with QuantumCircuit")
+			if qc_qubits == 0 and num_qubits > 0:
+				qc.nqubits = num_qubits
+				qc.ncbits = max(int(getattr(qc, "ncbits", 0) or 0), num_qubits)
+			return qc
+		if self._is_openqasm2(circuit):
+			return QuantumCircuit().from_openqasm2(openqasm2_str=circuit)
+		if self._is_openqasm3(circuit):
+			return QuantumCircuit().from_openqasm3(openqasm3_str=circuit)
+		return self.build_circuit(circuit, num_qubits=num_qubits)
+
 	def build_circuit(self, kind: str, **kwargs) -> QuantumCircuit:
 		"""Build a predefined circuit by name."""
 		kind = kind.lower()
@@ -182,7 +209,7 @@ class QuantumHardwareClient:
 
 		use_simulator = str(chip_name).lower() == "simulator"
 
-		# Precompute which qubits each observable touches for fast marginalization.
+		# Precompute observable support for local expectations and mitigation.
 		supports_by_obs = {obs: pauli_support(obs, num_qubits=num_qubits) for obs in observables}
 
 		# Group observables by compatible measurement bases to reduce task count.
@@ -227,10 +254,12 @@ class QuantumHardwareClient:
 		group_meta: List[Dict[str, object]] = []
 		task_ids: List[object] = []
 		group_counts: Dict[int, Dict[str, Dict[str, int]]] = {i: {} for i in range(len(groups))}
+		# Transpile once and reuse across measurement groups.
 		base_qct = self._transpile_with_backend(deepcopy(qc), backend, target_qubits=target_qubits)
 		if target_qubits is not None:
 			target_qubits_in_use = list(target_qubits)
 		else:
+			# Fall back to the transpiled circuit qubits or logical range.
 			target_qubits_in_use = base_qct.qubits_in_use
 			if not target_qubits_in_use:
 				target_qubits_in_use = list(range(num_qubits))
@@ -414,7 +443,7 @@ class QuantumHardwareClient:
 
 	def run_auto(
 		self,
-		circuit: str,
+		circuit: Union[str, QuantumCircuit],
 		name: str,
 		num_qubits: int,
 		*,
@@ -431,12 +460,8 @@ class QuantumHardwareClient:
 	) -> RunResult:
 		"""Automatically select hardware, run, and return results."""
 		print("[hardware] read hardware information and select")
-		if self._is_openqasm2(circuit):
-			qc = QuantumCircuit().from_openqasm2(openqasm2_str=circuit)
-		elif self._is_openqasm3(circuit):
-			qc = QuantumCircuit().from_openqasm3(openqasm3_str=circuit)
-		else:
-			qc = self.build_circuit(circuit, num_qubits=num_qubits)
+		# Normalize input circuit and strip measurements if present.
+		qc = self._normalize_input_circuit(circuit, num_qubits)
 		ranked_chips = rank_chips(
 			self.tmgr,
 			num_qubits=num_qubits,

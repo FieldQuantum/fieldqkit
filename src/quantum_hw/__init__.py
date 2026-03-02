@@ -1,6 +1,7 @@
 """Public package exports for the quantum hardware interface."""
 
 from .api import QuantumHardwareClient
+from .circuit import QuantumCircuit
 from .core.circuits import build_ghz, build_cluster, build_qft, build_ising_time_evolution
 from .core.observables import pauli_expectation
 from .core.readout import calibrate_readout, mitigate_readout
@@ -26,6 +27,7 @@ from .algorithms.qaoa import (
 
 __all__ = [
     "QuantumHardwareClient",
+    "QuantumCircuit",
     "build_ghz",
     "build_cluster",
     "build_qft",

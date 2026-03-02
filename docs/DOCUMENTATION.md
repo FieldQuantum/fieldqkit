@@ -71,7 +71,8 @@ Backend 拓扑与请求依赖 `networkx` 与 `requests`。
 
 参数：
 
-- `circuit: str`：线路名称（如 `"ghz"`）或 OpenQASM2 / OpenQASM3 字符串（以 `OPENQASM` 开头）。
+- `circuit: str | QuantumCircuit`：线路名称、OpenQASM2/3 字符串，或 `QuantumCircuit` 实例。
+  - 若传入 `QuantumCircuit` 且包含测量，会被移除并在执行阶段按测量基重新追加。
 - `name: str`：任务名称。
 - `num_qubits: int`：线路逻辑比特数。
 - `shots: int = 8192`：采样次数。
@@ -91,6 +92,8 @@ Backend 拓扑与请求依赖 `networkx` 与 `requests`。
 - `task_ids: Optional[List[str]]`：提交任务 ID 列表。
 - `samples: Optional[List[List[int]] | List[List[List[int]]]]`
   - 单个测量基时为 `List[List[int]]`；多个测量基时为 `List[List[List[int]]]`。
+- `samples_zne: Optional[List[List[int]] | List[List[List[int]]]]`
+  - 仅在开启 ZNE 时返回，对应 3x 噪声缩放的样本。
 - `probabilities: Optional[List[float] | List[List[float]]]`
   - 单个测量基时为一维概率分布；多个测量基时为二维列表。
 - `probabilities_raw: Optional[List[float] | List[List[float]]]`
@@ -158,12 +161,12 @@ Backend 拓扑与请求依赖 `networkx` 与 `requests`。
 
 参数：
 
-- `circuit: str`（线路名称或 OpenQASM2 / OpenQASM3）
+- `circuit: str | QuantumCircuit`（线路名称、OpenQASM2/3，或 `QuantumCircuit`）
 - `name: str`
 - `num_qubits: int`
 - `shots: int = 8192`
 - `observables: Optional[Sequence[str] | str] = None`
-- `batch_size: int = 1`（每个随机基的 shots，经典 shadow 常用 1）
+- `shots_per_basis: int = 1`（每个随机基的 shots，经典 shadow 常用 1）
 - `seed: Optional[int] = None`
 - `zne: bool = False`
 - `estimator: str = "mean"`（可选：`"mom"`）
@@ -186,7 +189,7 @@ Backend 拓扑与请求依赖 `networkx` 与 `requests`。
 **实现细节**
 
 - 每个 batch 随机生成一次测量基（`X/Y/Z`）。
-- `batch_size` 表示每个随机基的 shots 数。
+- `shots_per_basis` 表示每个随机基的 shots 数。
 - `estimator` 支持均值与 median-of-means（`mom`）。
 - `zne=True` 时，会额外运行 3x 噪声缩放并线性外推。
 
@@ -313,7 +316,7 @@ Pauli string 支持两种格式：
 - `build_readout_calibration_circuits(num_qubits: int)`
 - `build_local_confusion_matrix(per_qubit_confusion: Dict[int, np.ndarray], target_qubits: Sequence[int])`
 - `mitigate_readout(probabilities: np.ndarray, confusion_matrix: np.ndarray)`
-- `apply_readout_mitigation_multi(...)`
+- `expectation_from_probabilities(probabilities: np.ndarray, support: Sequence[int])`
 
 **缓存与校准策略**
 

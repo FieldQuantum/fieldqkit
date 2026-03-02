@@ -102,6 +102,7 @@ def append_measurement_basis(qc, basis_pattern: Sequence[str], target_qubits: Se
 		else:
 			raise ValueError(f"unsupported basis op: {op}")
 	qc.barrier()
+	# Map measured qubits onto a dense classical register order.
 	qc.measure(target_qubits, list(range(len(target_qubits))))
 
 def _compatible_with_basis(pattern: Sequence[str], basis: Sequence[str]) -> bool:

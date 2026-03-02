@@ -3,7 +3,7 @@
 该项目提供面向用户的量子硬件控制接口，涵盖：
 
 - 预置线路：GHZ / Cluster / QFT / Ising 时间演化
-- 自定义线路：OpenQASM2 / OpenQASM3 字符串
+- 自定义线路：OpenQASM2 / OpenQASM3 字符串或 `QuantumCircuit`
 - ZNE：将编译后所有 CZ 门三倍插入并做线性外推
 - Readout 误差缓解：按物理比特做校准并缓存
 - Calibration：readout 校准、native two-qubit RB、two-qubit process tomography
@@ -50,6 +50,8 @@ result = client.run_auto(
 print(result.observable_values)
 print(result.probabilities)
 ```
+
+也可以直接传入 `QuantumCircuit`；若线路里已有测量，会被自动移除并在执行时按测量基重新追加。
 
 校准示例：
 
