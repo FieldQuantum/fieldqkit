@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Sequence, Tuple
+from typing import Dict, List, Optional, Sequence, Tuple, Union
 
 import numpy as np
 
@@ -101,7 +101,7 @@ def estimate_observables(
 
 def run_shadow_with_backend(
     client,
-    qc,
+    qc: QuantumCircuit,
     *,
     name: str,
     num_qubits: int,
@@ -125,6 +125,7 @@ def run_shadow_with_backend(
 
     rng = np.random.default_rng(seed)
 
+    # Draw random measurement bases for each batch.
     basis_patterns: List[List[str]] = []
     basis_number = int(np.ceil(shots / float(shots_per_basis)))
     for _ in range(basis_number):
@@ -142,6 +143,7 @@ def run_shadow_with_backend(
     all_basis_3: List[List[str]] = []
     task_ids: List[str] = []
 
+    # Treat each basis pattern as a Pauli observable to drive basis rotations.
     basis_observables = [_basis_pattern_to_pauli(p) for p in basis_patterns]
     res = client._run_with_backend(
         qc,
@@ -222,7 +224,7 @@ def run_shadow_with_backend(
 
 def run_shadow(
     client,
-    circuit: str,
+    circuit: Union[str, QuantumCircuit],
     name: str,
     num_qubits: int,
     *,
@@ -239,12 +241,8 @@ def run_shadow(
 ) -> ShadowResult:
     """Select hardware and run classical shadow tomography."""
     print("[shadow] read hardware information and select")
-    if client._is_openqasm2(circuit):
-        qc = QuantumCircuit().from_openqasm2(openqasm2_str=circuit)
-    elif client._is_openqasm3(circuit):
-        qc = QuantumCircuit().from_openqasm3(openqasm3_str=circuit)
-    else:
-        qc = client.build_circuit(circuit, num_qubits=num_qubits)
+    # Normalize input circuit and strip measurements if present.
+    qc = client._normalize_input_circuit(circuit, num_qubits)
 
     ranked_chips = rank_chips(
         client.tmgr,
@@ -296,7 +294,7 @@ class ShadowTomography:
 
     def run(
         self,
-        circuit: str,
+        circuit: Union[str, QuantumCircuit],
         name: str,
         num_qubits: int,
         *,

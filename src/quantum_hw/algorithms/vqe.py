@@ -280,6 +280,7 @@ def _parameter_shift_gradient(
     grads = np.zeros_like(params, dtype=float)
     total_circuits = params.size * 2
     pack_size = min(_estimate_parallel_batches(backend, num_qubits), total_circuits)
+    # Disable packing when targeting fixed physical qubits.
     if pack_size < 2 or target_qubits is not None:
         for i in range(params.size):
             params_plus = params.copy()

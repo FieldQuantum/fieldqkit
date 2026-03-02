@@ -333,6 +333,7 @@ def _parameter_shift_gradient_qaoa(
     """Parameter-shift gradient for QAOA parameters (gammas, betas)."""
     p = params.size // 2
     grads = np.zeros_like(params, dtype=float)
+    # Avoid packing when target qubits are fixed.
     if target_qubits is not None:
         for i in range(params.size):
             params_plus = params.copy()

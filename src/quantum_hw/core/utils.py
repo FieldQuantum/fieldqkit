@@ -38,6 +38,7 @@ def get_samples(result: Dict[str, int], num_qubits: int) -> np.ndarray:
 	samples = []
 	for key, count in result.items():
 		bits = [int(b) for b in key[::-1]]
+		# Expand to per-shot rows for downstream estimators.
 		samples.extend([bits] * count)
 	return np.array(samples, dtype=int)
 
