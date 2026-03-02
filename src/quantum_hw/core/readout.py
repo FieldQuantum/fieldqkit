@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Dict, Iterable, List, Sequence, Tuple
+from typing import Dict, List, Sequence, Tuple
 
 import numpy as np
 
@@ -59,18 +59,6 @@ def mitigate_readout(probabilities: np.ndarray, confusion_matrix: np.ndarray) ->
 	return mitigated / s
 
 
-def marginal_probabilities(probabilities: np.ndarray, num_qubits: int, support: Sequence[int]) -> np.ndarray:
-	"""Compute marginal probabilities on a subset of qubits."""
-	support = list(support)
-	if not support:
-		return np.array([1.0])
-	# Reshape into an n-dimensional tensor and sum out non-support axes.
-	probs = probabilities.reshape([2] * num_qubits)
-	axes_to_sum = tuple(i for i in range(num_qubits) if i not in support)
-	marginal = probs.sum(axis=axes_to_sum)
-	return marginal.reshape(-1)
-
-
 def expectation_from_probabilities(probabilities: np.ndarray, support: Sequence[int]) -> float:
 	"""Compute Z-basis expectation value from probabilities."""
 	if not support:
@@ -84,61 +72,6 @@ def expectation_from_probabilities(probabilities: np.ndarray, support: Sequence[
 		parity += np.arange(2).reshape(shape)
 	sign = 1.0 - 2.0 * (parity % 2)
 	return float((probs * sign).sum())
-
-
-def apply_readout_mitigation(
-	probabilities: np.ndarray | None,
-	probs: np.ndarray,
-	num_qubits: int,
-	support: Sequence[int],
-	target_qubits: Sequence[int],
-	per_qubit_confusion: Dict[int, np.ndarray],
-):
-	"""Mitigate probabilities and return observable expectation when requested."""
-	observable_value = None
-	if probabilities is not None:
-		if len(target_qubits) == num_qubits:
-			full_cm = build_local_confusion_matrix(per_qubit_confusion, target_qubits)
-			probabilities = mitigate_readout(probabilities, full_cm)
-
-	if support:
-		support_phys = [target_qubits[i] for i in support]
-		local_cm = build_local_confusion_matrix(per_qubit_confusion, support_phys)
-		local_probs = marginal_probabilities(probs, num_qubits, support)
-		local_probs = mitigate_readout(local_probs, local_cm)
-		observable_value = expectation_from_probabilities(local_probs, support)
-
-	return probabilities, observable_value
-
-
-def apply_readout_mitigation_multi(
-	probabilities: np.ndarray | None,
-	probs: np.ndarray,
-	num_qubits: int,
-	supports_by_observable: Dict[str, Sequence[int]],
-	target_qubits: Sequence[int],
-	per_qubit_confusion: Dict[int, np.ndarray],
-):
-	"""Mitigate probabilities and compute multiple observables at once."""
-	observable_values: Dict[str, float] = {}
-	if probabilities is not None:
-		if len(target_qubits) == num_qubits:
-			full_cm = build_local_confusion_matrix(per_qubit_confusion, target_qubits)
-			probabilities = mitigate_readout(probabilities, full_cm)
-
-	for obs, support in supports_by_observable.items():
-		if support:
-			# Map logical support indices to physical qubits.
-			support_phys = [target_qubits[i] for i in support]
-			local_cm = build_local_confusion_matrix(per_qubit_confusion, support_phys)
-			local_probs = marginal_probabilities(probs, num_qubits, support)
-			local_probs = mitigate_readout(local_probs, local_cm)
-			observable_values[obs] = expectation_from_probabilities(local_probs, support)
-		else:
-			observable_values[obs] = 1.0
-
-	return probabilities, observable_values
-
 
 def calibrate_readout(Task, Backend, Transpiler, chip_name: str, target_qubits: List[int], shots: int, qasm_version: str = "2.0") -> Dict[int, np.ndarray]:
 	"""Standalone readout calibration helper (legacy interface)."""

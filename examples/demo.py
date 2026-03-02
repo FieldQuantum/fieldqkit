@@ -11,7 +11,7 @@ if __name__ == "__main__":
     zne = True
     shots = 50000
     readout_mitigation = True
-    observables = ['ZIIIIIZ', 'ZZIIIZZ', 'XXXXXXX']
+    observables = 'XXXXXXX'
     return_probabilities = True
 
     client = QuantumHardwareClient()
