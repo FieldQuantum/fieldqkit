@@ -13,6 +13,7 @@ Counts = Dict[str, int]
 class RunResult:
 	task_ids: Optional[List[str]] = None
 	samples: Optional[List[List[int]] | List[List[List[int]]]] = None
+	samples_zne: Optional[List[List[int]] | List[List[List[int]]]] = None
 	probabilities: Optional[List[float] | List[List[float]]] = None
 	probabilities_raw: Optional[List[float] | List[List[float]]] = None
 	observable_values: Optional[float | Dict[str, float]] = None

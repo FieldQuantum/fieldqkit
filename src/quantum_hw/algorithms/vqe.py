@@ -7,6 +7,7 @@ from typing import Callable, Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
 from ..api.backend import Backend
+from ..api.hardware import rank_chips
 
 from ..circuit import QuantumCircuit
 
@@ -133,9 +134,22 @@ def build_hardware_efficient_ansatz(
     return qc
 
 
+def _normalize_observable_values(values):
+    if isinstance(values, list) and values:
+        if isinstance(values[0], dict):
+            merged: Dict[str, float] = {}
+            for item in values:
+                merged.update(item)
+            return merged
+        if len(values) == 1:
+            return values[0]
+    return values
+
+
 def _ensure_observable_map(observables: Sequence[str], values) -> Dict[str, float]:
     if not observables:
         return {}
+    values = _normalize_observable_values(values)
     if isinstance(values, dict):
         return {k: float(v) for k, v in values.items()}
     if len(observables) == 1:
@@ -500,6 +514,104 @@ def run_vqe_with_backend(
     )
 
 
+def run_vqe(
+    client,
+    *,
+    name: str,
+    num_qubits: int,
+    model: str = "ising",
+    model_params: Optional[Dict[str, float]] = None,
+    hamiltonian: Optional[Sequence[Tuple[float, str]]] = None,
+    layers: int = 1,
+    shots: int = 1024,
+    max_iters: int = 20,
+    learning_rate: float = 0.1,
+    beta1: float = 0.9,
+    beta2: float = 0.999,
+    eps: float = 1e-8,
+    shift: float = np.pi / 2.0,
+    zne: bool = False,
+    readout_mitigation: bool = False,
+    target_qubits: Optional[Sequence[int]] = None,
+    seed: Optional[int] = None,
+    init_params: Optional[Sequence[float]] = None,
+    callback: Optional[Callable[[int, float, np.ndarray], None]] = None,
+    prefer_chips: Optional[Sequence[str] | str] = None,
+    rank_weights: Optional[Dict[str, float]] = None,
+) -> VQEResult:
+    """Select hardware and run VQE optimization."""
+    print(
+        "[vqe] prepare run:",
+        f"name={name}",
+        f"num_qubits={num_qubits}",
+        f"model={model}",
+        f"layers={layers}",
+        f"shots={shots}",
+        f"max_iters={max_iters}",
+    )
+    model = model.lower()
+    params = model_params or {}
+    if model == "ising":
+        hamiltonian = build_ising_hamiltonian(num_qubits, **params)
+    elif model == "heisenberg":
+        hamiltonian = build_heisenberg_hamiltonian(num_qubits, **params)
+    elif model == "xxz":
+        hamiltonian = build_xxz_hamiltonian(num_qubits, **params)
+    elif model == "xy":
+        hamiltonian = build_xy_hamiltonian(num_qubits, **params)
+    elif model == "custom":
+        if hamiltonian is None:
+            raise ValueError("custom model requires hamiltonian")
+        hamiltonian = build_custom_hamiltonian(hamiltonian, num_qubits)
+    else:
+        raise ValueError(f"unsupported model: {model}")
+
+    ranked_chips = rank_chips(
+        client.tmgr,
+        num_qubits=num_qubits,
+        prefer_chips=prefer_chips,
+        weights=rank_weights,
+    )
+    print("[vqe] candidate chips:", ranked_chips)
+    if not ranked_chips:
+        raise RuntimeError("no available chips satisfy num_qubits requirement")
+
+    last_error: Optional[Exception] = None
+    for chip_name in ranked_chips:
+        backend = Backend(chip_name)
+        client.chip_name = chip_name
+        client.chip_backend = backend
+        try:
+            print("[vqe] running on chip:", chip_name)
+            return run_vqe_with_backend(
+                client,
+                name=name,
+                num_qubits=num_qubits,
+                backend=backend,
+                chip_name=chip_name,
+                hamiltonian=hamiltonian,
+                layers=layers,
+                shots=shots,
+                max_iters=max_iters,
+                learning_rate=learning_rate,
+                beta1=beta1,
+                beta2=beta2,
+                eps=eps,
+                shift=shift,
+                zne=zne,
+                readout_mitigation=readout_mitigation,
+                target_qubits=target_qubits,
+                seed=seed,
+                init_params=init_params,
+                callback=callback,
+            )
+        except Exception as exc:
+            last_error = exc
+            continue
+
+    raise RuntimeError("all candidate chips failed to run VQE") from last_error
+
+
 @dataclass
 class VQERunner:
     """High-level VQE runner."""
@@ -530,7 +642,8 @@ class VQERunner:
         prefer_chips: Optional[Sequence[str] | str] = None,
         rank_weights: Optional[Dict[str, float]] = None,
     ) -> VQEResult:
-        return self.client.run_vqe(
+        return run_vqe(
+            self.client,
             name=name,
             num_qubits=num_qubits,
             model=model,
@@ -565,7 +678,8 @@ class VQERunner:
         prefer_chips: Optional[Sequence[str] | str] = None,
         rank_weights: Optional[Dict[str, float]] = None,
     ) -> VQEResult:
-        return self.client.run_vqe(
+        return run_vqe(
+            self.client,
             name=name,
             num_qubits=num_qubits,
             model="custom",

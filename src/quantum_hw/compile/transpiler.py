@@ -46,7 +46,7 @@ class Transpiler:
         qc: QuantumCircuit,
         target_qubits: list | None = None,
         niter: int = 5,
-        use_dd: bool = False,
+        use_dd: bool = True,
         use_three_qubit_decompose: bool = True,
         use_sabre_routing: bool = True,
         use_translate_to_basis: bool = True,

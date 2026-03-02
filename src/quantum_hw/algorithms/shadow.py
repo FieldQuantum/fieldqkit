@@ -7,9 +7,12 @@ from typing import Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
 
+from ..api.backend import Backend
+from ..api.hardware import rank_chips
+from ..circuit import QuantumCircuit
 from ..core.observables import pauli_basis_pattern
 from ..core.types import ShadowResult
-from ..core.zne import apply_zne_cz_tripling, zne_linear_extrapolate
+from ..core.zne import zne_linear_extrapolate
 
 
 _BASIS_CHOICES = ("X", "Y", "Z")
@@ -105,7 +108,7 @@ def run_shadow_with_backend(
     backend,
     chip_name: str,
     shots: int,
-    batch_size: int,
+    shots_per_basis: int = 1,
     observables: Optional[Sequence[str]] = None,
     estimator: str = "mean",
     mom_groups: Optional[int] = None,
@@ -117,43 +120,21 @@ def run_shadow_with_backend(
     if observables is None:
         observables = []
     observables = list(observables)
-    if shots <= 0:
-        raise ValueError("shots must be positive")
-    if batch_size <= 0:
-        raise ValueError("batch_size must be positive")
     if estimator not in {"mean", "mom"}:
         raise ValueError("estimator must be 'mean' or 'mom'")
 
     rng = np.random.default_rng(seed)
 
-    circuits = []
     basis_patterns: List[List[str]] = []
-    shots_list: List[int] = []
-    remaining = shots
-    while remaining > 0:
-        shots_batch = min(batch_size, remaining)
+    basis_number = int(np.ceil(shots / float(shots_per_basis)))
+    for _ in range(basis_number):
         # Randomly draw a measurement basis per batch.
         basis_pattern = rng.choice(_BASIS_CHOICES, size=num_qubits).tolist()
-        circuits.append(qc)
         basis_patterns.append(basis_pattern)
-        shots_list.append(shots_batch)
-        remaining -= shots_batch
     batch_name = f"{name}_shadow"
-    results_1 = client._run_with_backend_batch(
-        circuits,
-        batch_name,
-        num_qubits,
-        backend=backend,
-        chip_name=chip_name,
-        shots=shots_list,
-        observables=None,
-        return_probabilities=False,
-        target_qubits=target_qubits,
-        zne=False,
-        print_true=False,
-        reuse_transpiled_base=True,
-        basis_patterns=basis_patterns,
-    )
+
+    def _basis_pattern_to_pauli(pattern: Sequence[str]) -> str:
+        return " ".join(f"{op}{i}" for i, op in enumerate(pattern))
 
     all_samples_1: List[List[int]] = []
     all_basis_1: List[List[str]] = []
@@ -161,36 +142,40 @@ def run_shadow_with_backend(
     all_basis_3: List[List[str]] = []
     task_ids: List[str] = []
 
-    for basis_pattern, res in zip(basis_patterns, results_1):
-        if res.task_ids:
-            task_ids.extend([str(t) for t in res.task_ids])
-        if res.samples:
-            all_samples_1.extend(res.samples)
-            all_basis_1.extend([basis_pattern] * len(res.samples))
+    basis_observables = [_basis_pattern_to_pauli(p) for p in basis_patterns]
+    res = client._run_with_backend(
+        qc,
+        batch_name,
+        num_qubits,
+        backend=backend,
+        chip_name=chip_name,
+        shots=shots_per_basis,
+        observables=basis_observables,
+        return_probabilities=False,
+        target_qubits=target_qubits,
+        merge_groups=False,
+        zne=zne,
+        print_true=False,
+    )
+    if res.task_ids:
+        task_ids.extend([str(t) for t in res.task_ids])
 
+    samples_blocks = res.samples or []
+    samples_zne_blocks = res.samples_zne or []
+    if len(samples_blocks) != len(basis_patterns):
+        raise RuntimeError("shadow samples length mismatch with basis_patterns")
+    if zne and len(samples_zne_blocks) != len(basis_patterns):
+        raise RuntimeError("shadow ZNE samples length mismatch with basis_patterns")
+
+    for basis_pattern, block in zip(basis_patterns, samples_blocks):
+        if block:
+            all_samples_1.extend(block)
+            all_basis_1.extend([basis_pattern] * len(block))
     if zne:
-        results_3 = client._run_with_backend_batch(
-            circuits,
-            f"{batch_name}_zne3",
-            num_qubits,
-            backend=backend,
-            chip_name=chip_name,
-            shots=shots_list,
-            observables=None,
-            return_probabilities=False,
-            target_qubits=target_qubits,
-            zne=False,
-            print_true=False,
-            post_transpile_transform=apply_zne_cz_tripling,
-            reuse_transpiled_base=True,
-            basis_patterns=basis_patterns,
-        )
-        for basis_pattern, res in zip(basis_patterns, results_3):
-            if res.task_ids:
-                task_ids.extend([str(t) for t in res.task_ids])
-            if res.samples:
-                all_samples_3.extend(res.samples)
-                all_basis_3.extend([basis_pattern] * len(res.samples))
+        for basis_pattern, block in zip(basis_patterns, samples_zne_blocks):
+            if block:
+                all_samples_3.extend(block)
+                all_basis_3.extend([basis_pattern] * len(block))
 
     samples_arr_1 = np.asarray(all_samples_1, dtype=int)
     estimates_1, stderrs_1 = estimate_observables(
@@ -235,13 +220,79 @@ def run_shadow_with_backend(
     )
 
 
+def run_shadow(
+    client,
+    circuit: str,
+    name: str,
+    num_qubits: int,
+    *,
+    shots: int = 8192,
+    shots_per_basis: int = 1,
+    observables: Optional[Sequence[str]] = None,
+    zne: bool = False,
+    estimator: str = "mean",
+    mom_groups: Optional[int] = None,
+    target_qubits: Optional[Sequence[int]] = None,
+    prefer_chips: Optional[Sequence[str] | str] = None,
+    rank_weights: Optional[Dict[str, float]] = None,
+    seed: Optional[int] = None,
+) -> ShadowResult:
+    """Select hardware and run classical shadow tomography."""
+    print("[shadow] read hardware information and select")
+    if client._is_openqasm2(circuit):
+        qc = QuantumCircuit().from_openqasm2(openqasm2_str=circuit)
+    elif client._is_openqasm3(circuit):
+        qc = QuantumCircuit().from_openqasm3(openqasm3_str=circuit)
+    else:
+        qc = client.build_circuit(circuit, num_qubits=num_qubits)
+
+    ranked_chips = rank_chips(
+        client.tmgr,
+        num_qubits=num_qubits,
+        prefer_chips=prefer_chips,
+        weights=rank_weights,
+    )
+    if not ranked_chips:
+        raise RuntimeError("no available chips satisfy num_qubits requirement")
+
+    if isinstance(observables, str):
+        observables = [observables]
+
+    last_error: Optional[Exception] = None
+    for chip_name in ranked_chips:
+        backend = Backend(chip_name)
+        client.chip_name = chip_name
+        client.chip_backend = backend
+        try:
+            return run_shadow_with_backend(
+                client,
+                qc,
+                name=name,
+                num_qubits=num_qubits,
+                backend=backend,
+                chip_name=chip_name,
+                shots=shots,
+                shots_per_basis=shots_per_basis,
+                observables=observables,
+                target_qubits=target_qubits,
+                zne=zne,
+                estimator=estimator,
+                mom_groups=mom_groups,
+                seed=seed,
+            )
+        except Exception as exc:
+            last_error = exc
+            continue
+
+    raise RuntimeError("all candidate chips failed to run shadow tomography") from last_error
+
+
 @dataclass
 class ShadowTomography:
     """High-level helper for classical shadow tomography."""
 
     client: object
     seed: Optional[int] = None
-    batch_size: int = 1
 
     def run(
         self,
@@ -250,6 +301,7 @@ class ShadowTomography:
         num_qubits: int,
         *,
         shots: int = 8192,
+        shots_per_basis: int = 1,
         observables: Optional[Sequence[str]] = None,
         zne: bool = False,
         estimator: str = "mean",
@@ -258,11 +310,13 @@ class ShadowTomography:
         prefer_chips: Optional[Sequence[str] | str] = None,
         rank_weights: Optional[Dict[str, float]] = None,
     ) -> ShadowResult:
-        return self.client.run_shadow(
+        return run_shadow(
+            self.client,
             circuit,
             name,
             num_qubits,
             shots=shots,
+            shots_per_basis=shots_per_basis,
             observables=observables,
             zne=zne,
             estimator=estimator,
@@ -271,5 +325,4 @@ class ShadowTomography:
             prefer_chips=prefer_chips,
             rank_weights=rank_weights,
             seed=self.seed,
-            batch_size=self.batch_size,
         )

@@ -7,6 +7,7 @@ from typing import Callable, Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
 from ..api.backend import Backend
+from ..api.hardware import rank_chips
 
 from ..circuit import QuantumCircuit
 
@@ -157,9 +158,22 @@ def build_qaoa_circuit_from_terms(
     return qc
 
 
+def _normalize_observable_values(values):
+    if isinstance(values, list) and values:
+        if isinstance(values[0], dict):
+            merged: Dict[str, float] = {}
+            for item in values:
+                merged.update(item)
+            return merged
+        if len(values) == 1:
+            return values[0]
+    return values
+
+
 def _ensure_observable_map(observables: Sequence[str], values) -> Dict[str, float]:
     if not observables:
         return {}
+    values = _normalize_observable_values(values)
     if isinstance(values, dict):
         return {k: float(v) for k, v in values.items()}
     if len(observables) == 1:
@@ -617,6 +631,94 @@ def run_qaoa_with_backend(
     )
 
 
+def run_qaoa(
+    client,
+    *,
+    name: str,
+    num_qubits: int,
+    problem: str = "maxcut",
+    edges: Optional[Sequence[Tuple[int, int]]] = None,
+    weights: Optional[Sequence[float]] = None,
+    terms: Optional[Sequence[Tuple[float, str]]] = None,
+    constant: float = 0.0,
+    p: int = 1,
+    shots: int = 1024,
+    max_iters: int = 20,
+    learning_rate: float = 0.1,
+    beta1: float = 0.9,
+    beta2: float = 0.999,
+    eps: float = 1e-8,
+    shift: float = np.pi / 2.0,
+    zne: bool = False,
+    readout_mitigation: bool = False,
+    target_qubits: Optional[Sequence[int]] = None,
+    seed: Optional[int] = None,
+    init_params: Optional[Sequence[float]] = None,
+    callback: Optional[Callable[[int, float, np.ndarray], None]] = None,
+    prefer_chips: Optional[Sequence[str] | str] = None,
+    rank_weights: Optional[Dict[str, float]] = None,
+) -> QAOAResult:
+    """Select hardware and run QAOA optimization."""
+    problem = problem.lower()
+    if problem == "maxcut":
+        if edges is None:
+            raise ValueError("maxcut problem requires edges")
+        terms = None
+        constant = 0.0
+    elif problem == "custom":
+        if terms is None:
+            raise ValueError("custom problem requires terms")
+        terms, constant = build_custom_cost_hamiltonian(terms, num_qubits, constant=constant)
+    else:
+        raise ValueError(f"unsupported problem: {problem}")
+
+    ranked_chips = rank_chips(
+        client.tmgr,
+        num_qubits=num_qubits,
+        prefer_chips=prefer_chips,
+        weights=rank_weights,
+    )
+    if not ranked_chips:
+        raise RuntimeError("no available chips satisfy num_qubits requirement")
+
+    last_error: Optional[Exception] = None
+    for chip_name in ranked_chips:
+        backend = Backend(chip_name)
+        client.chip_name = chip_name
+        client.chip_backend = backend
+        try:
+            return run_qaoa_with_backend(
+                client,
+                name=name,
+                num_qubits=num_qubits,
+                backend=backend,
+                chip_name=chip_name,
+                edges=edges or [],
+                weights=weights,
+                terms=terms,
+                constant=constant,
+                p=p,
+                shots=shots,
+                max_iters=max_iters,
+                learning_rate=learning_rate,
+                beta1=beta1,
+                beta2=beta2,
+                eps=eps,
+                shift=shift,
+                zne=zne,
+                readout_mitigation=readout_mitigation,
+                target_qubits=target_qubits,
+                seed=seed,
+                init_params=init_params,
+                callback=callback,
+            )
+        except Exception as exc:
+            last_error = exc
+            continue
+
+    raise RuntimeError("all candidate chips failed to run QAOA") from last_error
+
+
 @dataclass
 class QAOARunner:
     """High-level QAOA runner (MaxCut)."""
@@ -647,7 +749,8 @@ class QAOARunner:
         prefer_chips: Optional[Sequence[str] | str] = None,
         rank_weights: Optional[Dict[str, float]] = None,
     ) -> QAOAResult:
-        return self.client.run_qaoa(
+        return run_qaoa(
+            self.client,
             name=name,
             num_qubits=num_qubits,
             problem="maxcut",

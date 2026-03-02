@@ -4,7 +4,7 @@ import fnmatch
 # Set the directory to search in
 directory = os.path.dirname(__file__)
 # Set the string to search for
-search_string = r'run_with_backend_batch'
+search_string = r'apply_readout_mitigation'
 
 # Loop over all the .py files in the directory
 for root, dirnames, filenames in os.walk(directory):
