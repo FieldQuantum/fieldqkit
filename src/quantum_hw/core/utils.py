@@ -2,34 +2,15 @@
 
 from __future__ import annotations
 
-import re
-from typing import Dict, Iterable, List, Sequence
+from typing import Dict, Sequence
 
 import numpy as np
 
 
-QASM_QUBIT_PATTERN = re.compile(r"q\[(\d+)\]")
-
-
-def counts_dict_to_vector(result: Dict[str, int], num_qubits: int, reverse_bits: bool = False) -> np.ndarray:
-	"""Convert a counts dict to a dense vector ordered by basis index."""
-	bases = [format(i, f"0{num_qubits}b") for i in range(2**num_qubits)]
-	counts = np.zeros(len(bases), dtype=int)
-	for i, base in enumerate(bases):
-		key = base[::-1] if reverse_bits else base
-		counts[i] = int(result.get(key, 0))
-	return counts
-
-
 def get_probabilities(result: Dict[str, int], num_qubits: int) -> np.ndarray:
-	"""Normalize counts into a probability vector (hardware bit order handled)."""
-	# Hardware results typically report bitstrings in little-endian order.
-	# We reverse bits to keep a consistent logical ordering across the stack.
-	counts = counts_dict_to_vector(result, num_qubits, reverse_bits=True)
-	total = counts.sum()
-	if total == 0:
-		return np.zeros_like(counts, dtype=float)
-	return counts.astype(float) / float(total)
+	"""Normalize counts into probabilities via sample expansion."""
+	samples = get_samples(result, num_qubits)
+	return get_probabilities_from_samples(samples, num_qubits)
 
 
 def get_samples(result: Dict[str, int], num_qubits: int) -> np.ndarray:
@@ -40,7 +21,29 @@ def get_samples(result: Dict[str, int], num_qubits: int) -> np.ndarray:
 		bits = [int(b) for b in key[::-1]]
 		# Expand to per-shot rows for downstream estimators.
 		samples.extend([bits] * count)
-	return np.array(samples, dtype=int)
+	return np.asarray(samples, dtype=int).reshape(-1, num_qubits)
+
+
+def get_probabilities_from_samples(samples: np.ndarray, num_qubits: int) -> np.ndarray:
+	"""Compute global basis probabilities from sample rows."""
+	if samples.size == 0:
+		return np.zeros(2**num_qubits, dtype=float)
+	if samples.ndim != 2 or samples.shape[1] != num_qubits:
+		raise ValueError("samples must be a 2D array with shape (nshots, num_qubits)")
+	weights = 2 ** np.arange(num_qubits - 1, -1, -1)
+	indices = (samples * weights).sum(axis=1)
+	counts = np.bincount(indices, minlength=2**num_qubits).astype(float)
+	total = counts.sum()
+	if total == 0:
+		return counts
+	return counts / total
+
+
+def marginal_samples(samples: np.ndarray, support: Sequence[int]) -> np.ndarray:
+	"""Extract marginal samples on a subset of qubits."""
+	if not support:
+		return np.zeros((samples.shape[0], 0), dtype=int)
+	return samples[:, support]
 
 
 def get_local_probabilities_from_samples(samples: np.ndarray, support: Sequence[int]) -> np.ndarray:
@@ -48,14 +51,5 @@ def get_local_probabilities_from_samples(samples: np.ndarray, support: Sequence[
 	support = list(support)
 	if not support:
 		return np.array([1.0])
-	if samples.size == 0:
-		return np.zeros(2 ** len(support), dtype=float)
-	# Respect support order; last index is least significant.
-	local = samples[:, support]
-	weights = 2 ** np.arange(len(support) - 1, -1, -1)
-	indices = (local * weights).sum(axis=1)
-	counts = np.bincount(indices, minlength=2 ** len(support)).astype(float)
-	total = counts.sum()
-	if total == 0:
-		return counts
-	return counts / total
+	local_samples = marginal_samples(samples, support)
+	return get_probabilities_from_samples(local_samples, len(support))

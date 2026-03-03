@@ -20,7 +20,7 @@ if __name__ == "__main__":
         shots=4096,
         shots_per_basis=16,
         observables=["ZIIIIII", "ZZIIIII", "ZZZIIII", "ZZZZIII", "ZZZZZII", "ZZZZZZI", "ZZZZZZZ"],
-        prefer_chips='Baihua', # only Baihua support small batch shots currently
+        prefer_chips='Simulator', # only Baihua support small batch shots currently
         zne=True,
         estimator="mom",
         mom_groups=20,

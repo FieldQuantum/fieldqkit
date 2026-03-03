@@ -313,7 +313,6 @@ Pauli string 支持两种格式：
 
 主要函数：
 
-- `build_readout_calibration_circuits(num_qubits: int)`
 - `build_local_confusion_matrix(per_qubit_confusion: Dict[int, np.ndarray], target_qubits: Sequence[int])`
 - `mitigate_readout(probabilities: np.ndarray, confusion_matrix: np.ndarray)`
 - `expectation_from_probabilities(probabilities: np.ndarray, support: Sequence[int])`

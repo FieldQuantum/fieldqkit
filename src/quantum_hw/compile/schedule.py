@@ -74,7 +74,7 @@ class DynamicalDecoupling(TranspilerPass):
         qubit_idle_time = {k: {"current_node": None, "idle_time": 0} for k in qc.qubits}
         dag_copy = copy.deepcopy(dag)
 
-        if align_right is True:
+        if align_right:
             topological_generations = []
             rev_dag = dag_copy.reverse()
             for nodes in nx.topological_generations(rev_dag):
@@ -102,7 +102,7 @@ class DynamicalDecoupling(TranspilerPass):
                     qubit_idle_time[qubit]["current_node"] = node
                 else:
                     if idle_time >= self.t1g * sequence_length:
-                        if node.split("_")[0] == "barrier" and insert_before_barrier is False:
+                        if node.split("_")[0] == "barrier" and not insert_before_barrier:
                             qubit_idle_time[qubit]["idle_time"] = self._update_idle_time(node, max_idle_time)
                             qubit_idle_time[qubit]["current_node"] = node
                         else:

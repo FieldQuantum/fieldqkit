@@ -4,7 +4,7 @@ from .api import QuantumHardwareClient
 from .circuit import QuantumCircuit
 from .core.circuits import build_ghz, build_cluster, build_qft, build_ising_time_evolution
 from .core.observables import pauli_expectation
-from .core.readout import calibrate_readout, mitigate_readout
+from .core.readout import mitigate_readout
 from .calibration import ReadoutCalibrationManager, NativeTwoQubitRBManager, NativeTwoQubitTomographyManager
 from .core.types import QAOAResult, ShadowResult, VQEResult
 from .core.zne import apply_zne_cz_tripling
@@ -33,7 +33,6 @@ __all__ = [
     "build_qft",
     "build_ising_time_evolution",
     "pauli_expectation",
-    "calibrate_readout",
     "mitigate_readout",
     "ReadoutCalibrationManager",
     "NativeTwoQubitRBManager",

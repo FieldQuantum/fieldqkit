@@ -27,6 +27,42 @@ def _select_key_basis(raw_probs, mit_probs, num_qubits: int, max_states: int = 1
 	return sorted(selected)
 
 
+def _as_float(value, default: float = 0.0) -> float:
+	"""Convert scalar-like value to float with a safe default."""
+	if value is None:
+		return default
+	if isinstance(value, (list, tuple)):
+		if len(value) == 0:
+			return default
+		return _as_float(value[0], default=default)
+	return float(value)
+
+
+def _ordered_observable_keys(raw, mitigated, observables=None):
+	"""Resolve observable keys in a stable plotting order."""
+	raw_keys = set((raw or {}).keys()) if isinstance(raw, dict) else set()
+	mit_keys = set((mitigated or {}).keys()) if isinstance(mitigated, dict) else set()
+	all_keys = raw_keys | mit_keys
+	if not all_keys:
+		return []
+	if observables is None:
+		return sorted(all_keys)
+	if isinstance(observables, str):
+		preferred = [observables]
+	else:
+		preferred = list(observables)
+	ordered = []
+	seen = set()
+	for key in preferred:
+		if key in all_keys and key not in seen:
+			ordered.append(key)
+			seen.add(key)
+	for key in sorted(all_keys):
+		if key not in seen:
+			ordered.append(key)
+	return ordered
+
+
 def plot_probabilities_compare(raw, mitigated, num_qubits: int, max_labels: int = 16) -> None:
 	"""Plot raw vs mitigated probabilities for selected basis states."""
 	raw_probs = _flatten_probabilities(raw)
@@ -59,16 +95,17 @@ def plot_observables_compare(raw, mitigated, observables=None) -> None:
 	if raw is None and mitigated is None:
 		return
 	if isinstance(mitigated, dict) or isinstance(raw, dict):
-		keys = sorted(set((raw or {}).keys()) | set((mitigated or {}).keys()))
+		keys = _ordered_observable_keys(raw, mitigated, observables=observables)
+		if not keys:
+			return
 		raw_vals = [(raw or {}).get(k, 0.0) for k in keys]
 		mit_vals = [(mitigated or {}).get(k, 0.0) for k in keys]
 		x = list(range(len(keys)))
 		width = 0.4
-		plt.figure(figsize=(10, 3))
+		plt.figure(figsize=(max(6, len(keys) * 0.9), 3))
 		plt.bar([i - width / 2 for i in x], raw_vals, width=width, color="#9E9E9E", label="Raw")
 		plt.bar([i + width / 2 for i in x], mit_vals, width=width, color="#4C78A8", label="Mitigated")
-		xtick_labels = observables if observables else keys
-		plt.xticks(x, xtick_labels, rotation=45, ha="right")
+		plt.xticks(x, keys, rotation=45, ha="right")
 		plt.ylabel("Expectation")
 		plt.title("Observable comparison")
 		plt.tick_params(right=True, top=True)
@@ -76,11 +113,15 @@ def plot_observables_compare(raw, mitigated, observables=None) -> None:
 		plt.tight_layout()
 		plt.show()
 	else:
+		raw_val = _as_float(raw)
+		mitigated_val = _as_float(mitigated)
 		plt.figure(figsize=(4, 3))
-		plt.bar([0, 1], [raw or 0.0, mitigated or 0.0], color=["#9E9E9E", "#4C78A8"])
+		plt.bar([0, 1], [raw_val, mitigated_val], color=["#9E9E9E", "#4C78A8"])
 		plt.xticks([0, 1], ["Raw", "Mitigated"])
-		if observables:
+		if isinstance(observables, str):
 			plt.ylabel(observables)
+		else:
+			plt.ylabel("Expectation")
 		plt.tick_params(right=True, top=True)
 		plt.tight_layout()
 		plt.show()
