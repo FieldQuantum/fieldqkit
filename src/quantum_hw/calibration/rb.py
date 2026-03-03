@@ -2,23 +2,35 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
-import json
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable, Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
 
 from ..circuit import QuantumCircuit
-from ..circuit.matrix import gate_matrix_dict, id_mat
+from ..circuit.matrix import gate_matrix_dict
 from ..core.readout import build_local_confusion_matrix, mitigate_readout
 from ..core.utils import get_probabilities
 from ..api.backend import Backend
+from ._cache import cache_file, cache_is_fresh, load_timestamped_payload, save_timestamped_payload
+from ._coupler_utils import coupler_key, resolve_positive_fidelity_couplers
 from .readout import ReadoutCalibrationManager
 
 
 class NativeTwoQubitRBManager:
 	"""Run native two-qubit gate randomized benchmarking with caching."""
+	_SINGLE_GATE_DAGGER = {
+		"id": "id",
+		"x": "x",
+		"y": "y",
+		"z": "z",
+		"h": "h",
+		"s": "sdg",
+		"sdg": "s",
+		"sx": "sxdg",
+		"sxdg": "sx",
+	}
 
 	def __init__(
 		self,
@@ -65,13 +77,13 @@ class NativeTwoQubitRBManager:
 		if lengths is None:
 			lengths = [1, 2, 4, 8, 16, 32]
 
-		couplers = self._resolve_couplers(couplers, backend)
+		couplers = resolve_positive_fidelity_couplers(couplers, backend)
 		use_simulator = str(chip_name).lower() == "simulator"
 		rng = np.random.default_rng(seed)
 
 		raw = self._load_rb_cache_raw(chip_name=chip_name)
-		timestamps = raw.get("timestamps", {}) if isinstance(raw, dict) else {}
-		per_coupler = raw.get("per_coupler", {}) if isinstance(raw, dict) else {}
+		timestamps = raw.get("timestamps", {})
+		per_coupler = raw.get("per_coupler", {})
 		now = datetime.now(timezone.utc)
 
 		per_qubit_confusion: Optional[Dict[int, np.ndarray]] = None
@@ -106,14 +118,12 @@ class NativeTwoQubitRBManager:
 					raise RuntimeError("readout mitigation requested but calibration is missing")
 				# Two-qubit local confusion matrix for the coupler.
 				local_cm = build_local_confusion_matrix(per_qubit_confusion, [q1, q2])
-			key = self._coupler_key(q1, q2)
-			ts_str = timestamps.get(key) if isinstance(timestamps, dict) else None
-			cached = per_coupler.get(key) if isinstance(per_coupler, dict) else None
-			if ts_str and cached is not None:
-				ts = datetime.fromisoformat(ts_str)
-				if now - ts <= timedelta(hours=1):
-					results[key] = {"fit": {"fidelity": cached}}
-					continue
+			key = coupler_key(q1, q2)
+			ts_str = timestamps.get(key)
+			cached = per_coupler.get(key)
+			if cache_is_fresh(ts_str, now=now) and cached is not None:
+				results[key] = {"fit": {"fidelity": cached}}
+				continue
 
 			if print_true:
 				print(f"[rb] run native two-qubit RB on coupler {key}")
@@ -207,23 +217,6 @@ class NativeTwoQubitRBManager:
 			self._save_rb_cache(results, chip_name=chip_name)
 		return results
 
-	def _resolve_couplers(
-		self,
-		couplers: Optional[Sequence[Tuple[int, int]]],
-		backend: Backend,
-	) -> List[Tuple[int, int]]:
-		if couplers is not None:
-			return [tuple(c) for c in couplers]
-
-		selected: List[Tuple[int, int]] = []
-		for q1, q2, attrs in getattr(backend, "couplers_with_attributes", []):
-			fidelity = attrs.get("fidelity", 0.0) if isinstance(attrs, dict) else 0.0
-			if fidelity and fidelity > 0:
-				selected.append((int(q1), int(q2)))
-		if not selected:
-			raise RuntimeError("no available couplers with fidelity > 0")
-		return selected
-
 	def _build_random_sequence(
 		self,
 		qubits: List[int],
@@ -253,99 +246,53 @@ class NativeTwoQubitRBManager:
 			self._apply_single_gate_dg(qc, gates_list[length - 1 - l][0], qubits[0])
 			self._apply_single_gate_dg(qc, gates_list[length - 1 - l][1], qubits[1])
 
-		if basis_gate == "iswap":
-			total_length = 4 * length
-		elif basis_gate in ["ecr", "cz", "cx", "cnot"]:
-			total_length = 2 * length
+		total_length_scale = {
+			"iswap": 4,
+			"ecr": 2,
+			"cz": 2,
+			"cx": 2,
+			"cnot": 2,
+		}.get(basis_gate)
+		if total_length_scale is None:
+			raise ValueError(f"unsupported two-qubit basis gate: {basis_gate}")
+		total_length = total_length_scale * length
 		return qc, total_length
 
+	def _apply_single_gate_name(self, qc: QuantumCircuit, gate_name: str, qubit: int) -> None:
+		if gate_name == "id":
+			return
+		gate_method = getattr(qc, gate_name, None)
+		if gate_method is None:
+			raise ValueError(f"unsupported single-qubit gate: {gate_name}")
+		gate_method(qubit)
+
 	def _apply_single_gate(self, qc: QuantumCircuit, gate: str, qubit: int) -> None:
-		if gate == "id":
-			return
-		if gate == "x":
-			qc.x(qubit)
-			return
-		if gate == "y":
-			qc.y(qubit)
-			return
-		if gate == "z":
-			qc.z(qubit)
-			return
-		if gate == "h":
-			qc.h(qubit)
-			return
-		if gate == "s":
-			qc.s(qubit)
-			return
-		if gate == "sdg":
-			qc.sdg(qubit)
-			return
-		if gate == "sx":
-			qc.sx(qubit)
-			return
-		if gate == "sxdg":
-			qc.sxdg(qubit)
-			return
-		raise ValueError(f"unsupported single-qubit gate: {gate}")
+		self._apply_single_gate_name(qc, gate, qubit)
 
 	def _apply_single_gate_dg(self, qc: QuantumCircuit, gate: str, qubit: int) -> None:
-		if gate == "id":
-			return
-		if gate == "x":
-			qc.x(qubit)
-			return
-		if gate == "y":
-			qc.y(qubit)
-			return
-		if gate == "z":
-			qc.z(qubit)
-			return
-		if gate == "h":
-			qc.h(qubit)
-			return
-		if gate == "s":
-			qc.sdg(qubit)
-			return
-		if gate == "sdg":
-			qc.s(qubit)
-			return
-		if gate == "sx":
-			qc.sxdg(qubit)
-			return
-		if gate == "sxdg":
-			qc.sx(qubit)
-			return
-		raise ValueError(f"unsupported single-qubit gate: {gate}")
+		dagger_gate = self._SINGLE_GATE_DAGGER.get(gate)
+		if dagger_gate is None:
+			raise ValueError(f"unsupported single-qubit gate: {gate}")
+		self._apply_single_gate_name(qc, dagger_gate, qubit)
+
+	def _canonical_two_qubit_gate(self, gate: str) -> str:
+		return "cx" if gate == "cnot" else gate
 
 	def _apply_two_qubit_gate(self, qc: QuantumCircuit, gate: str, q1: int, q2: int) -> None:
-		if gate == "cz":
-			qc.cz(q1, q2)
-			return
-		if gate in {"cx", "cnot"}:
-			qc.cx(q1, q2)
-			return
-		if gate == "iswap":
-			qc.iswap(q1, q2)
-			return
-		if gate == "ecr":
-			qc.ecr(q1, q2)
-			return
-		raise ValueError(f"unsupported two-qubit gate: {gate}")
+		canonical = self._canonical_two_qubit_gate(gate)
+		if canonical not in {"cz", "cx", "iswap", "ecr"}:
+			raise ValueError(f"unsupported two-qubit gate: {gate}")
+		getattr(qc, canonical)(q1, q2)
 
 	def _apply_two_qubit_gate_dg(self, qc: QuantumCircuit, gate: str, q1: int, q2: int) -> None:
-		if gate == "cz":
-			qc.cz(q1, q2)
-			return
-		if gate in {"cx", "cnot"}:
-			qc.cx(q1, q2)
-			return
-		if gate == "iswap":
+		canonical = self._canonical_two_qubit_gate(gate)
+		if canonical == "iswap":
 			qc.iswap(q1, q2)
 			qc.iswap(q1, q2)
 			qc.iswap(q1, q2)
 			return
-		if gate == "ecr":
-			qc.ecr(q1, q2)
+		if canonical in {"cz", "cx", "ecr"}:
+			self._apply_two_qubit_gate(qc, canonical, q1, q2)
 			return
 		raise ValueError(f"unsupported two-qubit gate: {gate}")
 
@@ -365,39 +312,28 @@ class NativeTwoQubitRBManager:
 		epc = float(1.0 - f_avg)
 		return {"p": p, "epc": epc, "fidelity": f_avg, "A": a, "B": b}
 
-	def _coupler_key(self, q1: int, q2: int) -> str:
-		return f"{min(q1, q2)}-{max(q1, q2)}"
-
 	def _rb_cache_path(self, *, chip_name: Optional[str]) -> Path:
-		name = chip_name if chip_name is not None else "unknown"
-		return self._cache_dir / f"rb_two_qubit_{name}.json"
+		return cache_file(self._cache_dir, stem="rb_two_qubit", chip_name=chip_name)
 
 	def _load_rb_cache_raw(self, *, chip_name: Optional[str]) -> Dict[str, object]:
 		path = self._rb_cache_path(chip_name=chip_name)
-		if not path.exists():
-			return {"timestamps": {}, "per_coupler": {}}
-		try:
-			data = json.loads(path.read_text(encoding="utf-8"))
-			if not isinstance(data, dict):
-				return {"timestamps": {}, "per_coupler": {}}
-			timestamps = data.get("timestamps", {})
-			per_coupler = data.get("per_coupler", {})
-			if not isinstance(timestamps, dict) or not isinstance(per_coupler, dict):
-				return {"timestamps": {}, "per_coupler": {}}
-			return {"timestamps": timestamps, "per_coupler": per_coupler}
-		except Exception:
-			return {"timestamps": {}, "per_coupler": {}}
+		timestamps, per_coupler = load_timestamped_payload(path, payload_key="per_coupler")
+		return {"timestamps": timestamps, "per_coupler": per_coupler}
 
 	def _save_rb_cache(self, results: Dict[str, Dict[str, object]], *, chip_name: Optional[str]) -> None:
 		path = self._rb_cache_path(chip_name=chip_name)
 		raw = self._load_rb_cache_raw(chip_name=chip_name)
-		timestamps = raw.get("timestamps", {}) if isinstance(raw, dict) else {}
-		per_coupler = raw.get("per_coupler", {}) if isinstance(raw, dict) else {}
+		timestamps = raw.get("timestamps", {})
+		per_coupler = raw.get("per_coupler", {})
 		now = datetime.now(timezone.utc).isoformat()
 		for key, payload in results.items():
 			fit = payload.get("fit", {}) if isinstance(payload, dict) else {}
 			fidelity = fit.get("fidelity") if isinstance(fit, dict) else None
 			timestamps[key] = now
 			per_coupler[key] = fidelity
-		payload = {"timestamps": timestamps, "per_coupler": per_coupler}
-		path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+		save_timestamped_payload(
+			path,
+			payload_key="per_coupler",
+			timestamps=timestamps,
+			payload=per_coupler,
+		)

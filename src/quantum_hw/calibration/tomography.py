@@ -2,8 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
-import json
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable, Dict, List, Optional, Sequence, Tuple
 
@@ -12,13 +11,47 @@ import numpy as np
 from ..api.backend import Backend
 from ..circuit import QuantumCircuit
 from ..circuit.matrix import gate_matrix_dict
+from ..core.observables import apply_measurement_basis_rotations
 from ..core.readout import build_local_confusion_matrix, mitigate_readout
 from ..core.utils import get_probabilities
+from ._cache import cache_file, cache_is_fresh, load_timestamped_payload, save_timestamped_payload
+from ._coupler_utils import coupler_key, resolve_positive_fidelity_couplers
 from .readout import ReadoutCalibrationManager
 
 
 class NativeTwoQubitTomographyManager:
 	"""Run process tomography for native two-qubit gates with caching."""
+	_STATE_PREP_OPS = {
+		"0": (),
+		"1": ("x",),
+		"+": ("h",),
+		"-": ("x", "h"),
+		"+i": ("h", "s"),
+		"-i": ("h", "sdg"),
+	}
+	_MEASUREMENT_AXES = ("X", "Y", "Z")
+	_TWO_QUBIT_GATE_METHODS = {
+		"cz": "cz",
+		"cx": "cx",
+		"iswap": "iswap",
+		"ecr": "ecr",
+	}
+	_STATE_LABELS = ("0", "1", "+", "-", "+i", "-i")
+	_STATE_VECTORS = {
+		"0": (1.0 + 0.0j, 0.0 + 0.0j),
+		"1": (0.0 + 0.0j, 1.0 + 0.0j),
+		"+": (1.0 / np.sqrt(2), 1.0 / np.sqrt(2)),
+		"-": (1.0 / np.sqrt(2), -1.0 / np.sqrt(2)),
+		"+i": (1.0 / np.sqrt(2), 1.0j / np.sqrt(2)),
+		"-i": (1.0 / np.sqrt(2), -1.0j / np.sqrt(2)),
+	}
+	_PAULI_LABELS = ("I", "X", "Y", "Z")
+	_PAULI_SINGLE = (
+		np.array([[1.0, 0.0], [0.0, 1.0]], dtype=complex),
+		np.array([[0.0, 1.0], [1.0, 0.0]], dtype=complex),
+		np.array([[0.0, -1.0j], [1.0j, 0.0]], dtype=complex),
+		np.array([[1.0, 0.0], [0.0, -1.0]], dtype=complex),
+	)
 
 	def __init__(
 		self,
@@ -60,12 +93,12 @@ class NativeTwoQubitTomographyManager:
 		if chip_name is None:
 			raise RuntimeError("chip_name is not set; use run_auto or provide chip_name")
 
-		couplers = self._resolve_couplers(couplers, backend)
+		couplers = resolve_positive_fidelity_couplers(couplers, backend)
 		use_simulator = str(chip_name).lower() == "simulator"
 
 		raw = self._load_tomo_cache_raw(chip_name=chip_name)
-		timestamps = raw.get("timestamps", {}) if isinstance(raw, dict) else {}
-		per_coupler = raw.get("per_coupler", {}) if isinstance(raw, dict) else {}
+		timestamps = raw.get("timestamps", {})
+		per_coupler = raw.get("per_coupler", {})
 		now = datetime.now(timezone.utc)
 
 		per_qubit_confusion: Optional[Dict[int, np.ndarray]] = None
@@ -95,14 +128,12 @@ class NativeTwoQubitTomographyManager:
 		ideal_ptm = self._ptm_from_unitary(self._native_gate_matrix(basis_gate))
 
 		for q1, q2 in couplers:
-			key = self._coupler_key(q1, q2)
-			ts_str = timestamps.get(key) if isinstance(timestamps, dict) else None
-			cached = per_coupler.get(key) if isinstance(per_coupler, dict) else None
-			if ts_str and cached is not None:
-				ts = datetime.fromisoformat(ts_str)
-				if now - ts <= timedelta(hours=1):
-					results[key] = self._decode_choi_payload(cached)
-					continue
+			key = coupler_key(q1, q2)
+			ts_str = timestamps.get(key)
+			cached = per_coupler.get(key)
+			if cache_is_fresh(ts_str, now=now) and cached is not None:
+				results[key] = self._decode_choi_payload(cached)
+				continue
 
 			if print_true:
 				print(f"[tomo] run two-qubit process tomography on coupler {key}")
@@ -178,103 +209,40 @@ class NativeTwoQubitTomographyManager:
 
 		return results
 
-	def _resolve_couplers(
-		self,
-		couplers: Optional[Sequence[Tuple[int, int]]],
-		backend: Backend,
-	) -> List[Tuple[int, int]]:
-		if couplers is not None:
-			return [tuple(c) for c in couplers]
-
-		selected: List[Tuple[int, int]] = []
-		for q1, q2, attrs in getattr(backend, "couplers_with_attributes", []):
-			fidelity = attrs.get("fidelity", 0.0) if isinstance(attrs, dict) else 0.0
-			if fidelity and fidelity > 0:
-				selected.append((int(q1), int(q2)))
-		if not selected:
-			raise RuntimeError("no available couplers with fidelity > 0")
-		return selected
-
 	def _input_states(self) -> List[Tuple[str, str, np.ndarray]]:
-		states = ["0", "1", "+", "-", "+i", "-i"]
 		out: List[Tuple[str, str, np.ndarray]] = []
-		for a in states:
-			for b in states:
+		for a in self._STATE_LABELS:
+			for b in self._STATE_LABELS:
 				rho = np.kron(self._state_density(a), self._state_density(b))
 				out.append((a, b, rho))
 		return out
 
 	def _measurement_bases(self) -> List[Tuple[str, str]]:
-		axes = ["X", "Y", "Z"]
-		return [(a, b) for a in axes for b in axes]
+		return [(a, b) for a in self._MEASUREMENT_AXES for b in self._MEASUREMENT_AXES]
 
 	def _state_density(self, label: str) -> np.ndarray:
-		if label == "0":
-			vec = np.array([1.0, 0.0], dtype=complex)
-		elif label == "1":
-			vec = np.array([0.0, 1.0], dtype=complex)
-		elif label == "+":
-			vec = np.array([1.0, 1.0], dtype=complex) / np.sqrt(2)
-		elif label == "-":
-			vec = np.array([1.0, -1.0], dtype=complex) / np.sqrt(2)
-		elif label == "+i":
-			vec = np.array([1.0, 1.0j], dtype=complex) / np.sqrt(2)
-		elif label == "-i":
-			vec = np.array([1.0, -1.0j], dtype=complex) / np.sqrt(2)
-		else:
+		entries = self._STATE_VECTORS.get(label)
+		if entries is None:
 			raise ValueError(f"unsupported state label: {label}")
+		vec = np.asarray(entries, dtype=complex)
 		return np.outer(vec, vec.conj())
 
 	def _apply_state_prep(self, qc: QuantumCircuit, label: str, qubit: int) -> None:
-		if label == "0":
-			return
-		if label == "1":
-			qc.x(qubit)
-			return
-		if label == "+":
-			qc.h(qubit)
-			return
-		if label == "-":
-			qc.x(qubit)
-			qc.h(qubit)
-			return
-		if label == "+i":
-			qc.h(qubit)
-			qc.s(qubit)
-			return
-		if label == "-i":
-			qc.h(qubit)
-			qc.sdg(qubit)
-			return
-		raise ValueError(f"unsupported state label: {label}")
+		ops = self._STATE_PREP_OPS.get(label)
+		if ops is None:
+			raise ValueError(f"unsupported state label: {label}")
+		for op in ops:
+			getattr(qc, op)(qubit)
 
 	def _apply_measurement_basis(self, qc: QuantumCircuit, basis: str, qubit: int) -> None:
-		if basis == "X":
-			qc.h(qubit)
-			return
-		if basis == "Y":
-			qc.sdg(qubit)
-			qc.h(qubit)
-			return
-		if basis == "Z":
-			return
-		raise ValueError(f"unsupported measurement basis: {basis}")
+		apply_measurement_basis_rotations(qc, [basis], target_qubits=[qubit])
 
 	def _apply_two_qubit_gate(self, qc: QuantumCircuit, gate: str, q1: int, q2: int) -> None:
-		gate = "cx" if gate in {"cnot", "cx"} else gate
-		if gate == "cz":
-			qc.cz(q1, q2)
-			return
-		if gate == "cx":
-			qc.cx(q1, q2)
-			return
-		if gate == "iswap":
-			qc.iswap(q1, q2)
-			return
-		if gate == "ecr":
-			qc.ecr(q1, q2)
-			return
-		raise ValueError(f"unsupported two-qubit gate: {gate}")
+		canonical_gate = "cx" if gate in {"cnot", "cx"} else gate
+		method_name = self._TWO_QUBIT_GATE_METHODS.get(canonical_gate)
+		if method_name is None:
+			raise ValueError(f"unsupported two-qubit gate: {gate}")
+		getattr(qc, method_name)(q1, q2)
 
 	def _native_gate_matrix(self, gate: str) -> np.ndarray:
 		gate = "cx" if gate in {"cnot", "cx"} else gate
@@ -297,7 +265,8 @@ class NativeTwoQubitTomographyManager:
 		return expectations
 
 	def _expectations_from_probs(self, probs: np.ndarray) -> Tuple[float, float, float]:
-		# probs order is 00,01,10,11 with q0 as the first bit.
+		if probs.shape[0] != 4:
+			raise ValueError("probabilities must have length 4 for two-qubit expectations")
 		ex1 = 0.0
 		ex2 = 0.0
 		ex12 = 0.0
@@ -313,10 +282,9 @@ class NativeTwoQubitTomographyManager:
 		return ex1, ex2, ex12
 
 	def _expectations_to_pauli_vector(self, expectations: Dict[Tuple[str, str], float]) -> np.ndarray:
-		basis = ["I", "X", "Y", "Z"]
 		vec = np.zeros(16, dtype=float)
-		for i, a in enumerate(basis):
-			for j, b in enumerate(basis):
+		for i, a in enumerate(self._PAULI_LABELS):
+			for j, b in enumerate(self._PAULI_LABELS):
 				val = expectations.get((a, b))
 				if val is None:
 					val = 0.0
@@ -351,47 +319,31 @@ class NativeTwoQubitTomographyManager:
 		return choi / 4.0
 
 	def _pauli_basis(self) -> List[np.ndarray]:
-		I = np.array([[1.0, 0.0], [0.0, 1.0]], dtype=complex)
-		X = np.array([[0.0, 1.0], [1.0, 0.0]], dtype=complex)
-		Y = np.array([[0.0, -1.0j], [1.0j, 0.0]], dtype=complex)
-		Z = np.array([[1.0, 0.0], [0.0, -1.0]], dtype=complex)
-		single = [I, X, Y, Z]
-		return [np.kron(a, b) for a in single for b in single]
-
-	def _coupler_key(self, q1: int, q2: int) -> str:
-		return f"{min(q1, q2)}-{max(q1, q2)}"
+		return [np.kron(a, b) for a in self._PAULI_SINGLE for b in self._PAULI_SINGLE]
 
 	def _tomo_cache_path(self, *, chip_name: Optional[str]) -> Path:
-		name = chip_name if chip_name is not None else "unknown"
-		return self._cache_dir / f"tomo_two_qubit_{name}.json"
+		return cache_file(self._cache_dir, stem="tomo_two_qubit", chip_name=chip_name)
 
 	def _load_tomo_cache_raw(self, *, chip_name: Optional[str]) -> Dict[str, object]:
 		path = self._tomo_cache_path(chip_name=chip_name)
-		if not path.exists():
-			return {"timestamps": {}, "per_coupler": {}}
-		try:
-			data = json.loads(path.read_text(encoding="utf-8"))
-			if not isinstance(data, dict):
-				return {"timestamps": {}, "per_coupler": {}}
-			timestamps = data.get("timestamps", {})
-			per_coupler = data.get("per_coupler", {})
-			if not isinstance(timestamps, dict) or not isinstance(per_coupler, dict):
-				return {"timestamps": {}, "per_coupler": {}}
-			return {"timestamps": timestamps, "per_coupler": per_coupler}
-		except Exception:
-			return {"timestamps": {}, "per_coupler": {}}
+		timestamps, per_coupler = load_timestamped_payload(path, payload_key="per_coupler")
+		return {"timestamps": timestamps, "per_coupler": per_coupler}
 
 	def _save_tomo_cache(self, results: Dict[str, Dict[str, object]], *, chip_name: Optional[str]) -> None:
 		path = self._tomo_cache_path(chip_name=chip_name)
 		raw = self._load_tomo_cache_raw(chip_name=chip_name)
-		timestamps = raw.get("timestamps", {}) if isinstance(raw, dict) else {}
-		per_coupler = raw.get("per_coupler", {}) if isinstance(raw, dict) else {}
+		timestamps = raw.get("timestamps", {})
+		per_coupler = raw.get("per_coupler", {})
 		now = datetime.now(timezone.utc).isoformat()
 		for key, payload in results.items():
 			timestamps[key] = now
 			per_coupler[key] = payload
-		payload = {"timestamps": timestamps, "per_coupler": per_coupler}
-		path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+		save_timestamped_payload(
+			path,
+			payload_key="per_coupler",
+			timestamps=timestamps,
+			payload=per_coupler,
+		)
 
 	def _encode_choi_payload(self, choi: np.ndarray) -> Dict[str, object]:
 		return {

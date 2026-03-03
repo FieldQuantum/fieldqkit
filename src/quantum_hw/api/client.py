@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Callable, Dict, List, Optional, Sequence, Tuple, Union
+from typing import Dict, List, Optional, Sequence, Tuple, Union
 from copy import deepcopy
 from pathlib import Path
 
@@ -26,13 +26,17 @@ from .hardware import rank_chips
 from ..core.readout import (
 	build_local_confusion_matrix,
 	expectation_from_probabilities,
+	expectation_from_samples_unbiased,
 	mitigate_readout,
 )
 from ..calibration.readout import ReadoutCalibrationManager
 from ..core.types import RunResult
-from ..core.utils import get_local_probabilities_from_samples, get_probabilities, get_samples
+from ..core.utils import get_local_probabilities_from_samples, get_probabilities_from_samples, get_samples, marginal_samples
 from ..core.zne import apply_zne_cz_tripling, zne_linear_extrapolate
 from ..sim.statevector import simulate_counts
+
+
+READOUT_OBSERVABLE_MARGINAL_MAX_SUPPORT = 10
 
 
 # NOTE: API layer client. Keeps hardware selection + algorithm orchestration in one place.
@@ -65,6 +69,27 @@ class QuantumHardwareClient:
 		if qubits:
 			return max(qubits) + 1
 		return int(getattr(qc, "nqubits", 0) or 0)
+
+	@staticmethod
+	def _mitigate_observable_from_samples(
+		samples: np.ndarray,
+		support: Sequence[int],
+		per_qubit: Dict[int, np.ndarray],
+		target_qubits_group: Sequence[int],
+		marginal_max_support: int = READOUT_OBSERVABLE_MARGINAL_MAX_SUPPORT,
+	) -> float:
+		"""Compute readout-mitigated observable value from samples with adaptive strategy."""
+		if not support:
+			return 1.0
+		support_phys = [target_qubits_group[i] for i in support]
+		if len(support) <= marginal_max_support:
+			local_cm = build_local_confusion_matrix(per_qubit, support_phys)
+			local_probs = get_local_probabilities_from_samples(samples, support)
+			local_probs_rem = mitigate_readout(local_probs, local_cm)
+			return expectation_from_probabilities(local_probs_rem, support)
+		local_samples = marginal_samples(samples, support)
+		local_cm_list = [per_qubit[q] for q in support_phys]
+		return expectation_from_samples_unbiased(local_samples, local_cm_list)
 
 	def _normalize_input_circuit(self, circuit: Union[str, QuantumCircuit], num_qubits: int) -> QuantumCircuit:
 		"""Convert input into a QuantumCircuit and sanitize measurements."""
@@ -114,33 +139,6 @@ class QuantumHardwareClient:
 
 		return Transpiler(backend).run(qc, target_qubits=list(target_qubits) if target_qubits is not None else None, use_dd=use_dd, use_three_qubit_decompose=use_three_qubit_decompose, use_sabre_routing=use_sabre_routing, use_translate_to_basis=use_translate_to_basis, use_gate_compressor=use_gate_compressor)
 
-	def _submit_openqasm(
-		self,
-		name: str,
-		qasm: str,
-		shots: int,
-		chip_name: Optional[str] = None,
-	):
-		"""Submit a blocking OpenQASM task and return its counts."""
-		if chip_name is None and self.chip_name is None:
-			raise RuntimeError("chip_name is not set; use run_auto or provide chip_name")
-		# Submit tasks in raw QASM mode to keep transpilation under our control.
-		task = {
-			"chip": self.chip_name if chip_name is None else chip_name,
-			"name": name,
-			"circuit": qasm,
-			"shots": shots,
-			"compile": False,
-		}
-		task_id = self.tmgr.run(task)
-		while True:
-			status = self.tmgr.status(task_id)
-			if status in {"Finished", "Failed", "Canceled"}:
-				break
-		res = self.tmgr.result(task_id)["count"]
-
-		return task_id, res
-
 	def _submit_openqasm_async(
 		self,
 		name: str,
@@ -149,16 +147,23 @@ class QuantumHardwareClient:
 		chip_name: Optional[str] = None,
 	):
 		"""Submit an asynchronous OpenQASM task and return its task id."""
-		if chip_name is None and self.chip_name is None:
-			raise RuntimeError("chip_name is not set; use run_auto or provide chip_name")
+		resolved_chip_name = self._resolve_chip_name(chip_name)
 		task = {
-			"chip": self.chip_name if chip_name is None else chip_name,
+			"chip": resolved_chip_name,
 			"name": name,
 			"circuit": qasm,
 			"shots": shots,
 			"compile": False,
 		}
 		return self.tmgr.run(task)
+
+	def _resolve_chip_name(self, chip_name: Optional[str] = None) -> str:
+		"""Resolve effective chip name from argument or client state."""
+		if chip_name is not None:
+			return chip_name
+		if self.chip_name is not None:
+			return self.chip_name
+		raise RuntimeError("chip_name is not set; use run_auto or provide chip_name")
 
 	def _wait_task(self, task_id):
 		"""Wait for a task to finish and return its final status."""
@@ -324,6 +329,30 @@ class QuantumHardwareClient:
 		else:
 			target_qubits_group = target_qubits
 
+		per_qubit: Optional[Dict[int, np.ndarray]] = None
+		if readout_mitigation:
+			if len(target_qubits_group) != num_qubits:
+				raise ValueError(
+					f"num_qubits ({num_qubits}) must match len(target_qubits) ({len(target_qubits_group)}) for readout mitigation"
+				)
+			calibration_manager = ReadoutCalibrationManager(
+				cache_dir=Path(__file__).resolve().parent / ".cache",
+				submit_openqasm_async=self._submit_openqasm_async,
+				wait_task=self._wait_task,
+				get_task_result=self.tmgr.result,
+				compact_for_sim=self._compact_for_sim,
+				simulate_counts=simulate_counts,
+			)
+			cal = calibration_manager.calibrate_readout(
+				target_qubits=target_qubits_group,
+				shots=readout_shots,
+				chip_name=chip_name,
+				backend=backend,
+				qasm_version=qasm_version,
+				print_true=print_true,
+			)
+			per_qubit = {k: np.asarray(v) for k, v in cal.per_qubit_confusion.items()}
+
 		if print_true:
 			print("[run] which qubits:", list(target_qubits_group) if target_qubits_group is not None else "auto")
 
@@ -353,11 +382,11 @@ class QuantumHardwareClient:
 				samples_zne_list.append(samples_3.tolist())
 
 			if return_probabilities:
-				probs_1 = get_probabilities(counts_1, num_qubits)
+				probs_1 = get_probabilities_from_samples(samples_1, num_qubits)
 				probabilities_raw_list.append(probs_1.tolist())
 				probabilities_list.append(probs_1.tolist())
 				if zne:
-					probs_3 = get_probabilities(counts_3, num_qubits)
+					probs_3 = get_probabilities_from_samples(samples_3, num_qubits)
 					probs_zne = zne_linear_extrapolate(probs_1, probs_3)
 					probs_zne = np.clip(probs_zne, 0.0, 1.0)
 					s = probs_zne.sum()
@@ -374,35 +403,12 @@ class QuantumHardwareClient:
 					val_zne = float(np.clip(val_zne, -1.0, 1.0))
 					observable_values[obs] = val_zne
 
-			if readout_mitigation:
-				if len(target_qubits_group) != num_qubits:
-					raise ValueError(
-						f"num_qubits ({num_qubits}) must match len(target_qubits) ({len(target_qubits_group)}) for readout mitigation"
-					)
-				# Readout mitigation uses per-qubit confusion matrices.
-				calibration_manager = ReadoutCalibrationManager(
-					cache_dir=Path(__file__).resolve().parent / ".cache",
-					submit_openqasm_async=self._submit_openqasm_async,
-					wait_task=self._wait_task,
-					get_task_result=self.tmgr.result,
-					compact_for_sim=self._compact_for_sim,
-					simulate_counts=simulate_counts,
-				)
-				cal = calibration_manager.calibrate_readout(
-					target_qubits=target_qubits_group,
-					shots=readout_shots,
-					chip_name=chip_name,
-					backend=backend,
-					qasm_version=qasm_version,
-					print_true=print_true,
-				)
-				per_qubit = {k: np.asarray(v) for k, v in cal.per_qubit_confusion.items()}
+			if readout_mitigation and per_qubit is not None:
 				if return_probabilities:
 					full_cm = build_local_confusion_matrix(per_qubit, target_qubits_group)
-					probs_rem = mitigate_readout(probs_1, full_cm)
-					probabilities_list[-1] = probs_rem.tolist()
+					probs_1_rem = mitigate_readout(probs_1, full_cm)
+					probabilities_list[-1] = probs_1_rem.tolist()
 					if zne:
-						probs_1_rem = mitigate_readout(probs_1, full_cm)
 						probs_3_rem = mitigate_readout(probs_3, full_cm)
 						probs_rem_zne = zne_linear_extrapolate(probs_1_rem, probs_3_rem) # REM first, then ZNE
 						probs_rem_zne = np.clip(probs_rem_zne, 0.0, 1.0)
@@ -412,20 +418,23 @@ class QuantumHardwareClient:
 				for obs in meta["observables"]:
 					support = supports_by_obs[obs]
 					if support:
-						support_phys = [target_qubits_group[i] for i in support]
-						local_cm = build_local_confusion_matrix(per_qubit, support_phys)
-						local_probs_1 = get_local_probabilities_from_samples(samples_1, support)
-						local_probs_1_rem = mitigate_readout(local_probs_1, local_cm)
-						val_rem = expectation_from_probabilities(local_probs_1_rem, support)
-						observable_values[obs] = val_rem
+						val_1_rem = self._mitigate_observable_from_samples(
+							samples_1,
+							support,
+							per_qubit,
+							target_qubits_group,
+							marginal_max_support=READOUT_OBSERVABLE_MARGINAL_MAX_SUPPORT,
+						)
+						observable_values[obs] = val_1_rem
 						if zne:
-							local_probs_3 = get_local_probabilities_from_samples(samples_3, support)
-							local_probs_3_rem = mitigate_readout(local_probs_3, local_cm)
-							local_probs_rem_zne = zne_linear_extrapolate(local_probs_1_rem, local_probs_3_rem)
-							local_probs_rem_zne = np.clip(local_probs_rem_zne, 0.0, 1.0)
-							s_local = local_probs_rem_zne.sum()
-							local_probs_rem_zne = local_probs_rem_zne / s_local
-							val_rem_zne = expectation_from_probabilities(local_probs_rem_zne, support)
+							val_3_rem = self._mitigate_observable_from_samples(
+								samples_3,
+								support,
+								per_qubit,
+								target_qubits_group,
+								marginal_max_support=READOUT_OBSERVABLE_MARGINAL_MAX_SUPPORT,
+							)
+							val_rem_zne = float(zne_linear_extrapolate(val_1_rem, val_3_rem))
 							observable_values[obs] = val_rem_zne
 
 		if print_true:
@@ -471,7 +480,6 @@ class QuantumHardwareClient:
 		if not ranked_chips:
 			raise RuntimeError("no available chips satisfy num_qubits requirement")
 
-		last_error: Optional[Exception] = None
 		for chip_name in ranked_chips:
 			backend = Backend(chip_name)
 			self.chip_name = chip_name
@@ -492,5 +500,5 @@ class QuantumHardwareClient:
 				print_true=print_true,
 			)
 
-		raise RuntimeError("all candidate chips failed to transpile or run") from last_error
+		raise RuntimeError("all candidate chips failed to transpile or run")
 

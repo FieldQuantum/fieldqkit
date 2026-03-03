@@ -2,8 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
-import json
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable, Dict, List, Optional, Sequence, Tuple
 
@@ -13,6 +12,17 @@ from ..circuit import QuantumCircuit
 from ..core.types import CalibrationResult
 from ..core.utils import get_probabilities
 from ..api.backend import Backend
+from ._cache import cache_file, cache_is_fresh, load_timestamped_payload, save_timestamped_payload
+
+
+def build_confusion_matrix(res_list: Sequence[Dict[str, int]], num_qubits: int) -> np.ndarray:
+	"""Build a confusion matrix from calibration results."""
+	dim = 2**num_qubits
+	mat = np.zeros((dim, dim), dtype=float)
+	for i, res in enumerate(res_list):
+		probs = get_probabilities(res, num_qubits)
+		mat[i, :] = probs
+	return mat
 
 
 class ReadoutCalibrationManager:
@@ -59,20 +69,19 @@ class ReadoutCalibrationManager:
 
 		# Cache is per-chip; only stale/missing qubits are recalibrated.
 		raw = self._load_readout_cache_raw(chip_name=chip_name)
-		timestamps = raw.get("timestamps", {}) if isinstance(raw, dict) else {}
-		per_qubit_raw = raw.get("per_qubit_confusion", {}) if isinstance(raw, dict) else {}
+		timestamps = raw.get("timestamps", {})
+		per_qubit_raw = raw.get("per_qubit_confusion", {})
 		now = datetime.now(timezone.utc)
 		cached_confusion: Dict[int, List[List[float]]] = {}
 		missing: List[int] = []
 		for q in target_qubits:
 			# Skip qubits with zero fidelity (unavailable for calibration).
-			ts_str = timestamps.get(str(q)) if isinstance(timestamps, dict) else None
-			mat = per_qubit_raw.get(str(q)) if isinstance(per_qubit_raw, dict) else None
+			ts_str = timestamps.get(str(q))
+			mat = per_qubit_raw.get(str(q))
 			if ts_str is None or mat is None:
 				missing.append(q)
 				continue
-			ts = datetime.fromisoformat(ts_str)
-			if now - ts > timedelta(hours=1):
+			if not cache_is_fresh(ts_str, now=now):
 				missing.append(q)
 				continue
 			cached_confusion[int(q)] = mat
@@ -118,7 +127,7 @@ class ReadoutCalibrationManager:
 				res_map[q][bits] = counts
 		for q in missing:
 			counts_list = [res_map[q]["0"], res_map[q]["1"]]
-			per_qubit_confusion[q] = self._build_confusion_matrix(counts_list)
+			per_qubit_confusion[q] = build_confusion_matrix(counts_list, num_qubits=1)
 		result = CalibrationResult(
 			target_qubits=target_qubits,
 			per_qubit_confusion={
@@ -148,25 +157,13 @@ class ReadoutCalibrationManager:
 
 	def _readout_cache_path(self, *, chip_name: Optional[str]) -> Path:
 		"""Resolve the on-disk cache path for readout calibration."""
-		name = chip_name if chip_name is not None else "unknown"
-		return self._cache_dir / f"readout_{name}.json"
+		return cache_file(self._cache_dir, stem="readout", chip_name=chip_name)
 
 	def _load_readout_cache_raw(self, *, chip_name: Optional[str]) -> Dict[str, object]:
 		"""Load cached readout data from disk (raw dictionary)."""
 		path = self._readout_cache_path(chip_name=chip_name)
-		if not path.exists():
-			return {"timestamps": {}, "per_qubit_confusion": {}}
-		try:
-			data = json.loads(path.read_text(encoding="utf-8"))
-			if not isinstance(data, dict):
-				return {"timestamps": {}, "per_qubit_confusion": {}}
-			timestamps = data.get("timestamps", {})
-			per_qubit = data.get("per_qubit_confusion", {})
-			if not isinstance(timestamps, dict) or not isinstance(per_qubit, dict):
-				return {"timestamps": {}, "per_qubit_confusion": {}}
-			return {"timestamps": timestamps, "per_qubit_confusion": per_qubit}
-		except Exception:
-			return {"timestamps": {}, "per_qubit_confusion": {}}
+		timestamps, per_qubit = load_timestamped_payload(path, payload_key="per_qubit_confusion")
+		return {"timestamps": timestamps, "per_qubit_confusion": per_qubit}
 
 	def _load_readout_cache(
 		self,
@@ -184,10 +181,7 @@ class ReadoutCalibrationManager:
 		selected_confusion: Dict[int, List[List[float]]] = {}
 		for q in target_qubits:
 			ts_str = timestamps.get(str(q))
-			if ts_str is None:
-				return None
-			ts = datetime.fromisoformat(ts_str)
-			if now - ts > timedelta(hours=1):
+			if not cache_is_fresh(ts_str, now=now):
 				return None
 			mat = per_qubit.get(str(q))
 			if mat is None:
@@ -202,17 +196,18 @@ class ReadoutCalibrationManager:
 		"""Persist readout calibration data to cache."""
 		path = self._readout_cache_path(chip_name=chip_name)
 		raw = self._load_readout_cache_raw(chip_name=chip_name)
-		timestamps = raw.get("timestamps", {}) if isinstance(raw, dict) else {}
-		per_qubit = raw.get("per_qubit_confusion", {}) if isinstance(raw, dict) else {}
+		timestamps = raw.get("timestamps", {})
+		per_qubit = raw.get("per_qubit_confusion", {})
 		now = datetime.now(timezone.utc).isoformat()
 		for q in result.target_qubits:
 			timestamps[str(q)] = now
 			per_qubit[str(q)] = result.per_qubit_confusion[q]
-		payload = {
-			"timestamps": timestamps,
-			"per_qubit_confusion": per_qubit,
-		}
-		path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+		save_timestamped_payload(
+			path,
+			payload_key="per_qubit_confusion",
+			timestamps=timestamps,
+			payload=per_qubit,
+		)
 
 	def _readout_calibration_circuits(self, q: int) -> List[Tuple[str, QuantumCircuit]]:
 		"""Build minimal calibration circuits for a single qubit."""
@@ -226,10 +221,3 @@ class ReadoutCalibrationManager:
 			circuits.append((bits, qc))
 		return circuits
 
-	def _build_confusion_matrix(self, res_list: Sequence[Dict[str, int]]) -> np.ndarray:
-		"""Build a 2x2 confusion matrix from two calibration results."""
-		mat = np.zeros((2, 2), dtype=float)
-		for i, res in enumerate(res_list):
-			probs = get_probabilities(res, 1)
-			mat[i, :] = probs
-		return mat

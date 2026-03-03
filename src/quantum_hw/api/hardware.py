@@ -8,6 +8,20 @@ from pathlib import Path
 from .backend import Backend
 
 
+def _cache_chip_topology_figure(backend: Backend, chip_name: str) -> None:
+	"""Best-effort topology rendering for local cache."""
+	cache_dir = Path(__file__).resolve().parent / ".cache"
+	cache_dir.mkdir(parents=True, exist_ok=True)
+	fig_path = cache_dir / f"{chip_name}_chip"
+	backend.draw(
+		show_couplers_fidelity=True,
+		show_qubits_attributes="fidelity",
+		save_svg_fname=str(fig_path),
+		show_qubits_index=True,
+		edge_fidelity_thres=0.9,
+	)
+
+
 def get_available_chip_status(tmgr) -> Dict[str, int]:
 	"""Fetch chip queue status from task manager."""
 	status = tmgr.status()
@@ -21,25 +35,11 @@ def get_chip_info(chip_name: str) -> Dict[str, Union[int, float]]:
 	try:
 		backend = Backend(chip_name)
 		info = backend.chip_info
-		try:
-			cache_dir = Path(__file__).resolve().parent / ".cache"
-			cache_dir.mkdir(parents=True, exist_ok=True)
-			fig_path = cache_dir / f"{chip_name}_chip"
-			backend.draw(
-				show_couplers_fidelity=True,
-				show_qubits_attributes="fidelity",
-				save_svg_fname=str(fig_path),
-				show_qubits_index=True,
-				edge_fidelity_thres=0.9,
-			)
-		except Exception:
-			pass
-		if isinstance(info, dict):
-			return info
+		_cache_chip_topology_figure(backend, chip_name)
+		return info
 	except Exception:
-		pass
-	return {}
-
+		return {}
+	
 
 def rank_chips(
 	tmgr,

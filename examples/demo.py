@@ -11,7 +11,7 @@ if __name__ == "__main__":
     zne = True
     shots = 50000
     readout_mitigation = True
-    observables = 'XXXXXXX'
+    observables = ['ZZZZZZZ', 'ZIIIIIZ', 'XXXXXXX']
     return_probabilities = True
 
     client = QuantumHardwareClient()
@@ -32,7 +32,7 @@ if __name__ == "__main__":
         readout_mitigation=readout_mitigation,
         observables=observables,
         return_probabilities=return_probabilities,
-        # prefer_chips=['Simulator']
+        prefer_chips=['Baihua']
     )
     print("Expectation Value (Raw):", results.observable_values_raw)
     print("Expectation Value (Mitigated):", results.observable_values)

@@ -330,7 +330,7 @@ class Layout:
         skip_split_qc: bool = True,
     ):
         nqubits = len(qc.qubits)
-        if skip_split_qc is True:
+        if skip_split_qc:
             all_qubits = [qc.qubits]
         else:
             all_qubits = split_qubits(qc)
@@ -343,7 +343,7 @@ class Layout:
                 )
             lose_nodes = []
             for qubit in target_qubits:
-                if self.graph.has_node(qubit) is False:
+                if not self.graph.has_node(qubit):
                     lose_nodes.append(qubit)
             if lose_nodes != []:
                 raise ValueError(
@@ -355,7 +355,7 @@ class Layout:
                 idx += len(qubits0)
                 if len(part_target_qubits) > 1:
                     subgraph0 = self.graph.subgraph(part_target_qubits).copy()
-                    if nx.is_connected(subgraph0) is False:
+                    if not nx.is_connected(subgraph0):
                         raise ValueError(
                             f"The target physical qubits {part_target_qubits} corresponding to virtual qubits {qubits0} are not connected."
                         )
@@ -370,7 +370,7 @@ class Layout:
                 # )
             return subgraph
 
-        if use_chip_priority is True:
+        if use_chip_priority:
             priority_qubits_list = self.priority_qubits
             new_qubits = []
             for qubits0 in all_qubits:
@@ -380,12 +380,12 @@ class Layout:
                     if len(qubits0) == len(qubits):
                         subgraph0 = self.source_graph.subgraph(qubits).copy()
                         is_overlap = any(x in qubits for sub in new_qubits for x in sub)
-                        if nx.is_connected(subgraph0) is True and is_overlap is False:
+                        if nx.is_connected(subgraph0) and not is_overlap:
                             new_qubits.append(qubits)
                             is_priority_provided = True
                         break
                     continue
-                if is_priority_provided is False:
+                if not is_priority_provided:
                     # print("No more priority qubits were found. it will check the select_criteria for search")
                     self.graph.remove_nodes_from([x for sub in new_qubits for x in sub])
                     qubits = self.select_qubits_by_local_algorithm(len(qubits0), select_criteria)

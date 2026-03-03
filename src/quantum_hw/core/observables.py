@@ -7,6 +7,14 @@ from typing import Dict, List, Sequence, Tuple
 import numpy as np
 
 
+_BASIS_ROTATION_OPS = {
+	"I": (),
+	"Z": (),
+	"X": ("h",),
+	"Y": ("sdg", "h"),
+}
+
+
 def _parse_pauli_string(pauli: str, num_qubits: int | None = None) -> List[Tuple[int, str]]:
 	"""Parse Pauli strings in either compact or indexed form."""
 	pauli = pauli.strip()
@@ -55,20 +63,8 @@ def shift_pauli_string(pauli: str, offset: int) -> str:
 def append_pauli_measurement(qc, pauli: str) -> None:
 	"""Append basis rotations and final measurements for a Pauli string."""
 	num_qubits = qc.num_qubits if hasattr(qc, "num_qubits") else None
-	terms = _parse_pauli_string(pauli, num_qubits=num_qubits)
-	for idx, op in terms:
-		if op == "X":
-			qc.h(idx)
-		elif op == "Y":
-			if hasattr(qc, "sdg"):
-				qc.sdg(idx)
-			else:
-				qc.s(idx)
-				qc.s(idx)
-				qc.s(idx)
-			qc.h(idx)
-		elif op == "Z":
-			pass
+	basis_pattern = pauli_basis_pattern(pauli, num_qubits=num_qubits)
+	apply_measurement_basis_rotations(qc, basis_pattern)
 	qc.barrier()
 	qc.measure_all()
 
@@ -81,26 +77,23 @@ def pauli_basis_pattern(pauli: str, num_qubits: int) -> List[str]:
 		pattern[idx] = op
 	return pattern
 
+def apply_measurement_basis_rotations(qc, basis_pattern: Sequence[str], target_qubits: Sequence[int] = None) -> None:
+	"""Apply only basis rotations for a full I/X/Y/Z pattern."""
+	if target_qubits is None:
+		target_qubits = list(range(len(basis_pattern)))
+	for idx, op in zip(target_qubits, basis_pattern):
+		ops = _BASIS_ROTATION_OPS.get(op)
+		if ops is None:
+			raise ValueError(f"unsupported basis op: {op}")
+		for gate_op in ops:
+			getattr(qc, gate_op)(idx)
+
 
 def append_measurement_basis(qc, basis_pattern: Sequence[str], target_qubits: Sequence[int] = None) -> None:
 	"""Apply basis rotations for a full pattern and append measurements."""
 	if target_qubits is None:
 		target_qubits = list(range(len(basis_pattern)))
-	for idx, op in zip(target_qubits, basis_pattern):
-		if op == "X":
-			qc.h(idx)
-		elif op == "Y":
-			if hasattr(qc, "sdg"):
-				qc.sdg(idx)
-			else:
-				qc.s(idx)
-				qc.s(idx)
-				qc.s(idx)
-			qc.h(idx)
-		elif op == "Z" or op == "I":
-			pass
-		else:
-			raise ValueError(f"unsupported basis op: {op}")
+	apply_measurement_basis_rotations(qc, basis_pattern, target_qubits=target_qubits)
 	qc.barrier()
 	# Map measured qubits onto a dense classical register order.
 	qc.measure(target_qubits, list(range(len(target_qubits))))
