@@ -8,7 +8,7 @@ Backend 拓扑与请求依赖 `networkx` 与 `requests`。
 ## 快速流程
 
 1. 配置线路与实验参数（`num_qubits`、`shots`、`zne`、`readout_mitigation`、`observables`）。
-2. 创建 `QuantumHardwareClient`（传入 Token）。
+2. 创建 `QuantumHardwareClient`。
 3. 调用 `run_auto()` 自动选择硬件并运行。
 4. 读取 `RunResult` 中的概率分布或可观测量，并根据需要绘图。
 
@@ -22,7 +22,6 @@ Backend 拓扑与请求依赖 `networkx` 与 `requests`。
 - `quantum_hw.compile`：线路转译（布局/路由/门集转换/压缩）。
 - `quantum_hw.sim`：本地模拟（statevector + 采样）。
 - `quantum_hw.core`：通用工具（observables/readout/zne/plotting/types）。
-- `quantum_hw.calibration`：校准模块（readout / native two-qubit RB）。
 - `quantum_hw.calibration`：校准模块（readout / native two-qubit RB / two-qubit process tomography）。
 
 **执行流程（run_auto）**
@@ -46,8 +45,8 @@ Backend 拓扑与请求依赖 `networkx` 与 `requests`。
 
 ## 任务提交与 Token
 
-- 任务提交通过 REST API 完成，Token 优先从环境变量 `QPU_API_TOKEN` 读取。
-- 也可在初始化 `QuantumHardwareClient(token=...)` 时显式传入。
+- 任务提交通过 REST API 完成，Token 由 `Task` 内部读取（优先环境变量 `QPU_API_TOKEN`）。
+- `QuantumHardwareClient` 当前不接收 `token` 构造参数。
 
 
 ## 核心类与结果结构
@@ -60,8 +59,7 @@ Backend 拓扑与请求依赖 `networkx` 与 `requests`。
 
 **构造函数**
 
-- `QuantumHardwareClient(token: str)`
-  - `token`：硬件访问凭据。
+- `QuantumHardwareClient()`
 
 **主要方法**
 
@@ -97,11 +95,11 @@ Backend 拓扑与请求依赖 `networkx` 与 `requests`。
 - `probabilities: Optional[List[float] | List[List[float]]]`
   - 单个测量基时为一维概率分布；多个测量基时为二维列表。
 - `probabilities_raw: Optional[List[float] | List[List[float]]]`
-  - 仅在开启 readout mitigation 时返回，表示缓解前的概率分布。
+  - 表示缓解前（raw）概率分布；当 `return_probabilities=True` 时返回。
 - `observable_values: Optional[float | Dict[str, float]]`
   - 单个 observable 时为标量；多 observable 时为 `{observable: value}`。
 - `observable_values_raw: Optional[float | Dict[str, float]]`
-  - 仅在开启 readout mitigation 时返回，表示缓解前的可观测量。
+  - 表示缓解前（raw）可观测量（通常为字典）。
 
 **常见注意点**
 
@@ -155,9 +153,11 @@ Backend 拓扑与请求依赖 `networkx` 与 `requests`。
 - 内部做 linear inversion 得到 PTM，并与理想门 PTM 做组合得到 error channel。
 - error channel 以 Choi 矩阵形式存储在 cache（`real`/`imag` 两个矩阵）。
 
-#### `run_shadow(...) -> ShadowResult`
+## Algorithms（`quantum_hw.algorithms`）
 
-用于 classical shadow tomography，按批次随机测量基运行。
+### `run_shadow(...) -> ShadowResult`
+
+用于 classical shadow tomography，按批次随机测量基运行（定义于 `quantum_hw.algorithms.shadow`，需传入 `client`）。
 
 参数：
 
@@ -193,9 +193,9 @@ Backend 拓扑与请求依赖 `networkx` 与 `requests`。
 - `estimator` 支持均值与 median-of-means（`mom`）。
 - `zne=True` 时，会额外运行 3x 噪声缩放并线性外推。
 
-#### `run_vqe(...) -> VQEResult`
+### `run_vqe(...) -> VQEResult`
 
-基于量子测量的变分优化，使用参数移位法估计梯度与 Adam 优化。
+基于量子测量的变分优化，使用参数移位法估计梯度与 Adam 优化（定义于 `quantum_hw.algorithms.vqe`，需传入 `client`）。
 
 参数：
 
@@ -206,6 +206,7 @@ Backend 拓扑与请求依赖 `networkx` 与 `requests`。
   - Ising: `{"j": ..., "h": ...}`
   - Heisenberg/XY: `{"jx": ..., "jy": ..., "jz": ..., "hz": ...}`
   - XXZ: `{"jxy": ..., "jz": ..., "hz": ...}`
+- `hamiltonian: Optional[Sequence[Tuple[float, str]]] = None`（`model="custom"` 时使用）
 - `layers: int = 1`
 - `shots: int = 1024`
 - `max_iters: int = 20`
@@ -243,16 +244,16 @@ Backend 拓扑与请求依赖 `networkx` 与 `requests`。
 - 梯度：参数移位法（每个参数两次评估）。
 - 当未指定 `target_qubits` 且硬件比特充足时，会尝试打包并行评估梯度以减少轮次。
 
-#### `run_qaoa(...) -> QAOAResult`
+### `run_qaoa(...) -> QAOAResult`
 
-QAOA 组合优化接口，支持 MaxCut 与自定义 Z/ZZ 代价项。
+QAOA 组合优化接口，支持 MaxCut 与自定义 Z/ZZ 代价项（定义于 `quantum_hw.algorithms.qaoa`，需传入 `client`）。
 
 参数：
 
 - `name: str`
 - `num_qubits: int`
 - `problem: str = "maxcut"`
-- `edges: List[Tuple[int,int]]`
+- `edges: Optional[Sequence[Tuple[int,int]]] = None`（`problem="maxcut"` 时必填）
 - `weights: Optional[List[float]] = None`
 - `terms: Optional[Sequence[Tuple[float, str]]] = None`（`problem="custom"`）
 - `constant: float = 0.0`（`problem="custom"`）
@@ -265,7 +266,7 @@ QAOA 组合优化接口，支持 MaxCut 与自定义 Z/ZZ 代价项。
 
 返回：`QAOAResult`。
 
-> 说明：`QAOARunner` 目前仅封装 MaxCut，如需自定义代价项请直接调用 `run_qaoa(problem="custom", terms=..., constant=...)`。
+> 说明：`QAOARunner` 当前封装的是 MaxCut 入口；自定义代价项请调用 `run_qaoa(problem="custom", terms=..., constant=...)`。
 
 **返回结构 `QAOAResult`**
 
@@ -316,6 +317,12 @@ Pauli string 支持两种格式：
 - `build_local_confusion_matrix(per_qubit_confusion: Dict[int, np.ndarray], target_qubits: Sequence[int])`
 - `mitigate_readout(probabilities: np.ndarray, confusion_matrix: np.ndarray)`
 - `expectation_from_probabilities(probabilities: np.ndarray, support: Sequence[int])`
+- `expectation_from_samples_unbiased(local_samples: np.ndarray, local_confusion_matrices: Sequence[np.ndarray])`
+
+`run_auto` 内 observable 的 readout 缓解采用自适应策略：
+
+- `|support|` 小于等于阈值常量 `READOUT_OBSERVABLE_MARGINAL_MAX_SUPPORT`：走边缘概率路径。
+- `|support|` 大于该阈值：走无偏样本估计路径（避免显式构造 `2^k` 概率向量）。
 
 **缓存与校准策略**
 
@@ -327,15 +334,15 @@ Pauli string 支持两种格式：
 - `apply_zne_cz_tripling(qct)`：对编译后电路 CZ 门做三倍插入。
 - `zne_linear_extrapolate(probs_1, probs_3)`：线性外推去噪。
 
-## Hardware 选择（`quantum_hw.hardware`）
+## Hardware 选择（`quantum_hw.api.hardware`）
 
 - `rank_chips(tmgr, num_qubits, prefer_chips=None, weights=None) -> List[str]`
   - 排序逻辑：`queue` 越低越好、`nqubits` 越多越好、`error` 越低越好。
   - `weights` 为归一化后的线性权重。
 
-## Plotting（`quantum_hw.plotting`）
+## Plotting（`quantum_hw.core.plotting`）
 
 - `plot_probabilities_compare(raw, mitigated, num_qubits, max_labels=16)`
   - 以柱状图对比缓解前后的概率。
-- `plot_observables_compare(raw, mitigated)`
+- `plot_observables_compare(raw, mitigated, observables=None)`
   - 对比可观测量期望值。
