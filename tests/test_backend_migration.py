@@ -1,6 +1,6 @@
 import pytest
 
-from quantum_hw.api import hardware as hardware_module
+from quantum_hw.api import backend as hardware_module
 from quantum_hw.api.backend import Backend
 
 

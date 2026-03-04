@@ -48,7 +48,6 @@ class Task(object):
             raise Exception(f'{v}')
 
         self.tasks = {}
-        self.cache = {}
 
     def request(self, url: str, data: dict = {}, method: str = 'get'):
         # Thin wrapper around HTTP GET/POST with token header.
@@ -122,82 +121,4 @@ class Task(object):
         if isinstance(tid, int):
             self.tasks[tid] = task
         return tid
-
-    def backend(self, chip: str, show_couplers_fidelity: bool = False, show_quibts_attributes: Literal['T1', 'T2', 'fidelity', 'frequancy', ''] = '', highlight_nodes: list = [], save_svg_fname: str | None = None):
-        try:
-            from .backend import Backend
-            bk = Backend(chip)
-            bk.draw(show_couplers_fidelity,
-                    show_quibts_attributes,
-                    highlight_nodes,
-                    save_svg_fname)
-            return bk.chip_info
-        except Exception as e:
-            print(f'{e}, install it using "pip install quarkcircuit"')
-
-        # try:
-        #     self.cache[chip]
-        # except KeyError as e:
-        #     self.cache[chip] = info = bk.chip_info
-
-    def _backend(self, chip: str, draw: str = '', refresh: bool = False):
-        if refresh:
-            self.cache.clear()
-        try:
-            info = self.cache[chip]
-        except KeyError as e:
-            info = self.request(f'{self.URL}/task/backend/{chip}')
-            self.cache[chip] = info
-
-        return self.__plot(info, draw)
-
-    def __plot(self, info: dict, draw: str):
-        import matplotlib.pyplot as plt
-        import networkx as nx
-
-        plt.figure(figsize=[14, 11])
-        graph = nx.Graph()
-        nodepos, nodecolor, nodelabel, edgecolor, edgelabel = {}, {}, {}, {}, {}
-        mapping = info['mapping']
-        sqi, tqi = info['single_qubit_info'], info['two_qubit_info']
-        for i, edge in enumerate(tqi.keys()):
-            qs, qe = edge.split('_')
-            for q in [qs, qe]:
-                nodepos[q] = [int(int(q[3:])), 24 - int(q[1:3]) % 24]
-                nodecolor[q] = sqi[q].get(draw, 0) if draw else 'lightblue'
-                nodelabel[q] = sqi[q].get(draw, '') if draw else mapping[q]
-                if q in info['unavailable']:
-                    nodelabel[q] = ''
-
-            graph.add_edge(qs, qe)
-            edgecolor[(qs, qe)] = 'blue'  # tqi[edge]['CZ']['fidelity']
-            edgelabel[(qs, qe)] = tqi[edge]['CZ']['fidelity']
-
-        nx.draw(graph,
-                pos=nodepos,
-                with_labels=True,
-                labels=nodelabel,
-                font_size=8,
-                font_color='k',
-                node_size=600,
-                edgecolors='blue',  # for node edge
-                node_color=[nodecolor[q] for q in nodecolor.keys()],
-
-                edge_color=[edgecolor[q] for q in edgecolor.keys()],
-                width=9.0,
-                # alpha=1,
-                cmap=plt.cm.Wistia
-                )
-
-        texts = nx.draw_networkx_edge_labels(graph,
-                                             pos=nodepos,
-                                             edge_labels=edgelabel,
-                                             bbox=dict(boxstyle='round',
-                                                       pad=0.25,
-                                                       edgecolor="blue",
-                                                       facecolor="white"),
-                                             font_color='k',
-                                             font_size=12,
-                                             )
-        return nodelabel if draw else info
 

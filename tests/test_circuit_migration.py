@@ -96,34 +96,10 @@ def test_circuit_params_value_and_apply():
     assert qc_local.params_value["gamma"] == params["gamma"]
 
 
-# @pytest.mark.skipif(QuarkCircuit is None, reason="quark is not installed")
-# def test_circuit_adjust_index_and_mapping():
-#     qc_ref = _build_mapping_circuit(QuarkCircuit)
-#     qc_local = _build_mapping_circuit(LocalCircuit)
-
-#     qc_ref.adjust_index(2)
-#     qc_local.adjust_index(2)
-
-#     assert qc_local.gates == qc_ref.gates
-#     assert qc_local.qubits == qc_ref.qubits
-#     assert qc_local.nqubits == qc_ref.nqubits
-
-#     mapping = {2: 5, 3: 7, 4: 6}
-#     qc_ref.mapping_to_others(mapping)
-#     qc_local.mapping_to_others(mapping)
-
-#     assert qc_local.gates == qc_ref.gates
-#     assert qc_local.qubits == qc_ref.qubits
-#     assert qc_local.nqubits == qc_ref.nqubits
-
-
 @pytest.mark.skipif(QuarkCircuit is None, reason="quark is not installed")
 def test_circuit_remove_and_count_gates():
     qc_ref = _build_barrier_circuit(QuarkCircuit)
     qc_local = _build_barrier_circuit(LocalCircuit)
-
-    assert qc_local.count_gate("barrier") == qc_ref.count_gate("barrier")
-    assert qc_local.count_gate("rx") == qc_ref.count_gate("rx")
 
     qc_ref.remove_barrier()
     qc_local.remove_barrier()

@@ -2,6 +2,6 @@
 
 from .backend import Backend
 from .client import QuantumHardwareClient
-from .hardware import rank_chips
+from .backend import rank_chips
 
 __all__ = ["Backend", "QuantumHardwareClient", "rank_chips"]

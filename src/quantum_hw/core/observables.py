@@ -116,7 +116,8 @@ def _merge_basis(pattern: Sequence[str], basis: Sequence[str]) -> List[str]:
 
 
 def group_observables(observables: Sequence[str], num_qubits: int) -> List[Dict[str, object]]:
-	"""Group observables that can share a single measurement basis."""
+	"""Group observables that can share a single measurement basis.
+	TODO: implement more optimal grouping algorithms (c.f., quantum overlapping tomography) if needed."""
 	groups: List[Dict[str, object]] = []
 	for obs in observables:
 		pattern = pauli_basis_pattern(obs, num_qubits=num_qubits)

@@ -18,16 +18,23 @@
 pip install -e .
 ```
 
-> 依赖：Python >= 3.9，`numpy>=1.24`，`networkx>=3.0`，`requests>=2.31`。
-> OpenQASM3 解析依赖 `openqasm3`。
+> 运行依赖：Python >= 3.9，`numpy>=1.24`，`scipy>=1.10`，`ipython>=8.0`，`networkx>=3.0`，`requests>=2.31`。
+> OpenQASM3 解析依赖 `openqasm3[parser]`。
 > 作图示例需要 `matplotlib`。
 > 一键安装依赖：`pip install -e .[viz]`。
+> 测试依赖组 `[test]`：`quarkstudio`、`quarkcircuit`、`pytest>=7.4`。
 
-### Quafu 安装与 Token
+如果你需要本地运行测试，建议使用：
 
-Token 建议通过环境变量或配置文件注入，避免硬编码：
+```bash
+pip install -e .[test]
+```
 
-- 按 Quafu 官方文档配置 Token（例如环境变量或配置文件）
+如需同时安装作图与测试依赖：
+
+```bash
+pip install -e .[viz,test]
+```
 
 ## 快速开始
 
@@ -70,3 +77,5 @@ RB 缓存文件只保存每个 coupler 的 `fidelity`，避免大体积缓存。
 - `quantum_hw.circuit.qasm2` / `quantum_hw.circuit.qasm3`：OpenQASM2/3 解析实现。
 
 更多接口参数、执行流程与实现细节请见 [docs/DOCUMENTATION.md](docs/DOCUMENTATION.md)。
+
+新的分页面文档骨架见 [docs/README.md](docs/README.md)（含 API 参考目录与模板）。

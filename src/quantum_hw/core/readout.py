@@ -5,6 +5,8 @@ from __future__ import annotations
 from typing import Dict, Sequence
 
 import numpy as np
+from .utils import expectation_from_probabilities, get_local_probabilities_from_samples, marginal_samples
+
 
 
 def build_local_confusion_matrix(per_qubit_confusion: Dict[int, np.ndarray], target_qubits: Sequence[int]) -> np.ndarray:
@@ -29,21 +31,6 @@ def mitigate_readout(probabilities: np.ndarray, confusion_matrix: np.ndarray) ->
 	if s == 0:
 		return mitigated
 	return mitigated / s
-
-
-def expectation_from_probabilities(probabilities: np.ndarray, support: Sequence[int]) -> float:
-	"""Compute Z-basis expectation value from probabilities."""
-	if not support:
-		return 1.0
-	num = len(support)
-	probs = probabilities.reshape([2] * num)
-	parity = np.zeros([2] * num, dtype=int)
-	for i in range(num):
-		shape = [1] * num
-		shape[i] = 2
-		parity += np.arange(2).reshape(shape)
-	sign = 1.0 - 2.0 * (parity % 2)
-	return float((probs * sign).sum())
 
 
 def expectation_from_samples_unbiased(local_samples: np.ndarray, local_confusion_matrices: Sequence[np.ndarray]) -> float:
@@ -83,3 +70,24 @@ def expectation_from_samples_unbiased(local_samples: np.ndarray, local_confusion
 		return 0.0
 
 	return float((scores[mask] / norms[mask]).mean())
+
+
+def mitigate_observable_from_samples(
+	samples: np.ndarray,
+	support: Sequence[int],
+	per_qubit: Dict[int, np.ndarray],
+	target_qubits_group: Sequence[int],
+	marginal_max_support: int = 10,
+) -> float:
+	"""Compute readout-mitigated observable value from samples with adaptive strategy."""
+	if not support:
+		return 1.0
+	support_phys = [target_qubits_group[i] for i in support]
+	if len(support) <= marginal_max_support:
+		local_cm = build_local_confusion_matrix(per_qubit, support_phys)
+		local_probs = get_local_probabilities_from_samples(samples, support)
+		local_probs_rem = mitigate_readout(local_probs, local_cm)
+		return expectation_from_probabilities(local_probs_rem, support)
+	local_samples = marginal_samples(samples, support)
+	local_cm_list = [per_qubit[q] for q in support_phys]
+	return expectation_from_samples_unbiased(local_samples, local_cm_list)

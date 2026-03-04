@@ -1,5 +1,7 @@
 # 文档
 
+> 说明：本文件为“总览版”文档。新的分页面 API 文档骨架已建立在 [README.md](./README.md) 与 [reference/README.md](./reference/README.md)。
+
 本文档给出更详细的使用说明、API 参数、返回结构、以及实现细节。示例代码见 [examples/demo.py](../examples/demo.py)。
 
 OpenQASM3 解析依赖 `openqasm3` 包。
@@ -316,8 +318,9 @@ Pauli string 支持两种格式：
 
 - `build_local_confusion_matrix(per_qubit_confusion: Dict[int, np.ndarray], target_qubits: Sequence[int])`
 - `mitigate_readout(probabilities: np.ndarray, confusion_matrix: np.ndarray)`
-- `expectation_from_probabilities(probabilities: np.ndarray, support: Sequence[int])`
 - `expectation_from_samples_unbiased(local_samples: np.ndarray, local_confusion_matrices: Sequence[np.ndarray])`
+
+另：`expectation_from_probabilities(probabilities: np.ndarray, support: Sequence[int])` 定义于 `quantum_hw.core.utils`。
 
 `run_auto` 内 observable 的 readout 缓解采用自适应策略：
 
@@ -334,7 +337,7 @@ Pauli string 支持两种格式：
 - `apply_zne_cz_tripling(qct)`：对编译后电路 CZ 门做三倍插入。
 - `zne_linear_extrapolate(probs_1, probs_3)`：线性外推去噪。
 
-## Hardware 选择（`quantum_hw.api.hardware`）
+## Hardware 选择（`quantum_hw.api.backend`）
 
 - `rank_chips(tmgr, num_qubits, prefer_chips=None, weights=None) -> List[str]`
   - 排序逻辑：`queue` 越低越好、`nqubits` 越多越好、`error` 越低越好。
