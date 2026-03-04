@@ -8,7 +8,7 @@ from typing import Dict, List, Optional, Sequence, Tuple, Union
 import numpy as np
 
 from ..api.backend import Backend
-from ..api.hardware import rank_chips
+from ..api.backend import rank_chips
 from ..circuit import QuantumCircuit
 from ..core.observables import pauli_basis_pattern
 from ..core.types import ShadowResult

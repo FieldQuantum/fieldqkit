@@ -1,31 +1,13 @@
-# Copyright (c) 2024 XX Xiao
-
-# Permission is hereby granted, free of charge, to any person obtaining a copy
-# of this software and associated documentation files(the "Software"), to deal
-# in the Software without restriction, including without limitation the rights
-# to use, copy, modify, merge, publish, distribute, sublicense, and / or sell
-# copies of the Software, and to permit persons to whom the Software is
-# furnished to do so, subject to the following conditions:
-
-# The above copyright notice and this permission notice shall be included in
-# all copies or substantial portions of the Software.
-
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-
 r"""
 This module contains the Backend class, which processes superconducting chip information into an undirected graph representation. It also supports the creation of custom undirected graphs to serve as virtual chips.
 """
 
 import networkx as nx
 import numpy as np
-from typing import Literal
+from typing import Dict, List, Literal, Optional, Sequence, Tuple, Union
 import requests
 import json
+from pathlib import Path
 
 
 def _build_simulator_chip_info(nqubits: int = 12) -> dict:
@@ -77,14 +59,15 @@ def load_chip_basic_info(chip_name):
         print(f'{chip_name} configuration loading failed!')
         return None
 
+
 class Backend:
     """A class to represent a quantum hardware backend as a nx.Graph.
     """
-    def __init__(self,chip: Literal['Baihua','Custom'] | dict):
+    def __init__(self,chip: Literal['Baihua','Dongling','Haituo','Yunmeng','Miaofeng','Yudu','Hongluo','Simulator','Custom'] | dict):
         """Initialize a Backend object.
 
         Args:
-            chip (str): Chip name, currently only 'Baihua' is avaliable.
+            chip (str): Chip name, currently 'Baihua','Dongling','Haituo','Yunmeng','Miaofeng','Yudu','Hongluo', and 'Simulator' are supported
         """
         if isinstance(chip,dict):
             # Custom chip payload (useful for tests or local topology overrides).
@@ -193,179 +176,155 @@ class Backend:
         G.add_edges_from(self.couplers_with_attributes)
         return G
         
-    def draw(self,show_couplers_fidelity:bool = False, show_qubits_attributes:Literal['T1','T2','fidelity','frequency','']='', 
-             show_qubits_index:bool=False,show_couplers_index:bool=False,
-             highlight_nodes:list|None = None, save_svg_fname: str|None = None,edge_fidelity_thres=0.0):
-        """Draw the chip layout.
-    
+    def draw(self, save_svg_fname: str|None = None, edge_fidelity_thres=0.9):
+        """Draw the chip layout using a fixed standard style.
+
         Args:
-            show_couplers_fidelity (bool, optional): Whether to display the fidelity of couplers. Defaults to False.
-            show_qubits_attributes (Literal['T1', 'T2', 'fidelity', 'frequancy', ''], optional): 
-                Specify which qubit attribute to display. Options include:
-                - 'T1': Display the T1 time of qubits (in microseconds).
-                - 'T2': Display the T2 time of qubits (in microseconds).
-                - 'fidelity': Display the fidelity of qubits.
-                - 'frequancy': Display the frequency of qubits (in GHz).
-                - '': Display no attributes.
-                Defaults to ''.
-            show_qubits_index (bool, optional): Whether to display index for each qubit. Defaults to False.
-            show_couplers_index (bool, optional): Whether to display index for each coupler. Defaults to False.
-            highlight_nodes (list, optional): A list of qubits to highlight. Defaults to an empty list [].
-            save_svg_fname (str | None, optional): 
-                The filename for saving the drawing as an SVG. If None, the drawing will not be saved. 
-                The user is responsible for ensuring the validity of the provided file path. Defaults to None.
-    
+            save_svg_fname (str | None, optional):
+                The filename for saving the drawing as a svg. If None, the drawing will not be saved.
+                Defaults to None.
+            edge_fidelity_thres (float, optional):
+                Minimum 2-qubit fidelity required to keep an edge in the visualization.
+                Defaults to 0.9.
+
         Returns:
-            None: This function does not return a value but generates and optionally saves the chip layout.
-    
-        Notes:
-            - `highlight_nodes` specifies the qubits to be visually highlighted.
-            - `show_couplers_fidelity` and `show_qubits_attributes` can be enabled simultaneously without conflicts.
-            - When `save_svg_fname` is provided, the drawing will be saved as an SVG file.
+            None
         """
-        import matplotlib.pyplot as plt 
-        from matplotlib.colors import Normalize,LinearSegmentedColormap
-        from matplotlib.cm import ScalarMappable 
+        import matplotlib.pyplot as plt
 
         graph_show = self.edge_filtered_graph(thres=edge_fidelity_thres)
-        if highlight_nodes is None:
-            highlight_nodes = []
-        edge_fidelity = nx.get_edge_attributes(graph_show, 'fidelity') 
-        node_attributes = nx.get_node_attributes(graph_show,show_qubits_attributes)
-        is_edge_info_avaliable = False
-        is_node_info_avaliable = False
-        if show_couplers_fidelity:
-            if edge_fidelity and set(edge_fidelity.values()) != {0}:
-                is_edge_info_avaliable = True
-            else:
-                print('The two-qubit gate fidelity is N/A now.')
-        if show_qubits_attributes:
-            if node_attributes and set(node_attributes.values()) != {0}:
-                is_node_info_avaliable = True
-            else:
-                print('The qubit attributes is N/A now.')
+        pos = nx.get_node_attributes(graph_show, 'coordinate')
+        node_colors = ['#083776' for _ in graph_show.nodes()]
+        edge_colors = ['#083776' for _ in graph_show.edges()]
+        node_labels = {node: node for node in graph_show.nodes()}
+        edge_labels = {edge: '' for edge in graph_show.edges()}
 
-        if is_edge_info_avaliable:
-            min_fidelity = sorted(list(edge_fidelity.values()))[0]
-            max_fidelity = sorted(list(edge_fidelity.values()))[-1]
-            edge_norm = Normalize(vmin = min_fidelity, vmax = max_fidelity)
-            edge_cmap = LinearSegmentedColormap.from_list('truncated_blues', plt.get_cmap('Blues')(np.linspace(0.31, 1.0, 1000)))  #plt.get_cmap('Blues')
-            edge_colors = [ScalarMappable(norm = edge_norm, cmap = edge_cmap).to_rgba(fidelity) for fidelity in edge_fidelity.values()]
-        else:
-            edge_colors = ['#083776' for edge in graph_show.edges()]
+        fig, ax = plt.subplots(figsize=(15, 13))
+        nx.draw(
+            graph_show,
+            pos,
+            ax=ax,
+            with_labels=False,
+            node_color=node_colors,
+            node_size=800,
+            edgecolors='white',
+            edge_color=edge_colors,
+            width=18,
+        )
+        nx.draw_networkx_labels(graph_show, pos, labels=node_labels, font_size=10, font_color='white')
+        nx.draw_networkx_edge_labels(
+            graph_show,
+            pos,
+            edge_labels=edge_labels,
+            font_size=8,
+            font_color='white',
+            bbox=dict(facecolor='none', edgecolor='none'),
+            rotate=False,
+        )
 
-        edge_labels = {}
-        for k,v in edge_fidelity.items():
-            if v is None:
-                fidelity = ''
-            else:
-                fidelity = np.round(v, 3)
-            if is_edge_info_avaliable:
-                if show_couplers_index:
-                    edge_labels[k] = graph_show.edges[k].get('index')
-                else:
-                    edge_labels[k] = fidelity
-            else:
-                edge_labels[k] = graph_show.edges[k].get('index')
-
-        if show_qubits_attributes and is_node_info_avaliable:
-            min_attributes = sorted(list(node_attributes.values()))[0]
-            max_attributes = sorted(list(node_attributes.values()))[-1]
-            node_norm = Normalize(vmin = min_attributes, vmax = max_attributes)
-            node_cmap = LinearSegmentedColormap.from_list('truncated_blues', plt.get_cmap('Blues')(np.linspace(0.31, 1.0, 1000))) #plt.get_cmap('Blues') 
-            node_colors = [ScalarMappable(norm = node_norm, cmap = node_cmap).to_rgba(attribute) for attribute in node_attributes.values()]
-            if show_qubits_attributes == 'fidelity':
-                if show_qubits_index:
-                    node_labels = {node:node for node in graph_show.nodes()} 
-                else:
-                    node_labels =  {node: np.round(attr, 3) for node, attr in node_attributes.items()} # 保留三位有效数字
-            else:
-                if show_qubits_index:
-                    node_labels = {node:node for node in graph_show.nodes()} 
-                else:    
-                    node_labels =  {node: np.round(attr, 2) for node, attr in node_attributes.items()}  # 保留两位有效数字
-            node_font_size = 8 
-            if is_edge_info_avaliable:
-                figsize = (15, 15)
-            else:
-                figsize = (15, 13.5)
-        else:
-            node_colors = ['#083776' for node in graph_show.nodes()]
-            node_labels = {node:node for node in graph_show.nodes()}   
-            node_font_size = 10 
-            if is_edge_info_avaliable:
-                figsize = (15, 13.5)
-            else:
-                figsize = (15, 13)
-
-        if len(highlight_nodes) > 0:
-            if isinstance(highlight_nodes, list) and any(isinstance(i, list) for i in highlight_nodes):
-                highlight_nodes = list(set(e for sub in highlight_nodes for e in sub))
-            node_colors_update = []
-            node_labels_update = {}
-            for idx, node in enumerate(graph_show.nodes()):
-                if node in highlight_nodes:
-                    node_colors_update.append(node_colors[idx])
-                    node_labels_update[node] = node_labels[node]
-                else:
-                    node_colors_update.append('#f3f3f3')
-                    node_labels_update[node] = ''
-            node_colors = node_colors_update
-            node_labels = node_labels_update
-
-            subgraph = graph_show.subgraph(highlight_nodes)
-            edge_colors_update = []
-            edge_labels_update = {}
-            for idx, edge in enumerate(graph_show.edges()):
-                if edge in subgraph.edges():
-                    edge_colors_update.append(edge_colors[idx])
-                    edge_labels_update[edge] = edge_labels[edge]
-                else:
-                    edge_colors_update.append('#f3f3f3')
-                    edge_labels_update[edge] = ''
-            edge_colors = edge_colors_update
-            edge_labels = edge_labels_update
-
-        fig, ax = plt.subplots(figsize=figsize) #facecolor='none'
-        pos = nx.get_node_attributes(graph_show, 'coordinate') 
-        nx.draw(graph_show, pos,ax=ax, with_labels=False, node_color=node_colors, node_size=800, edgecolors='white',edge_color = edge_colors ,width = 18,) 
-        nx.draw_networkx_labels(graph_show,pos,labels=node_labels,font_size=node_font_size, font_color='white')
-        nx.draw_networkx_edge_labels(graph_show, pos, edge_labels=edge_labels,font_size=8, font_color='white',bbox=dict(facecolor='none', edgecolor='none'),rotate=False)
-
-        if show_qubits_attributes and is_node_info_avaliable:
-            if show_qubits_attributes == 'T1':
-                show_label = r'T1 ($\mu s$)'
-            elif show_qubits_attributes == 'T2':
-                show_label = r'T2 ($\mu s$)'
-            elif show_qubits_attributes == 'fidelity':
-                show_label = 'Single qubit gate fidelity'
-            elif show_qubits_attributes == 'frequency':
-                show_label = 'Frequency (GHz)'
-            node_sm = ScalarMappable(cmap=node_cmap, norm=node_norm)
-            node_sm.set_array(list(node_attributes.values()))  # 设置包含数据的数组
-            if is_edge_info_avaliable:
-                node_cbar = fig.colorbar(node_sm, ax=ax, orientation='horizontal',pad=0.07, fraction=0.03, aspect=25)
-            else:
-                node_cbar = fig.colorbar(node_sm, ax=ax, orientation='horizontal',pad=0.001, fraction=0.0333, aspect=25)
-            node_cbar.set_label(show_label)
-
-        if is_edge_info_avaliable:
-            edge_sm = ScalarMappable(cmap=edge_cmap, norm=edge_norm)# 创建颜色条
-            edge_sm.set_array(list(edge_fidelity.values()))  # 设置包含数据的数组
-            edge_cbar = fig.colorbar(edge_sm, ax=ax, orientation='horizontal',  pad=0.001, fraction=0.0333, aspect=25)# 调整颜色条大小和位置，放置在底部
-            edge_cbar.set_label('CZ fidelity')
-
-        xlim = ax.get_xlim() 
+        xlim = ax.get_xlim()
         ylim = ax.get_ylim()
         xpos = (xlim[0] + xlim[1]) / 2
-        ypos = ylim[0] - (ylim[1] - ylim[0]) * -0.03  # 计算标题位置
+        ypos = ylim[0] - (ylim[1] - ylim[0]) * -0.03
         ax.text(xpos, ypos, f'{self.chip_name}', va='center', ha='center', fontsize=24, fontweight='bold', color='k', family='serif')
 
-        ax.invert_yaxis() # y 轴正半轴朝下
+        ax.invert_yaxis()
 
         if save_svg_fname:
-            # plt.savefig(save_svg_fname + '.svg', transparent=True, dpi=300, bbox_inches='tight') 
-            plt.savefig(save_svg_fname + '.pdf', bbox_inches='tight') 
+            plt.savefig(save_svg_fname + '.svg', bbox_inches='tight')
         plt.clf()
         plt.close()
         return None
+    
+
+def _cache_chip_topology_figure(backend: Backend, chip_name: str) -> None:
+    """Best-effort topology rendering for local cache."""
+    cache_dir = Path(__file__).resolve().parent / ".cache"
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    fig_path = cache_dir / f"{chip_name}_chip"
+    backend.draw(
+        save_svg_fname=str(fig_path),
+        edge_fidelity_thres=0.9,
+    )
+
+
+def get_available_chip_status(tmgr) -> Dict[str, int]:
+    """Fetch chip queue status from task manager."""
+    status = tmgr.status()
+    if not isinstance(status, dict):
+        raise RuntimeError("tmgr.status() must return a dict of chip -> queue length")
+    return {k: v for k, v in status.items() if isinstance(v, int)}
+
+
+def get_chip_info(chip_name: str) -> Dict[str, Union[int, float]]:
+    """Get chip metadata and optionally cache a topology drawing."""
+    try:
+        backend = Backend(chip_name)
+        info = backend.chip_info
+        _cache_chip_topology_figure(backend, chip_name)
+        return info
+    except Exception:
+        return {}
+
+
+def rank_chips(
+    tmgr,
+    *,
+    num_qubits: int,
+    prefer_chips: Optional[Sequence[str] | str] = None,
+    weights: Optional[Dict[str, float]] = None,
+) -> List[str]:
+    """Rank chips by queue length, size, and error rate with weights."""
+    if isinstance(prefer_chips, str):
+        prefer_chips = [prefer_chips]
+    if prefer_chips is not None:
+        prefer_lower = {c.lower() for c in prefer_chips}
+        if "simulator" in prefer_lower:
+            return ["Simulator"] if num_qubits <= 12 else []
+
+    status = get_available_chip_status(tmgr)
+    if prefer_chips is not None:
+        prefer_set = {c for c in prefer_chips}
+        status = {k: v for k, v in status.items() if k in prefer_set}
+
+    ranked: List[Tuple[str, int, int, float]] = []
+    for chip_name, queue_len in status.items():
+        info = get_chip_info(chip_name)
+        global_info = info.get("global_info", {}) if isinstance(info, dict) else {}
+        nqubits = int(global_info.get("nqubits_available", info.get("nqubits_available", 0)) or 0)
+        if nqubits < num_qubits:
+            continue
+        error_rate_2q = float(global_info.get("error_rate_2q", info.get("error_rate_2q", float("inf"))))
+        ranked.append((chip_name, queue_len, nqubits, error_rate_2q))
+
+    if not ranked:
+        return []
+
+    if weights is None:
+        weights = {"queue": 0.2, "nqubits": 0.3, "error": 0.5}
+    w_queue = float(weights.get("queue", 0.2))
+    w_nqubits = float(weights.get("nqubits", 0.3))
+    w_error = float(weights.get("error", 0.5))
+
+    queues = [r[1] for r in ranked]
+    nqubits_list = [r[2] for r in ranked]
+    errors = [r[3] for r in ranked]
+
+    def _normalize(values: List[float]) -> List[float]:
+        vmin = min(values)
+        vmax = max(values)
+        if vmax == vmin:
+            return [0.0 for _ in values]
+        return [(v - vmin) / (vmax - vmin) for v in values]
+
+    q_norm = _normalize([float(v) for v in queues])
+    n_norm = _normalize([float(v) for v in nqubits_list])
+    e_norm = _normalize([float(v) for v in errors])
+
+    scored: List[Tuple[str, float]] = []
+    for (chip_name, _, _, _), qn, nn, en in zip(ranked, q_norm, n_norm, e_norm):
+        score = w_queue * qn + w_nqubits * (1.0 - nn) + w_error * en
+        scored.append((chip_name, score))
+
+    scored.sort(key=lambda x: x[1])
+    return [name for name, _ in scored]

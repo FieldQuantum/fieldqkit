@@ -22,22 +22,19 @@ from ..core.observables import (
 	pauli_basis_pattern,
 	pauli_support,
 )
-from .hardware import rank_chips
+from .backend import rank_chips
 from ..core.readout import (
 	build_local_confusion_matrix,
-	expectation_from_probabilities,
-	expectation_from_samples_unbiased,
+	mitigate_observable_from_samples,
 	mitigate_readout,
 )
 from ..calibration.readout import ReadoutCalibrationManager
 from ..core.types import RunResult
-from ..core.utils import get_local_probabilities_from_samples, get_probabilities_from_samples, get_samples, marginal_samples
+from ..core.utils import get_probabilities_from_samples, get_samples
 from ..core.zne import apply_zne_cz_tripling, zne_linear_extrapolate
 from ..sim.statevector import simulate_counts
 
-
 READOUT_OBSERVABLE_MARGINAL_MAX_SUPPORT = 10
-
 
 # NOTE: API layer client. Keeps hardware selection + algorithm orchestration in one place.
 class QuantumHardwareClient:
@@ -69,27 +66,6 @@ class QuantumHardwareClient:
 		if qubits:
 			return max(qubits) + 1
 		return int(getattr(qc, "nqubits", 0) or 0)
-
-	@staticmethod
-	def _mitigate_observable_from_samples(
-		samples: np.ndarray,
-		support: Sequence[int],
-		per_qubit: Dict[int, np.ndarray],
-		target_qubits_group: Sequence[int],
-		marginal_max_support: int = READOUT_OBSERVABLE_MARGINAL_MAX_SUPPORT,
-	) -> float:
-		"""Compute readout-mitigated observable value from samples with adaptive strategy."""
-		if not support:
-			return 1.0
-		support_phys = [target_qubits_group[i] for i in support]
-		if len(support) <= marginal_max_support:
-			local_cm = build_local_confusion_matrix(per_qubit, support_phys)
-			local_probs = get_local_probabilities_from_samples(samples, support)
-			local_probs_rem = mitigate_readout(local_probs, local_cm)
-			return expectation_from_probabilities(local_probs_rem, support)
-		local_samples = marginal_samples(samples, support)
-		local_cm_list = [per_qubit[q] for q in support_phys]
-		return expectation_from_samples_unbiased(local_samples, local_cm_list)
 
 	def _normalize_input_circuit(self, circuit: Union[str, QuantumCircuit], num_qubits: int) -> QuantumCircuit:
 		"""Convert input into a QuantumCircuit and sanitize measurements."""
@@ -418,7 +394,7 @@ class QuantumHardwareClient:
 				for obs in meta["observables"]:
 					support = supports_by_obs[obs]
 					if support:
-						val_1_rem = self._mitigate_observable_from_samples(
+						val_1_rem = mitigate_observable_from_samples(
 							samples_1,
 							support,
 							per_qubit,
@@ -427,7 +403,7 @@ class QuantumHardwareClient:
 						)
 						observable_values[obs] = val_1_rem
 						if zne:
-							val_3_rem = self._mitigate_observable_from_samples(
+							val_3_rem = mitigate_observable_from_samples(
 								samples_3,
 								support,
 								per_qubit,

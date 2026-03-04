@@ -53,3 +53,18 @@ def get_local_probabilities_from_samples(samples: np.ndarray, support: Sequence[
 		return np.array([1.0])
 	local_samples = marginal_samples(samples, support)
 	return get_probabilities_from_samples(local_samples, len(support))
+
+
+def expectation_from_probabilities(probabilities: np.ndarray, support: Sequence[int]) -> float:
+	"""Compute Z-basis expectation value from probabilities."""
+	if not support:
+		return 1.0
+	num = len(support)
+	probs = probabilities.reshape([2] * num)
+	parity = np.zeros([2] * num, dtype=int)
+	for i in range(num):
+		shape = [1] * num
+		shape[i] = 2
+		parity += np.arange(2).reshape(shape)
+	sign = 1.0 - 2.0 * (parity % 2)
+	return float((probs * sign).sum())

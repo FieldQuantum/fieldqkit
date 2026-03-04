@@ -7,7 +7,7 @@ from typing import Callable, Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
 from ..api.backend import Backend
-from ..api.hardware import rank_chips
+from ..api.backend import rank_chips
 
 from ..circuit import QuantumCircuit
 
