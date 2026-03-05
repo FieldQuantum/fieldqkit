@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Sequence, Tuple, Union
+from typing import Dict, List, Optional
 
 
 Counts = Dict[str, int]
@@ -11,13 +11,13 @@ Counts = Dict[str, int]
 
 @dataclass
 class RunResult:
-	task_ids: Optional[List[str]] = None
-	samples: Optional[List[List[int]] | List[List[List[int]]]] = None
-	samples_zne: Optional[List[List[int]] | List[List[List[int]]]] = None
-	probabilities: Optional[List[float] | List[List[float]]] = None
-	probabilities_raw: Optional[List[float] | List[List[float]]] = None
-	observable_values: Optional[float | Dict[str, float]] = None
-	observable_values_raw: Optional[float | Dict[str, float]] = None
+	task_ids: Optional[List[str]]
+	samples: List[List[List[int]]]
+	samples_zne: Optional[List[List[List[int]]]]
+	probabilities: List[List[float]]
+	probabilities_raw: List[List[float]]
+	observable_values: Dict[str, float]
+	observable_values_raw: Dict[str, float]
 
 
 @dataclass

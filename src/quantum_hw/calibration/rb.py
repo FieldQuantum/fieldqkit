@@ -9,7 +9,6 @@ from typing import Callable, Dict, List, Optional, Sequence, Tuple
 import numpy as np
 
 from ..circuit import QuantumCircuit
-from ..circuit.matrix import gate_matrix_dict
 from ..core.readout import build_local_confusion_matrix, mitigate_readout
 from ..core.utils import get_probabilities
 from ..api.backend import Backend
@@ -229,9 +228,6 @@ class NativeTwoQubitRBManager:
 		single_gates = ["id", "x", "y", "z"]
 
 		basis_gate = "cx" if basis_gate in {"cnot", "cx"} else basis_gate
-		basis_mat = gate_matrix_dict.get(basis_gate)
-		if basis_mat is None:
-			raise ValueError(f"unsupported two-qubit basis gate: {basis_gate}")
 		gates_list = []
 		# Build forward sequence, then apply explicit inverse sequence.
 		for l in range(length):

@@ -222,69 +222,6 @@ def run_shadow_with_backend(
     )
 
 
-def run_shadow(
-    client,
-    circuit: Union[str, QuantumCircuit],
-    name: str,
-    num_qubits: int,
-    *,
-    shots: int = 8192,
-    shots_per_basis: int = 1,
-    observables: Optional[Sequence[str]] = None,
-    zne: bool = False,
-    estimator: str = "mean",
-    mom_groups: Optional[int] = None,
-    target_qubits: Optional[Sequence[int]] = None,
-    prefer_chips: Optional[Sequence[str] | str] = None,
-    rank_weights: Optional[Dict[str, float]] = None,
-    seed: Optional[int] = None,
-) -> ShadowResult:
-    """Select hardware and run classical shadow tomography."""
-    print("[shadow] read hardware information and select")
-    # Normalize input circuit and strip measurements if present.
-    qc = client._normalize_input_circuit(circuit, num_qubits)
-
-    ranked_chips = rank_chips(
-        client.tmgr,
-        num_qubits=num_qubits,
-        prefer_chips=prefer_chips,
-        weights=rank_weights,
-    )
-    if not ranked_chips:
-        raise RuntimeError("no available chips satisfy num_qubits requirement")
-
-    if isinstance(observables, str):
-        observables = [observables]
-
-    last_error: Optional[Exception] = None
-    for chip_name in ranked_chips:
-        backend = Backend(chip_name)
-        client.chip_name = chip_name
-        client.chip_backend = backend
-        try:
-            return run_shadow_with_backend(
-                client,
-                qc,
-                name=name,
-                num_qubits=num_qubits,
-                backend=backend,
-                chip_name=chip_name,
-                shots=shots,
-                shots_per_basis=shots_per_basis,
-                observables=observables,
-                target_qubits=target_qubits,
-                zne=zne,
-                estimator=estimator,
-                mom_groups=mom_groups,
-                seed=seed,
-            )
-        except Exception as exc:
-            last_error = exc
-            continue
-
-    raise RuntimeError("all candidate chips failed to run shadow tomography") from last_error
-
-
 @dataclass
 class ShadowTomography:
     """High-level helper for classical shadow tomography."""
@@ -308,19 +245,47 @@ class ShadowTomography:
         prefer_chips: Optional[Sequence[str] | str] = None,
         rank_weights: Optional[Dict[str, float]] = None,
     ) -> ShadowResult:
-        return run_shadow(
-            self.client,
-            circuit,
-            name,
-            num_qubits,
-            shots=shots,
-            shots_per_basis=shots_per_basis,
-            observables=observables,
-            zne=zne,
-            estimator=estimator,
-            mom_groups=mom_groups,
-            target_qubits=target_qubits,
+        """Select hardware and run classical shadow tomography."""
+        print("[shadow] read hardware information and select")
+        # Normalize input circuit and strip measurements if present.
+        qc = self.client._normalize_input_circuit(circuit, num_qubits)
+
+        ranked_chips = rank_chips(
+            self.client.tmgr,
+            num_qubits=num_qubits,
             prefer_chips=prefer_chips,
-            rank_weights=rank_weights,
-            seed=self.seed,
+            weights=rank_weights,
         )
+        if not ranked_chips:
+            raise RuntimeError("no available chips satisfy num_qubits requirement")
+
+        if isinstance(observables, str):
+            observables = [observables]
+
+        last_error: Optional[Exception] = None
+        for chip_name in ranked_chips:
+            backend = Backend(chip_name)
+            self.client.chip_name = chip_name
+            self.client.chip_backend = backend
+            try:
+                return run_shadow_with_backend(
+                    self.client,
+                    qc,
+                    name=name,
+                    num_qubits=num_qubits,
+                    backend=backend,
+                    chip_name=chip_name,
+                    shots=shots,
+                    shots_per_basis=shots_per_basis,
+                    observables=observables,
+                    target_qubits=target_qubits,
+                    zne=zne,
+                    estimator=estimator,
+                    mom_groups=mom_groups,
+                    seed=self.seed,
+                )
+            except Exception as exc:
+                last_error = exc
+                continue
+
+        raise RuntimeError("all candidate chips failed to run shadow tomography") from last_error

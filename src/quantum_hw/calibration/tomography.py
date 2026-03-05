@@ -10,7 +10,6 @@ import numpy as np
 
 from ..api.backend import Backend
 from ..circuit import QuantumCircuit
-from ..circuit.matrix import gate_matrix_dict
 from ..core.observables import apply_measurement_basis_rotations
 from ..core.readout import build_local_confusion_matrix, mitigate_readout
 from ..core.utils import get_probabilities
@@ -125,7 +124,8 @@ class NativeTwoQubitTomographyManager:
 
 		results: Dict[str, Dict[str, object]] = {}
 		basis_gate = backend.two_qubit_gate_basis
-		ideal_ptm = self._ptm_from_unitary(self._native_gate_matrix(basis_gate))
+		basis_gate = "cx" if basis_gate in {"cnot", "cx"} else basis_gate
+		ideal_ptm = self._ptm_from_unitary(basis_gate)
 
 		for q1, q2 in couplers:
 			key = coupler_key(q1, q2)
@@ -243,13 +243,6 @@ class NativeTwoQubitTomographyManager:
 		if method_name is None:
 			raise ValueError(f"unsupported two-qubit gate: {gate}")
 		getattr(qc, method_name)(q1, q2)
-
-	def _native_gate_matrix(self, gate: str) -> np.ndarray:
-		gate = "cx" if gate in {"cnot", "cx"} else gate
-		mat = gate_matrix_dict.get(gate)
-		if mat is None:
-			raise ValueError(f"unsupported two-qubit basis gate: {gate}")
-		return mat
 
 	def _expectations_from_measurements(
 		self,

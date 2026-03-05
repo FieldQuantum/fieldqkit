@@ -98,6 +98,7 @@ def append_measurement_basis(qc, basis_pattern: Sequence[str], target_qubits: Se
 	# Map measured qubits onto a dense classical register order.
 	qc.measure(target_qubits, list(range(len(target_qubits))))
 
+
 def _compatible_with_basis(pattern: Sequence[str], basis: Sequence[str]) -> bool:
 	"""Check whether two basis patterns are compatible for grouping."""
 	for p, b in zip(pattern, basis):

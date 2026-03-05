@@ -1,4 +1,4 @@
-"""Simple statevector simulator (ketn0 axis order, counts in little-endian)."""
+"""Simple statevector simulator (standard axis order, counts in little-endian)."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ from typing import Dict, Sequence
 import numpy as np
 
 from ..circuit import QuantumCircuit
-from ..circuit.matrix import gate_matrix_dict, ketn0
+from .matrix import gate_matrix_dict, ketn0
 from ..circuit.quantumcircuit_helpers import (
     functional_gates_available,
     one_qubit_gates_available,
@@ -40,7 +40,7 @@ def _apply_k_qubit_gate(
     k = len(qubits)
     if k == 0:
         return state
-    # State tensor follows the same qubit order as ketn0 (q0 is the first axis).
+    # Internal simulator uses standard order consistent with sim.matrix:
     # Move target axes to the front so the gate acts on the correct subspace.
     axes = list(qubits)
     tensor = state.reshape([2] * num_qubits)

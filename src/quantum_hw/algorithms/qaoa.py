@@ -632,97 +632,9 @@ def run_qaoa_with_backend(
     )
 
 
-def run_qaoa(
-    client,
-    *,
-    name: str,
-    num_qubits: int,
-    problem: str = "maxcut",
-    edges: Optional[Sequence[Tuple[int, int]]] = None,
-    weights: Optional[Sequence[float]] = None,
-    terms: Optional[Sequence[Tuple[float, str]]] = None,
-    constant: float = 0.0,
-    p: int = 1,
-    shots: int = 1024,
-    max_iters: int = 20,
-    learning_rate: float = 0.1,
-    beta1: float = 0.9,
-    beta2: float = 0.999,
-    eps: float = 1e-8,
-    shift: float = np.pi / 2.0,
-    zne: bool = False,
-    readout_mitigation: bool = False,
-    target_qubits: Optional[Sequence[int]] = None,
-    seed: Optional[int] = None,
-    init_params: Optional[Sequence[float]] = None,
-    callback: Optional[Callable[[int, float, np.ndarray], None]] = None,
-    prefer_chips: Optional[Sequence[str] | str] = None,
-    rank_weights: Optional[Dict[str, float]] = None,
-) -> QAOAResult:
-    """Select hardware and run QAOA optimization."""
-    problem = problem.lower()
-    if problem == "maxcut":
-        if edges is None:
-            raise ValueError("maxcut problem requires edges")
-        terms = None
-        constant = 0.0
-    elif problem == "custom":
-        if terms is None:
-            raise ValueError("custom problem requires terms")
-        terms, constant = build_custom_cost_hamiltonian(terms, num_qubits, constant=constant)
-    else:
-        raise ValueError(f"unsupported problem: {problem}")
-
-    ranked_chips = rank_chips(
-        client.tmgr,
-        num_qubits=num_qubits,
-        prefer_chips=prefer_chips,
-        weights=rank_weights,
-    )
-    if not ranked_chips:
-        raise RuntimeError("no available chips satisfy num_qubits requirement")
-
-    last_error: Optional[Exception] = None
-    for chip_name in ranked_chips:
-        backend = Backend(chip_name)
-        client.chip_name = chip_name
-        client.chip_backend = backend
-        try:
-            return run_qaoa_with_backend(
-                client,
-                name=name,
-                num_qubits=num_qubits,
-                backend=backend,
-                chip_name=chip_name,
-                edges=edges or [],
-                weights=weights,
-                terms=terms,
-                constant=constant,
-                p=p,
-                shots=shots,
-                max_iters=max_iters,
-                learning_rate=learning_rate,
-                beta1=beta1,
-                beta2=beta2,
-                eps=eps,
-                shift=shift,
-                zne=zne,
-                readout_mitigation=readout_mitigation,
-                target_qubits=target_qubits,
-                seed=seed,
-                init_params=init_params,
-                callback=callback,
-            )
-        except Exception as exc:
-            last_error = exc
-            continue
-
-    raise RuntimeError("all candidate chips failed to run QAOA") from last_error
-
-
 @dataclass
 class QAOARunner:
-    """High-level QAOA runner (MaxCut)."""
+    """High-level QAOA runner."""
 
     client: object
     p: int = 1
@@ -737,40 +649,84 @@ class QAOARunner:
     readout_mitigation: bool = False
     seed: Optional[int] = None
 
-    def run_maxcut(
+    def run_model(
         self,
         name: str,
         num_qubits: int,
         *,
-        edges: Sequence[Edge],
+        problem: str = "maxcut",
+        edges: Optional[Sequence[Edge]] = None,
         weights: Optional[Sequence[float]] = None,
+        terms: Optional[Sequence[Tuple[float, str]]] = None,
+        constant: float = 0.0,
         target_qubits: Optional[Sequence[int]] = None,
         init_params: Optional[Sequence[float]] = None,
         callback: Optional[Callable[[int, float, np.ndarray], None]] = None,
         prefer_chips: Optional[Sequence[str] | str] = None,
         rank_weights: Optional[Dict[str, float]] = None,
     ) -> QAOAResult:
-        return run_qaoa(
-            self.client,
-            name=name,
+        problem = problem.lower()
+        if problem == "maxcut":
+            if edges is None:
+                raise ValueError("maxcut problem requires edges")
+            run_edges = list(edges)
+            run_terms = None
+            run_constant = 0.0
+        elif problem == "custom":
+            if terms is None:
+                raise ValueError("custom problem requires terms")
+            run_terms, run_constant = build_custom_cost_hamiltonian(
+                terms,
+                num_qubits,
+                constant=constant,
+            )
+            run_edges = []
+        else:
+            raise ValueError(f"unsupported problem: {problem}")
+
+        ranked_chips = rank_chips(
+            self.client.tmgr,
             num_qubits=num_qubits,
-            problem="maxcut",
-            edges=edges,
-            weights=weights,
-            p=self.p,
-            shots=self.shots,
-            max_iters=self.max_iters,
-            learning_rate=self.learning_rate,
-            beta1=self.beta1,
-            beta2=self.beta2,
-            eps=self.eps,
-            shift=self.shift,
-            zne=self.zne,
-            readout_mitigation=self.readout_mitigation,
-            target_qubits=target_qubits,
-            init_params=init_params,
-            callback=callback,
-            seed=self.seed,
             prefer_chips=prefer_chips,
-            rank_weights=rank_weights,
+            weights=rank_weights,
         )
+        if not ranked_chips:
+            raise RuntimeError("no available chips satisfy num_qubits requirement")
+
+        last_error: Optional[Exception] = None
+        for chip_name in ranked_chips:
+            backend = Backend(chip_name)
+            self.client.chip_name = chip_name
+            self.client.chip_backend = backend
+            try:
+                return run_qaoa_with_backend(
+                    self.client,
+                    name=name,
+                    num_qubits=num_qubits,
+                    backend=backend,
+                    chip_name=chip_name,
+                    edges=run_edges,
+                    weights=weights,
+                    terms=run_terms,
+                    constant=run_constant,
+                    p=self.p,
+                    shots=self.shots,
+                    max_iters=self.max_iters,
+                    learning_rate=self.learning_rate,
+                    beta1=self.beta1,
+                    beta2=self.beta2,
+                    eps=self.eps,
+                    shift=self.shift,
+                    zne=self.zne,
+                    readout_mitigation=self.readout_mitigation,
+                    target_qubits=target_qubits,
+                    seed=self.seed,
+                    init_params=init_params,
+                    callback=callback,
+                )
+            except Exception as exc:
+                last_error = exc
+                continue
+
+        raise RuntimeError("all candidate chips failed to run QAOA") from last_error
+

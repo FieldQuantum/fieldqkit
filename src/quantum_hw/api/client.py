@@ -444,7 +444,6 @@ class QuantumHardwareClient:
 		print_true: bool = True,
 	) -> RunResult:
 		"""Automatically select hardware, run, and return results."""
-		print("[hardware] read hardware information and select")
 		# Normalize input circuit and strip measurements if present.
 		qc = self._normalize_input_circuit(circuit, num_qubits)
 		ranked_chips = rank_chips(

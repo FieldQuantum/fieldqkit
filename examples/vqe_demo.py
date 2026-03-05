@@ -16,12 +16,12 @@ if __name__ == "__main__":
         client=client,
         layers=1,
         shots=4096,
-        max_iters=10,
-        learning_rate=0.2,
+        max_iters=20,
+        learning_rate=0.1,
         zne=True,
         readout_mitigation=True,
         seed=42,
-        shift=0.5,
+        shift=0.3,
     )
 
     print("[demo] start VQE:", name)
