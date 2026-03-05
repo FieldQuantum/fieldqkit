@@ -38,7 +38,7 @@ pip install -e .[viz,test]
 
 ## 快速开始
 
-完整示例见 [examples/demo.py](examples/demo.py)。
+完整示例见 [examples/demo_full.ipynb](examples/demo_full.ipynb)。
 
 ```python
 from quantum_hw import QuantumHardwareClient
