@@ -60,14 +60,6 @@ print(result.probabilities)
 
 也可以直接传入 `QuantumCircuit`；若线路里已有测量，会被自动移除并在执行时按测量基重新追加。
 
-校准示例：
-
-- Readout calibration: [examples/demo_calibrate.py](examples/demo_calibrate.py)
-- Native two-qubit RB: [examples/demo_rb.py](examples/demo_rb.py)
-- Native two-qubit process tomography: see `NativeTwoQubitTomographyManager`
-
-RB 缓存文件只保存每个 coupler 的 `fidelity`，避免大体积缓存。
-
 ## 模块结构
 
 - `quantum_hw.api`：面向用户的 API 层（`QuantumHardwareClient`）。
@@ -76,6 +68,25 @@ RB 缓存文件只保存每个 coupler 的 `fidelity`，避免大体积缓存。
 - `quantum_hw.compile`：编译与转译入口（`Transpiler`）。
 - `quantum_hw.circuit.qasm2` / `quantum_hw.circuit.qasm3`：OpenQASM2/3 解析实现。
 
-更多接口参数、执行流程与实现细节请见 [docs/DOCUMENTATION.md](docs/DOCUMENTATION.md)。
+## 教程导航（Notebook）
 
-新的分页面文档骨架见 [docs/README.md](docs/README.md)（含 API 参考目录与模板）。
+- [全览入门：run_auto + mitigation + 可视化](examples/demo_full.ipynb)
+- [QuantumCircuit 与 core 函数拆解](examples/demo_circuit_core.ipynb)
+- [Shadow tomography 分层教程](examples/demo_shadow.ipynb)
+- [Readout calibration + ZNE 专项](examples/demo_readout_zne.ipynb)
+- [VQE：顶层接口 + parameter-shift 手动梯度下降](examples/demo_vqe.ipynb)
+- [Backend 拓扑与芯片排序](examples/demo_backend.ipynb)
+
+## 学习路径（入门 → 进阶 → 硬件 → 优化）
+
+1. 入门：先看 [全览入门：run_auto + mitigation + 可视化](examples/demo_full.ipynb)
+2. 进阶：继续 [QuantumCircuit 与 core 函数拆解](examples/demo_circuit_core.ipynb)
+3. 硬件：再看 [Readout calibration + ZNE 专项](examples/demo_readout_zne.ipynb)
+4. 优化：按顺序学习
+    - [Shadow tomography 分层教程](examples/demo_shadow.ipynb)
+    - [VQE：顶层接口 + parameter-shift 手动梯度下降](examples/demo_vqe.ipynb)
+5. 硬件拓扑补充：参考 [Backend 拓扑与芯片排序](examples/demo_backend.ipynb)
+
+## 文档 (Docs)
+
+Docs 总览见 [docs/README.md](docs/README.md)。

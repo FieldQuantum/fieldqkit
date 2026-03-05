@@ -95,18 +95,19 @@ run_auto(
 
 - `task_ids: Optional[List[str]]`
     - 硬件模式下返回任务 ID 列表；模拟器模式通常为 `None`。
-- `samples: Optional[List[List[List[int]]]]`
+- `samples: List[List[List[int]]]`
     - 每个测量组一份样本；外层列表长度等于测量组数量。
 - `samples_zne: Optional[List[List[List[int]]]]`
     - 仅当 `zne=True` 时返回，对应噪声缩放 `scale=3` 的样本。
-- `probabilities: Optional[List[List[float]]]`
-    - 仅当 `return_probabilities=True` 时返回。
+- `probabilities: List[List[float]]`
+    - 若 `return_probabilities=False`，返回空列表 `[]`。
     - 若启用 readout/ZNE，此字段是处理后的结果。
-- `probabilities_raw: Optional[List[List[float]]]`
-    - 仅当 `return_probabilities=True` 时返回，表示未缓解的原始概率。
-- `observable_values: Optional[Dict[str, float]]`
+- `probabilities_raw: List[List[float]]`
+    - 若 `return_probabilities=False`，返回空列表 `[]`。
+    - 表示未缓解的原始概率。
+- `observable_values: Dict[str, float]`
     - 可观测量最终估计值（可被 readout/ZNE 更新）。
-- `observable_values_raw: Optional[Dict[str, float]]`
+- `observable_values_raw: Dict[str, float]`
     - 可观测量原始估计值（不含缓解）。
 
 ## 执行行为说明
