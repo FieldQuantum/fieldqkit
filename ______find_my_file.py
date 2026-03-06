@@ -4,7 +4,7 @@ import fnmatch
 # Set the directory to search in
 directory = os.path.dirname(__file__)
 # Set the string to search for
-search_string = r'gate_matrix_dict'
+search_string = r'deep_apply_value'  # example string, replace with your desired string
 
 # Loop over all the .py files in the directory
 for root, dirnames, filenames in os.walk(directory):

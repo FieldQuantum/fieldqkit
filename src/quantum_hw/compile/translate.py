@@ -78,6 +78,15 @@ class TranslateToBasisGates(TranspilerPass):
                     elif gate == "r":
                         theta, phi, qubit = gate_info[1:]
                         new.append(("u", theta, phi - np.pi / 2, np.pi / 2 - phi, qubit))
+                    elif isinstance(gate_info[1], str) and gate in {"rx", "ry", "rz", "p"}:
+                        theta = gate_info[1]
+                        qubit = gate_info[-1]
+                        if gate == "rx":
+                            new.append(("u", theta, -np.pi / 2, np.pi / 2, qubit))
+                        elif gate == "ry":
+                            new.append(("u", theta, 0.0, 0.0, qubit))
+                        else:  # rz / p
+                            new.append(("u", 0.0, 0.0, theta, qubit))
                     else:
                         gate_matrix = gate_matrix_dict[gate](*gate_info[1:-1])
                         theta, phi, lamda, _ = u3_decompose(gate_matrix)

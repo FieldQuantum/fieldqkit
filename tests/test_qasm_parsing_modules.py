@@ -6,6 +6,7 @@ from quantum_hw.circuit.qasm2 import (
     parse_openqasm2_custom_gates,
 )
 from quantum_hw.circuit.qasm3 import parse_openqasm3_to_gates
+from quantum_hw.circuit.quantumcircuit_helpers import add_gates_to_lines, format_gates_layerd
 
 
 def _find_gate(gates, name):
@@ -27,6 +28,20 @@ def test_qasm2_regs_and_custom_gate_strip():
     custom, stripped = parse_openqasm2_custom_gates(cleaned)
     assert "mygate" in custom
     assert "gate mygate" not in stripped
+
+
+def test_qasm2_custom_gate_parse_has_no_debug_stdout(capsys):
+    qasm = """
+    OPENQASM 2.0;
+    include \"qelib1.inc\";
+    qreg q[2];
+    gate mygate a,b { cx a,b; }
+    mygate q[0],q[1];
+    """
+    _, _, cleaned = parse_openqasm2_regs(qasm)
+    parse_openqasm2_custom_gates(cleaned)
+    captured = capsys.readouterr()
+    assert captured.out == ""
 
 
 def test_qasm2_basic_parse():
@@ -164,3 +179,87 @@ def test_qasm3_measurement_statement_variant():
     assert ("measure", [0], [0]) in gates
     assert qubits == {0}
     assert cbits == {0}
+
+
+def test_add_gates_to_lines_formats_mixed_parameter_tokens():
+    gates = [
+        ("u", "theta", "phi", "lam", 0),
+        ("cp", "alpha", 0, 1),
+        ("rz", "beta", 1),
+    ]
+    params_value = {
+        "theta": np.pi / 2,
+        "phi": "phi_expr",
+        "alpha": np.pi,
+        "beta": np.pi / 4,
+    }
+
+    lines, _ = add_gates_to_lines(2, 1, gates, params_value, width=1)
+    rendered = "\n".join(lines)
+
+    assert "U(" in rendered
+    assert "phi_expr" in rendered
+    assert "lam" in rendered
+    assert "0.5" in rendered
+    assert "0.25" in rendered
+    assert "1.0" in rendered
+
+
+def test_format_gates_layerd_normalizes_row_cell_widths():
+    gates = [
+        ("h", 0),
+        ("cp", np.pi / 2, 0, 1),
+        ("measure", [0], [0]),
+    ]
+
+    layers, _ = format_gates_layerd(2, 1, gates, params_value={})
+
+    for row in layers[1:]:
+        row_width = max(len(cell) for cell in row)
+        assert row_width % 2 == 1
+        assert all(len(cell) == row_width for cell in row)
+
+
+def test_add_gates_to_lines_width_parameter_changes_output_spacing():
+    gates = [
+        ("h", 0),
+        ("cx", 0, 1),
+        ("rz", np.pi / 4, 1),
+    ]
+
+    lines_w1, _ = add_gates_to_lines(2, 1, gates, params_value={}, width=1)
+    lines_w4, _ = add_gates_to_lines(2, 1, gates, params_value={}, width=4)
+
+    assert len(lines_w1) == len(lines_w4)
+    assert all(len(line4) > len(line1) for line1, line4 in zip(lines_w1, lines_w4))
+
+
+def test_add_gates_to_lines_reports_only_used_qubit_rows():
+    gates = [("h", 2)]
+
+    lines, lines_use = add_gates_to_lines(3, 1, gates, params_value={}, width=1)
+
+    assert set(lines_use) == {4, 5}
+    assert "H" in lines[4]
+
+
+def test_add_gates_to_lines_snapshot_small_circuit():
+    gates = [
+        ("h", 0),
+        ("cx", 0, 1),
+        ("rz", 0.5, 1),
+        ("measure", [0], [0]),
+    ]
+
+    lines, _ = add_gates_to_lines(2, 1, gates, params_value={}, width=1)
+
+    expected = [
+        "q[0]  \u2500H\u2500\u25cf\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500M\u2500",
+        "         \u2502         \u2502 ",
+        "q[1]  \u2500\u2500\u2500X\u2500Rz(0.5)\u2500\u2502\u2500",
+        "                   \u2502 ",
+        "c:  1/\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550",
+        "                   0 ",
+    ]
+
+    assert lines == expected

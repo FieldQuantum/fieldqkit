@@ -18,8 +18,10 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 r"""Helper utilities for circuit parsing, DAG conversion, and rendering."""
+import copy
+import re
+
 import numpy as np
-import copy,re
 
 one_qubit_gates_available = {
     'id':'I', 'x':'X', 'y':'Y', 'z':'Z',
@@ -33,12 +35,6 @@ three_qubit_gates_available = {'ccz':'●●●','ccx':'●●X','cswap':'●XX'
 one_qubit_parameter_gates_available = {'rx':'Rx', 'ry':'Ry', 'rz':'Rz', 'p':'P', 'u':'U', 'u3':'U', 'r':'R'}
 two_qubit_parameter_gates_available = {'rxx':'Rxx', 'ryy':'Ryy', 'rzz':'Rzz','cp':'●P'} # CPhase
 functional_gates_available = {'barrier':'░', 'measure':'M', 'reset':'|0>','delay':'Delay'}
-
-
-def _record_qubits(qubit_used: list, *qubits: int) -> None:
-    qubit_used.extend(qubits)
-
-
 
 def convert_gate_info_to_dag_info(nqubits:int,qubits:list,gates:list,show_qubits:bool=True) -> tuple[list,list]:
     #print('check',nqubits,qubits)
@@ -65,16 +61,16 @@ def convert_gate_info_to_dag_info(nqubits:int,qubits:list,gates:list,show_qubits
     for idx,gate_info in enumerate(gates0):
         # node 
         gate = gate_info[0]
-        if gate in one_qubit_gates_available.keys():
+        if gate in one_qubit_gates_available:
             qubits = [gate_info[1]]
             node_info = (gate+'_'+str(idx)+'_'+str(qubits),{'qubits':qubits})
-        elif gate in two_qubit_gates_available.keys():
+        elif gate in two_qubit_gates_available:
             qubits = list(gate_info[1:])
             node_info = (gate+'_'+str(idx)+'_'+str(qubits),{'qubits':qubits})
-        elif gate in three_qubit_gates_available.keys():
+        elif gate in three_qubit_gates_available:
             qubits = list(gate_info[1:])
             node_info = (gate+'_'+str(idx)+'_'+str(qubits),{'qubits':qubits})
-        elif gate in one_qubit_parameter_gates_available.keys():
+        elif gate in one_qubit_parameter_gates_available:
             if gate == 'u': # three params
                 qubits = [gate_info[-1]]
                 params = list(gate_info[1:4])
@@ -87,11 +83,11 @@ def convert_gate_info_to_dag_info(nqubits:int,qubits:list,gates:list,show_qubits
                 qubits = [gate_info[-1]]
                 params = [gate_info[1]]
                 node_info = (gate+'_'+str(idx)+'_'+str(qubits),{'qubits':qubits, 'params':params})      
-        elif gate in two_qubit_parameter_gates_available.keys():
+        elif gate in two_qubit_parameter_gates_available:
             qubits = list(gate_info[2:])
             params = [gate_info[1]]
             node_info = (gate+'_'+str(idx)+'_'+str(qubits),{'qubits':qubits, 'params':params})  
-        elif gate in functional_gates_available.keys():
+        elif gate in functional_gates_available:
             if gate == 'measure':
                 qubits = [gate_info[1][0]]
                 cbits = [gate_info[2][0]]
@@ -109,7 +105,7 @@ def convert_gate_info_to_dag_info(nqubits:int,qubits:list,gates:list,show_qubits
         node_list.append(node_info)
         
         # edge
-        if gate in two_qubit_gates_available.keys() or gate in two_qubit_parameter_gates_available.keys():
+        if gate in two_qubit_gates_available or gate in two_qubit_parameter_gates_available:
             if qubit_dic[qubits[0]] == qubit_dic[qubits[1]]:
                 if qubit_dic[qubits[0]] is not None:
                     edge_info = (qubit_dic[qubits[0]],node_info[0],{"qubit":list(sorted(qubits))})
@@ -119,7 +115,7 @@ def convert_gate_info_to_dag_info(nqubits:int,qubits:list,gates:list,show_qubits
                     if qubit_dic[qubit] is not None:
                         edge_info = (qubit_dic[qubit],node_info[0],{"qubit" : [qubit]})
                         edge_list.append(edge_info)  
-        elif gate in three_qubit_gates_available.keys():
+        elif gate in three_qubit_gates_available:
             # Three-qubit cases: all same node; two-share-one; or all different.
             pre_node_list = [qubit_dic[qubits[0]],qubit_dic[qubits[1]],qubit_dic[qubits[2]]]
             if len(set(pre_node_list)) == 3:
@@ -203,6 +199,19 @@ def is_multiple_of_pi(n, tolerance: float = 1e-9) -> str:
             return expression
     else:
         return str(round(n,3))
+
+
+def _format_param_token(token, params_value: dict) -> str:
+    r"""Normalize parameter values for circuit drawing labels."""
+    if isinstance(token, (float, int, np.floating, np.integer)):
+        return is_multiple_of_pi(float(token))
+    if isinstance(token, str):
+        param = params_value.get(token, token)
+        if isinstance(param, (float, int, np.floating, np.integer)):
+            return is_multiple_of_pi(float(param))
+        if isinstance(param, str):
+            return param
+    return str(token)
     
 #def parse_expression(expr):
 #    return float(eval(expr, {"pi": np.pi, "np": np,'π':np.pi}))
@@ -316,7 +325,7 @@ def generate_gates_layerd(nqubits:int,ncbits:int,gates:list,params_value:dict) -
     gates_element,gates_layerd = initialize_lines(nqubits,ncbits,gates)
     for gate_info in gates:
         gate = gate_info[0]
-        if gate in one_qubit_gates_available.keys():
+        if gate in one_qubit_gates_available:
             pos0 = gate_info[1]
             for idx in range(len(gates_layerd)-1,-1,-1):
                 if gates_layerd[idx][2*pos0] != '─':
@@ -324,7 +333,7 @@ def generate_gates_layerd(nqubits:int,ncbits:int,gates:list,params_value:dict) -
                     lines_use.append(2 * pos0)
                     lines_use.append(2 * pos0 + 1)
                     break
-        elif gate in two_qubit_gates_available.keys():
+        elif gate in two_qubit_gates_available:
             pos0 = min(gate_info[1],gate_info[2])
             pos1 = max(gate_info[1],gate_info[2])
             for idx in range(len(gates_layerd)-1,-1,-1):
@@ -338,7 +347,7 @@ def generate_gates_layerd(nqubits:int,ncbits:int,gates:list,params_value:dict) -
                     for i in range(2*pos0+1,2*pos1):
                         gates_layerd[idx+1][i] = '│'
                     break
-        elif gate in three_qubit_gates_available.keys():
+        elif gate in three_qubit_gates_available:
             sorted_qubits = sorted([gate_info[1],gate_info[2],gate_info[3]])
             pos0 = sorted_qubits[0]
             pos1 = sorted_qubits[1]
@@ -359,18 +368,11 @@ def generate_gates_layerd(nqubits:int,ncbits:int,gates:list,params_value:dict) -
                     for i in range(2*pos1+1,2*pos2):
                         gates_layerd[idx+1][i] = '│'
                     break
-        elif gate in two_qubit_parameter_gates_available.keys():
+        elif gate in two_qubit_parameter_gates_available:
             if gate in ['cp']:
                 pos0 = min(gate_info[2],gate_info[3])
                 pos1 = max(gate_info[2],gate_info[3])
-                if isinstance(gate_info[1],(float,int)):
-                    theta0_str = is_multiple_of_pi(gate_info[1])
-                elif isinstance(gate_info[1],str):
-                    param = params_value[gate_info[1]]
-                    if isinstance(param,(float,int)):
-                        theta0_str = is_multiple_of_pi(param)
-                    elif isinstance(param,str):
-                        theta0_str = param
+                theta0_str = _format_param_token(gate_info[1], params_value)
                 gate_express = two_qubit_parameter_gates_available[gate][1]+f'({theta0_str})'
                 if len(gate_express) % 2 == 0:
                     gate_express = two_qubit_parameter_gates_available[gate][1]+f'({theta0_str})─'
@@ -393,14 +395,7 @@ def generate_gates_layerd(nqubits:int,ncbits:int,gates:list,params_value:dict) -
             else:
                 pos0 = min(gate_info[2],gate_info[3])
                 pos1 = max(gate_info[2],gate_info[3])
-                if isinstance(gate_info[1],(float,int)):
-                    theta0_str = is_multiple_of_pi(gate_info[1])
-                elif isinstance(gate_info[1],str):
-                    param = params_value[gate_info[1]]
-                    if isinstance(param,(float,int)):
-                        theta0_str = is_multiple_of_pi(param)
-                    elif isinstance(param,str):
-                        theta0_str = param
+                theta0_str = _format_param_token(gate_info[1], params_value)
                 gate_express = two_qubit_parameter_gates_available[gate]+f'({theta0_str})'
                 if len(gate_express)%2 == 0:
                     gate_express += ' '
@@ -425,32 +420,11 @@ def generate_gates_layerd(nqubits:int,ncbits:int,gates:list,params_value:dict) -
                             gates_layerd[idx+1][i] = '│' + ' '*len(gate_express) + '│'
                         gates_layerd[idx+1][2*pos0 + (pos1-pos0)] = '│' + gate_express + '│'
                         break
-        elif gate in one_qubit_parameter_gates_available.keys():
+        elif gate in one_qubit_parameter_gates_available:
             if gate == 'u':
-                if isinstance(gate_info[1],(float,int)):
-                    theta0_str = is_multiple_of_pi(gate_info[1])
-                elif isinstance(gate_info[1],str):
-                    param = params_value[gate_info[1]]
-                    if isinstance(param,(float,int)):
-                        theta0_str = is_multiple_of_pi(param)
-                    elif isinstance(param,str):
-                        theta0_str = param
-                if isinstance(gate_info[2],(float,int)):
-                    phi0_str = is_multiple_of_pi(gate_info[2])
-                elif isinstance(gate_info[2],str):
-                    param = params_value[gate_info[2]]
-                    if isinstance(param,(float,int)):
-                        phi0_str = is_multiple_of_pi(param)
-                    elif isinstance(param,str):
-                        phi0_str = param
-                if isinstance(gate_info[3],(float,int)):
-                    lamda0_str = is_multiple_of_pi(gate_info[3])
-                elif isinstance(gate_info[3],str):
-                    param = params_value[gate_info[3]]
-                    if isinstance(param,(float,int)):
-                        lamda0_str = is_multiple_of_pi(param)
-                    elif isinstance(param,str):
-                        lamda0_str = param
+                theta0_str = _format_param_token(gate_info[1], params_value)
+                phi0_str = _format_param_token(gate_info[2], params_value)
+                lamda0_str = _format_param_token(gate_info[3], params_value)
                 pos0 = gate_info[-1]
                 for idx in range(len(gates_layerd)-1,-1,-1):
                     if gates_layerd[idx][2*pos0] != '─':
@@ -460,22 +434,8 @@ def generate_gates_layerd(nqubits:int,ncbits:int,gates:list,params_value:dict) -
                         lines_use.append(2*pos0 + 1)
                         break      
             elif gate == 'r':      
-                if isinstance(gate_info[1],(float,int)):
-                    theta0_str = is_multiple_of_pi(gate_info[1])
-                elif isinstance(gate_info[1],str):
-                    param = params_value[gate_info[1]]
-                    if isinstance(param,(float,int)):
-                        theta0_str = is_multiple_of_pi(param)
-                    elif isinstance(param,str):
-                        theta0_str = param
-                if isinstance(gate_info[2],(float,int)):
-                    phi0_str = is_multiple_of_pi(gate_info[2])
-                elif isinstance(gate_info[2],str):
-                    param = params_value[gate_info[2]]
-                    if isinstance(param,(float,int)):
-                        phi0_str = is_multiple_of_pi(param)
-                    elif isinstance(param,str):
-                        phi0_str = param       
+                theta0_str = _format_param_token(gate_info[1], params_value)
+                phi0_str = _format_param_token(gate_info[2], params_value)
                 pos0 = gate_info[-1]
                 for idx in range(len(gates_layerd)-1,-1,-1):
                     if gates_layerd[idx][2*pos0] != '─':
@@ -485,15 +445,7 @@ def generate_gates_layerd(nqubits:int,ncbits:int,gates:list,params_value:dict) -
                         lines_use.append(2*pos0 + 1)
                         break    
             else:
-                if isinstance(gate_info[1],(float,int)):
-                    theta0_str = is_multiple_of_pi(gate_info[1])
-                elif isinstance(gate_info[1],str):
-                    param = params_value[gate_info[1]]
-                    if isinstance(param,(float,int)):
-                        theta0_str = is_multiple_of_pi(param)
-                    elif isinstance(param,str):
-                        theta0_str = param
-                #theta0_str = is_multiple_of_pi(gate_info[1])
+                theta0_str = _format_param_token(gate_info[1], params_value)
                 pos0 = gate_info[2]
                 for idx in range(len(gates_layerd)-1,-1,-1):
                     if gates_layerd[idx][2*pos0] != '─':

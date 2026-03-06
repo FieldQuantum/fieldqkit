@@ -16,12 +16,12 @@
 
 ## 关键函数
 
-### `ketn0(nqubits: int) -> np.ndarray`
+### `ketn0(nqubits: int) -> torch.Tensor`
 
 - 作用：构造 `|0...0⟩` 列向量。
 - 维度：`(2**nqubits, 1)`。
 
-### `ketn1(nqubits: int) -> np.ndarray`
+### `ketn1(nqubits: int) -> torch.Tensor`
 
 - 作用：构造 `|1...1⟩` 列向量。
 - 维度：`(2**nqubits, 1)`。
@@ -31,7 +31,7 @@
 - 单比特：`r_mat`、`rx_mat`、`ry_mat`、`rz_mat`、`p_mat`、`u_mat`、`u1_mat`、`u2_mat`
 - 双比特：`rxx_mat`、`ryy_mat`、`rzz_mat`、`cp_mat`
 
-所有函数返回 `np.ndarray(dtype=complex)`，维度与门作用比特数一致。
+所有函数返回 `torch.Tensor(dtype=torch.complex*)`，维度与门作用比特数一致。
 
 ## `gate_matrix_dict`
 
@@ -52,11 +52,11 @@
 ## 示例
 
 ```python
-import numpy as np
+import torch
 from quantum_hw.sim.matrix import ketn0, gate_matrix_dict
 
 psi0 = ketn0(3)
-rx = gate_matrix_dict["rx"](np.pi / 3)
+rx = gate_matrix_dict["rx"](torch.pi / 3)
 cz = gate_matrix_dict["cz"]
 
 print(psi0.shape)
