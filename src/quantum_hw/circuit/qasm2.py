@@ -18,7 +18,6 @@ __all__ = [
     "parse_openqasm2_regs",
     "parse_openqasm2_custom_gates",
     "parse_openqasm2_to_gates",
-    "parse_openqasm2_to_gates_dump",
 ]
 
 
@@ -54,17 +53,17 @@ def parse_openqasm2_custom_gates(openqasm2_str: str):
         if not m:
             return None
         name = m.group(1)
-        if name in one_qubit_gates_available.keys():
+        if name in one_qubit_gates_available:
             pass
-        elif name in two_qubit_gates_available.keys():
+        elif name in two_qubit_gates_available:
             pass
-        elif name in three_qubit_gates_available.keys():
+        elif name in three_qubit_gates_available:
             pass
-        elif name in one_qubit_parameter_gates_available.keys():
+        elif name in one_qubit_parameter_gates_available:
             pass
-        elif name in two_qubit_parameter_gates_available.keys():
+        elif name in two_qubit_parameter_gates_available:
             pass
-        elif name in functional_gates_available.keys():
+        elif name in functional_gates_available:
             pass
         else:
             raise (ValueError(f"parse error {name} !"))
@@ -94,14 +93,11 @@ def parse_openqasm2_custom_gates(openqasm2_str: str):
 
         gates[name] = {"params_and_qregs": params + qargs, "definition": body}
     openqasm2_str = re.sub(pattern, "", openqasm2_str, flags=re.DOTALL)
-    print("Custom gate detected")
-    for k, v in gates.items():
-        print(k, v)
     return gates, openqasm2_str
 
 
-def generate_reg_map(regs, type: str = ""):
-    num = sum([v for _, v in regs])
+def generate_reg_map(regs):
+    num = sum(v for _, v in regs)
     all_reg = [i for i in range(num)]
 
     reg_map = {}
@@ -109,9 +105,6 @@ def generate_reg_map(regs, type: str = ""):
     for reg, num in regs:
         reg_map[reg] = dict(zip(range(num), all_reg[idx : idx + num]))
         idx += num
-    if len(reg_map) > 1:
-        for k, v in reg_map.items():
-            print(f"{type} reg name {k}, mapping:{v}")
     return reg_map
 
 
@@ -179,13 +172,13 @@ def get_positions_list(gate, qregs_str, qreg_map, creg_map):
         if isinstance(cc[0], tuple):
             q_position.append(qreg_map[cc[0][0]][int(cc[0][1])])
         if isinstance(cc[0], str):
-            if cc[0] in qreg_map.keys():
+            if cc[0] in qreg_map:
                 q_position += list(qreg_map[cc[0]].values())
         c_position = []
         if isinstance(cc[1], tuple):
             c_position.append(creg_map[cc[1][0]][int(cc[1][1])])
         if isinstance(cc[1], str):
-            if cc[1] in creg_map.keys():
+            if cc[1] in creg_map:
                 c_position += list(creg_map[cc[1]].values())
         positions = [q_position, c_position]
     else:
@@ -194,20 +187,18 @@ def get_positions_list(gate, qregs_str, qreg_map, creg_map):
             if isinstance(c, tuple):
                 positions.append([qreg_map[c[0]][int(c[1])]])
             if isinstance(c, str):
-                if c in qreg_map.keys():
+                if c in qreg_map:
                     positions.append(list(qreg_map[c].values()))
     return positions
 
 
-def parse_openqasm2_to_gates(openqasm2_str) -> None:
+def parse_openqasm2_to_gates(openqasm2_str):
     r"""
     Parse gate information from an input OpenQASM 2.0 string, and update gates, supporting multiple registers.
     """
     qregs_used, cregs_used, openqasm2_str = parse_openqasm2_regs(openqasm2_str)
-    if len(qregs_used) > 1 or len(cregs_used) > 1:
-        print("Multiple registers detected. For subsequent compilation, the program will merge them. The mapping is as follows:")
-    qreg_map = generate_reg_map(qregs_used, "Qubit")
-    creg_map = generate_reg_map(cregs_used, "Cbit")
+    qreg_map = generate_reg_map(qregs_used)
+    creg_map = generate_reg_map(cregs_used)
 
     custom_gates, openqasm2_str = parse_openqasm2_custom_gates(openqasm2_str)
 
@@ -227,12 +218,12 @@ def parse_openqasm2_to_gates(openqasm2_str) -> None:
         else:
             params = []
         positions = get_positions_list(gate, qregs_str, qreg_map, creg_map)
-        if gate in one_qubit_gates_available.keys():
+        if gate in one_qubit_gates_available:
             qubits = [p for pp in positions for p in pp]
             for q in qubits:
                 new.append((gate, q))
                 _record_qubits(qubit_used, q)
-        elif gate in two_qubit_gates_available.keys():
+        elif gate in two_qubit_gates_available:
             if len(positions) != 2:
                 raise ValueError(f"{gate} takes 2 quantum arguments, but got {len(positions)}.")
             if len(positions[0]) != len(positions[1]):
@@ -240,7 +231,7 @@ def parse_openqasm2_to_gates(openqasm2_str) -> None:
             for idx in range(len(positions[0])):
                 new.append((gate, positions[0][idx], positions[1][idx]))
                 _record_qubits(qubit_used, positions[0][idx], positions[1][idx])
-        elif gate in three_qubit_gates_available.keys():
+        elif gate in three_qubit_gates_available:
             if len(positions) != 3:
                 raise ValueError(f"{gate} takes 3 quantum arguments, but got {len(positions)}.")
             if len(positions[0]) != len(positions[1]) or len(positions[0]) != len(positions[2]):
@@ -248,7 +239,7 @@ def parse_openqasm2_to_gates(openqasm2_str) -> None:
             for idx in range(len(positions[0])):
                 new.append((gate, positions[0][idx], positions[1][idx], positions[2][idx]))
                 _record_qubits(qubit_used, positions[0][idx], positions[1][idx], positions[2][idx])
-        elif gate in one_qubit_parameter_gates_available.keys():
+        elif gate in one_qubit_parameter_gates_available:
             qubits = [p for pp in positions for p in pp]
             if gate == "u" or gate == "u3":
                 for q in qubits:
@@ -272,7 +263,7 @@ def parse_openqasm2_to_gates(openqasm2_str) -> None:
                 for q in qubits:
                     new.append(("u", np.pi / 2, params[0], params[1], q))
                     _record_qubits(qubit_used, q)
-        elif gate in two_qubit_parameter_gates_available.keys():
+        elif gate in two_qubit_parameter_gates_available:
             if len(positions) != 2:
                 raise ValueError(f"{gate} takes 2 quantum arguments, but got {len(positions)}.")
             if len(positions[0]) != len(positions[1]):
@@ -310,7 +301,7 @@ def parse_openqasm2_to_gates(openqasm2_str) -> None:
                 cbit_used.append(positions[1][idx])
         elif gate in ["OPENQASM", "include", "opaque", "gate", "qreg", "creg", "//"]:
             continue
-        elif gate in custom_gates.keys():
+        elif gate in custom_gates:
             positions_lengths = [len(position) for position in positions]
             if len(set(positions_lengths)) > 1:
                 raise ValueError(f"custom gate {gate} sparse failer!")
@@ -321,7 +312,7 @@ def parse_openqasm2_to_gates(openqasm2_str) -> None:
                 for gate0_info in custom_gates[gate]["definition"]:
                     cc = []
                     for key in gate0_info[1:]:
-                        if key in params_qreg_dic.keys():
+                        if key in params_qreg_dic:
                             cc.append(params_qreg_dic[key])
                         else:
                             if key.isdigit():
@@ -333,153 +324,6 @@ def parse_openqasm2_to_gates(openqasm2_str) -> None:
                 _record_qubits(qubit_used, *qubits)
         elif gate is None:
             pass
-        else:
-            raise (
-                ValueError(
-                    f"Sorry, an unrecognized OpenQASM 2.0 syntax {gate} was detected by quarkcircuit. Please contact the developer for assistance."
-                )
-            )
-
-    if cbit_used == []:
-        cbit_used = [i for i in range(len(set(qubit_used)))]
-    return new, set(qubit_used), set(cbit_used)
-
-
-def parse_openqasm2_to_gates_dump(openqasm2_str) -> None:
-    r"""
-    Parse gate information from an input OpenQASM 2.0 string, and update gates
-    """
-    qregs, cregs, _ = parse_openqasm2_regs(openqasm2_str)
-    if len(qregs) > 1 or len(cregs) > 1:
-        raise (ValueError("Sorry, currently only one quantum or classical register definition is supported"))
-
-    custom_gates, openqasm2_str = parse_openqasm2_custom_gates(openqasm2_str)
-    new = []
-    qubit_used = []
-    cbit_used = []
-    clean_qasm = openqasm2_str.strip()
-    for line in clean_qasm.splitlines():
-        if line == "":
-            continue
-        elif set(line) == {"\t"}:
-            continue
-        gate = line.split()[0].split("(")[0]
-        position = [int(num) for num in re.findall(r"\[(\d+)\]", line)]
-        if gate in one_qubit_gates_available.keys():
-            new.append((gate, position[0]))
-            qubit_used.append(position[0])
-        elif gate in two_qubit_gates_available.keys():
-            new.append((gate, position[0], position[1]))
-            qubit_used.append(position[0])
-            qubit_used.append(position[1])
-        elif gate in three_qubit_gates_available.keys():
-            new.append((gate, position[0], position[1], position[2]))
-            qubit_used.append(position[0])
-            qubit_used.append(position[1])
-            qubit_used.append(position[2])
-        elif gate in one_qubit_parameter_gates_available.keys():
-            if gate == "u" or gate == "u3":
-                params_str = re.search(r"\(([^)]+)\)", line).group(1).split(",")
-                params = [parse_expression(i) for i in params_str]
-                new.append(("u", params[0], params[1], params[2], position[-1]))
-                qubit_used.append(position[-1])
-            elif gate == "r":
-                params_str = re.search(r"\(([^)]+)\)", line).group(1).split(",")
-                params = [parse_expression(i) for i in params_str]
-                new.append((gate, params[0], params[1], position[-1]))
-                qubit_used.append(position[-1])
-            else:
-                param_str = re.search(r"\(([^)]+)\)", line).group(1)
-                param = parse_expression(param_str)
-                new.append((gate, param, position[-1]))
-                qubit_used.append(position[-1])
-        elif gate in ["u1", "u2"]:
-            if gate == "u1":
-                params_str = re.search(r"\(([^)]+)\)", line).group(1).split(",")
-                params = [parse_expression(i) for i in params_str]
-                new.append(("u", 0, 0, params[0], position[-1]))
-                qubit_used.append(position[-1])
-            elif gate == "u2":
-                params_str = re.search(r"\(([^)]+)\)", line).group(1).split(",")
-                params = [parse_expression(i) for i in params_str]
-                new.append(("u", np.pi / 2, params[0], params[1], position[-1]))
-                qubit_used.append(position[-1])
-        elif gate in two_qubit_parameter_gates_available.keys():
-            param_str = re.search(r"\(([^)]+)\)", line).group(1)
-            param = parse_expression(param_str)
-            new.append((gate, param, position[-2], position[-1]))
-            qubit_used.append(position[-2])
-            qubit_used.append(position[-1])
-        elif gate in ["cu1"]:
-            param_str = re.search(r"\(([^)]+)\)", line).group(1)
-            param = parse_expression(param_str)
-            new.append(("cp", param, position[-2], position[-1]))
-            qubit_used.append(position[-2])
-            qubit_used.append(position[-1])
-        elif gate in ["delay"]:
-            param = float(re.search(r"\(([^)]+)\)", line).group(1))
-            new.append((gate, param, (position[-1],)))
-            qubit_used.append(position[-1])
-        elif gate in ["reset"]:
-            new.append((gate, position[0]))
-            qubit_used.append(position[0])
-        elif gate in ["barrier"]:
-            if position == []:
-                line0 = line.strip().rstrip(";")
-                pattern = r"barrier\s+(.+?)"
-                match = re.match(pattern, line0)
-                q_name = match.groups()[0]
-                if q_name == qregs[0][0]:
-                    new.append((gate, tuple([i for i in range(qregs[0][1])])))
-                else:
-                    raise (ValueError(f"Sorry, an unrecognized OpenQASM 2.0 syntax {line} was detected by quarkcircuit."))
-            else:
-                new.append((gate, tuple(position)))
-        elif gate in ["measure"]:
-            if position == []:
-                line0 = line.strip().rstrip(";")
-                pattern = r"measure\s+(.+?)\s*->\s*(.+)"
-                match = re.match(pattern, line0)
-                left, right = match.groups()
-                q_name = left.strip()
-                c_name = right.strip()
-                if q_name == qregs[0][0] and c_name == cregs[0][0] and qregs[0][1] == cregs[0][1]:
-                    for q in range(qregs[0][1]):
-                        new.append(("measure", [q], [q]))
-                else:
-                    raise (
-                        ValueError(
-                            f"check qreg name {qregs[0][0]} and parse q_name {q_name} is consistent, \
-                    \ncheck creg name {cregs[0][0]} and parse c_name {c_name} is consistent, \
-                    \ncheck qregs size {qregs[0][1]} and cregs size {cregs[0][1]} is equal."
-                        )
-                    )
-            else:
-                new.append((gate, [position[0]], [position[1]]))
-                qubit_used.append(position[0])
-                cbit_used.append(position[1])
-        elif gate in ["OPENQASM", "include", "opaque", "gate", "qreg", "creg", "//"]:
-            continue
-        elif gate in custom_gates.keys():
-            try:
-                params_str = re.search(r"\(([^)]+)\)", line).group(1).split(",")
-                params = [parse_expression(i) for i in params_str]
-            except Exception:
-                params = []
-            params_qreg_dic = dict(zip(custom_gates[gate]["params_and_qregs"], params + position))
-            new0 = []
-            for gate0_info in custom_gates[gate]["definition"]:
-                cc = []
-                for key in gate0_info[1:]:
-                    if key in params_qreg_dic.keys():
-                        cc.append(params_qreg_dic[key])
-                    else:
-                        if key.isdigit():
-                            cc.append(int(key))
-                        else:
-                            cc.append(parse_expression(key))
-                new0.append(tuple([gate0_info[0]] + cc))
-            new += new0
         else:
             raise (
                 ValueError(

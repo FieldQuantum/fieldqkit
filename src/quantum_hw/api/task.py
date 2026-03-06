@@ -43,10 +43,6 @@ class Task(object):
         self.token = os.getenv('QPU_API_TOKEN', token)
         assert self.token, 'token cannot be empty!'
 
-        v = self.verify()
-        if isinstance(v, dict):
-            raise Exception(f'{v}')
-
         self.tasks = {}
 
     def request(self, url: str, data: dict = {}, method: str = 'get'):

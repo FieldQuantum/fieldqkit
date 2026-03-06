@@ -1,132 +1,149 @@
-r"""The matrices corresponding to single-qubit, two-qubit and three-qubit gates."""
+r"""Torch matrix utilities for simulator gates."""
 
-import numpy as np
+from __future__ import annotations
 
-ket0 = np.array([[1.0], [0.0]], dtype=complex)
-ket1 = np.array([[0.0], [1.0]], dtype=complex)
+import math
+
+import torch
 
 
-def ketn0(nqubits: int) -> np.ndarray:
+def _complex_dtype(dtype: torch.dtype | None) -> torch.dtype:
+    if dtype in {torch.complex64, torch.complex128}:
+        return dtype
+    if dtype == torch.float32:
+        return torch.complex64
+    return torch.complex128
+
+
+def _as_tensor(x, *, device: torch.device | None, dtype: torch.dtype | None):
+    if isinstance(x, torch.Tensor):
+        return x.to(device=device, dtype=dtype if x.is_complex() else x.dtype)
+    return torch.tensor(x, device=device, dtype=dtype)
+
+
+def _as_angle(theta, *, device: torch.device | None):
+    if isinstance(theta, torch.Tensor):
+        return theta.to(device=device)
+    return torch.tensor(float(theta), device=device, dtype=torch.float64)
+
+
+ket0 = torch.tensor([[1.0], [0.0]], dtype=torch.complex128)
+ket1 = torch.tensor([[0.0], [1.0]], dtype=torch.complex128)
+
+
+def ketn0(nqubits: int) -> torch.Tensor:
     state = ket0
     for _ in range(nqubits - 1):
-        state = np.kron(state, ket0)
+        state = torch.kron(state, ket0)
     return state
 
 
-def ketn1(nqubits: int) -> np.ndarray:
+def ketn1(nqubits: int) -> torch.Tensor:
     state = ket1
     for _ in range(nqubits - 1):
-        state = np.kron(state, ket1)
+        state = torch.kron(state, ket1)
     return state
 
 
-id_mat = np.eye(2, dtype=complex)
-x_mat = np.array([[0.0, 1.0], [1.0, 0.0]], dtype=complex)
-y_mat = np.array([[0.0, -1.0j], [1.0j, 0.0]], dtype=complex)
-z_mat = np.array([[1.0, 0.0], [0.0, -1.0]], dtype=complex)
-h_mat = np.array([[1.0, 1.0], [1.0, -1.0]], dtype=complex) / np.sqrt(2)
-s_mat = np.array([[1.0, 0.0], [0.0, 1.0j]], dtype=complex)
-sdg_mat = np.array([[1.0, 0.0], [0.0, -1.0j]], dtype=complex)
-t_mat = np.array([[1.0, 0.0], [0.0, np.exp(1.0j * np.pi / 4)]], dtype=complex)
-tdg_mat = np.array([[1.0, 0.0], [0.0, np.exp(-1.0j * np.pi / 4)]], dtype=complex)
-sx_mat = np.array([[1.0 + 1.0j, 1.0 - 1.0j], [1.0 - 1.0j, 1.0 + 1.0j]], dtype=complex) / 2
-sxdg_mat = np.array([[1.0 - 1.0j, 1.0 + 1.0j], [1.0 + 1.0j, 1.0 - 1.0j]], dtype=complex) / 2
+id_mat = torch.eye(2, dtype=torch.complex128)
+x_mat = torch.tensor([[0.0, 1.0], [1.0, 0.0]], dtype=torch.complex128)
+y_mat = torch.tensor([[0.0, -1.0j], [1.0j, 0.0]], dtype=torch.complex128)
+z_mat = torch.tensor([[1.0, 0.0], [0.0, -1.0]], dtype=torch.complex128)
+h_mat = torch.tensor([[1.0, 1.0], [1.0, -1.0]], dtype=torch.complex128) / math.sqrt(2.0)
+s_mat = torch.tensor([[1.0, 0.0], [0.0, 1.0j]], dtype=torch.complex128)
+sdg_mat = torch.tensor([[1.0, 0.0], [0.0, -1.0j]], dtype=torch.complex128)
+t_mat = torch.tensor([[1.0, 0.0], [0.0, torch.exp(1.0j * torch.tensor(math.pi / 4.0))]], dtype=torch.complex128)
+tdg_mat = torch.tensor([[1.0, 0.0], [0.0, torch.exp(-1.0j * torch.tensor(math.pi / 4.0))]], dtype=torch.complex128)
+sx_mat = torch.tensor(
+    [[1.0 + 1.0j, 1.0 - 1.0j], [1.0 - 1.0j, 1.0 + 1.0j]], dtype=torch.complex128
+) / 2.0
+sxdg_mat = torch.tensor(
+    [[1.0 - 1.0j, 1.0 + 1.0j], [1.0 + 1.0j, 1.0 - 1.0j]], dtype=torch.complex128
+) / 2.0
 
-swap_mat = np.array(
+swap_mat = torch.tensor(
     [
         [1.0, 0.0, 0.0, 0.0],
         [0.0, 0.0, 1.0, 0.0],
         [0.0, 1.0, 0.0, 0.0],
         [0.0, 0.0, 0.0, 1.0],
     ],
-    dtype=complex,
+    dtype=torch.complex128,
 )
 
-iswap_mat = np.array(
+iswap_mat = torch.tensor(
     [
         [1.0, 0.0, 0.0, 0.0],
         [0.0, 0.0, 1.0j, 0.0],
         [0.0, 1.0j, 0.0, 0.0],
         [0.0, 0.0, 0.0, 1.0],
     ],
-    dtype=complex,
+    dtype=torch.complex128,
 )
 
-ecr_mat = np.array(
+ecr_mat = torch.tensor(
     [
         [0.0, 0.0, 1.0, 1.0j],
         [0.0, 0.0, 1.0j, 1.0],
         [1.0, -1.0j, 0.0, 0.0],
         [-1.0j, 1.0, 0.0, 0.0],
     ],
-    dtype=complex,
-) / np.sqrt(2)
+    dtype=torch.complex128,
+) / math.sqrt(2.0)
 
-cx_mat = np.array(
+cx_mat = torch.tensor(
     [
         [1.0, 0.0, 0.0, 0.0],
         [0.0, 1.0, 0.0, 0.0],
         [0.0, 0.0, 0.0, 1.0],
         [0.0, 0.0, 1.0, 0.0],
     ],
-    dtype=complex,
+    dtype=torch.complex128,
 )
 
-xc_mat = np.array(
+xc_mat = torch.tensor(
     [
         [1.0, 0.0, 0.0, 0.0],
         [0.0, 0.0, 0.0, 1.0],
         [0.0, 0.0, 1.0, 0.0],
         [0.0, 1.0, 0.0, 0.0],
     ],
-    dtype=complex,
+    dtype=torch.complex128,
 )
 
-cy_mat = np.array(
+cy_mat = torch.tensor(
     [
         [1.0, 0.0, 0.0, 0.0],
         [0.0, 1.0, 0.0, 0.0],
         [0.0, 0.0, 0.0, -1.0j],
         [0.0, 0.0, 1.0j, 0.0],
     ],
-    dtype=complex,
+    dtype=torch.complex128,
 )
 
-yc_mat = np.array(
+yc_mat = torch.tensor(
     [
         [1.0, 0.0, 0.0, 0.0],
         [0.0, 0.0, 0.0, -1.0j],
         [0.0, 1.0j, 0.0, 0.0],
         [0.0, 0.0, 1.0, 0.0],
     ],
-    dtype=complex,
+    dtype=torch.complex128,
 )
 
-cz_mat = np.array(
+cz_mat = torch.tensor(
     [
         [1.0, 0.0, 0.0, 0.0],
         [0.0, 1.0, 0.0, 0.0],
         [0.0, 0.0, 1.0, 0.0],
         [0.0, 0.0, 0.0, -1.0],
     ],
-    dtype=complex,
+    dtype=torch.complex128,
 )
 
-ccz_mat = np.array(
-    [
-        [1, 0, 0, 0, 0, 0, 0, 0],
-        [0, 1, 0, 0, 0, 0, 0, 0],
-        [0, 0, 1, 0, 0, 0, 0, 0],
-        [0, 0, 0, 1, 0, 0, 0, 0],
-        [0, 0, 0, 0, 1, 0, 0, 0],
-        [0, 0, 0, 0, 0, 1, 0, 0],
-        [0, 0, 0, 0, 0, 0, 1, 0],
-        [0, 0, 0, 0, 0, 0, 0, -1],
-    ],
-    dtype=complex,
-)
+ccz_mat = torch.diag(torch.tensor([1, 1, 1, 1, 1, 1, 1, -1], dtype=torch.complex128))
 
-ccx_mat = np.array(
+ccx_mat = torch.tensor(
     [
         [1, 0, 0, 0, 0, 0, 0, 0],
         [0, 1, 0, 0, 0, 0, 0, 0],
@@ -137,10 +154,10 @@ ccx_mat = np.array(
         [0, 0, 0, 0, 0, 0, 0, 1],
         [0, 0, 0, 0, 0, 0, 1, 0],
     ],
-    dtype=complex,
+    dtype=torch.complex128,
 )
 
-cxc_mat = np.array(
+cxc_mat = torch.tensor(
     [
         [1, 0, 0, 0, 0, 0, 0, 0],
         [0, 1, 0, 0, 0, 0, 0, 0],
@@ -151,10 +168,10 @@ cxc_mat = np.array(
         [0, 0, 0, 0, 0, 0, 1, 0],
         [0, 0, 0, 1, 0, 0, 0, 0],
     ],
-    dtype=complex,
+    dtype=torch.complex128,
 )
 
-cswap_mat = np.array(
+cswap_mat = torch.tensor(
     [
         [1, 0, 0, 0, 0, 0, 0, 0],
         [0, 1, 0, 0, 0, 0, 0, 0],
@@ -165,10 +182,10 @@ cswap_mat = np.array(
         [0, 0, 0, 0, 0, 1, 0, 0],
         [0, 0, 0, 0, 0, 0, 0, 1],
     ],
-    dtype=complex,
+    dtype=torch.complex128,
 )
 
-swapc_mat = np.array(
+swapc_mat = torch.tensor(
     [
         [1, 0, 0, 0, 0, 0, 0, 0],
         [0, 1, 0, 0, 0, 0, 0, 0],
@@ -179,112 +196,143 @@ swapc_mat = np.array(
         [0, 0, 0, 0, 0, 0, 1, 0],
         [0, 0, 0, 0, 0, 0, 0, 1],
     ],
-    dtype=complex,
+    dtype=torch.complex128,
 )
 
 
-def r_mat(theta, phi):
-    return np.array(
-        [
-            [np.cos(theta / 2), -1j * np.exp(-1j * phi) * np.sin(theta / 2)],
-            [-1j * np.exp(1j * phi) * np.sin(theta / 2), np.cos(theta / 2)],
-        ],
-        dtype=complex,
-    )
+def r_mat(theta, phi, *, device: torch.device | None = None, dtype: torch.dtype | None = None):
+    cdtype = _complex_dtype(dtype)
+    t = _as_angle(theta, device=device)
+    p = _as_angle(phi, device=device)
+    c = torch.cos(t / 2)
+    s = torch.sin(t / 2)
+    out = torch.zeros((2, 2), dtype=cdtype, device=device)
+    out[0, 0] = c
+    out[0, 1] = -1j * torch.exp(-1j * p) * s
+    out[1, 0] = -1j * torch.exp(1j * p) * s
+    out[1, 1] = c
+    return out
 
 
-def rx_mat(theta: float) -> np.ndarray:
-    return np.array(
-        [
-            [np.cos(0.5 * theta), -1.0j * np.sin(0.5 * theta)],
-            [-1.0j * np.sin(0.5 * theta), np.cos(0.5 * theta)],
-        ],
-        dtype=complex,
-    )
+def rx_mat(theta, *, device: torch.device | None = None, dtype: torch.dtype | None = None):
+    cdtype = _complex_dtype(dtype)
+    t = _as_angle(theta, device=device)
+    c = torch.cos(0.5 * t)
+    s = torch.sin(0.5 * t)
+    out = torch.zeros((2, 2), dtype=cdtype, device=device)
+    out[0, 0] = c
+    out[1, 1] = c
+    out[0, 1] = -1j * s
+    out[1, 0] = -1j * s
+    return out
 
 
-def ry_mat(theta: float) -> np.ndarray:
-    return np.array(
-        [
-            [np.cos(0.5 * theta), -np.sin(0.5 * theta)],
-            [np.sin(0.5 * theta), np.cos(0.5 * theta)],
-        ],
-        dtype=complex,
-    )
+def ry_mat(theta, *, device: torch.device | None = None, dtype: torch.dtype | None = None):
+    cdtype = _complex_dtype(dtype)
+    t = _as_angle(theta, device=device)
+    c = torch.cos(0.5 * t)
+    s = torch.sin(0.5 * t)
+    out = torch.zeros((2, 2), dtype=cdtype, device=device)
+    out[0, 0] = c
+    out[1, 1] = c
+    out[0, 1] = -s
+    out[1, 0] = s
+    return out
 
 
-def rz_mat(theta: float) -> np.ndarray:
-    return np.array([[np.exp(-0.5j * theta), 0.0], [0.0, np.exp(0.5j * theta)]], dtype=complex)
+def rz_mat(theta, *, device: torch.device | None = None, dtype: torch.dtype | None = None):
+    cdtype = _complex_dtype(dtype)
+    t = _as_angle(theta, device=device)
+    out = torch.zeros((2, 2), dtype=cdtype, device=device)
+    out[0, 0] = torch.exp(-0.5j * t)
+    out[1, 1] = torch.exp(0.5j * t)
+    return out
 
 
-def p_mat(theta: float) -> np.ndarray:
-    return np.array([[1.0, 0.0], [0.0, np.exp(1.0j * theta)]], dtype=complex)
+def p_mat(theta, *, device: torch.device | None = None, dtype: torch.dtype | None = None):
+    cdtype = _complex_dtype(dtype)
+    t = _as_angle(theta, device=device)
+    out = torch.zeros((2, 2), dtype=cdtype, device=device)
+    out[0, 0] = 1.0
+    out[1, 1] = torch.exp(1.0j * t)
+    return out
 
 
-def u_mat(theta: float, phi: float, lamda: float) -> np.ndarray:
-    return np.array(
-        [
-            [np.cos(theta / 2), -np.exp(1.0j * lamda) * np.sin(theta / 2)],
-            [np.exp(1.0j * phi) * np.sin(theta / 2), np.exp(1.0j * (phi + lamda)) * np.cos(theta / 2)],
-        ],
-        dtype=complex,
-    )
+def u_mat(theta, phi, lamda, *, device: torch.device | None = None, dtype: torch.dtype | None = None):
+    cdtype = _complex_dtype(dtype)
+    t = _as_angle(theta, device=device)
+    p = _as_angle(phi, device=device)
+    l = _as_angle(lamda, device=device)
+    out = torch.zeros((2, 2), dtype=cdtype, device=device)
+    out[0, 0] = torch.cos(t / 2)
+    out[0, 1] = -torch.exp(1.0j * l) * torch.sin(t / 2)
+    out[1, 0] = torch.exp(1.0j * p) * torch.sin(t / 2)
+    out[1, 1] = torch.exp(1.0j * (p + l)) * torch.cos(t / 2)
+    return out
 
 
-def u1_mat(lamda: float):
-    return u_mat(0.0, 0.0, lamda)
+def u1_mat(lamda, *, device: torch.device | None = None, dtype: torch.dtype | None = None):
+    return u_mat(0.0, 0.0, lamda, device=device, dtype=dtype)
 
 
-def u2_mat(phi: float, lamda: float):
-    return u_mat(np.pi / 2, phi, lamda)
+def u2_mat(phi, lamda, *, device: torch.device | None = None, dtype: torch.dtype | None = None):
+    return u_mat(math.pi / 2.0, phi, lamda, device=device, dtype=dtype)
 
 
-def rxx_mat(theta: float) -> np.ndarray:
-    return np.array(
-        [
-            [np.cos(theta / 2), 0, 0, -1j * np.sin(theta / 2)],
-            [0, np.cos(theta / 2), -1j * np.sin(theta / 2), 0],
-            [0, -1j * np.sin(theta / 2), np.cos(theta / 2), 0],
-            [-1j * np.sin(theta / 2), 0, 0, np.cos(theta / 2)],
-        ],
-        dtype=complex,
-    )
+def rxx_mat(theta, *, device: torch.device | None = None, dtype: torch.dtype | None = None):
+    cdtype = _complex_dtype(dtype)
+    t = _as_angle(theta, device=device)
+    c = torch.cos(t / 2)
+    s = torch.sin(t / 2)
+    out = torch.zeros((4, 4), dtype=cdtype, device=device)
+    out[0, 0] = c
+    out[1, 1] = c
+    out[2, 2] = c
+    out[3, 3] = c
+    out[0, 3] = -1j * s
+    out[1, 2] = -1j * s
+    out[2, 1] = -1j * s
+    out[3, 0] = -1j * s
+    return out
 
 
-def ryy_mat(theta: float) -> np.ndarray:
-    return np.array(
-        [
-            [np.cos(theta / 2), 0, 0, 1j * np.sin(theta / 2)],
-            [0, np.cos(theta / 2), -1j * np.sin(theta / 2), 0],
-            [0, -1j * np.sin(theta / 2), np.cos(theta / 2), 0],
-            [1j * np.sin(theta / 2), 0, 0, np.cos(theta / 2)],
-        ],
-        dtype=complex,
-    )
+def ryy_mat(theta, *, device: torch.device | None = None, dtype: torch.dtype | None = None):
+    cdtype = _complex_dtype(dtype)
+    t = _as_angle(theta, device=device)
+    c = torch.cos(t / 2)
+    s = torch.sin(t / 2)
+    out = torch.zeros((4, 4), dtype=cdtype, device=device)
+    out[0, 0] = c
+    out[1, 1] = c
+    out[2, 2] = c
+    out[3, 3] = c
+    out[0, 3] = 1j * s
+    out[1, 2] = -1j * s
+    out[2, 1] = -1j * s
+    out[3, 0] = 1j * s
+    return out
 
 
-def rzz_mat(theta: float) -> np.ndarray:
-    return np.array(
-        [
-            [np.exp(-1j * theta / 2), 0, 0, 0],
-            [0, np.exp(1j * theta / 2), 0, 0],
-            [0, 0, np.exp(1j * theta / 2), 0],
-            [0, 0, 0, np.exp(-1j * theta / 2)],
-        ],
-        dtype=complex,
-    )
+def rzz_mat(theta, *, device: torch.device | None = None, dtype: torch.dtype | None = None):
+    cdtype = _complex_dtype(dtype)
+    t = _as_angle(theta, device=device)
+    out = torch.zeros((4, 4), dtype=cdtype, device=device)
+    out[0, 0] = torch.exp(-1j * t / 2)
+    out[1, 1] = torch.exp(1j * t / 2)
+    out[2, 2] = torch.exp(1j * t / 2)
+    out[3, 3] = torch.exp(-1j * t / 2)
+    return out
 
 
-def cp_mat(theta: float) -> np.ndarray:
-    return np.array(
-        [
-            [1, 0, 0, 0],
-            [0, 1, 0, 0],
-            [0, 0, 1, 0],
-            [0, 0, 0, np.exp(1j * theta)],
-        ],
-        dtype=complex,
-    )
+def cp_mat(theta, *, device: torch.device | None = None, dtype: torch.dtype | None = None):
+    cdtype = _complex_dtype(dtype)
+    t = _as_angle(theta, device=device)
+    out = torch.zeros((4, 4), dtype=cdtype, device=device)
+    out[0, 0] = 1.0
+    out[1, 1] = 1.0
+    out[2, 2] = 1.0
+    out[3, 3] = torch.exp(1j * t)
+    return out
 
 
 gate_matrix_dict = {

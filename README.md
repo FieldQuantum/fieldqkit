@@ -66,7 +66,7 @@ print(result.probabilities)
 - `quantum_hw.core`：通用工具与数据结构（circuits / observables / readout / zne / plotting / types）。
 - `quantum_hw.calibration`：校准模块（readout / native two-qubit RB / two-qubit tomography）。
 - `quantum_hw.compile`：编译与转译入口（`Transpiler`）。
-- `quantum_hw.circuit.qasm2` / `quantum_hw.circuit.qasm3`：OpenQASM2/3 解析实现。
+- `quantum_hw.circuit`：线路表示与转换模块（`QuantumCircuit`、OpenQASM2/3、渲染、矩阵与分解工具）。
 
 ## 教程导航（Notebook）
 

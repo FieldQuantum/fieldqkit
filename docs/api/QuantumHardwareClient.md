@@ -86,6 +86,8 @@ run_auto(
 - `return_probabilities: bool`：是否返回概率分布（含 raw 与处理后结果）。
 - `target_qubits: Optional[Sequence[int]]`：指定物理比特映射。
 - `prefer_chips: Optional[Sequence[str] | str]`：限制候选芯片集合。
+    - 可传单个字符串或字符串列表。
+    - 包含 `"Simulator"`（大小写不敏感）时，会触发 `rank_chips` 的模拟器快捷路径。
 - `rank_weights: Optional[Dict[str, float]]`：芯片排序权重，键为 `queue/nqubits/error`。
 - `print_true: bool`：打印调试信息。
 
@@ -116,15 +118,23 @@ run_auto(
 
 1. 规范化线路输入（内置名称 / OpenQASM2/3 / `QuantumCircuit`）。
 2. 调用 `rank_chips(...)` 选择候选芯片。
-3. 使用 `Transpiler` 编译到目标后端门集。
-4. 对 `observables` 进行分组并追加测量基。
-5. 执行硬件任务或本地模拟。
-6. 可选执行 readout 缓解与 ZNE 外推，最终组装 `RunResult`。
+3. 选择排序结果中的首个芯片，构造 `Backend` 并执行。
+4. 默认会执行一次 `Transpiler` 编译；若下层显式传 `transpile=False`，则直接复用输入线路。
+5. 对 `observables` 进行分组并追加测量基。
+6. 执行硬件任务或本地模拟。
+7. 可选执行 readout 缓解与 ZNE 外推，最终组装 `RunResult`。
+
+说明：当前实现中，`run_auto(...)` 会直接使用排序第一的候选芯片执行；若该次执行抛错，异常会向上抛出，不会在方法内自动尝试后续芯片。
+
+### `run_with_backend(...) -> RunResult`（源码对应 `_run_with_backend`）
+
+该函数是固定后端执行的核心入口。`run_auto(...)` 在完成芯片排序后，最终就是调用它。
 
 ## 异常与约束
 
 - `num_qubits` 与输入 `QuantumCircuit` 不一致时抛 `ValueError`。
-- `readout_mitigation=True` 且 `len(target_qubits) != num_qubits` 时抛 `ValueError`。
+- `readout_mitigation=True` 且“有效目标物理比特数”不等于 `num_qubits` 时抛 `ValueError`。
+    - 有效目标物理比特：优先使用 `target_qubits`；未给定时回退到编译后线路 `qubits_in_use`，若仍为空则回退到 `range(num_qubits)`。
 - 无可用芯片时抛 `RuntimeError`。
 - 若硬件任务最终状态不是 `Finished`，抛 `RuntimeError`。
 
@@ -152,6 +162,7 @@ print(result.probabilities[0][:8])
 
 ## 相关页面
 
+- [`run_with_backend`](./run_with_backend.md)
 - [`rank_chips`](./rank_chips.md)
 - [`Backend`](./Backend.md)
 - [`Task`](./Task.md)

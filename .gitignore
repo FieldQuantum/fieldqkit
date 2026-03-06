@@ -9,3 +9,4 @@ dist/
 build/
 *.egg-info/
 src/quantum_hw/.cache/
+src/quantum_hw/api/.cache/

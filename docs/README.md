@@ -30,6 +30,7 @@
 ## API
 
 - [QuantumHardwareClient](./api/QuantumHardwareClient.md)
+- [run_with_backend](./api/run_with_backend.md)
 - [rank_chips](./api/rank_chips.md)
 - [Backend](./api/Backend.md)
 - [Task](./api/Task.md)
@@ -59,6 +60,14 @@
 - [result types](./core/result_types.md)
 
 建议阅读顺序：`circuits` → `observables` → `utils` → `readout` → `zne` → `result_types`。
+
+## Circuit
+
+- [circuit module reference](./circuit/README.md)
+- [QuantumCircuit](./circuit/quantumcircuit.md)
+- [OpenQASM 解析](./circuit/qasm.md)
+- [helpers 与渲染](./circuit/helpers_render.md)
+- [matrix 与 utils](./circuit/matrix_utils.md)
 
 ## Sim
 

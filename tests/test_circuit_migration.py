@@ -83,12 +83,12 @@ def test_circuit_params_value_and_apply():
 
     params = {"theta": 0.123, "phi": -0.456, "gamma": 0.789}
     qc_ref.shallow_apply_value(params)
-    qc_local.shallow_apply_value(params)
+    qc_local.apply_value(params)
 
     assert qc_local.gates == qc_ref.gates
 
     qc_ref.deep_apply_value(params)
-    qc_local.deep_apply_value(params)
+    qc_local.apply_value(params, deep=True)
 
     assert qc_local.gates == qc_ref.gates
     assert qc_local.params_value["theta"] == params["theta"]

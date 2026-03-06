@@ -177,6 +177,7 @@ class QuantumHardwareClient:
 		merge_groups: bool = True,
 		qasm_version: str = "2.0",
 		print_true: bool = False,
+		transpile: bool = True,
 	) -> RunResult:
 		"""Run a circuit on a specific backend with optional mitigation."""
 		if isinstance(observables, str):
@@ -236,7 +237,10 @@ class QuantumHardwareClient:
 		task_ids: List[object] = []
 		group_counts: Dict[int, Dict[str, Dict[str, int]]] = {i: {} for i in range(len(groups))}
 		# Transpile once and reuse across measurement groups.
-		base_qct = self._transpile_with_backend(deepcopy(qc), backend, target_qubits=target_qubits)
+		if transpile:
+			base_qct = self._transpile_with_backend(deepcopy(qc), backend, target_qubits=target_qubits)
+		else:
+			base_qct = deepcopy(qc)
 		if target_qubits is not None:
 			target_qubits_in_use = list(target_qubits)
 		else:

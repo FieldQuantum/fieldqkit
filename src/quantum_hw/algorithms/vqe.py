@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Callable, Dict, List, Optional, Sequence, Tuple
+import torch
+from typing import Callable, Dict, List, Literal, Optional, Sequence, Tuple
 
 import numpy as np
 from ..api.backend import Backend
@@ -11,7 +12,7 @@ from ..api.backend import rank_chips
 
 from ..circuit import QuantumCircuit
 
-from ..core.observables import pauli_support, shift_pauli_string
+from ..core.observables import pauli_support
 from ..core.types import VQEResult
 
 
@@ -134,6 +135,49 @@ def build_hardware_efficient_ansatz(
     return qc
 
 
+def _build_hardware_efficient_ansatz_symbolic(
+    num_qubits: int,
+    param_names: Sequence[str],
+    *,
+    layers: int = 1,
+) -> QuantumCircuit:
+    """Build the same ansatz as build_hardware_efficient_ansatz but with symbolic parameters."""
+    expected = 2 * num_qubits * (layers + 1)
+    if len(param_names) != expected:
+        raise ValueError(f"param_names length must be {expected} (2 * num_qubits * (layers + 1))")
+
+    qc = QuantumCircuit(num_qubits)
+    idx = 0
+    for _ in range(layers):
+        for q in range(num_qubits):
+            qc.rx(param_names[idx], q)
+            idx += 1
+        for q in range(num_qubits):
+            qc.ry(param_names[idx], q)
+            idx += 1
+        for q in range(num_qubits - 1):
+            qc.cz(q, q + 1)
+    for q in range(num_qubits):
+        qc.rx(param_names[idx], q)
+        idx += 1
+    for q in range(num_qubits):
+        qc.ry(param_names[idx], q)
+        idx += 1
+    return qc
+
+
+def _instantiate_transpiled_template(
+    transpiled_template: QuantumCircuit,
+    param_names: Sequence[str],
+    params: np.ndarray,
+) -> QuantumCircuit:
+    """Clone transpiled template and materialize numeric parameter values in-place."""
+    qc = transpiled_template.deepcopy()
+    values = {name: float(params[i]) for i, name in enumerate(param_names)}
+    qc.apply_value(values, deep=True)
+    return qc
+
+
 def _normalize_observable_values(values):
     if isinstance(values, list) and values:
         if isinstance(values[0], dict):
@@ -161,33 +205,6 @@ def _energy_from_expectations(hamiltonian: Hamiltonian, expectations: Dict[str, 
     return float(sum(coeff * expectations.get(obs, 0.0) for coeff, obs in hamiltonian))
 
 
-def _shift_hamiltonian(hamiltonian: Hamiltonian, offset: int) -> Hamiltonian:
-    return [(coeff, shift_pauli_string(obs, offset)) for coeff, obs in hamiltonian]
-
-
-def _pack_circuits(circuits: Sequence[QuantumCircuit], num_qubits: int) -> QuantumCircuit:
-    total_qubits = num_qubits * len(circuits)
-    packed = QuantumCircuit(total_qubits)
-    packed.gates = []
-    packed.qubits = []
-    for idx, qc in enumerate(circuits):
-        offset = idx * num_qubits
-        local = qc.deepcopy()
-        local.adjust_index(offset, cbit_offset=offset)
-        packed.gates.extend(local.gates)
-        packed.qubits.extend(local.qubits)
-    packed.qubits = sorted(set(packed.qubits))
-    return packed
-
-
-def _estimate_parallel_batches(backend: Backend, num_qubits: int) -> int:
-    if num_qubits <= 0:
-        return 1
-    total_qubits = len(backend.graph.nodes)
-    max_blocks = total_qubits // num_qubits
-    return max(1, max_blocks // 2)
-
-
 def _evaluate_energy_with_backend(
     client,
     qc: QuantumCircuit,
@@ -200,7 +217,6 @@ def _evaluate_energy_with_backend(
     hamiltonian: Hamiltonian,
     zne: bool,
     readout_mitigation: bool,
-    target_qubits: Optional[Sequence[int]],
 ) -> Tuple[float, Dict[str, float]]:
     observables = [term[1] for term in hamiltonian]
     result = client._run_with_backend(
@@ -214,50 +230,12 @@ def _evaluate_energy_with_backend(
         readout_mitigation=readout_mitigation,
         observables=observables,
         return_probabilities=False,
-        target_qubits=target_qubits,
         print_true=False,
+        transpile=False,
     )
     expectations = _ensure_observable_map(observables, result.observable_values)
     energy = _energy_from_expectations(hamiltonian, expectations)
     return energy, expectations
-
-
-def _evaluate_energy_with_backend_batch(
-    client,
-    circuits: Sequence[QuantumCircuit],
-    *,
-    name: str,
-    num_qubits: int,
-    backend: Backend,
-    chip_name: str,
-    shots: int,
-    hamiltonian: Hamiltonian,
-    zne: bool,
-    readout_mitigation: bool,
-) -> List[float]:
-    offsets = [i * num_qubits for i in range(len(circuits))]
-    packed = _pack_circuits(circuits, num_qubits)
-    total_qubits = num_qubits * len(circuits)
-
-    shifted_hams = [_shift_hamiltonian(hamiltonian, offset) for offset in offsets]
-    observables = [term[1] for ham in shifted_hams for term in ham]
-
-    result = client._run_with_backend(
-        packed,
-        name,
-        total_qubits,
-        backend=backend,
-        chip_name=chip_name,
-        shots=shots,
-        zne=zne,
-        readout_mitigation=readout_mitigation,
-        observables=observables,
-        return_probabilities=False,
-        target_qubits=None,
-        print_true=False,
-    )
-    expectations = _ensure_observable_map(observables, result.observable_values)
-    return [_energy_from_expectations(ham, expectations) for ham in shifted_hams]
 
 
 def _parameter_shift_gradient(
@@ -270,105 +248,53 @@ def _parameter_shift_gradient(
     chip_name: str,
     shots: int,
     hamiltonian: Hamiltonian,
-    layers: int,
     shift: float,
     zne: bool,
     readout_mitigation: bool,
-    target_qubits: Optional[Sequence[int]],
+    transpiled_template: Optional[QuantumCircuit] = None,
+    param_names: Optional[Sequence[str]] = None,
 ) -> np.ndarray:
     """Compute gradients via parameter-shift rule."""
+    if transpiled_template is None or param_names is None:
+        raise ValueError(
+            "_parameter_shift_gradient requires transpiled_template and param_names in current VQE flow"
+        )
+
     grads = np.zeros_like(params, dtype=float)
-    total_circuits = params.size * 2
-    pack_size = min(_estimate_parallel_batches(backend, num_qubits), total_circuits)
-    # Disable packing when targeting fixed physical qubits.
-    if pack_size < 2 or target_qubits is not None:
-        for i in range(params.size):
-            params_plus = params.copy()
-            params_minus = params.copy()
-            params_plus[i] += shift
-            params_minus[i] -= shift
-
-            qc_plus = build_hardware_efficient_ansatz(num_qubits, params_plus, layers=layers)
-            qc_minus = build_hardware_efficient_ansatz(num_qubits, params_minus, layers=layers)
-
-            e_plus, _ = _evaluate_energy_with_backend(
-                client,
-                qc_plus,
-                name=f"{name}_grad_p{i}",
-                num_qubits=num_qubits,
-                backend=backend,
-                chip_name=chip_name,
-                shots=shots,
-                hamiltonian=hamiltonian,
-                zne=zne,
-                readout_mitigation=readout_mitigation,
-                target_qubits=target_qubits,
-            )
-            e_minus, _ = _evaluate_energy_with_backend(
-                client,
-                qc_minus,
-                name=f"{name}_grad_m{i}",
-                num_qubits=num_qubits,
-                backend=backend,
-                chip_name=chip_name,
-                shots=shots,
-                hamiltonian=hamiltonian,
-                zne=zne,
-                readout_mitigation=readout_mitigation,
-                target_qubits=target_qubits,
-            )
-            grads[i] = 0.5 * (e_plus - e_minus)
-        return grads
-
-    circuits_info: List[Tuple[int, str, QuantumCircuit]] = []
     for i in range(params.size):
         params_plus = params.copy()
         params_minus = params.copy()
         params_plus[i] += shift
         params_minus[i] -= shift
-        circuits_info.append(
-            (i, "plus", build_hardware_efficient_ansatz(num_qubits, params_plus, layers=layers))
-        )
-        circuits_info.append(
-            (i, "minus", build_hardware_efficient_ansatz(num_qubits, params_minus, layers=layers))
-        )
 
-    energies_plus: Dict[int, float] = {}
-    energies_minus: Dict[int, float] = {}
-    idx = 0
-    batch_id = 0
-    while idx < len(circuits_info):
-        current = min(pack_size, len(circuits_info) - idx)
-        if current <= 0:
-            raise RuntimeError("no available circuit batches for packed gradients")
-        try:
-            batch = circuits_info[idx : idx + current]
-            energies = _evaluate_energy_with_backend_batch(
-                client,
-                [info[2] for info in batch],
-                name=f"{name}_grad_batch{batch_id}",
-                num_qubits=num_qubits,
-                backend=backend,
-                chip_name=chip_name,
-                shots=shots,
-                hamiltonian=hamiltonian,
-                zne=zne,
-                readout_mitigation=readout_mitigation,
-            )
-            for energy, info in zip(energies, batch):
-                if info[1] == "plus":
-                    energies_plus[info[0]] = energy
-                else:
-                    energies_minus[info[0]] = energy
-            idx += current
-            batch_id += 1
-        except Exception:
-            if current <= 1:
-                raise
-            pack_size = max(1, current // 2)
+        qc_plus = _instantiate_transpiled_template(transpiled_template, param_names, params_plus)
+        qc_minus = _instantiate_transpiled_template(transpiled_template, param_names, params_minus)
 
-    for i in range(params.size):
-        grads[i] = 0.5 * (energies_plus[i] - energies_minus[i])
+        e_plus, _ = _evaluate_energy_with_backend(
+            client,
+            qc_plus,
+            name=f"{name}_grad_p{i}",
+            num_qubits=num_qubits,
+            backend=backend,
+            chip_name=chip_name,
+            shots=shots,
+            hamiltonian=hamiltonian,
+            zne=zne,
+            readout_mitigation=readout_mitigation,
+        )
+        e_minus, _ = _evaluate_energy_with_backend(
+            client,
+            qc_minus,
+            name=f"{name}_grad_m{i}",
+            num_qubits=num_qubits,
+            backend=backend,
+            chip_name=chip_name,
+            shots=shots,
+            hamiltonian=hamiltonian,
+            zne=zne,
+            readout_mitigation=readout_mitigation,
+        )
+        grads[i] = 0.5 * (e_plus - e_minus)
     return grads
 
 
@@ -414,17 +340,43 @@ def run_vqe_with_backend(
     seed: Optional[int] = None,
     init_params: Optional[Sequence[float]] = None,
     callback: Optional[Callable[[int, float, np.ndarray], None]] = None,
+    gradient_method: Literal["parameter-shift", "autograd"] = "parameter-shift",
 ) -> VQEResult:
-    """Run VQE optimization on a specific backend using parameter-shift gradients."""
-    rng = np.random.default_rng(seed)
-    num_params = 2 * num_qubits * (layers + 1)
+    """Run VQE optimization on a specific backend."""
+    method = str(gradient_method).lower()
+    if method not in {"parameter-shift", "autograd"}:
+        raise ValueError("gradient_method must be 'parameter-shift' or 'autograd'")
 
+    num_params = 2 * num_qubits * (layers + 1)
     if init_params is None:
-        params = rng.uniform(0.0, 2.0 * np.pi, size=num_params)
+        rng = np.random.default_rng(seed)
+        init_values = rng.uniform(0.0, 2.0 * np.pi, size=num_params)
     else:
-        params = np.asarray(init_params, dtype=float)
-        if params.size != num_params:
+        init_values = np.asarray(init_params, dtype=float)
+        if init_values.size != num_params:
             raise ValueError(f"init_params length must be {num_params}")
+
+    params = init_values.copy()
+    param_names = [f"theta_{i}" for i in range(num_params)]
+    symbolic_qc = _build_hardware_efficient_ansatz_symbolic(
+        num_qubits,
+        param_names,
+        layers=layers,
+    )
+    if method == "autograd":
+        if str(chip_name).lower() != "simulator":
+            raise ValueError("autograd mode is only supported on Simulator backend")
+        from ..sim.statevector import energy_and_expectations as _energy_and_expectations
+        if seed is not None:
+            torch.manual_seed(int(seed))
+    else:
+        # For parameter-shift mode, transpile a symbolic ansatz once and then only update values.
+        transpiled_template = client._transpile_with_backend(
+            symbolic_qc,
+            backend,
+            target_qubits=target_qubits,
+            use_gate_compressor=False,
+        )
 
     energy_history: List[float] = []
     params_history: List[List[float]] = []
@@ -439,44 +391,54 @@ def run_vqe_with_backend(
         "[vqe] start optimization:",
         f"iters={max_iters}",
         f"layers={layers}",
-        f"shots={shots}",
         f"params={num_params}",
+        f"shots={shots}",
         f"shift={shift}",
+        f"gradient={method}",
     )
 
     for it in range(max_iters):
         print(f"[vqe] iter {it} start")
-        # Forward energy evaluation.
-        qc = build_hardware_efficient_ansatz(num_qubits, params, layers=layers)
-        energy, expectations = _evaluate_energy_with_backend(
-            client,
-            qc,
-            name=f"{name}_iter{it}",
-            num_qubits=num_qubits,
-            backend=backend,
-            chip_name=chip_name,
-            shots=shots,
-            hamiltonian=hamiltonian,
-            zne=zne,
-            readout_mitigation=readout_mitigation,
-            target_qubits=target_qubits,
-        )
-        # Gradient via two shifted evaluations per parameter.
-        grads = _parameter_shift_gradient(
-            client,
-            params,
-            name=f"{name}_iter{it}",
-            num_qubits=num_qubits,
-            backend=backend,
-            chip_name=chip_name,
-            shots=shots,
-            hamiltonian=hamiltonian,
-            layers=layers,
-            shift=shift,
-            zne=zne,
-            readout_mitigation=readout_mitigation,
-            target_qubits=target_qubits,
-        )
+        if method == "autograd":
+            params_t = torch.tensor(params, dtype=torch.float64, requires_grad=True)
+            energy_t, expectations = _energy_and_expectations(
+                symbolic_qc,
+                params=params_t,
+                param_names=param_names,
+                hamiltonian=hamiltonian,
+            )
+            energy_t.backward()
+            energy = float(energy_t.detach().cpu().item())
+            grads = params_t.grad.detach().cpu().numpy().astype(float, copy=True)
+        else:
+            qc = _instantiate_transpiled_template(transpiled_template, param_names, params)
+            energy, expectations = _evaluate_energy_with_backend(
+                client,
+                qc,
+                name=f"{name}_iter{it}",
+                num_qubits=num_qubits,
+                backend=backend,
+                chip_name=chip_name,
+                shots=shots,
+                hamiltonian=hamiltonian,
+                zne=zne,
+                readout_mitigation=readout_mitigation,
+            )
+            grads = _parameter_shift_gradient(
+                client,
+                params,
+                name=f"{name}_iter{it}",
+                num_qubits=num_qubits,
+                backend=backend,
+                chip_name=chip_name,
+                shots=shots,
+                hamiltonian=hamiltonian,
+                shift=shift,
+                zne=zne,
+                readout_mitigation=readout_mitigation,
+                transpiled_template=transpiled_template,
+                param_names=param_names,
+            )
 
         grad_norm = float(np.linalg.norm(grads))
         print(f"[vqe] iter {it} energy={energy:.6f} grad_norm={grad_norm:.6f}")
@@ -531,6 +493,7 @@ class VQERunner:
     zne: bool = False
     readout_mitigation: bool = False
     seed: Optional[int] = None
+    gradient_method: Literal["parameter-shift", "autograd"] = "parameter-shift"
 
     def run_model(
         self,
@@ -611,9 +574,12 @@ class VQERunner:
                     seed=self.seed,
                     init_params=init_params,
                     callback=callback,
+                    gradient_method=self.gradient_method,
                 )
             except Exception as exc:
                 last_error = exc
                 continue
 
         raise RuntimeError("all candidate chips failed to run VQE") from last_error
+
+

@@ -22,9 +22,10 @@ def draw_circuit(lines: list[str]) -> None:
 
 
 def draw_circuit_simply(lines: list[str], lines_use: list[int], nqubits: int) -> None:
+    lines_use_set = set(lines_use)
     selected = []
     for idx in range(2 * nqubits):
-        if idx in lines_use:
+        if idx in lines_use_set:
             selected.append(lines[idx])
     for idx in range(2 * nqubits, len(lines)):
         selected.append(lines[idx])
