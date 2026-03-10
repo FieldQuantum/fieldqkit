@@ -4,6 +4,7 @@
 
 - **模块**：`quantum_hw.algorithms.vqe`
 - **作用**：支持参数移位或 `torch autograd` 梯度，并用 Adam 做能量最小化。
+- **ansatz 支持**：`hardwareefficient` / `ucc` / `custom`
 - **当前推荐入口**：`VQERunner.run_model(...)`
 
 ## 推荐签名（`VQERunner.run_model`）
@@ -37,6 +38,8 @@ run_model(
     callback=None,
     prefer_chips=None,
     rank_weights=None,
+    ansatz="hardwareefficient",
+    custom_ansatz_circuit=None,
 ) -> VQEResult
 ```
 
@@ -65,6 +68,8 @@ run_model(
 | `callback` | `Optional[Callable[[int, float, np.ndarray], None]]` | `None` | 否 | 每轮回调，参数为 `(iter_idx, energy, params)`。 |
 | `prefer_chips` | `Optional[Sequence[str] \| str]` | `None` | 否 | 候选芯片限制（可传 `"Simulator"`）。 |
 | `rank_weights` | `Optional[Dict[str, float]]` | `None` | 否 | 芯片排序权重（`queue/nqubits/error`）。 |
+| `ansatz` | `Literal["hardwareefficient", "ucc", "custom"]` | `"hardwareefficient"` | 否 | 变分线路类型。 |
+| `custom_ansatz_circuit` | `Optional[QuantumCircuit]` | `None` | 否 | 当 `ansatz="custom"` 时必填；线路中的未解析字符串参数会被自动识别并优化。 |
 
 ## 低层接口（手动指定后端）
 
@@ -92,8 +97,18 @@ run_vqe_with_backend(
   init_params=None,
   callback=None,
   gradient_method="parameter-shift",
+  ansatz="hardwareefficient",
+  custom_ansatz_circuit=None,
 ) -> VQEResult
 ```
+
+## Ansatz 行为说明
+
+- `hardwareefficient`：默认 ansatz，参数个数为
+  $$2 \times \text{num\_qubits} \times (\text{layers}+1)$$
+- `ucc`：轻量 UCC-inspired ansatz，参数个数为
+  $$\text{layers} \times (\text{num\_qubits} + \text{num\_qubits} - 1)$$
+- `custom`：由用户提供 `QuantumCircuit`，框架从 `params_value` 中自动提取仍未解析的字符串参数名作为优化变量。
 
 ## 私有方法（进阶拆解）
 
@@ -161,6 +176,13 @@ _parameter_shift_gradient(
 - 实现位置：`src/quantum_hw/sim/statevector.py`（在同一模拟器模块中提供可微分能量评估）。
 - 依赖：需要安装 `torch`。
 
+### `custom` ansatz 注意事项
+
+- 必须传入 `custom_ansatz_circuit`。
+- `custom_ansatz_circuit.nqubits` 必须与 `num_qubits` 一致。
+- 线路里需要存在未解析的字符串参数；若没有可优化参数会报错。
+- `autograd` 模式下仍要求 `chip_name="Simulator"`。
+
 ## 返回值
 
 返回 `VQEResult`（定义于 `quantum_hw.core.types`）：
@@ -221,12 +243,45 @@ print(result.best_energy)
 print(result.best_params)
 ```
 
+### `custom` ansatz 示例
+
+```python
+from quantum_hw import QuantumHardwareClient
+from quantum_hw.algorithms import VQERunner
+from quantum_hw.circuit import QuantumCircuit
+
+qc = QuantumCircuit(4)
+qc.ry("alpha_0", 0)
+qc.ry("alpha_1", 1)
+qc.cz(0, 1)
+qc.rx("alpha_2", 1)
+
+client = QuantumHardwareClient()
+runner = VQERunner(client=client, gradient_method="autograd", seed=7)
+
+result = runner.run_model(
+  name="h2_custom_ansatz",
+  num_qubits=4,
+  model="custom",
+  hamiltonian=[(0.1, "Z0"), (-0.2, "Z1"), (0.05, "X0 X1")],
+  ansatz="custom",
+  custom_ansatz_circuit=qc,
+  prefer_chips="Simulator",
+)
+```
+
 ## 行为细节 / 注意事项
 
-- Ansatz 参数维度为 $2 \times \text{num\_qubits} \times (\text{layers}+1)$，文中所有初始化与回调参数都遵循该维度。
+- 参数维度随 ansatz 不同而变化：`hardwareefficient`、`ucc` 与 `custom` 不同。
 - 每个参数梯度需要两次移位评估（`+shift/-shift`）；单轮理论评估次数约为 `1 + 2 * num_params` 次。
 - 当 `gradient_method="autograd"` 且使用 `Simulator` 时，梯度由 `energy_t.backward()` 回传，不再执行 parameter-shift 线路采样。
 - 当 `gradient_method="parameter-shift"` 时，VQE 会先在内部对参数化 ansatz 做一次预编译，然后每次迭代/移位只替换参数值并提交，避免重复 transpile。
+
+## H2 化学数据工作流（Windows + WSL）
+
+- 推荐将化学积分与映射步骤放在 WSL 侧执行，再输出 JSON 给 Windows 侧 VQE 使用。
+- 参考文档：`docs/wsl_chemistry_workflow.md`
+- 该流程可避免 Windows 上 `PySCF` 编译链问题，并保持量子侧框架使用不变。
 
 ## 相关页面
 
@@ -234,3 +289,4 @@ print(result.best_params)
 - [ShadowTomography.run](./shadow_tomography.md)
 - [run_with_backend](../api/run_with_backend.md)
 - [result types](../core/result_types.md)
+- [WSL Chemistry Workflow](../wsl_chemistry_workflow.md)
