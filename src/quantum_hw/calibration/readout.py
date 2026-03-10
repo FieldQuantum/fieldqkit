@@ -81,7 +81,7 @@ class ReadoutCalibrationManager:
 			if ts_str is None or mat is None:
 				missing.append(q)
 				continue
-			if not cache_is_fresh(ts_str, now=now):
+			if not cache_is_fresh(ts_str, now=now, ttl_hours=12):
 				missing.append(q)
 				continue
 			cached_confusion[int(q)] = mat
@@ -165,32 +165,32 @@ class ReadoutCalibrationManager:
 		timestamps, per_qubit = load_timestamped_payload(path, payload_key="per_qubit_confusion")
 		return {"timestamps": timestamps, "per_qubit_confusion": per_qubit}
 
-	def _load_readout_cache(
-		self,
-		target_qubits: Sequence[int],
-		*,
-		chip_name: Optional[str],
-	) -> Optional[CalibrationResult]:
-		"""Load cached readout data and validate freshness."""
-		raw = self._load_readout_cache_raw(chip_name=chip_name)
-		timestamps = raw.get("timestamps", {})
-		per_qubit = raw.get("per_qubit_confusion", {})
-		if not isinstance(timestamps, dict) or not isinstance(per_qubit, dict):
-			return None
-		now = datetime.now(timezone.utc)
-		selected_confusion: Dict[int, List[List[float]]] = {}
-		for q in target_qubits:
-			ts_str = timestamps.get(str(q))
-			if not cache_is_fresh(ts_str, now=now):
-				return None
-			mat = per_qubit.get(str(q))
-			if mat is None:
-				return None
-			selected_confusion[int(q)] = mat
-		return CalibrationResult(
-			target_qubits=list(target_qubits),
-			per_qubit_confusion=selected_confusion,
-		)
+	# def _load_readout_cache(
+	# 	self,
+	# 	target_qubits: Sequence[int],
+	# 	*,
+	# 	chip_name: Optional[str],
+	# ) -> Optional[CalibrationResult]:
+	# 	"""Load cached readout data and validate freshness."""
+	# 	raw = self._load_readout_cache_raw(chip_name=chip_name)
+	# 	timestamps = raw.get("timestamps", {})
+	# 	per_qubit = raw.get("per_qubit_confusion", {})
+	# 	if not isinstance(timestamps, dict) or not isinstance(per_qubit, dict):
+	# 		return None
+	# 	now = datetime.now(timezone.utc)
+	# 	selected_confusion: Dict[int, List[List[float]]] = {}
+	# 	for q in target_qubits:
+	# 		ts_str = timestamps.get(str(q))
+	# 		if not cache_is_fresh(ts_str, now=now):
+	# 			return None
+	# 		mat = per_qubit.get(str(q))
+	# 		if mat is None:
+	# 			return None
+	# 		selected_confusion[int(q)] = mat
+	# 	return CalibrationResult(
+	# 		target_qubits=list(target_qubits),
+	# 		per_qubit_confusion=selected_confusion,
+	# 	)
 
 	def _save_readout_cache(self, result: CalibrationResult, *, chip_name: Optional[str]) -> None:
 		"""Persist readout calibration data to cache."""

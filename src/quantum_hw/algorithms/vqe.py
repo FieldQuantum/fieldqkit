@@ -1,4 +1,4 @@
-"""VQE Hamiltonian builders and optimization routines."""
+﻿"""VQE Hamiltonian builders and optimization routines."""
 
 from __future__ import annotations
 
@@ -17,6 +17,7 @@ from ..core.types import VQEResult
 
 
 Hamiltonian = List[Tuple[float, str]]
+AnsatzKind = Literal["hardwareefficient", "ucc", "custom"]
 
 
 def build_ising_hamiltonian(num_qubits: int, j: float = 1.0, h: float = 1.0) -> Hamiltonian:
@@ -135,6 +136,43 @@ def build_hardware_efficient_ansatz(
     return qc
 
 
+def _ucc_num_params(num_qubits: int, layers: int) -> int:
+    """Return parameter count for a lightweight UCC-inspired ansatz."""
+    if num_qubits <= 0:
+        raise ValueError("num_qubits must be positive")
+    if layers <= 0:
+        raise ValueError("layers must be positive")
+    # Per layer: singles on each qubit + nearest-neighbor pair excitations.
+    return layers * (num_qubits + max(num_qubits - 1, 0))
+
+
+def build_ucc_ansatz(
+    num_qubits: int,
+    params: Sequence[float],
+    *,
+    layers: int = 1,
+) -> QuantumCircuit:
+    """Build a lightweight UCC-inspired ansatz with singles and pair excitations."""
+    expected = _ucc_num_params(num_qubits, layers)
+    if len(params) != expected:
+        raise ValueError(f"params length must be {expected} for ucc ansatz")
+
+    qc = QuantumCircuit(num_qubits)
+    idx = 0
+    for _ in range(layers):
+        # Singles excitation proxy.
+        for q in range(num_qubits):
+            qc.ry(float(params[idx]), q)
+            idx += 1
+        # Pair excitation proxy on linear neighbors.
+        for q in range(num_qubits - 1):
+            qc.cx(q, q + 1)
+            qc.ry(float(params[idx]), q + 1)
+            qc.cx(q, q + 1)
+            idx += 1
+    return qc
+
+
 def _build_hardware_efficient_ansatz_symbolic(
     num_qubits: int,
     param_names: Sequence[str],
@@ -164,6 +202,80 @@ def _build_hardware_efficient_ansatz_symbolic(
         qc.ry(param_names[idx], q)
         idx += 1
     return qc
+
+
+def _build_ucc_ansatz_symbolic(
+    num_qubits: int,
+    param_names: Sequence[str],
+    *,
+    layers: int = 1,
+) -> QuantumCircuit:
+    """Build UCC-inspired ansatz using symbolic parameter names."""
+    expected = _ucc_num_params(num_qubits, layers)
+    if len(param_names) != expected:
+        raise ValueError(f"param_names length must be {expected} for ucc ansatz")
+
+    qc = QuantumCircuit(num_qubits)
+    idx = 0
+    for _ in range(layers):
+        for q in range(num_qubits):
+            qc.ry(param_names[idx], q)
+            idx += 1
+        for q in range(num_qubits - 1):
+            qc.cx(q, q + 1)
+            qc.ry(param_names[idx], q + 1)
+            qc.cx(q, q + 1)
+            idx += 1
+    return qc
+
+
+def _extract_symbolic_params_from_circuit(qc: QuantumCircuit) -> List[str]:
+    """Extract unresolved symbolic parameter names from a parameterized circuit template."""
+    names: List[str] = []
+    for key, value in qc.params_value.items():
+        if isinstance(key, str) and isinstance(value, str):
+            names.append(key)
+    return names
+
+
+def _resolve_ansatz_layout(
+    *,
+    ansatz: AnsatzKind,
+    num_qubits: int,
+    layers: int,
+    custom_ansatz_circuit: Optional[QuantumCircuit] = None,
+) -> Tuple[List[str], QuantumCircuit]:
+    ansatz_name = str(ansatz).lower()
+    if ansatz_name == "hardwareefficient":
+        num_params = 2 * num_qubits * (layers + 1)
+        param_names = [f"theta_{i}" for i in range(num_params)]
+        symbolic_qc = _build_hardware_efficient_ansatz_symbolic(
+            num_qubits,
+            param_names,
+            layers=layers,
+        )
+        return param_names, symbolic_qc
+    if ansatz_name == "ucc":
+        num_params = _ucc_num_params(num_qubits, layers)
+        param_names = [f"theta_{i}" for i in range(num_params)]
+        symbolic_qc = _build_ucc_ansatz_symbolic(
+            num_qubits,
+            param_names,
+            layers=layers,
+        )
+        return param_names, symbolic_qc
+    if ansatz_name == "custom":
+        if custom_ansatz_circuit is None:
+            raise ValueError("custom ansatz requires custom_ansatz_circuit")
+        if not isinstance(custom_ansatz_circuit, QuantumCircuit):
+            raise ValueError("custom_ansatz_circuit must be a QuantumCircuit instance")
+        if int(custom_ansatz_circuit.nqubits) != int(num_qubits):
+            raise ValueError("custom_ansatz_circuit.nqubits must equal num_qubits")
+        param_names = _extract_symbolic_params_from_circuit(custom_ansatz_circuit)
+        if not param_names:
+            raise ValueError("custom ansatz circuit has no unresolved symbolic parameters")
+        return param_names, custom_ansatz_circuit.deepcopy()
+    raise ValueError("ansatz must be 'hardwareefficient', 'ucc', or 'custom'")
 
 
 def _instantiate_transpiled_template(
@@ -341,13 +453,21 @@ def run_vqe_with_backend(
     init_params: Optional[Sequence[float]] = None,
     callback: Optional[Callable[[int, float, np.ndarray], None]] = None,
     gradient_method: Literal["parameter-shift", "autograd"] = "parameter-shift",
+    ansatz: AnsatzKind = "hardwareefficient",
+    custom_ansatz_circuit: Optional[QuantumCircuit] = None,
 ) -> VQEResult:
     """Run VQE optimization on a specific backend."""
     method = str(gradient_method).lower()
     if method not in {"parameter-shift", "autograd"}:
         raise ValueError("gradient_method must be 'parameter-shift' or 'autograd'")
 
-    num_params = 2 * num_qubits * (layers + 1)
+    param_names, symbolic_qc = _resolve_ansatz_layout(
+        ansatz=ansatz,
+        num_qubits=num_qubits,
+        layers=layers,
+        custom_ansatz_circuit=custom_ansatz_circuit,
+    )
+    num_params = len(param_names)
     if init_params is None:
         rng = np.random.default_rng(seed)
         init_values = rng.uniform(0.0, 2.0 * np.pi, size=num_params)
@@ -357,12 +477,6 @@ def run_vqe_with_backend(
             raise ValueError(f"init_params length must be {num_params}")
 
     params = init_values.copy()
-    param_names = [f"theta_{i}" for i in range(num_params)]
-    symbolic_qc = _build_hardware_efficient_ansatz_symbolic(
-        num_qubits,
-        param_names,
-        layers=layers,
-    )
     if method == "autograd":
         if str(chip_name).lower() != "simulator":
             raise ValueError("autograd mode is only supported on Simulator backend")
@@ -392,6 +506,7 @@ def run_vqe_with_backend(
         f"iters={max_iters}",
         f"layers={layers}",
         f"params={num_params}",
+        f"ansatz={str(ansatz).lower()}",
         f"shots={shots}",
         f"shift={shift}",
         f"gradient={method}",
@@ -508,6 +623,8 @@ class VQERunner:
         callback: Optional[Callable[[int, float, np.ndarray], None]] = None,
         prefer_chips: Optional[Sequence[str] | str] = None,
         rank_weights: Optional[Dict[str, float]] = None,
+        ansatz: AnsatzKind = "hardwareefficient",
+        custom_ansatz_circuit: Optional[QuantumCircuit] = None,
     ) -> VQEResult:
         """Select hardware and run VQE optimization."""
         print(
@@ -519,6 +636,7 @@ class VQERunner:
             f"shots={self.shots}",
             f"max_iters={self.max_iters}",
         )
+        run_ansatz = str(ansatz).lower()
         model = model.lower()
         params = model_params or {}
         if model == "ising":
@@ -575,6 +693,8 @@ class VQERunner:
                     init_params=init_params,
                     callback=callback,
                     gradient_method=self.gradient_method,
+                    ansatz=run_ansatz,
+                    custom_ansatz_circuit=custom_ansatz_circuit,
                 )
             except Exception as exc:
                 last_error = exc
