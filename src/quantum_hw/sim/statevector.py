@@ -25,12 +25,20 @@ def _resolve_param(qc: QuantumCircuit, param, param_values: Dict[str, object] | 
     if isinstance(param, str):
         if param_values is not None and param in param_values:
             return param_values[param]
-        if param not in qc.params_value:
-            raise ValueError(f"missing parameter value for {param}")
-        value = qc.params_value[param]
-        if isinstance(value, (float, int)):
-            return float(value)
-        return value
+        if param in qc.params_value:
+            value = qc.params_value[param]
+            if isinstance(value, (float, int)):
+                return float(value)
+        def _symbol_resolver(name: str):
+            if name == "pi":
+                return float(torch.pi)
+            if param_values is not None and name in param_values:
+                return param_values[name]
+            if name in qc.params_value and isinstance(qc.params_value[name], (float, int)):
+                return float(qc.params_value[name])
+            raise ValueError(f"missing parameter value for {name}")
+
+        return qc._eval_param_expression(param, symbol_resolver=_symbol_resolver)
     raise TypeError(f"unsupported parameter type: {type(param)}")
 
 

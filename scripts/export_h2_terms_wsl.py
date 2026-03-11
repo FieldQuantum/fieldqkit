@@ -3,6 +3,7 @@
 Usage examples:
   python scripts/export_h2_terms_wsl.py --R 2.6 --unit angstrom
   python scripts/export_h2_terms_wsl.py --R 2.6 --unit bohr --output examples/data/chemistry/h2_R2.6_bohr_sto-3g.json
+    python scripts/export_h2_terms_wsl.py --R 2.6 --unit angstrom --encoding scbk2
 """
 
 from __future__ import annotations
@@ -12,32 +13,29 @@ import json
 from datetime import datetime, timezone
 from pathlib import Path
 
-from openfermion import MolecularData, jordan_wigner
+from openfermion import MolecularData, get_fermion_operator, jordan_wigner
 from openfermionpyscf import run_pyscf
+
+try:
+    from openfermion.transforms import symmetry_conserving_bravyi_kitaev
+except Exception:  # pragma: no cover - depends on OpenFermion version
+    symmetry_conserving_bravyi_kitaev = None
 
 BOHR_TO_ANGSTROM = 0.529177210903
 
 
-def build_h2_payload(
-    R_value: float,
-    unit: str,
+def _qubit_operator_to_payload(
+    qham,
+    *,
+    mapping: str,
+    r_input: float,
+    unit_input: str,
+    bond_length_angstrom: float,
     basis: str,
     multiplicity: int,
     charge: int,
+    fci_energy: float,
 ) -> dict:
-    if unit.lower() == "bohr":
-        r_ang = float(R_value) * BOHR_TO_ANGSTROM
-    elif unit.lower() == "angstrom":
-        r_ang = float(R_value)
-    else:
-        raise ValueError("unit must be 'angstrom' or 'bohr'")
-
-    geometry = [("H", (0.0, 0.0, 0.0)), ("H", (0.0, 0.0, r_ang))]
-    molecule = MolecularData(geometry, basis, multiplicity, charge)
-    molecule = run_pyscf(molecule, run_scf=True, run_fci=True)
-
-    qham = jordan_wigner(molecule.get_molecular_hamiltonian())
-
     constant = 0.0
     terms: list[list[float | str]] = []
     max_q = -1
@@ -62,19 +60,70 @@ def build_h2_payload(
         "schema": "quantum_control.hamiltonian.v1",
         "generated_at_utc": datetime.now(timezone.utc).isoformat(),
         "molecule": "H2",
-        "R_input": float(R_value),
-        "unit_input": unit,
-        "bond_length_angstrom": r_ang,
+        "R_input": float(r_input),
+        "unit_input": unit_input,
+        "bond_length_angstrom": bond_length_angstrom,
         "basis": basis,
         "multiplicity": multiplicity,
         "charge": charge,
-        "mapping": "jordan_wigner",
+        "mapping": mapping,
         "nqubits": max_q + 1,
         "constant": constant,
         "terms": terms,
-        "fci_energy": float(molecule.fci_energy),
+        "fci_energy": float(fci_energy),
         "term_count": len(terms),
     }
+
+
+def build_h2_payload(
+    R_value: float,
+    unit: str,
+    basis: str,
+    multiplicity: int,
+    charge: int,
+    encoding: str,
+) -> dict:
+    if unit.lower() == "bohr":
+        r_ang = float(R_value) * BOHR_TO_ANGSTROM
+    elif unit.lower() == "angstrom":
+        r_ang = float(R_value)
+    else:
+        raise ValueError("unit must be 'angstrom' or 'bohr'")
+
+    geometry = [("H", (0.0, 0.0, 0.0)), ("H", (0.0, 0.0, r_ang))]
+    molecule = MolecularData(geometry, basis, multiplicity, charge)
+    molecule = run_pyscf(molecule, run_scf=True, run_fci=True)
+
+    if encoding == "jw4":
+        qham = jordan_wigner(molecule.get_molecular_hamiltonian())
+        mapping = "jordan_wigner"
+    elif encoding == "scbk2":
+        if symmetry_conserving_bravyi_kitaev is None:
+            raise RuntimeError(
+                "Current OpenFermion does not provide symmetry_conserving_bravyi_kitaev. "
+                "Please update OpenFermion in WSL."
+            )
+        fham = get_fermion_operator(molecule.get_molecular_hamiltonian())
+        qham = symmetry_conserving_bravyi_kitaev(
+            fham,
+            active_orbitals=4,
+            active_fermions=2,
+        )
+        mapping = "symmetry_conserving_bravyi_kitaev"
+    else:
+        raise ValueError("encoding must be 'jw4' or 'scbk2'")
+
+    return _qubit_operator_to_payload(
+        qham,
+        mapping=mapping,
+        r_input=R_value,
+        unit_input=unit,
+        bond_length_angstrom=r_ang,
+        basis=basis,
+        multiplicity=multiplicity,
+        charge=charge,
+        fci_energy=float(molecule.fci_energy),
+    )
 
 
 def main() -> None:
@@ -85,9 +134,16 @@ def main() -> None:
     parser.add_argument("--multiplicity", type=int, default=1)
     parser.add_argument("--charge", type=int, default=0)
     parser.add_argument(
+        "--encoding",
+        type=str,
+        default="jw4",
+        choices=["jw4", "scbk2"],
+        help="jw4: 4-qubit Jordan-Wigner, scbk2: 2-qubit symmetry-conserving BK",
+    )
+    parser.add_argument(
         "--output",
         type=str,
-        default="examples/data/chemistry/h2_R2.6_sto-3g.json",
+        default="examples/data/chemistry/h2_R2.6_angstrom_sto-3g.json",
         help="Output JSON path (relative to project root or absolute)",
     )
     args = parser.parse_args()
@@ -98,6 +154,7 @@ def main() -> None:
         basis=args.basis,
         multiplicity=args.multiplicity,
         charge=args.charge,
+        encoding=args.encoding,
     )
 
     out_path = Path(args.output).resolve()
