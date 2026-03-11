@@ -99,6 +99,14 @@ def _build_custom_ansatz_qc(num_qubits: int, layers: int) -> QuantumCircuit:
     return qc
 
 
+def _build_custom_ansatz_with_negative_tied_param() -> QuantumCircuit:
+    qc = QuantumCircuit(2)
+    qc.ry("theta", 0)
+    qc.ry("-theta", 1)
+    qc.cx(0, 1)
+    return qc
+
+
 def test_vqe_custom_ansatz_requires_circuit():
     client = _DummyClient()
     backend = Backend("Simulator")
@@ -158,3 +166,72 @@ def test_vqe_custom_ansatz_uses_circuit():
     )
 
     assert client.transpile_calls == 1
+
+
+def test_vqe_custom_ansatz_negative_tied_parameter_uses_single_variable():
+    client = _DummyClient()
+    backend = Backend("Simulator")
+    hamiltonian = build_ising_hamiltonian(num_qubits=2, j=1.0, h=1.0)
+
+    custom_qc = _build_custom_ansatz_with_negative_tied_param()
+
+    run_vqe_with_backend(
+        client,
+        name="test_vqe_custom_negative_tied_param",
+        num_qubits=2,
+        backend=backend,
+        chip_name="Baihua",
+        hamiltonian=hamiltonian,
+        layers=1,
+        shots=128,
+        max_iters=1,
+        learning_rate=0.1,
+        beta1=0.9,
+        beta2=0.98,
+        eps=1e-8,
+        shift=np.pi / 2,
+        zne=False,
+        readout_mitigation=False,
+        gradient_method="parameter-shift",
+        ansatz="custom",
+        custom_ansatz_circuit=custom_qc,
+        init_params=[0.2],
+        seed=3,
+    )
+
+    assert client.transpile_calls == 1
+
+
+def test_vqe_parameter_shift_clifford_fitting_returns_coefficients():
+    client = _DummyClient()
+    backend = Backend("Simulator")
+    hamiltonian = build_ising_hamiltonian(num_qubits=2, j=1.0, h=1.0)
+
+    result = run_vqe_with_backend(
+        client,
+        name="test_vqe_clifford_fitting",
+        num_qubits=2,
+        backend=backend,
+        chip_name="Baihua",
+        hamiltonian=hamiltonian,
+        layers=1,
+        shots=64,
+        max_iters=1,
+        learning_rate=0.1,
+        beta1=0.9,
+        beta2=0.98,
+        eps=1e-8,
+        shift=np.pi / 2,
+        zne=False,
+        readout_mitigation=False,
+        gradient_method="parameter-shift",
+        seed=5,
+        clifford_fitting=True,
+        clifford_fitting_num_samples=2,
+    )
+
+    assert client.transpile_calls == 1
+    assert result.clifford_fitting is not None
+    assert set(result.clifford_fitting.keys()) == {"__hamiltonian__"}
+    coeffs = result.clifford_fitting["__hamiltonian__"]
+    assert "a" in coeffs and "b" in coeffs

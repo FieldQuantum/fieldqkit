@@ -46,6 +46,18 @@ def test_parameter_binding_behaviour():
     assert "gamma" not in qasm
 
 
+def test_parameter_expression_binding_with_negative_symbol():
+    qc = QuantumCircuit(1, 1)
+    qc.ry("theta", 0)
+    qc.ry("-theta", 0)
+
+    qc.apply_value({"theta": 0.25})
+    qasm = qc.to_openqasm2
+
+    assert "ry(0.25) q[0];" in qasm
+    assert "ry(-0.25) q[0];" in qasm
+
+
 def test_adjust_index_preserves_all_gate_kinds_and_offsets():
     qc = QuantumCircuit(4, 4)
     qc.ccz(0, 1, 2)

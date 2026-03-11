@@ -23,6 +23,7 @@ and converting quantum circuits in various formats such as OpenQASM 2.0 and 3.0.
 """
 
 import copy
+import ast
 from typing import Iterable, Optional
 import numpy as np
 from .quantumcircuit_helpers import (
@@ -175,16 +176,75 @@ class QuantumCircuit:
         if isinstance(param, (float, int)):
             return float(param)
         if isinstance(param, str):
-            if param not in self.params_value:
-                raise ValueError(f"please apply value for parameter {param}")
-            value = self.params_value[param]
-            if isinstance(value, (float, int)):
-                return float(value)
-            raise ValueError(f"please apply value for parameter {value}")
+            if param in self.params_value:
+                value = self.params_value[param]
+                if isinstance(value, (float, int)):
+                    return float(value)
+            # Support symbolic parameter expressions like "-theta".
+            return self._eval_param_expression(param)
         raise TypeError(f"Wrong param type! {param}")
 
     def _resolve_param_list(self, params):
         return [self._resolve_param(param) for param in params]
+
+    def _eval_param_expression(self, expr: str, *, symbol_resolver=None):
+        """Safely evaluate a parameter expression.
+
+        Args:
+            expr (str): Expression string.
+            symbol_resolver (callable, optional): Resolver for symbol names.
+                When omitted, symbols are resolved from ``self.params_value``.
+        """
+        expr = str(expr).strip().replace('π', 'pi').replace('np.pi', 'pi')
+
+        if symbol_resolver is None:
+            def symbol_resolver(name: str):
+                if name == "pi":
+                    return float(np.pi)
+                if name not in self.params_value:
+                    raise ValueError(f"please apply value for parameter {name}")
+                value = self.params_value[name]
+                if isinstance(value, (int, float)):
+                    return float(value)
+                raise ValueError(f"please apply value for parameter {name}")
+
+        def _eval(node):
+            if isinstance(node, ast.Expression):
+                return _eval(node.body)
+            if isinstance(node, ast.Constant):
+                if isinstance(node.value, (int, float)):
+                    return float(node.value)
+                raise ValueError("unsupported constant in parameter expression")
+            if isinstance(node, ast.Name):
+                return symbol_resolver(node.id)
+            if isinstance(node, ast.UnaryOp) and isinstance(node.op, (ast.UAdd, ast.USub)):
+                value = _eval(node.operand)
+                return value if isinstance(node.op, ast.UAdd) else -value
+            if isinstance(node, ast.BinOp) and isinstance(
+                node.op,
+                (ast.Add, ast.Sub, ast.Mult, ast.Div, ast.Pow),
+            ):
+                left = _eval(node.left)
+                right = _eval(node.right)
+                if isinstance(node.op, ast.Add):
+                    return left + right
+                if isinstance(node.op, ast.Sub):
+                    return left - right
+                if isinstance(node.op, ast.Mult):
+                    return left * right
+                if isinstance(node.op, ast.Div):
+                    return left / right
+                return left ** right
+            raise ValueError(f"unsupported parameter expression: {expr}")
+
+        try:
+            tree = ast.parse(expr, mode="eval")
+        except Exception as exc:
+            raise ValueError(f"unsupported parameter expression: {expr}") from exc
+        result = _eval(tree)
+        if isinstance(result, (int, float)):
+            return float(result)
+        return result
 
     def from_openqasm2(self,openqasm2_str: str) -> 'QuantumCircuit':
         r"""

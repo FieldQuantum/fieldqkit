@@ -14,6 +14,8 @@
 	- 对应： [VQERunner.run_model](./algorithms/vqe_runner.md)、[observables](./core/observables.md)
 - [VQE(H2)：demo_vqe_h2.ipynb](../examples/demo_vqe_h2.ipynb)
 	- 对应： [VQERunner.run_model](./algorithms/vqe_runner.md)、[WSL Chemistry Workflow](./wsl_chemistry_workflow.md)
+- [VQE(H2, 2Q taper)：demo_vqe_h2_2q.ipynb](../examples/demo_vqe_h2_2q.ipynb)
+	- 对应： [VQERunner.run_model](./algorithms/vqe_runner.md)、[WSL Chemistry Workflow](./wsl_chemistry_workflow.md)
 - [Backend：demo_backend.ipynb](../examples/demo_backend.ipynb)
 	- 对应： [Backend](./api/Backend.md)、[rank_chips](./api/rank_chips.md)
 
@@ -26,6 +28,7 @@
 	- [Shadow：demo_shadow.ipynb](../examples/demo_shadow.ipynb)
 	- [VQE：demo_vqe.ipynb](../examples/demo_vqe.ipynb)
 	- [VQE(H2)：demo_vqe_h2.ipynb](../examples/demo_vqe_h2.ipynb)
+	- [VQE(H2, 2Q taper)：demo_vqe_h2_2q.ipynb](../examples/demo_vqe_h2_2q.ipynb)
 5. 拓扑补充： [Backend：demo_backend.ipynb](../examples/demo_backend.ipynb)
 
 主 README 导航见 [../README.md](../README.md)。

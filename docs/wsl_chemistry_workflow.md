@@ -27,6 +27,16 @@ Equivalent direct command:
 python scripts/export_h2_terms_wsl.py --R 2.6 --unit angstrom --output examples/data/chemistry/h2_R2.6_sto-3g.json
 ```
 
+For 2-qubit tapered encoding (SCBK):
+
+```bash
+./scripts/run_wsl_export_h2_2q.sh 2.6 angstrom
+```
+
+This creates:
+
+`examples/data/chemistry/h2_R2.6_angstrom_sto-3g_scbk2.json`
+
 ## 3. Use in Windows notebook
 
 Notebook cells should load JSON from:
