@@ -535,6 +535,7 @@ def _build_clifford_fit_map(
     param_names: Sequence[str],
     num_samples: int,
     seed: Optional[int],
+    target_qubits: Optional[Sequence[int]] = None,
 ) -> CliffordFitMap:
     """Pre-fit per-observable affine correction using Clifford calibration circuits."""
     if num_samples <= 0:
@@ -571,6 +572,7 @@ def _build_clifford_fit_map(
             hamiltonian=hamiltonian,
             zne=zne,
             readout_mitigation=readout_mitigation,
+            target_qubits=target_qubits,
         )
 
         _, ideal_expectations = _evaluate_energy_with_backend(
@@ -584,6 +586,7 @@ def _build_clifford_fit_map(
             hamiltonian=hamiltonian,
             zne=False,
             readout_mitigation=False,
+            target_qubits=target_qubits,
         )
 
         for _, obs in hamiltonian:
@@ -609,6 +612,7 @@ def _evaluate_energy_with_backend(
     zne: bool,
     readout_mitigation: bool,
     clifford_fit_map: Optional[CliffordFitMap] = None,
+    target_qubits: Optional[Sequence[int]] = None,
 ) -> Tuple[float, Dict[str, float]]:
     observables = [term[1] for term in hamiltonian]
     result = client._run_with_backend(
@@ -624,6 +628,7 @@ def _evaluate_energy_with_backend(
         return_probabilities=False,
         print_true=False,
         transpile=False,
+        target_qubits=target_qubits,
     )
     expectations_raw = _ensure_observable_map(observables, result.observable_values)
     expectations = _apply_clifford_fit(expectations_raw, clifford_fit_map)
@@ -647,6 +652,7 @@ def _parameter_shift_gradient(
     transpiled_template: Optional[QuantumCircuit] = None,
     param_names: Optional[Sequence[str]] = None,
     clifford_fit_map: Optional[CliffordFitMap] = None,
+    target_qubits: Optional[Sequence[int]] = None,
 ) -> np.ndarray:
     """Compute gradients via parameter-shift rule."""
     if transpiled_template is None or param_names is None:
@@ -676,6 +682,7 @@ def _parameter_shift_gradient(
             zne=zne,
             readout_mitigation=readout_mitigation,
             clifford_fit_map=clifford_fit_map,
+            target_qubits=target_qubits,
         )
         e_minus, _ = _evaluate_energy_with_backend(
             client,
@@ -689,6 +696,7 @@ def _parameter_shift_gradient(
             zne=zne,
             readout_mitigation=readout_mitigation,
             clifford_fit_map=clifford_fit_map,
+            target_qubits=target_qubits,
         )
         grads[i] = 0.5 * (e_plus - e_minus)
     return grads
@@ -777,6 +785,11 @@ def run_vqe_with_backend(
             target_qubits=target_qubits,
             use_gate_compressor=False,
         )
+        target_qubits_in_use = client._ordered_target_qubits_from_layout(
+            compiled_qc=transpiled_template,
+            original_qc=symbolic_qc,
+            num_qubits=num_qubits,
+        )
 
     clifford_fit_map: Optional[CliffordFitMap] = None
     clifford_fitting_summary: Optional[Dict[str, Dict[str, float]]] = None
@@ -797,6 +810,7 @@ def run_vqe_with_backend(
             param_names=param_names,
             num_samples=int(clifford_fitting_num_samples),
             seed=None if seed is None else int(seed) + 7919,
+            target_qubits=target_qubits_in_use
         )
         clifford_fitting_summary = {
             obs: {"a": float(coeffs[0]), "b": float(coeffs[1])}
@@ -855,6 +869,7 @@ def run_vqe_with_backend(
                 zne=zne,
                 readout_mitigation=readout_mitigation,
                 clifford_fit_map=clifford_fit_map,
+                target_qubits=target_qubits_in_use,
             )
             grads = _parameter_shift_gradient(
                 client,
@@ -871,6 +886,8 @@ def run_vqe_with_backend(
                 transpiled_template=transpiled_template,
                 param_names=param_names,
                 clifford_fit_map=clifford_fit_map,
+                target_qubits=target_qubits_in_use,
+
             )
 
         grad_norm = float(np.linalg.norm(grads))

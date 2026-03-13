@@ -148,9 +148,9 @@ class QuantumHardwareClient:
 			if status in {"Finished", "Failed", "Canceled"}:
 				return status
 
-	def _compact_for_sim(self, qct: QuantumCircuit) -> Tuple[QuantumCircuit, Dict[int, int]]:
+	def _compact_for_sim(self, qct: QuantumCircuit, target_qubits: Optional[Sequence[int]] = None) -> Tuple[QuantumCircuit, Dict[int, int]]:
 		qct_sim = qct.deepcopy()
-		used = qct_sim.qubits_in_use
+		used = target_qubits if target_qubits is not None else qct_sim.qubits_in_use
 		if not used:
 			return qct_sim, {}
 		# Remap sparse physical qubits to a dense 0..n-1 range for simulation.
@@ -158,6 +158,33 @@ class QuantumHardwareClient:
 		mapping = {q: i for i, q in enumerate(used)}
 		qct_sim.mapping_to_others(mapping)
 		return qct_sim, mapping
+
+	def _ordered_target_qubits_from_layout(
+		self,
+		*,
+		compiled_qc: QuantumCircuit,
+		original_qc: QuantumCircuit,
+		num_qubits: int,
+	) -> Optional[List[int]]:
+		"""Recover measurement qubit order from transpiler layout mapping when available."""
+		layout = getattr(compiled_qc, "logical_to_physical", None)
+		if not isinstance(layout, dict) or not layout:
+			return None
+
+		logical_qubits = original_qc.qubits_in_use
+		if not logical_qubits:
+			logical_qubits = list(range(num_qubits))
+
+		ordered: List[int] = []
+		for lq in logical_qubits:
+			pq = layout.get(lq)
+			if not isinstance(pq, int):
+				return None
+			ordered.append(pq)
+
+		if len(set(ordered)) != len(ordered):
+			return None
+		return ordered
 	
 	def _run_with_backend(
 		self,
@@ -239,15 +266,23 @@ class QuantumHardwareClient:
 		# Transpile once and reuse across measurement groups.
 		if transpile:
 			base_qct = self._transpile_with_backend(deepcopy(qc), backend, target_qubits=target_qubits)
+			# Fall back to transpiler layout mapping first, then transpiled qubits/logical range.
+			target_qubits_in_use = self._ordered_target_qubits_from_layout(
+				compiled_qc=base_qct,
+				original_qc=qc,
+				num_qubits=num_qubits,
+			)
 		else:
 			base_qct = deepcopy(qc)
-		if target_qubits is not None:
-			target_qubits_in_use = list(target_qubits)
-		else:
-			# Fall back to the transpiled circuit qubits or logical range.
-			target_qubits_in_use = base_qct.qubits_in_use
-			if not target_qubits_in_use:
-				target_qubits_in_use = list(range(num_qubits))
+			if target_qubits is not None:
+				if len(target_qubits) != num_qubits:
+					raise ValueError("target_qubits length mismatch with num_qubits")
+				if not (set(base_qct.qubits_in_use) <= set(target_qubits)):
+					raise ValueError("target_qubits must cover all qubits used in the circuit")
+				target_qubits_in_use = list(target_qubits)
+			else:
+				used = list(base_qct.qubits_in_use)
+				target_qubits_in_use = used if used else list(range(num_qubits))
 
 		for gi, group in enumerate(groups):
 			basis_pattern = group["basis"]
@@ -258,7 +293,7 @@ class QuantumHardwareClient:
 				target_qubits_in_use=target_qubits_in_use,
 			)
 			if use_simulator:
-				qct_sim, _ = self._compact_for_sim(qct)
+				qct_sim, _ = self._compact_for_sim(qct, target_qubits_in_use)
 				group_counts[gi]["1"] = simulate_counts(qct_sim, shots)
 			else:
 				# Hardware: submit async task and collect later.
@@ -282,7 +317,7 @@ class QuantumHardwareClient:
 					target_qubits_in_use=target_qubits_in_use,
 				)
 				if use_simulator:
-					qct_sim, _ = self._compact_for_sim(qct)
+					qct_sim, _ = self._compact_for_sim(qct, target_qubits_in_use)
 					group_counts[gi]["3"] = simulate_counts(qct_sim, shots)
 				else:
 					# ZNE scale=3 path runs as an extra hardware task.
@@ -304,11 +339,8 @@ class QuantumHardwareClient:
 			}
 			group_meta.append(meta)
 
-		if target_qubits is None:
-			target_qubits_group = target_qubits_in_use
-		else:
-			target_qubits_group = target_qubits
-
+		target_qubits_group = target_qubits_in_use.copy()
+		
 		per_qubit: Optional[Dict[int, np.ndarray]] = None
 		if readout_mitigation:
 			if len(target_qubits_group) != num_qubits:
