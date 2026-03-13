@@ -107,6 +107,17 @@
 - 单比特：`p`、`r`、`u`、`rx`、`ry`、`rz`
 - 双比特：`rxx`、`ryy`、`rzz`、`cp`
 
+### Pauli 演化门
+
+- `pauli_evolution(theta, pauli)`：追加
+    $$\exp\left(-i\,\frac{\theta}{2}P\right)$$
+    其中 `P` 为 Pauli 串。
+- 支持两种 Pauli 字符串格式：
+    - 紧凑格式：`"XIZY"`、`"ZZII"`（长度需与 `nqubits` 一致）
+    - 索引格式：`"X1 Y2 Z3 Z4"`
+- `theta` 可为数值或字符串参数；字符串会登记到 `params_value`。
+- 当 `P=I`（全单位项）时仅对应全局相位，线路中不会追加实际门。
+
 参数可为数值或字符串占位符。占位符会自动注册到 `params_value`，供后续绑定。
 
 ## 参数绑定与映射
@@ -257,7 +268,6 @@ qc.h(0)
 qc.cz(0, 1)
 qc.rzz(0.4, 1, 2)
 qc.measure([0, 1, 2], [0, 1, 2])
-
 print("depth:", qc.depth)
 print("ncz:", qc.ncz)
 print("qubits_in_use:", qc.qubits_in_use)
@@ -266,7 +276,19 @@ qc.draw(width=3)
 qc.draw_simply(width=3)
 ```
 
-## 示例 6：从幺正矩阵生成线路片段
+## 示例 6：Pauli 演化
+
+```python
+from quantum_hw.circuit import QuantumCircuit
+
+qc = QuantumCircuit(5)
+qc.pauli_evolution(0.3, "X1 Y2 Z3 Z4")
+
+# 也支持字符串参数
+qc.pauli_evolution("theta", "X1 Y2 Z3 Z4")
+```
+
+## 示例 7：从幺正矩阵生成线路片段
 
 ```python
 import numpy as np

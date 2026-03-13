@@ -18,7 +18,7 @@ from ..core.types import VQEResult
 
 Hamiltonian = List[Tuple[float, str]]
 AnsatzKind = Literal["hardwareefficient", "ucc", "custom"]
-CliffordFit = Tuple[float, float]
+CliffordFitMap = Dict[str, Tuple[float, float]]
 
 
 def build_ising_hamiltonian(num_qubits: int, j: float = 1.0, h: float = 1.0) -> Hamiltonian:
@@ -230,45 +230,47 @@ def _build_ucc_ansatz_symbolic(
     return qc
 
 
+def _extract_names_from_expr(expr: str) -> List[str]:
+    """Extract symbol names from a parameter expression, excluding pi."""
+    expr = str(expr).strip().replace('π', 'pi').replace('np.pi', 'pi')
+    try:
+        tree = ast.parse(expr, mode="eval")
+    except Exception:
+        # Backward compatibility: if not a valid expression, treat it as a raw symbol.
+        return [expr] if expr else []
+
+    out: List[str] = []
+
+    def _walk(node):
+        if isinstance(node, ast.Expression):
+            _walk(node.body)
+            return
+        if isinstance(node, ast.Name):
+            if node.id != "pi":
+                out.append(node.id)
+            return
+        if isinstance(node, ast.Constant):
+            return
+        if isinstance(node, ast.UnaryOp) and isinstance(node.op, (ast.UAdd, ast.USub)):
+            _walk(node.operand)
+            return
+        if isinstance(node, ast.BinOp) and isinstance(
+            node.op,
+            (ast.Add, ast.Sub, ast.Mult, ast.Div, ast.Pow),
+        ):
+            _walk(node.left)
+            _walk(node.right)
+            return
+        raise ValueError(f"unsupported symbolic parameter expression: {expr}")
+
+    _walk(tree)
+    return out
+
+
 def _extract_symbolic_params_from_circuit(qc: QuantumCircuit) -> List[str]:
     """Extract unresolved symbolic parameter names from a parameterized circuit template."""
     names: List[str] = []
     seen = set()
-
-    def _extract_names_from_expr(expr: str) -> List[str]:
-        expr = str(expr).strip().replace('π', 'pi').replace('np.pi', 'pi')
-        try:
-            tree = ast.parse(expr, mode="eval")
-        except Exception:
-            # Backward compatibility: if not a valid expression, treat it as a raw symbol.
-            return [expr] if expr else []
-
-        out: List[str] = []
-
-        def _walk(node):
-            if isinstance(node, ast.Expression):
-                _walk(node.body)
-                return
-            if isinstance(node, ast.Name):
-                if node.id != "pi":
-                    out.append(node.id)
-                return
-            if isinstance(node, ast.Constant):
-                return
-            if isinstance(node, ast.UnaryOp) and isinstance(node.op, (ast.UAdd, ast.USub)):
-                _walk(node.operand)
-                return
-            if isinstance(node, ast.BinOp) and isinstance(
-                node.op,
-                (ast.Add, ast.Sub, ast.Mult, ast.Div, ast.Pow),
-            ):
-                _walk(node.left)
-                _walk(node.right)
-                return
-            raise ValueError(f"unsupported symbolic parameter expression: {expr}")
-
-        _walk(tree)
-        return out
 
     for key, value in qc.params_value.items():
         if isinstance(key, str) and isinstance(value, str):
@@ -277,6 +279,30 @@ def _extract_symbolic_params_from_circuit(qc: QuantumCircuit) -> List[str]:
                     names.append(symbol)
                     seen.add(symbol)
     return names
+
+
+def _build_trainable_parametric_1q_gate_list(
+    transpiled_template: QuantumCircuit,
+    trainable_symbols: Sequence[str],
+) -> List[Tuple[int, str]]:
+    """Collect (gate_index, gate_name) for trainable 1q parameterized gates."""
+    trainable_set = set(trainable_symbols)
+    out: List[Tuple[int, str]] = []
+    for gate_index, gate_info in enumerate(transpiled_template.gates):
+        gate = gate_info[0]
+        if gate not in {"rx", "ry", "rz", "p", "u", "u3", "r"}:
+            continue
+        depends_on_trainable = False
+        for param in gate_info[1:-1]:
+            if not isinstance(param, str):
+                continue
+            symbols = _extract_names_from_expr(param)
+            if any(symbol in trainable_set for symbol in symbols):
+                depends_on_trainable = True
+                break
+        if depends_on_trainable:
+            out.append((gate_index, gate))
+    return out
 
 
 def _resolve_ansatz_layout(
@@ -358,33 +384,110 @@ def _energy_from_expectations(hamiltonian: Hamiltonian, expectations: Dict[str, 
     return float(sum(coeff * expectations.get(obs, 0.0) for coeff, obs in hamiltonian))
 
 
-def _sample_unique_clifford_params(
+_CLIFFORD_ANGLES = np.array([0.0, np.pi / 2.0, np.pi, 1.5 * np.pi], dtype=float)
+
+# 24 single-qubit Clifford elements represented as U3(theta, phi, lambda)
+# following Qiskit's u3 convention.
+_CLIFFORD_U3_PARAMS: Tuple[Tuple[float, float, float], ...] = (
+    (0.0, 0.0, 0.0),
+    (np.pi, 0.0, np.pi),
+    (np.pi, 0.0, 0.0),
+    (np.pi, np.pi / 2.0, np.pi / 2.0),
+    (np.pi, np.pi / 2.0, -np.pi / 2.0),
+    (np.pi, -np.pi / 2.0, np.pi / 2.0),
+    (np.pi / 2.0, -np.pi / 2.0, np.pi / 2.0),
+    (np.pi / 2.0, -np.pi / 2.0, -np.pi / 2.0),
+    (np.pi / 2.0, np.pi / 2.0, np.pi / 2.0),
+    (np.pi / 2.0, np.pi / 2.0, -np.pi / 2.0),
+    (np.pi / 2.0, 0.0, 0.0),
+    (np.pi / 2.0, np.pi, 0.0),
+    (np.pi / 2.0, 0.0, np.pi),
+    (np.pi / 2.0, np.pi, np.pi),
+    (-np.pi / 2.0, 0.0, 0.0),
+    (-np.pi / 2.0, np.pi, 0.0),
+    (-np.pi / 2.0, 0.0, np.pi),
+    (-np.pi / 2.0, np.pi, np.pi),
+    (0.0, np.pi / 2.0, np.pi / 2.0),
+    (0.0, -np.pi / 2.0, -np.pi / 2.0),
+    (0.0, np.pi / 2.0, -np.pi / 2.0),
+    (0.0, -np.pi / 2.0, np.pi / 2.0),
+    (0.0, np.pi, 0.0),
+    (0.0, 0.0, np.pi),
+)
+
+
+def _randomize_parametric_1q_gates_to_clifford(
+    transpiled_template: QuantumCircuit,
     rng: np.random.Generator,
-    size: int,
+    trainable_parametric_1q_gates: Sequence[Tuple[int, str]],
+) -> Tuple[QuantumCircuit, Tuple[tuple, ...]]:
+    """Replace each 1q parametric gate with a random 1q Clifford gate instance."""
+    qc = transpiled_template.deepcopy()
+    signature: List[tuple] = []
+    if not trainable_parametric_1q_gates:
+        raise ValueError("clifford fitting requires at least one single-qubit parameterized gate")
+
+    new_gates = list(qc.gates)
+    for gate_index, gate in trainable_parametric_1q_gates:
+        gate_info = new_gates[gate_index]
+        qubit = int(gate_info[-1])
+
+        if gate in {"rx", "ry", "rz", "p"}:
+            theta = float(_CLIFFORD_ANGLES[int(rng.integers(0, len(_CLIFFORD_ANGLES)))])
+            new_gates[gate_index] = (gate, theta, qubit)
+            signature.append((gate_index, gate, theta, qubit))
+            continue
+
+        if gate in {"u", "u3"}:
+            theta, phi, lam = _CLIFFORD_U3_PARAMS[int(rng.integers(0, len(_CLIFFORD_U3_PARAMS)))]
+            theta = float(theta)
+            phi = float(phi)
+            lam = float(lam)
+            new_gates[gate_index] = (gate, theta, phi, lam, qubit)
+            signature.append((gate_index, gate, theta, phi, lam, qubit))
+            continue
+
+        if gate == "r":
+            theta = float(_CLIFFORD_ANGLES[int(rng.integers(0, len(_CLIFFORD_ANGLES)))])
+            phi = float(_CLIFFORD_ANGLES[int(rng.integers(0, len(_CLIFFORD_ANGLES)))])
+            new_gates[gate_index] = (gate, theta, phi, qubit)
+            signature.append((gate_index, gate, theta, phi, qubit))
+            continue
+
+        raise ValueError(f"unsupported trainable gate in clifford fitting: {gate}")
+
+    qc.gates = new_gates
+    return qc, tuple(signature)
+
+
+def _sample_unique_randomized_clifford_circuits(
+    transpiled_template: QuantumCircuit,
+    *,
+    rng: np.random.Generator,
     num_samples: int,
-) -> List[np.ndarray]:
-    """Pre-sample unique vectors from Clifford set {0, pi/2, pi, 3pi/2}."""
-    if num_samples <= 0:
+    trainable_parametric_1q_gates: Sequence[Tuple[int, str]],
+) -> List[QuantumCircuit]:
+    """Sample approximately unique Clifford-randomized circuits."""
+    target = max(int(num_samples), 0)
+    if target == 0:
         return []
 
-    n_params = max(int(size), 0)
-    total_unique = 4 ** n_params
-    target = min(int(num_samples), int(total_unique))
-    if target <= 0:
-        return []
+    sampled: List[QuantumCircuit] = []
+    seen = set()
+    attempts = 0
+    max_attempts = max(target * 20, 100)
+    while len(sampled) < target and attempts < max_attempts:
+        attempts += 1
+        qc, signature = _randomize_parametric_1q_gates_to_clifford(
+            transpiled_template,
+            rng,
+            trainable_parametric_1q_gates,
+        )
+        if signature in seen:
+            continue
+        seen.add(signature)
+        sampled.append(qc)
 
-    clifford_angles = np.array([0.0, np.pi / 2.0, np.pi, 1.5 * np.pi], dtype=float)
-    # Sample unique base-10 codes without replacement, then decode to base-4 angle indices.
-    sampled_codes = rng.choice(total_unique, size=target, replace=False)
-
-    sampled: List[np.ndarray] = []
-    for code in np.asarray(sampled_codes, dtype=object):
-        value = int(code)
-        idx = np.zeros((n_params,), dtype=int)
-        for pos in range(n_params - 1, -1, -1):
-            idx[pos] = value % 4
-            value //= 4
-        sampled.append(clifford_angles[idx])
     return sampled
 
 
@@ -394,7 +497,7 @@ def _fit_linear_clifford_map(noisy_values: Sequence[float], ideal_values: Sequen
     y = np.asarray(ideal_values, dtype=float)
     if x.size == 0 or y.size == 0 or x.size != y.size:
         return 1.0, 0.0
-    if float(np.var(x)) <= 1e-12:
+    if float(np.std(x)) <= 1e-2 or float(np.std(y)) <= 1e-2:
         a, b = 1.0, float(np.mean(y) - np.mean(x))
     else:
         try:
@@ -403,28 +506,21 @@ def _fit_linear_clifford_map(noisy_values: Sequence[float], ideal_values: Sequen
                 a, b = 1.0, float(np.mean(y) - np.mean(x))
         except (np.linalg.LinAlgError, ValueError):
             a, b = 1.0, float(np.mean(y) - np.mean(x))
-    from matplotlib import pyplot as plt
-    print(a, b)
-    plt.scatter(x, y)
-    plt.plot(np.arange(-1, 1.01, 0.1), a * np.arange(-1, 1.01, 0.1) + b, color="red")
-    plt.xlabel("Noisy expectation")
-    plt.ylabel("Ideal expectation")
-    plt.title("Linear Clifford Fit")
-    plt.tight_layout()
-    plt.show()
-    plt.clf()
 
     return float(a), float(b)
 
 
-def _apply_clifford_fit_energy(energy_raw: float, fit_coeffs: Optional[CliffordFit]) -> float:
-    if fit_coeffs is None:
-        return float(energy_raw)
-    a, b = fit_coeffs
-    return float(a * float(energy_raw) + b)
+def _apply_clifford_fit(expectations: Dict[str, float], fit_map: Optional[CliffordFitMap]) -> Dict[str, float]:
+    if not fit_map:
+        return expectations
+    corrected = dict(expectations)
+    for obs, (a, b) in fit_map.items():
+        if obs in corrected:
+            corrected[obs] = float(np.clip(a * corrected[obs] + b, -1.0, 1.0))
+    return corrected
 
 
-def _build_clifford_fit_coeffs(
+def _build_clifford_fit_map(
     client,
     *,
     name: str,
@@ -439,56 +535,65 @@ def _build_clifford_fit_coeffs(
     param_names: Sequence[str],
     num_samples: int,
     seed: Optional[int],
-) -> CliffordFit:
-    """Pre-fit Hamiltonian-level affine correction using Clifford calibration circuits."""
+) -> CliffordFitMap:
+    """Pre-fit per-observable affine correction using Clifford calibration circuits."""
     if num_samples <= 0:
-        return 1.0, 0.0
-    fit_inputs_noisy: List[float] = []
-    fit_inputs_ideal: List[float] = []
+        return {}
+    fit_inputs_noisy: Dict[str, List[float]] = {obs: [] for _, obs in hamiltonian}
+    fit_inputs_ideal: Dict[str, List[float]] = {obs: [] for _, obs in hamiltonian}
 
     rng = np.random.default_rng(seed)
     sim_backend = Backend("Simulator")
-    fit_shots = int(shots) * 8
+    trainable_parametric_1q_gates = _build_trainable_parametric_1q_gate_list(
+        transpiled_template,
+        param_names,
+    )
+    if not trainable_parametric_1q_gates:
+        raise ValueError("clifford fitting requires at least one trainable single-qubit parameterized gate")
 
-    # if 4 ** len(param_names) < num_samples:
-    #     num_samples = 4 ** len(param_names)
-    # sampled_clifford_params = _sample_unique_clifford_params(rng, len(param_names), num_samples)
-    sampled_clifford_params = [rng.uniform(0.0, 2.0 * np.pi, size=len(param_names)) for _ in range(num_samples)]
+    sampled_clifford_circuits = _sample_unique_randomized_clifford_circuits(
+        transpiled_template,
+        rng=rng,
+        num_samples=num_samples,
+        trainable_parametric_1q_gates=trainable_parametric_1q_gates,
+    )
 
-    for si, clifford_params in enumerate(sampled_clifford_params):
+    for si, clifford_qc in enumerate(sampled_clifford_circuits):
 
-        qc_noisy = _instantiate_transpiled_template(transpiled_template, param_names, clifford_params)
-        noisy_energy, _ = _evaluate_energy_with_backend(
+        _, noisy_expectations = _evaluate_energy_with_backend(
             client,
-            qc_noisy,
+            clifford_qc.deepcopy(),
             name=f"{name}_clifford_noisy_{si}",
             num_qubits=num_qubits,
             backend=backend,
             chip_name=chip_name,
-            shots=fit_shots,
+            shots=shots,
             hamiltonian=hamiltonian,
             zne=zne,
             readout_mitigation=readout_mitigation,
         )
 
-        qc_ideal = _instantiate_transpiled_template(transpiled_template, param_names, clifford_params)
-        ideal_energy, _ = _evaluate_energy_with_backend(
+        _, ideal_expectations = _evaluate_energy_with_backend(
             client,
-            qc_ideal,
+            clifford_qc.deepcopy(),
             name=f"{name}_clifford_ideal_{si}",
             num_qubits=num_qubits,
             backend=sim_backend,
             chip_name="Simulator",
-            shots=fit_shots,
+            shots=shots*10,
             hamiltonian=hamiltonian,
             zne=False,
             readout_mitigation=False,
         )
 
-        fit_inputs_noisy.append(float(noisy_energy))
-        fit_inputs_ideal.append(float(ideal_energy))
+        for _, obs in hamiltonian:
+            fit_inputs_noisy[obs].append(float(noisy_expectations.get(obs, 0.0)))
+            fit_inputs_ideal[obs].append(float(ideal_expectations.get(obs, 0.0)))
 
-    return _fit_linear_clifford_map(fit_inputs_noisy, fit_inputs_ideal)
+    fit_map: CliffordFitMap = {}
+    for _, obs in hamiltonian:
+        fit_map[obs] = _fit_linear_clifford_map(fit_inputs_noisy[obs], fit_inputs_ideal[obs])
+    return fit_map
 
 
 def _evaluate_energy_with_backend(
@@ -503,7 +608,7 @@ def _evaluate_energy_with_backend(
     hamiltonian: Hamiltonian,
     zne: bool,
     readout_mitigation: bool,
-    clifford_fit_coeffs: Optional[CliffordFit] = None,
+    clifford_fit_map: Optional[CliffordFitMap] = None,
 ) -> Tuple[float, Dict[str, float]]:
     observables = [term[1] for term in hamiltonian]
     result = client._run_with_backend(
@@ -521,9 +626,9 @@ def _evaluate_energy_with_backend(
         transpile=False,
     )
     expectations_raw = _ensure_observable_map(observables, result.observable_values)
-    energy_raw = _energy_from_expectations(hamiltonian, expectations_raw)
-    energy = _apply_clifford_fit_energy(energy_raw, clifford_fit_coeffs)
-    return energy, expectations_raw
+    expectations = _apply_clifford_fit(expectations_raw, clifford_fit_map)
+    energy = _energy_from_expectations(hamiltonian, expectations)
+    return energy, expectations
 
 
 def _parameter_shift_gradient(
@@ -541,7 +646,7 @@ def _parameter_shift_gradient(
     readout_mitigation: bool,
     transpiled_template: Optional[QuantumCircuit] = None,
     param_names: Optional[Sequence[str]] = None,
-    clifford_fit_coeffs: Optional[CliffordFit] = None,
+    clifford_fit_map: Optional[CliffordFitMap] = None,
 ) -> np.ndarray:
     """Compute gradients via parameter-shift rule."""
     if transpiled_template is None or param_names is None:
@@ -570,7 +675,7 @@ def _parameter_shift_gradient(
             hamiltonian=hamiltonian,
             zne=zne,
             readout_mitigation=readout_mitigation,
-            clifford_fit_coeffs=clifford_fit_coeffs,
+            clifford_fit_map=clifford_fit_map,
         )
         e_minus, _ = _evaluate_energy_with_backend(
             client,
@@ -583,7 +688,7 @@ def _parameter_shift_gradient(
             hamiltonian=hamiltonian,
             zne=zne,
             readout_mitigation=readout_mitigation,
-            clifford_fit_coeffs=clifford_fit_coeffs,
+            clifford_fit_map=clifford_fit_map,
         )
         grads[i] = 0.5 * (e_plus - e_minus)
     return grads
@@ -673,12 +778,12 @@ def run_vqe_with_backend(
             use_gate_compressor=False,
         )
 
-    clifford_fit_coeffs: Optional[CliffordFit] = None
+    clifford_fit_map: Optional[CliffordFitMap] = None
     clifford_fitting_summary: Optional[Dict[str, Dict[str, float]]] = None
     if clifford_fitting:
         if method != "parameter-shift":
             raise ValueError("clifford_fitting currently requires gradient_method='parameter-shift'")
-        clifford_fit_coeffs = _build_clifford_fit_coeffs(
+        clifford_fit_map = _build_clifford_fit_map(
             client,
             name=name,
             num_qubits=num_qubits,
@@ -693,13 +798,13 @@ def run_vqe_with_backend(
             num_samples=int(clifford_fitting_num_samples),
             seed=None if seed is None else int(seed) + 7919,
         )
-        a, b = clifford_fit_coeffs
         clifford_fitting_summary = {
-            "__hamiltonian__": {"a": float(a), "b": float(b)}
+            obs: {"a": float(coeffs[0]), "b": float(coeffs[1])}
+            for obs, coeffs in clifford_fit_map.items()
         }
         print(
             "[vqe] clifford fitting prepared:",
-            "level=hamiltonian",
+            f"terms={len(clifford_fit_map)}",
             f"samples={int(clifford_fitting_num_samples)}",
         )
 
@@ -749,7 +854,7 @@ def run_vqe_with_backend(
                 hamiltonian=hamiltonian,
                 zne=zne,
                 readout_mitigation=readout_mitigation,
-                clifford_fit_coeffs=clifford_fit_coeffs,
+                clifford_fit_map=clifford_fit_map,
             )
             grads = _parameter_shift_gradient(
                 client,
@@ -765,7 +870,7 @@ def run_vqe_with_backend(
                 readout_mitigation=readout_mitigation,
                 transpiled_template=transpiled_template,
                 param_names=param_names,
-                clifford_fit_coeffs=clifford_fit_coeffs,
+                clifford_fit_map=clifford_fit_map,
             )
 
         grad_norm = float(np.linalg.norm(grads))

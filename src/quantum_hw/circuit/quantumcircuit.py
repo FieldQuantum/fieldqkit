@@ -24,6 +24,7 @@ and converting quantum circuits in various formats such as OpenQASM 2.0 and 3.0.
 
 import copy
 import ast
+import re
 from typing import Iterable, Optional
 import numpy as np
 from .quantumcircuit_helpers import (
@@ -245,6 +246,46 @@ class QuantumCircuit:
         if isinstance(result, (int, float)):
             return float(result)
         return result
+
+    def _parse_pauli_string(self, pauli: str, *, num_qubits: Optional[int] = None):
+        """Parse a Pauli string in compact or indexed format.
+
+        Compact format examples: "XIZY", "ZZII".
+        Indexed format examples: "X1 Y2 Z3 Z4".
+        """
+        if not isinstance(pauli, str):
+            raise TypeError("pauli must be a string")
+        pauli = pauli.strip()
+        if not pauli:
+            raise ValueError("pauli string is empty")
+
+        tokens = pauli.split()
+        if len(tokens) == 1 and tokens[0].isalpha():
+            compact = tokens[0].upper()
+            if any(ch not in {"I", "X", "Y", "Z"} for ch in compact):
+                raise ValueError("unsupported Pauli in compact string")
+            if num_qubits is not None and len(compact) != num_qubits:
+                raise ValueError("pauli length mismatch with num_qubits")
+            return [(idx, op) for idx, op in enumerate(compact) if op != "I"]
+
+        parsed = []
+        used_indices = set()
+        for tok in tokens:
+            if not re.match(r"^[IXYZixyz]\d+$", tok):
+                raise ValueError(f"invalid indexed Pauli token: {tok}")
+            op = tok[0].upper()
+            idx = int(tok[1:])
+            if op != "I":
+                if idx in used_indices:
+                    raise ValueError("duplicate pauli index")
+                used_indices.add(idx)
+                parsed.append((idx, op))
+
+        if num_qubits is not None:
+            for idx, _ in parsed:
+                if idx < 0 or idx >= num_qubits:
+                    raise ValueError("pauli index out of range")
+        return parsed
 
     def from_openqasm2(self,openqasm2_str: str) -> 'QuantumCircuit':
         r"""
@@ -926,6 +967,53 @@ class QuantumCircuit:
                 raise ValueError(f"Qubit index conflict: qubit1 and qubit2 are both {control_qubit}")
         else:
             raise ValueError("Qubit index out of range")
+
+    def pauli_evolution(self, theta: float | str, pauli: str) -> 'QuantumCircuit':
+        r"""Append ``exp(-i * theta/2 * P)`` for a Pauli string ``P``.
+
+        The Pauli string supports compact format (e.g. ``"IXYZ"``) and
+        indexed format (e.g. ``"X1 Y2 Z3 Z4"``).
+        """
+        terms = self._parse_pauli_string(pauli, num_qubits=self.nqubits)
+        if not terms:
+            # P = I, the unitary is a global phase and is skipped in circuit form.
+            return self
+
+        support = sorted(terms, key=lambda t: t[0])
+        qubits = [q for q, _ in support]
+
+        # Basis change: U_dag * P * U = Z...Z.
+        for q, op in support:
+            if op == "X":
+                self.h(q)
+            elif op == "Y":
+                self.sdg(q)
+                self.h(q)
+
+        target = qubits[-1]
+        if len(qubits) == 1:
+            rz_theta = float(theta) if isinstance(theta, (int, float)) else theta
+            self.rz(rz_theta, target)
+        else:
+            for control in qubits[:-1]:
+                self.cx(control, control+1)
+            rz_theta = float(theta) if isinstance(theta, (int, float)) else theta
+            self.rz(rz_theta, target)
+            for control in reversed(qubits[:-1]):
+                self.cx(control, control+1)
+
+        # Undo basis change: U_dag.
+        for q, op in reversed(support):
+            if op == "X":
+                self.h(q)
+            elif op == "Y":
+                self.h(q)
+                self.s(q)
+
+        self._add_qubits(*qubits)
+        if isinstance(theta, str):
+            self.params_value[theta] = theta
+        return self
                
     def mapping_to_others(self,mapping:dict) -> 'QuantumCircuit':
         """Map current qubit indices to new indices.

@@ -37,7 +37,35 @@ This creates:
 
 `examples/data/chemistry/h2_R2.6_angstrom_sto-3g_scbk2.json`
 
-## 3. Use in Windows notebook
+## 3. Export LiH Hamiltonian JSON (JW + reduction)
+
+Run with the LiH reduction preset:
+
+```bash
+cd /mnt/d/OneDrive/work/research/code/Quantum_control
+source ~/venvs/chem/bin/activate
+./scripts/run_wsl_export_lih.sh 1.6 angstrom
+```
+
+Equivalent direct command:
+
+```bash
+python scripts/export_lih_terms_wsl.py \
+	--R 1.6 \
+	--unit angstrom \
+	--reduction paper \
+	--output examples/data/chemistry/lih_R1.6_angstrom_sto-3g_6q.json
+```
+
+This creates:
+
+`examples/data/chemistry/lih_R1.6_angstrom_sto-3g_6q.json`
+
+Notes:
+- `paper` (default) maps to `occupied_indices=[0]`, `active_indices=[1,2,5]` (typically 6 qubits).
+- You can override with `--occupied-indices` and `--active-indices`.
+
+## 4. Use in Windows notebook
 
 Notebook cells should load JSON from:
 

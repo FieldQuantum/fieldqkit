@@ -232,6 +232,6 @@ def test_vqe_parameter_shift_clifford_fitting_returns_coefficients():
 
     assert client.transpile_calls == 1
     assert result.clifford_fitting is not None
-    assert set(result.clifford_fitting.keys()) == {"__hamiltonian__"}
-    coeffs = result.clifford_fitting["__hamiltonian__"]
-    assert "a" in coeffs and "b" in coeffs
+    assert set(result.clifford_fitting.keys()) == {obs for _, obs in hamiltonian}
+    for coeffs in result.clifford_fitting.values():
+        assert "a" in coeffs and "b" in coeffs
