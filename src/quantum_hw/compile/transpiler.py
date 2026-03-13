@@ -19,6 +19,8 @@
 
 r"""This module contains the Transpiler class, which is designed to convert quantum circuits into formats that are more suitable for execution on hardware backends"""
 
+from copy import deepcopy
+
 from ..api.backend import Backend
 
 from ..circuit import QuantumCircuit
@@ -122,5 +124,10 @@ class Transpiler:
             except Exception:
                 pass
         for pass_obj in passes:
+            prev_qc = qc
             qc = pass_obj.run(qc)
+            # Keep routing layout metadata available to API-layer measurement mapping.
+            for attr in ("logical_to_physical", "physical_to_logical"):
+                if hasattr(prev_qc, attr):
+                    setattr(qc, attr, deepcopy(getattr(prev_qc, attr)))
         return qc

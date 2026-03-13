@@ -996,11 +996,11 @@ class QuantumCircuit:
             self.rz(rz_theta, target)
         else:
             for control in qubits[:-1]:
-                self.cx(control, control+1)
+                self.cx(control, target)
             rz_theta = float(theta) if isinstance(theta, (int, float)) else theta
             self.rz(rz_theta, target)
             for control in reversed(qubits[:-1]):
-                self.cx(control, control+1)
+                self.cx(control, target)
 
         # Undo basis change: U_dag.
         for q, op in reversed(support):

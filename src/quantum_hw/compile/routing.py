@@ -412,4 +412,7 @@ class SabreRouting(TranspilerPass):
         new_qc.gates = new
         new_qc.params_value = qc.params_value
         new_qc.qubits = self.physical_qubits
+        # Expose final layout mapping for downstream measurement alignment.
+        new_qc.logical_to_physical = dict(self.v2p)
+        new_qc.physical_to_logical = dict(final_p2v)
         return new_qc

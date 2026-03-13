@@ -2,6 +2,8 @@ import pytest
 
 from quantum_hw.api import backend as hardware_module
 from quantum_hw.api.backend import Backend
+from quantum_hw.api.client import QuantumHardwareClient
+from quantum_hw.circuit import QuantumCircuit
 
 
 def test_backend_graph_from_dict():
@@ -50,7 +52,6 @@ def test_rank_chips_uses_local_backend_info(monkeypatch):
 
 def test_transpiler_layout_smoke():
     from quantum_hw.compile import Transpiler
-    from quantum_hw.circuit import QuantumCircuit
 
     chip_info = {
         "size": (1, 2),
@@ -75,3 +76,18 @@ def test_transpiler_layout_smoke():
 
     assert transpiled.nqubits >= 2
     assert len(transpiled.gates) > 0
+
+
+def test_run_with_backend_uses_layout_mapping_for_measurement_order():
+    client = QuantumHardwareClient()
+    num_qubits = 3
+    qc = QuantumCircuit(num_qubits)
+    for i in range(num_qubits - 1):
+        qc.cz(i, 2)
+    for i in range(num_qubits - 2, -1, -1):
+        qc.cz(i, 2)
+    qc.x(1)
+    res = client.run_auto(qc, "test", num_qubits, observables=["Z0", "Z1", "Z2"], prefer_chips="Simulator")
+    assert res.observable_values["Z0"] > 0.9
+    assert res.observable_values["Z1"] < - 0.9
+    assert res.observable_values["Z2"] > 0.9
