@@ -1,6 +1,7 @@
 from quantum_hw.circuit import QuantumCircuit
 from quantum_hw.circuit.quantumcircuit_helpers import three_qubit_gates_available
 from quantum_hw.compile.decompose import ThreeQubitGateDecompose
+from quantum_hw.compile.transpiler import Transpiler
 from quantum_hw.compile.translate import TranslateToBasisGates
 
 
@@ -33,3 +34,31 @@ def test_translate_to_basis_gates_cz_and_u_only():
     allowed = {"u", "cz", "measure"}
     for gate in new_qc.gates:
         assert gate[0] in allowed
+
+
+def test_pauli_evolution_expands_mixed_string():
+    qc = QuantumCircuit(5, 5)
+    qc.pauli_evolution(0.3, "X1 Y2 Z3 Z4")
+
+    names = [g[0] for g in qc.gates]
+    assert names.count("rz") == 1
+    assert names.count("cx") == 6
+    assert names.count("h") == 4
+    assert names.count("sdg") == 1
+    assert names.count("s") == 1
+
+
+def test_pauli_evolution_is_compile_compatible():
+    qc = QuantumCircuit(5, 5)
+    qc.pauli_evolution("theta", "X1 Y2 Z3 Z4")
+
+    transpiled = Transpiler(chip_backend=None).run(
+        qc,
+        use_dd=False,
+        use_three_qubit_decompose=False,
+        use_sabre_routing=False,
+        use_translate_to_basis=True,
+        use_gate_compressor=False,
+    )
+    allowed = {"h", "sdg", "s", "rz", "cx"}
+    assert all(g[0] in allowed for g in transpiled.gates)

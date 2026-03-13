@@ -1,6 +1,6 @@
 {
   "schema": "quantum_control.hamiltonian.v1",
-  "generated_at_utc": "2026-03-10T13:35:24.533744+00:00",
+  "generated_at_utc": "2026-03-11T13:02:51.099687+00:00",
   "molecule": "H2",
   "R_input": 2.6,
   "unit_input": "angstrom",

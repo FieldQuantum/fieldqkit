@@ -61,6 +61,8 @@ run_model(
 | `shift` | `float` | `π/2` | 否 | `VQERunner` 初始化参数：参数移位角。 |
 | `zne` | `bool` | `False` | 否 | `VQERunner` 初始化参数：是否启用 ZNE。 |
 | `readout_mitigation` | `bool` | `False` | 否 | `VQERunner` 初始化参数：是否启用 readout 缓解。 |
+| `clifford_fitting` | `bool` | `False` | 否 | `VQERunner` 初始化参数：是否启用基于 Clifford 随机线路的仿射校正。 |
+| `clifford_fitting_num_samples` | `int` | `8` | 否 | `VQERunner` 初始化参数：Clifford 拟合采样条数。 |
 | `target_qubits` | `Optional[Sequence[int]]` | `None` | 否 | 指定物理比特映射。 |
 | `seed` | `Optional[int]` | `None` | 否 | `VQERunner` 初始化参数：参数初始化随机种子。 |
 | `gradient_method` | `Literal["parameter-shift", "autograd"]` | `"parameter-shift"` | 否 | 梯度计算方式。`autograd` 仅支持 `Simulator`。 |
@@ -193,6 +195,10 @@ _parameter_shift_gradient(
 - `params_history: Optional[List[List[float]]]`
 - `grad_history: Optional[List[List[float]]]`
 - `last_expectations: Optional[Dict[str, float]]`
+- `clifford_fitting: Optional[Dict[str, Dict[str, float]]]`
+  - 形状：`{observable: {"a": float, "b": float}}`
+  - 语义：每个 Hamiltonian 观测量各自拟合仿射校正关系
+    $$\langle O \rangle_{ideal} \approx a \cdot \langle O \rangle_{noisy} + b$$
 
 ## 支持模型与参数
 
@@ -276,6 +282,10 @@ result = runner.run_model(
 - 每个参数梯度需要两次移位评估（`+shift/-shift`）；单轮理论评估次数约为 `1 + 2 * num_params` 次。
 - 当 `gradient_method="autograd"` 且使用 `Simulator` 时，梯度由 `energy_t.backward()` 回传，不再执行 parameter-shift 线路采样。
 - 当 `gradient_method="parameter-shift"` 时，VQE 会先在内部对参数化 ansatz 做一次预编译，然后每次迭代/移位只替换参数值并提交，避免重复 transpile。
+- 当 `clifford_fitting=True` 时：
+  - 当前仅支持 `gradient_method="parameter-shift"`。
+  - 会在可训练单比特参数门上进行 Clifford 随机化采样。
+  - 拟合粒度为“每个 observable 一组 `(a,b)`”，不再是单一哈密顿量级别系数。
 
 ## H2 化学数据工作流（Windows + WSL）
 

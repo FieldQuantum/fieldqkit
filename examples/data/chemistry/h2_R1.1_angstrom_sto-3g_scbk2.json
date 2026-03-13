@@ -1,34 +1,34 @@
 {
   "schema": "quantum_control.hamiltonian.v1",
-  "generated_at_utc": "2026-03-12T06:02:31.268335+00:00",
+  "generated_at_utc": "2026-03-12T06:02:03.048018+00:00",
   "molecule": "H2",
-  "R_input": 2.6,
+  "R_input": 1.1,
   "unit_input": "angstrom",
-  "bond_length_angstrom": 2.6,
+  "bond_length_angstrom": 1.1,
   "basis": "sto-3g",
   "multiplicity": 1,
   "charge": 0,
   "mapping": "symmetry_conserving_bravyi_kitaev",
   "nqubits": 2,
-  "constant": -0.6457771437500692,
+  "constant": -0.5817422958017232,
   "terms": [
     [
-      0.022914730995436575,
+      0.23139587714519141,
       "Z0"
     ],
     [
-      0.022914730995436616,
+      0.2313958771451914,
       "Z1"
     ],
     [
-      0.2860499117473783,
+      0.20322222662064965,
       "X0 X1"
     ],
     [
-      0.00027904454356436625,
+      0.007995175062925575,
       "Z0 Z1"
     ]
   ],
-  "fci_energy": -0.9351960308474745,
+  "fci_energy": -1.0791929449690747,
   "term_count": 4
 }
