@@ -32,7 +32,7 @@ from ..calibration.readout import ReadoutCalibrationManager
 from ..core.types import RunResult
 from ..core.utils import get_probabilities_from_samples, get_samples
 from ..core.zne import apply_zne_cz_tripling, zne_linear_extrapolate
-from ..sim.statevector import simulate_counts
+from ..sim import simulate_counts
 
 READOUT_OBSERVABLE_MARGINAL_MAX_SUPPORT = 10
 

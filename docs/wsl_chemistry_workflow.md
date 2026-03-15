@@ -65,7 +65,36 @@ Notes:
 - `paper` (default) maps to `occupied_indices=[0]`, `active_indices=[1,2,5]` (typically 6 qubits).
 - You can override with `--occupied-indices` and `--active-indices`.
 
-## 4. Use in Windows notebook
+## 4. Export F2 Hamiltonian JSON (JW + 12-qubit active space)
+
+Run with the F2 12-qubit preset:
+
+```bash
+cd /mnt/d/OneDrive/work/research/code/Quantum_control
+source ~/venvs/chem/bin/activate
+./scripts/run_wsl_export_f2.sh 1.4 angstrom
+```
+
+Equivalent direct command:
+
+```bash
+python scripts/export_f2_terms_wsl.py \
+	--R 1.4 \
+	--unit angstrom \
+	--reduction paper12 \
+	--output examples/data/chemistry/f2_R1.4_angstrom_sto-3g_12q.json
+```
+
+This creates:
+
+`examples/data/chemistry/f2_R1.4_angstrom_sto-3g_12q.json`
+
+Notes:
+- `paper12` (default) maps to `occupied_indices=[0,1,2,3]`, `active_indices=[4,5,6,7,8,9]` (typically 12 qubits).
+- This corresponds to the requested orbital choice: freeze `1a1,2a1,3a1,4a1`; active `1e1,2e1,3e1,4e1,5a1,6a1`.
+- You can override with `--occupied-indices` and `--active-indices`.
+
+## 5. Use in Windows notebook
 
 Notebook cells should load JSON from:
 

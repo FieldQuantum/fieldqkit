@@ -16,6 +16,10 @@
 	- 对应： [VQERunner.run_model](./algorithms/vqe_runner.md)、[WSL Chemistry Workflow](./wsl_chemistry_workflow.md)
 - [VQE(H2, 2Q taper)：demo_vqe_h2_2q.ipynb](../examples/demo_vqe_h2_2q.ipynb)
 	- 对应： [VQERunner.run_model](./algorithms/vqe_runner.md)、[WSL Chemistry Workflow](./wsl_chemistry_workflow.md)
+- [VQE(LiH, 6Q active-space)：demo_vqe_lih_6q.ipynb](../examples/demo_vqe_lih_6q.ipynb)
+	- 对应： [VQERunner.run_model](./algorithms/vqe_runner.md)、[WSL Chemistry Workflow](./wsl_chemistry_workflow.md)
+- [VQE(F2, 12Q active-space)：demo_vqe_f2_12q.ipynb](../examples/demo_vqe_f2_12q.ipynb)
+	- 对应： [VQERunner.run_model](./algorithms/vqe_runner.md)、[WSL Chemistry Workflow](./wsl_chemistry_workflow.md)
 - [Backend：demo_backend.ipynb](../examples/demo_backend.ipynb)
 	- 对应： [Backend](./api/Backend.md)、[rank_chips](./api/rank_chips.md)
 
@@ -29,6 +33,8 @@
 	- [VQE：demo_vqe.ipynb](../examples/demo_vqe.ipynb)
 	- [VQE(H2)：demo_vqe_h2.ipynb](../examples/demo_vqe_h2.ipynb)
 	- [VQE(H2, 2Q taper)：demo_vqe_h2_2q.ipynb](../examples/demo_vqe_h2_2q.ipynb)
+	- [VQE(LiH, 6Q active-space)：demo_vqe_lih_6q.ipynb](../examples/demo_vqe_lih_6q.ipynb)
+	- [VQE(F2, 12Q active-space)：demo_vqe_f2_12q.ipynb](../examples/demo_vqe_f2_12q.ipynb)
 5. 拓扑补充： [Backend：demo_backend.ipynb](../examples/demo_backend.ipynb)
 
 主 README 导航见 [../README.md](../README.md)。
