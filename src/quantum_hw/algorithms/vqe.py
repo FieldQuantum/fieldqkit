@@ -13,8 +13,10 @@ from ..api.backend import rank_chips
 
 from ..circuit import QuantumCircuit
 
+from ..core.observables import group_observables
 from ..core.observables import pauli_support
 from ..core.types import VQEResult
+from .shadow import run_shadow_with_backend
 
 Hamiltonian = List[Tuple[float, str]]
 AnsatzKind = Literal["hardwareefficient", "ucc", "custom"]
@@ -380,6 +382,21 @@ def _ensure_observable_map(observables: Sequence[str], values) -> Dict[str, floa
     raise RuntimeError("observable_values shape mismatch")
 
 
+def _should_use_shadow_measurement(
+    *,
+    measurement_mode: Literal["grouped", "shadow", "auto"],
+    observables: Sequence[str],
+    num_qubits: int,
+    shadow_min_groups: int,
+) -> bool:
+    if measurement_mode == "grouped":
+        return False
+    if measurement_mode == "shadow":
+        return True
+    groups = group_observables(observables, num_qubits=num_qubits)
+    return len(groups) >= int(shadow_min_groups)
+
+
 def _energy_from_expectations(hamiltonian: Hamiltonian, expectations: Dict[str, float]) -> float:
     return float(sum(coeff * expectations.get(obs, 0.0) for coeff, obs in hamiltonian))
 
@@ -536,6 +553,13 @@ def _build_clifford_fit_map(
     num_samples: int,
     seed: Optional[int],
     target_qubits: Optional[Sequence[int]] = None,
+    measurement_mode: Literal["grouped", "shadow", "auto"] = "auto",
+    shadow_min_groups: int = 32,
+    shadow_shots: int = 65536,
+    shadow_shots_per_basis: int = 16,
+    shadow_estimator: Literal["mean", "mom"] = "mean",
+    shadow_mom_groups: Optional[int] = None,
+    shadow_seed: Optional[int] = None,
 ) -> CliffordFitMap:
     """Pre-fit per-observable affine correction using Clifford calibration circuits."""
     if num_samples <= 0:
@@ -573,6 +597,13 @@ def _build_clifford_fit_map(
             zne=zne,
             readout_mitigation=readout_mitigation,
             target_qubits=target_qubits,
+            measurement_mode=measurement_mode,
+            shadow_min_groups=shadow_min_groups,
+            shadow_shots=shadow_shots,
+            shadow_shots_per_basis=shadow_shots_per_basis,
+            shadow_estimator=shadow_estimator,
+            shadow_mom_groups=shadow_mom_groups,
+            shadow_seed=shadow_seed,
         )
 
         _, ideal_expectations = _evaluate_energy_with_backend(
@@ -587,6 +618,13 @@ def _build_clifford_fit_map(
             zne=False,
             readout_mitigation=False,
             target_qubits=target_qubits,
+            measurement_mode=measurement_mode,
+            shadow_min_groups=shadow_min_groups,
+            shadow_shots=shadow_shots,
+            shadow_shots_per_basis=shadow_shots_per_basis,
+            shadow_estimator=shadow_estimator,
+            shadow_mom_groups=shadow_mom_groups,
+            shadow_seed=shadow_seed,
         )
 
         for _, obs in hamiltonian:
@@ -613,24 +651,64 @@ def _evaluate_energy_with_backend(
     readout_mitigation: bool,
     clifford_fit_map: Optional[CliffordFitMap] = None,
     target_qubits: Optional[Sequence[int]] = None,
+    measurement_mode: Literal["grouped", "shadow", "auto"] = "auto",
+    shadow_min_groups: int = 32,
+    shadow_shots: int = 65536,
+    shadow_shots_per_basis: int = 16,
+    shadow_estimator: Literal["mean", "mom"] = "mean",
+    shadow_mom_groups: Optional[int] = None,
+    shadow_seed: Optional[int] = None,
 ) -> Tuple[float, Dict[str, float]]:
+    if measurement_mode not in {"grouped", "shadow", "auto"}:
+        raise ValueError("measurement_mode must be 'grouped', 'shadow', or 'auto'")
+
     observables = [term[1] for term in hamiltonian]
-    result = client._run_with_backend(
-        qc,
-        name,
-        num_qubits,
-        backend=backend,
-        chip_name=chip_name,
-        shots=shots,
-        zne=zne,
-        readout_mitigation=readout_mitigation,
+    use_shadow = _should_use_shadow_measurement(
+        measurement_mode=measurement_mode,
         observables=observables,
-        return_probabilities=False,
-        print_true=False,
-        transpile=False,
-        target_qubits=target_qubits,
+        num_qubits=num_qubits,
+        shadow_min_groups=shadow_min_groups,
     )
-    expectations_raw = _ensure_observable_map(observables, result.observable_values)
+    if use_shadow and readout_mitigation:
+        if measurement_mode == "shadow":
+            raise ValueError("measurement_mode='shadow' currently does not support readout_mitigation")
+        use_shadow = False
+
+    if use_shadow:
+        shadow_result = run_shadow_with_backend(
+            client,
+            qc,
+            name=name,
+            num_qubits=num_qubits,
+            backend=backend,
+            chip_name=chip_name,
+            shots=shadow_shots,
+            shots_per_basis=shadow_shots_per_basis,
+            observables=observables,
+            estimator=shadow_estimator,
+            mom_groups=shadow_mom_groups,
+            target_qubits=target_qubits,
+            zne=zne,
+            seed=shadow_seed,
+        )
+        expectations_raw = _ensure_observable_map(observables, shadow_result.observable_estimates)
+    else:
+        result = client._run_with_backend(
+            qc,
+            name,
+            num_qubits,
+            backend=backend,
+            chip_name=chip_name,
+            shots=shots,
+            zne=zne,
+            readout_mitigation=readout_mitigation,
+            observables=observables,
+            return_probabilities=False,
+            print_true=False,
+            transpile=False,
+            target_qubits=target_qubits,
+        )
+        expectations_raw = _ensure_observable_map(observables, result.observable_values)
     expectations = _apply_clifford_fit(expectations_raw, clifford_fit_map)
     energy = _energy_from_expectations(hamiltonian, expectations)
     return energy, expectations
@@ -653,6 +731,13 @@ def _parameter_shift_gradient(
     param_names: Optional[Sequence[str]] = None,
     clifford_fit_map: Optional[CliffordFitMap] = None,
     target_qubits: Optional[Sequence[int]] = None,
+    measurement_mode: Literal["grouped", "shadow", "auto"] = "auto",
+    shadow_min_groups: int = 32,
+    shadow_shots: int = 65536,
+    shadow_shots_per_basis: int = 16,
+    shadow_estimator: Literal["mean", "mom"] = "mean",
+    shadow_mom_groups: Optional[int] = None,
+    shadow_seed: Optional[int] = None,
 ) -> np.ndarray:
     """Compute gradients via parameter-shift rule."""
     if transpiled_template is None or param_names is None:
@@ -683,6 +768,13 @@ def _parameter_shift_gradient(
             readout_mitigation=readout_mitigation,
             clifford_fit_map=clifford_fit_map,
             target_qubits=target_qubits,
+            measurement_mode=measurement_mode,
+            shadow_min_groups=shadow_min_groups,
+            shadow_shots=shadow_shots,
+            shadow_shots_per_basis=shadow_shots_per_basis,
+            shadow_estimator=shadow_estimator,
+            shadow_mom_groups=shadow_mom_groups,
+            shadow_seed=shadow_seed,
         )
         e_minus, _ = _evaluate_energy_with_backend(
             client,
@@ -697,6 +789,13 @@ def _parameter_shift_gradient(
             readout_mitigation=readout_mitigation,
             clifford_fit_map=clifford_fit_map,
             target_qubits=target_qubits,
+            measurement_mode=measurement_mode,
+            shadow_min_groups=shadow_min_groups,
+            shadow_shots=shadow_shots,
+            shadow_shots_per_basis=shadow_shots_per_basis,
+            shadow_estimator=shadow_estimator,
+            shadow_mom_groups=shadow_mom_groups,
+            shadow_seed=shadow_seed,
         )
         grads[i] = 0.5 * (e_plus - e_minus)
     return grads
@@ -749,11 +848,28 @@ def run_vqe_with_backend(
     custom_ansatz_circuit: Optional[QuantumCircuit] = None,
     clifford_fitting: bool = False,
     clifford_fitting_num_samples: int = 8,
+    measurement_mode: Literal["grouped", "shadow", "auto"] = "auto",
+    shadow_min_groups: int = 32,
+    shadow_shots: int = 65536,
+    shadow_shots_per_basis: int = 16,
+    shadow_estimator: Literal["mean", "mom"] = "mean",
+    shadow_mom_groups: Optional[int] = None,
+    shadow_seed: Optional[int] = None,
 ) -> VQEResult:
     """Run VQE optimization on a specific backend."""
     method = str(gradient_method).lower()
     if method not in {"parameter-shift", "autograd"}:
         raise ValueError("gradient_method must be 'parameter-shift' or 'autograd'")
+    if measurement_mode not in {"grouped", "shadow", "auto"}:
+        raise ValueError("measurement_mode must be 'grouped', 'shadow', or 'auto'")
+    if shadow_shots_per_basis <= 0:
+        raise ValueError("shadow_shots_per_basis must be positive")
+    if shadow_shots <= 0:
+        raise ValueError("shadow_shots must be positive")
+    if shadow_min_groups <= 0:
+        raise ValueError("shadow_min_groups must be positive")
+    if shadow_seed is None and seed is not None:
+        shadow_seed = int(seed) + 104729
 
     param_names, symbolic_qc = _resolve_ansatz_layout(
         ansatz=ansatz,
@@ -774,7 +890,7 @@ def run_vqe_with_backend(
     if method == "autograd":
         if str(chip_name).lower() != "simulator":
             raise ValueError("autograd mode is only supported on Simulator backend")
-        from ..sim.statevector import energy_and_expectations as _energy_and_expectations
+        from ..sim import energy_and_expectations as _energy_and_expectations
         if seed is not None:
             torch.manual_seed(int(seed))
     else:
@@ -810,7 +926,14 @@ def run_vqe_with_backend(
             param_names=param_names,
             num_samples=int(clifford_fitting_num_samples),
             seed=None if seed is None else int(seed) + 7919,
-            target_qubits=target_qubits_in_use
+            target_qubits=target_qubits_in_use,
+            measurement_mode=measurement_mode,
+            shadow_min_groups=shadow_min_groups,
+            shadow_shots=shadow_shots,
+            shadow_shots_per_basis=shadow_shots_per_basis,
+            shadow_estimator=shadow_estimator,
+            shadow_mom_groups=shadow_mom_groups,
+            shadow_seed=shadow_seed,
         )
         clifford_fitting_summary = {
             obs: {"a": float(coeffs[0]), "b": float(coeffs[1])}
@@ -870,6 +993,13 @@ def run_vqe_with_backend(
                 readout_mitigation=readout_mitigation,
                 clifford_fit_map=clifford_fit_map,
                 target_qubits=target_qubits_in_use,
+                measurement_mode=measurement_mode,
+                shadow_min_groups=shadow_min_groups,
+                shadow_shots=shadow_shots,
+                shadow_shots_per_basis=shadow_shots_per_basis,
+                shadow_estimator=shadow_estimator,
+                shadow_mom_groups=shadow_mom_groups,
+                shadow_seed=shadow_seed,
             )
             grads = _parameter_shift_gradient(
                 client,
@@ -887,6 +1017,13 @@ def run_vqe_with_backend(
                 param_names=param_names,
                 clifford_fit_map=clifford_fit_map,
                 target_qubits=target_qubits_in_use,
+                measurement_mode=measurement_mode,
+                shadow_min_groups=shadow_min_groups,
+                shadow_shots=shadow_shots,
+                shadow_shots_per_basis=shadow_shots_per_basis,
+                shadow_estimator=shadow_estimator,
+                shadow_mom_groups=shadow_mom_groups,
+                shadow_seed=shadow_seed,
 
             )
 
@@ -947,6 +1084,13 @@ class VQERunner:
     clifford_fitting_num_samples: int = 8
     seed: Optional[int] = None
     gradient_method: Literal["parameter-shift", "autograd"] = "parameter-shift"
+    measurement_mode: Literal["grouped", "shadow", "auto"] = "auto"
+    shadow_min_groups: int = 128
+    shadow_shots: int = 8192
+    shadow_shots_per_basis: int = 16
+    shadow_estimator: Literal["mean", "mom"] = "mean"
+    shadow_mom_groups: Optional[int] = None
+    shadow_seed: Optional[int] = None
 
     def run_model(
         self,
@@ -1035,6 +1179,13 @@ class VQERunner:
                     custom_ansatz_circuit=custom_ansatz_circuit,
                     clifford_fitting=self.clifford_fitting,
                     clifford_fitting_num_samples=self.clifford_fitting_num_samples,
+                    measurement_mode=self.measurement_mode,
+                    shadow_min_groups=self.shadow_min_groups,
+                    shadow_shots=self.shadow_shots,
+                    shadow_shots_per_basis=self.shadow_shots_per_basis,
+                    shadow_estimator=self.shadow_estimator,
+                    shadow_mom_groups=self.shadow_mom_groups,
+                    shadow_seed=self.shadow_seed,
                 )
             except Exception as exc:
                 last_error = exc

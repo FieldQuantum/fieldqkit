@@ -7,7 +7,13 @@ from typing import Dict, List, Sequence, Tuple
 import torch
 
 from ..circuit import QuantumCircuit
-from .matrix import gate_matrix_dict, ketn0
+from .matrix import ketn0
+from .common import (
+    build_param_values_from_tensor,
+    materialize_gate_matrix,
+    resolve_param,
+    single_pauli,
+)
 from ..core.observables import pauli_basis_pattern
 from ..circuit.quantumcircuit_helpers import (
     functional_gates_available,
@@ -17,29 +23,6 @@ from ..circuit.quantumcircuit_helpers import (
     two_qubit_gates_available,
     two_qubit_parameter_gates_available,
 )
-
-
-def _resolve_param(qc: QuantumCircuit, param, param_values: Dict[str, object] | None = None):
-    if isinstance(param, (float, int)):
-        return float(param)
-    if isinstance(param, str):
-        if param_values is not None and param in param_values:
-            return param_values[param]
-        if param in qc.params_value:
-            value = qc.params_value[param]
-            if isinstance(value, (float, int)):
-                return float(value)
-        def _symbol_resolver(name: str):
-            if name == "pi":
-                return float(torch.pi)
-            if param_values is not None and name in param_values:
-                return param_values[name]
-            if name in qc.params_value and isinstance(qc.params_value[name], (float, int)):
-                return float(qc.params_value[name])
-            raise ValueError(f"missing parameter value for {name}")
-
-        return qc._eval_param_expression(param, symbol_resolver=_symbol_resolver)
-    raise TypeError(f"unsupported parameter type: {type(param)}")
 
 
 def _apply_k_qubit_gate_torch(
@@ -74,13 +57,6 @@ def _apply_reset_torch(state, qubit: int, num_qubits: int):
     return state
 
 
-def _materialize_gate_matrix(gate: str, params, *, dtype: torch.dtype, device: torch.device):
-    mat_or_fn = gate_matrix_dict[gate]
-    if callable(mat_or_fn):
-        return mat_or_fn(*params, dtype=dtype, device=device)
-    return mat_or_fn.to(device=device, dtype=dtype)
-
-
 def simulate_statevector(
     qc: QuantumCircuit,
     *,
@@ -104,33 +80,33 @@ def simulate_statevector(
 
         if gate in one_qubit_gates_available:
             qubit = gate_info[1]
-            mat = _materialize_gate_matrix(gate, [], dtype=dtype, device=device)
+            mat = materialize_gate_matrix(gate, [], dtype=dtype, device=device)
             state = _apply_k_qubit_gate_torch(state, mat, [qubit], num_qubits)
             continue
 
         if gate in two_qubit_gates_available:
             qubits = gate_info[1:3]
-            mat = _materialize_gate_matrix(gate, [], dtype=dtype, device=device)
+            mat = materialize_gate_matrix(gate, [], dtype=dtype, device=device)
             state = _apply_k_qubit_gate_torch(state, mat, qubits, num_qubits)
             continue
 
         if gate in three_qubit_gates_available:
             qubits = gate_info[1:4]
-            mat = _materialize_gate_matrix(gate, [], dtype=dtype, device=device)
+            mat = materialize_gate_matrix(gate, [], dtype=dtype, device=device)
             state = _apply_k_qubit_gate_torch(state, mat, qubits, num_qubits)
             continue
 
         if gate in one_qubit_parameter_gates_available:
             qubit = gate_info[-1]
-            params = [_resolve_param(qc, p, param_values) for p in gate_info[1:-1]]
-            mat = _materialize_gate_matrix(gate, params, dtype=dtype, device=device)
+            params = [resolve_param(qc, p, param_values) for p in gate_info[1:-1]]
+            mat = materialize_gate_matrix(gate, params, dtype=dtype, device=device)
             state = _apply_k_qubit_gate_torch(state, mat, [qubit], num_qubits)
             continue
 
         if gate in two_qubit_parameter_gates_available:
             qubits = gate_info[-2:]
-            params = [_resolve_param(qc, p, param_values) for p in gate_info[1:-2]]
-            mat = _materialize_gate_matrix(gate, params, dtype=dtype, device=device)
+            params = [resolve_param(qc, p, param_values) for p in gate_info[1:-2]]
+            mat = materialize_gate_matrix(gate, params, dtype=dtype, device=device)
             state = _apply_k_qubit_gate_torch(state, mat, qubits, num_qubits)
             continue
 
@@ -176,23 +152,8 @@ def build_state_from_symbolic(
     param_names: Sequence[str],
 ):
     """Build statevector from a symbolic circuit and differentiable param tensor."""
-    expected = len(param_names)
-    if params.numel() != expected:
-        raise ValueError(f"params length must be {expected}")
-
-    flat_params = params.reshape(-1)
-    param_values = {name: flat_params[i] for i, name in enumerate(param_names)}
+    param_values = build_param_values_from_tensor(params=params, param_names=param_names)
     return simulate_statevector(symbolic_qc, param_values=param_values)
-
-
-def _single_pauli(op: str, *, dtype, device):
-    if op == "X":
-        return torch.tensor([[0.0, 1.0], [1.0, 0.0]], dtype=dtype, device=device)
-    if op == "Y":
-        return torch.tensor([[0.0, -1.0j], [1.0j, 0.0]], dtype=dtype, device=device)
-    if op == "Z":
-        return torch.tensor([[1.0, 0.0], [0.0, -1.0]], dtype=dtype, device=device)
-    raise ValueError(f"unsupported Pauli: {op}")
 
 
 def expectation_pauli(
@@ -209,7 +170,7 @@ def expectation_pauli(
             continue
         acted = _apply_k_qubit_gate_torch(
             acted,
-            _single_pauli(op, dtype=state.dtype, device=state.device),
+            single_pauli(op, dtype=state.dtype, device=state.device),
             [idx],
             num_qubits,
         )
