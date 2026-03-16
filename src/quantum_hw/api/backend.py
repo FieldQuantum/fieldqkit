@@ -10,7 +10,7 @@ import json
 from pathlib import Path
 
 
-def _build_simulator_chip_info(nqubits: int = 12) -> dict:
+def _build_simulator_chip_info(nqubits: int = 16) -> dict:
     qubits_info = {
         f"Q{i}": {
             "fidelity": 1.0,
@@ -280,7 +280,7 @@ def rank_chips(
     if prefer_chips is not None:
         prefer_lower = {c.lower() for c in prefer_chips}
         if "simulator" in prefer_lower:
-            return ["Simulator"] if num_qubits <= 12 else []
+            return ["Simulator"] if num_qubits <= 16 else []
 
     status = get_available_chip_status(tmgr)
     if prefer_chips is not None:

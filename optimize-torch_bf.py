@@ -1,9 +1,6 @@
 import torch
 import torch.linalg as LA
 import numpy as np
-import torch.backends.opt_einsum as oe
-
-
 def Group(A, shapeA):
     """ transpose + reshape """
     dimA = torch.tensor(A.shape)
@@ -16,6 +13,67 @@ def Group(A, shapeA):
     orderB = sum(shapeA, [])
     A = torch.reshape(torch.permute(A, orderB), shapeB)
     return A
+
+def NCon(Tensor, Index):
+    ConList = list(range(1, max(sum(Index, [])) + 1))
+
+    while len(ConList) > 0:
+        Icon = []
+        for i in range(len(Index)):
+            if ConList[0] in Index[i]:
+                Icon.append(i)
+                if len(Icon) == 2:
+                    break
+
+        if len(Icon) == 1:
+            IndCommon = list(
+                set([x for x in Index[Icon[0]] if Index[Icon[0]].count(x) > 1])
+            )
+
+            for icom in range(len(IndCommon)):
+                Pos = sorted(
+                    [i for i, x in enumerate(Index[Icon[0]]) if x == IndCommon[icom]]
+                )
+                Tensor[Icon[0]] = torch.diagonal(
+                    Tensor[Icon[0]], dim1=Pos[0], dim2=Pos[1]
+                ).sum(dim=-1)
+                Index[Icon[0]].pop(Pos[1])
+                Index[Icon[0]].pop(Pos[0])
+
+        else:
+            IndCommon = list(set(Index[Icon[0]]) & set(Index[Icon[1]]))
+            Pos = [[], []]
+            for i in range(2):
+                for ind in range(len(IndCommon)):
+                    Pos[i].append(Index[Icon[i]].index(IndCommon[ind]))
+            A = torch.tensordot(Tensor[Icon[0]], Tensor[Icon[1]], dims=(Pos[0], Pos[1]))
+
+            for i in range(2):
+                for ind in range(len(IndCommon)):
+                    Index[Icon[i]].remove(IndCommon[ind])
+            Index[Icon[0]] = Index[Icon[0]] + Index[Icon[1]]
+            Index.pop(Icon[1])
+            Tensor[Icon[0]] = A
+            Tensor.pop(Icon[1])
+
+        ConList = list(set(ConList) ^ set(IndCommon))
+
+    while len(Index) > 1:
+        Tensor[0] = torch.outer(Tensor[0].flatten(), Tensor[1].flatten()).reshape(
+            *Tensor[0].shape, *Tensor[1].shape
+        )
+        Tensor.pop(1)
+        Index[0] = Index[0] + Index[1]
+        Index.pop(1)
+
+    Index = Index[0]
+    if len(Index) > 0:
+        Order = sorted(range(len(Index)), key=lambda k: Index[k])[::-1]
+        Tensor = Tensor[0].permute(Order)
+    else:
+        Tensor = Tensor[0]
+
+    return Tensor
 
 
 class ComplexSVD(torch.autograd.Function):
@@ -50,6 +108,7 @@ class ComplexSVD(torch.autograd.Function):
         dA = U @ (torch.diag_embed(grad_S) + Su @ S_mat + S_mat @ Sv + 1/2 * S_inv @ L) @ Vh + (torch.eye(m) - U @ U.T.conj()) @ grad_U @ S_inv @ Vh + U @ S_inv @ grad_Vh @ (torch.eye(n) - Vh.T.conj() @ Vh)
 
         return dA
+
 
 def complex_svd(x):
     return ComplexSVD.apply(x)
@@ -101,7 +160,7 @@ def MPS_can_torch(T):
     U = torch.eye(1, dtype=torch.cfloat)
     for i in range(Ns-1, 0, -1): # Right-canonical
         U, T_can[i] = Mps_LQP(T[i], U)
-    T_can[0] = torch.einsum('ija,ak->ijk', T[0], U)
+    T_can[0] = NCon([T[0], U], [[-1, -2, 1], [1, -3]])
     return T_can
 
 
@@ -111,7 +170,7 @@ def MPS_trun_Ds_torch(T, Ds): # Calculate the truncation
     T_trun_2 = [None]*Ns
     T_trun_1[0] = 1 * T[0]
     for i in range(Ns - 1):
-        A = torch.einsum('ijk,klm->ijlm', T_trun_1[i], T[i+1])
+        A = NCon([T_trun_1[i], T[i+1]], [[-1, -2, 1], [1, -3, -4]])
         Da = A.shape
         A = Group(A, [[0, 1], [2, 3]])
         U, S, V = complex_svd(A)
@@ -120,7 +179,39 @@ def MPS_trun_Ds_torch(T, Ds): # Calculate the truncation
         T_trun_2[i] = torch.reshape(U[:, :Dc], (Da[0], Da[1], -1))
         T_trun_1[i+1] = torch.reshape(torch.matmul(torch.diag(S[:Dc].type(torch.cfloat)), V[:Dc]), (-1, Da[2], Da[3]))
     
-    T_trun_2[-1] = T_trun_1[-1] / torch.sqrt(torch.einsum('ijk,ijk->', T_trun_1[-1], torch.conj(T_trun_1[-1])))
+    T_trun_2[-1] = T_trun_1[-1] / torch.sqrt(NCon([T_trun_1[-1], torch.conj(T_trun_1[-1])], [[1, 2, 3], [1, 2, 3]]))
+    return T_trun_2
+
+
+def MPO_can_torch(T):
+    Ns = len(T)
+    T_can = [None]*Ns
+    U = torch.eye(1, dtype=torch.cfloat)
+    for i in range(Ns-1, 0, -1): # Right-canonical
+        Dt = T[i].shape
+        U, Q = Mps_LQP(Group(T[i], [[0], [1, 3], [2]]), U)
+        T_can[i] = Q.reshape(U.shape[1], Dt[1], Dt[3], -1).permute(0, 1, 3, 2) * np.sqrt(2)
+    Q = NCon([T[0], U], [[-1, -2, 1, -4], [1, -3]])
+    T_can[0] = Q / torch.sqrt(NCon([Q, Q.conj()], [[1, 2, 3, 4], [1, 2, 3, 4]])) * np.sqrt(2)
+    return T_can
+
+
+def MPO_trun_Ds_torch(T, Ds): # Calculate the truncation
+    Ns = len(T)
+    T_trun_1 = [None]*Ns
+    T_trun_2 = [None]*Ns
+    T_trun_1[0] = 1 * T[0]
+    for i in range(Ns - 1):
+        A = NCon([T_trun_1[i], T[i+1]], [[-1, -2, 1, -3], [1, -4, -5, -6]])
+        Da = A.shape
+        A = Group(A, [[0, 1, 2], [3, 4, 5]])
+        U, S, V = complex_svd(A)
+        Dc = min(len(S), Ds)
+
+        T_trun_2[i] = torch.reshape(U[:, :Dc], (Da[0], Da[1], Da[2], Dc)).permute(0, 1, 3, 2) * np.sqrt(2)
+        T_trun_1[i+1] = torch.reshape(torch.matmul(torch.diag(S[:Dc].type(torch.cfloat)), V[:Dc]), (Dc, Da[3], Da[4], Da[5]))
+    
+    T_trun_2[-1] = T_trun_1[-1] / torch.sqrt(NCon([T_trun_1[-1], torch.conj(T_trun_1[-1])], [[1, 2, 3, 4], [1, 2, 3, 4]])) * np.sqrt(2)
     return T_trun_2
 
 
@@ -137,7 +228,6 @@ def Get_Mpo(U, Ns, Ds):
         U = torch.reshape(v, (Dc, 2 ** (Ns - i - 1), 1, 2 ** (Ns - i - 1))) / np.sqrt(2)
     Mpo[-1] = U
     return Mpo
-
 
 def qr_haar(n):
     """Generate a Haar-random matrix using the QR decomposition."""
@@ -198,6 +288,46 @@ def MPS_Circuit(gate_all, Ns, Ds, depth, trun=False):
         return MPS
 
 
+def MPO_Circuit(gate_all, Ns, Ds, depth, trun=False):
+    MPO = [torch.eye(2, dtype=torch.cfloat).reshape(1, 2, 1, 2) for i in range(Ns)]
+    num = 0
+    for d in range(depth):
+        for i in range(Ns):
+            gate = gate_all[num]
+            num += 1
+            MPO[i] = torch.einsum('ijkl,mj->imkl', MPO[i], gate)
+        for i in range(0, Ns-1, 2):
+            CNOT0 = torch.tensor([[[1, 0], [0, 0]], [[0, 0], [0, 1]]], dtype=torch.cfloat)
+            CNOT1 = torch.tensor([[[1, 0], [0, 1]], [[0, 1], [1, 0]]], dtype=torch.cfloat)
+            MPO[i] = Group(torch.einsum('ijkl,nmj->imkln', MPO[i], CNOT0), [[0], [1], [2, 4], [3]])
+            MPO[i+1] = Group(torch.einsum('ijkl,nmj->imkln', MPO[i+1], CNOT1), [[0, 4], [1], [2], [3]])
+
+        for i in range(Ns):
+            gate = gate_all[num]
+            num += 1
+            MPO[i] = torch.einsum('ijkl,mj->imkl', MPO[i], gate)
+
+        for i in range(1, Ns-1, 2):
+            CNOT0 = torch.tensor([[[1, 0], [0, 0]], [[0, 0], [0, 1]]], dtype=torch.cfloat)
+            CNOT1 = torch.tensor([[[1, 0], [0, 1]], [[0, 1], [1, 0]]], dtype=torch.cfloat)
+            MPO[i] = Group(torch.einsum('ijkl,nmj->imkln', MPO[i], CNOT0), [[0], [1], [2, 4], [3]])
+            MPO[i+1] = Group(torch.einsum('ijkl,nmj->imkln', MPO[i+1], CNOT1), [[0, 4], [1], [2], [3]])
+
+        MPO = MPO_can_torch(MPO)
+        if trun == True:
+            MPO = MPO_trun_Ds_torch(MPO, Ds)
+    else:
+        return MPO
+
+
+def Overlap_MPO(MPO1, MPO2):
+    Ns = len(MPO1)
+    TL = torch.eye(1, dtype=torch.cfloat)
+    for i in range(Ns):
+        TL = torch.einsum('ij,iklm,jknm->ln', TL, MPO1[i], torch.conj(MPO2[i]))
+    return torch.trace(TL).abs()
+
+
 def Overlap_MPS(MPS1, MPS2):
     Ns = len(MPS1)
     TL = torch.eye(1, dtype=torch.cfloat)
@@ -216,26 +346,3 @@ def Cal_Obs_MPS(MPS, Obs_list, pos_list):
     for i in range(Ns):
         TL = torch.einsum('ij,ikl,jkm->lm', TL, MPS[i], torch.conj(MPS_copy[i]))
     return torch.trace(TL).real
-
-
-def Generate_Sample_Mps(T, Nsample):
-    Ns = len(T)
-    TR = [None]*Ns
-    TR[-1] = torch.tensor([[1]], dtype=torch.cfloat)
-    for i in range(Ns-1, 0, -1):
-        TR[i-1] = torch.backends.opt_einsum('ica,jcb,ab->ij', T[i], np.conj(T[i]), TR[i])
-
-    Samples = np.zeros((Nsample, Ns), dtype=int)
-    TL = torch.ones((Nsample, 1, 1), dtype=torch.cfloat)
-    for i in range(Ns):
-        prob = oe.contract('iab,ajc,bjd,cd->ij', TL, T[i], torch.conj(T[i]), TR[i], optimize='optimal')
-
-        prob /= torch.sum(prob, dim=1, keepdim=True)
-        u = torch.rand(Nsample)   # [0,1) 上均匀随机数
-        Samples[:, i] = (u > prob[:, 0]).int()
-
-        TL = oe.contract('iab,ajk,bjl->ijkl', TL, T[i], torch.conj(T[i]), optimize='optimal')
-        TL = TL[np.arange(Nsample), Samples[:, i], :, :]
-
-    return Samples
-
