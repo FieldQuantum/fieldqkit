@@ -10,10 +10,10 @@ from typing import Dict, Optional
 from ..circuit import QuantumCircuit
 from .mps import energy_and_expectations as _energy_and_expectations_mps
 from .mps import expectation_pauli as _expectation_pauli_mps
+from .mps import simulate_counts as _simulate_counts_mps
 from .statevector import energy_and_expectations as _energy_and_expectations_statevector
 from .statevector import expectation_pauli as _expectation_pauli_statevector
 from .statevector import simulate_counts as _simulate_counts_statevector
-from .mps import simulate_counts as _simulate_counts_mps
 
 
 MPS_THRESHOLD_QUBITS: int = 12
@@ -28,7 +28,7 @@ def simulate_counts(
     """Simulate counts with threshold-based backend selection."""
 
     nqubits = int(getattr(qc, "nqubits", 0) or 0)
-    if nqubits >= MPS_THRESHOLD_QUBITS:
+    if nqubits > MPS_THRESHOLD_QUBITS:
         return _simulate_counts_mps(
             qc,
             shots,
@@ -51,7 +51,7 @@ def expectation_pauli(
     num_qubits: int,
 ):
     """Return <psi|P|psi> using threshold-based backend selection."""
-    if int(num_qubits) >= MPS_THRESHOLD_QUBITS:
+    if int(num_qubits) > MPS_THRESHOLD_QUBITS:
         return _expectation_pauli_mps(state, pauli, num_qubits=num_qubits)
     return _expectation_pauli_statevector(state, pauli, num_qubits=num_qubits)
 
@@ -65,7 +65,7 @@ def energy_and_expectations(
 ):
     """Evaluate Hamiltonian energy via threshold-based backend selection."""
     nqubits = int(getattr(symbolic_qc, "nqubits", 0) or 0)
-    if nqubits >= MPS_THRESHOLD_QUBITS:
+    if nqubits > MPS_THRESHOLD_QUBITS:
         return _energy_and_expectations_mps(
             symbolic_qc,
             params=params,
