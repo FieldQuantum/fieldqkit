@@ -1,5 +1,11 @@
 """Algorithm entry points for VQE and shadow tomography."""
 
+from .circuit_compression import (
+    HybridCompressionPlan,
+    SuffixCompressionBlock,
+    compress_circuit_with_hybrid_objective,
+    plan_hybrid_suffix_blocks,
+)
 from .shadow import ShadowTomography, estimate_observables, run_shadow_with_backend
 from .vqe import (
     VQERunner,
@@ -24,6 +30,10 @@ __all__ = [
     "build_xy_hamiltonian",
     "build_xxz_hamiltonian",
     "run_vqe_with_backend",
+    "HybridCompressionPlan",
+    "SuffixCompressionBlock",
+    "plan_hybrid_suffix_blocks",
+    "compress_circuit_with_hybrid_objective",
     "build_custom_cost_hamiltonian",
     "build_maxcut_hamiltonian",
 ]

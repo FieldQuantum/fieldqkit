@@ -6,6 +6,8 @@
 - **作用**：支持参数移位或 `torch autograd` 梯度，并用 Adam 做能量最小化。
 - **ansatz 支持**：`hardwareefficient` / `ucc` / `custom`
 - **当前推荐入口**：`VQERunner.run_model(...)`
+- **Simulator 自动微分入口**：`quantum_hw.sim.energy_and_expectations`（由 sim 接口层按 qubit 数在 statevector/MPS 间分发）。
+- **压缩能力（parameter-shift 路径）**：支持后缀分块规划 + stage 级压缩（prefix 用 `mps` 目标，suffix block 用 `mpo` 目标）。
 
 ## 推荐签名（`VQERunner.run_model`）
 
@@ -22,8 +24,21 @@ VQERunner(
   shift=np.pi / 2.0,
   zne=False,
   readout_mitigation=False,
+  clifford_fitting=False,
+  clifford_fitting_num_samples=8,
+  clifford_fitting_num_non_clifford_gates=3,
   seed=None,
   gradient_method="parameter-shift",
+  enable_block_planner=False,
+  planner_bond_cap=128,
+  planner_trunc_tol=1e-8,
+  planner_max_layers_per_block=6,
+  enable_circuit_compression=False,
+  compression_block_layers=None,
+  compression_optimizer_steps=20,
+  compression_optimizer_lr=0.05,
+  compression_verbose=False,
+  compression_plot_loss=False,
 )
 
 run_model(
@@ -63,9 +78,20 @@ run_model(
 | `readout_mitigation` | `bool` | `False` | 否 | `VQERunner` 初始化参数：是否启用 readout 缓解。 |
 | `clifford_fitting` | `bool` | `False` | 否 | `VQERunner` 初始化参数：是否启用基于 Clifford 随机线路的仿射校正。 |
 | `clifford_fitting_num_samples` | `int` | `8` | 否 | `VQERunner` 初始化参数：Clifford 拟合采样条数。 |
+| `clifford_fitting_num_non_clifford_gates` | `int` | `3` | 否 | `VQERunner` 初始化参数：每条拟合随机线路中保留为随机单比特 unitary（非 Clifford）的参数化门数量，其余参数化门仍替换为随机 Clifford。 |
+| `enable_block_planner` | `bool` | `False` | 否 | 是否启用后缀分块规划。 |
+| `planner_bond_cap` | `int` | `128` | 否 | 分块规划和压缩共用的 bond 上限。 |
+| `planner_trunc_tol` | `float` | `1e-8` | 否 | 分块规划和压缩共用的截断误差阈值。 |
+| `planner_max_layers_per_block` | `int` | `6` | 否 | 规划时每个后缀块最多层数。 |
+| `enable_circuit_compression` | `bool` | `False` | 否 | 是否启用每次能量/梯度评估前的线路压缩。 |
+| `compression_block_layers` | `Optional[int]` | `None` | 条件必填 | 启用压缩时必填，必须是单个正整数 `k`（压缩 ansatz 层数）。 |
+| `compression_optimizer_steps` | `int` | `20` | 否 | 每次压缩优化步数。 |
+| `compression_optimizer_lr` | `float` | `0.05` | 否 | 压缩优化学习率。 |
+| `compression_verbose` | `bool` | `False` | 否 | 是否打印压缩统计。 |
+| `compression_plot_loss` | `bool` | `False` | 否 | 是否绘制压缩 loss 曲线。 |
 | `target_qubits` | `Optional[Sequence[int]]` | `None` | 否 | 指定物理比特映射。 |
 | `seed` | `Optional[int]` | `None` | 否 | `VQERunner` 初始化参数：参数初始化随机种子。 |
-| `gradient_method` | `Literal["parameter-shift", "autograd"]` | `"parameter-shift"` | 否 | 梯度计算方式。`autograd` 仅支持 `Simulator`。 |
+| `gradient_method` | `Literal["parameter-shift", "autograd"]` | `"parameter-shift"` | 否 | 梯度计算方式。`autograd` 仅支持 `chip_name="Simulator"`，并调用 sim 接口层的可微分能量入口。 |
 | `init_params` | `Optional[Sequence[float]]` | `None` | 否 | 显式初始参数；长度必须等于 `2 * num_qubits * (layers + 1)`。 |
 | `callback` | `Optional[Callable[[int, float, np.ndarray], None]]` | `None` | 否 | 每轮回调，参数为 `(iter_idx, energy, params)`。 |
 | `prefer_chips` | `Optional[Sequence[str] \| str]` | `None` | 否 | 候选芯片限制（可传 `"Simulator"`）。 |
@@ -101,6 +127,19 @@ run_vqe_with_backend(
   gradient_method="parameter-shift",
   ansatz="hardwareefficient",
   custom_ansatz_circuit=None,
+  clifford_fitting=False,
+  clifford_fitting_num_samples=8,
+  clifford_fitting_num_non_clifford_gates=3,
+  enable_block_planner=False,
+  planner_bond_cap=128,
+  planner_trunc_tol=1e-8,
+  planner_max_layers_per_block=6,
+  enable_circuit_compression=False,
+  compression_block_layers=None,
+  compression_optimizer_steps=20,
+  compression_optimizer_lr=0.05,
+  compression_verbose=False,
+  compression_plot_loss=False,
 ) -> VQEResult
 ```
 
@@ -131,6 +170,8 @@ _evaluate_energy_with_backend(
   hamiltonian,
   zne,
   readout_mitigation,
+  clifford_fit_map=None,
+  target_qubits=None,
 ) -> Tuple[float, Dict[str, float]]
 ```
 
@@ -175,7 +216,8 @@ _parameter_shift_gradient(
 - 触发条件：`run_vqe_with_backend(..., gradient_method="autograd")` 或 `VQERunner(gradient_method="autograd")`。
 - 限制：
   - 仅支持 `chip_name="Simulator"`
-- 实现位置：`src/quantum_hw/sim/statevector.py`（在同一模拟器模块中提供可微分能量评估）。
+- 实现入口：`quantum_hw.sim.energy_and_expectations`（包级导出）。
+- 后端分发：由 sim 接口层按 qubit 数自动路由（`statevector` 或 `mps`）。
 - 依赖：需要安装 `torch`。
 
 ### `custom` ansatz 注意事项
@@ -282,6 +324,11 @@ result = runner.run_model(
 - 每个参数梯度需要两次移位评估（`+shift/-shift`）；单轮理论评估次数约为 `1 + 2 * num_params` 次。
 - 当 `gradient_method="autograd"` 且使用 `Simulator` 时，梯度由 `energy_t.backward()` 回传，不再执行 parameter-shift 线路采样。
 - 当 `gradient_method="parameter-shift"` 时，VQE 会先在内部对参数化 ansatz 做一次预编译，然后每次迭代/移位只替换参数值并提交，避免重复 transpile。
+- 当 `enable_circuit_compression=True` 时：
+  - 仅在 `parameter-shift` 路径生效（`autograd` 路径不走压缩变换）。
+  - `compression_block_layers` 必须是单个正整数。
+  - 若 `enable_block_planner=True`，会先调用 `plan_hybrid_suffix_blocks(...)` 得到 `prefix + suffix blocks`，再按 stage 分别构造 target 子线路做拟合。
+  - stage 目标模式固定为：prefix 使用 `objective_mode="mps"`，suffix block 使用 `objective_mode="mpo"`。
 - 当 `clifford_fitting=True` 时：
   - 当前仅支持 `gradient_method="parameter-shift"`。
   - 会在可训练单比特参数门上进行 Clifford 随机化采样。
@@ -290,13 +337,21 @@ result = runner.run_model(
 ## H2 化学数据工作流（Windows + WSL）
 
 - 推荐将化学积分与映射步骤放在 WSL 侧执行，再输出 JSON 给 Windows 侧 VQE 使用。
-- 参考文档：`docs/wsl_chemistry_workflow.md`
+- 参考文档：[WSL Chemistry Workflow](../wsl_chemistry_workflow.md)
 - 该流程可避免 Windows 上 `PySCF` 编译链问题，并保持量子侧框架使用不变。
 
 ## 相关页面
 
-- [QAOARunner.run_model](./qaoa_runner.md)
-- [ShadowTomography.run](./shadow_tomography.md)
 - [run_with_backend](../api/run_with_backend.md)
 - [result types](../core/result_types.md)
+- [circuit compression](./circuit_compression.md)
+- [ansatz templates](./ansatz_templates.md)
 - [WSL Chemistry Workflow](../wsl_chemistry_workflow.md)
+- [simulator interface](../sim/interface.md)
+- [statevector simulator](../sim/statevector.md)
+- [mps simulator](../sim/mps.md)
+- [simulator common helpers](../sim/common.md)
+
+## 相关示例
+
+- [F2 12Q 压缩示例](../../examples/demo_vqe_f2_12q_compression.ipynb)

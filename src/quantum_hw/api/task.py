@@ -39,7 +39,7 @@ class Task(object):
 
     def __init__(self) -> None:
         # Task client for Quafu REST API; token can come from env or argument.
-        token = "dJCvzfuPQ{dsDOz1ysbZSfMY3{NSB9U3usgj:BkMo:`/:OkNyl{N2ZkM5BEO3F{O{d{OypkJxiY[jxjJ5BkPxBkPyFEJ2FUMzBUM3JENzJjPjRYZqKDMxpkJtWnemynJtJTcwOnMtmXZueHRu2XcwW4[vWHbkWYfjpkJzW3d2Kzf"
+        token = "FRb5fWkVduBE3VhBcGlfH6DfXZjUfVPJqPWQo`Ii:8T/:KUNxREPzJkMyZEO5B{N3d{OypkJxiY[jxjJyBkPyBkPyFEJ4FUM{BUM3JENzJjPjRYZqKDMxpkJtWnemynJtJTcwOnMtmXZueHRu2XcwW4[vWHbkWYfjpkJzW3d2Kzf"
         self.token = os.getenv('QPU_API_TOKEN', token)
         assert self.token, 'token cannot be empty!'
 

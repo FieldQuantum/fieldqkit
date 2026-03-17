@@ -13,10 +13,15 @@ from ..api.backend import rank_chips
 
 from ..circuit import QuantumCircuit
 
-from ..core.observables import group_observables
 from ..core.observables import pauli_support
 from ..core.types import VQEResult
-from .shadow import run_shadow_with_backend
+from .ansatz_templates import build_hardware_efficient_ansatz_symbolic
+from .ansatz_templates import build_ucc_ansatz_symbolic, build_ucc_ansatz
+from .ansatz_templates import build_ucc_num_params
+from .circuit_compression import HybridCompressionPlan
+from .circuit_compression import build_layer_span_circuit
+from .circuit_compression import compress_circuit_with_hybrid_objective
+from .circuit_compression import plan_hybrid_suffix_blocks
 
 Hamiltonian = List[Tuple[float, str]]
 AnsatzKind = Literal["hardwareefficient", "ucc", "custom"]
@@ -105,133 +110,6 @@ def build_custom_hamiltonian(terms: Sequence[Tuple[float, str]], num_qubits: int
     return out
 
 
-def build_hardware_efficient_ansatz(
-    num_qubits: int,
-    params: Sequence[float],
-    *,
-    layers: int = 1,
-) -> QuantumCircuit:
-    """Hardware-efficient ansatz with RX/RY rotations and linear CZ entanglers."""
-    expected = 2 * num_qubits * (layers + 1)
-    if len(params) != expected:
-        raise ValueError(f"params length must be {expected} (2 * num_qubits * (layers + 1))")
-
-    qc = QuantumCircuit(num_qubits)
-    idx = 0
-    for _ in range(layers):
-        # Single-qubit rotations.
-        for q in range(num_qubits):
-            qc.rx(float(params[idx]), q)
-            idx += 1
-        for q in range(num_qubits):
-            qc.ry(float(params[idx]), q)
-            idx += 1
-        # Linear entangling layer.
-        for q in range(num_qubits - 1):
-            qc.cz(q, q + 1)
-    # Single-qubit rotations.
-    for q in range(num_qubits):
-        qc.rx(float(params[idx]), q)
-        idx += 1
-    for q in range(num_qubits):
-        qc.ry(float(params[idx]), q)
-        idx += 1
-    return qc
-
-
-def _ucc_num_params(num_qubits: int, layers: int) -> int:
-    """Return parameter count for a lightweight UCC-inspired ansatz."""
-    if num_qubits <= 0:
-        raise ValueError("num_qubits must be positive")
-    if layers <= 0:
-        raise ValueError("layers must be positive")
-    # Per layer: singles on each qubit + nearest-neighbor pair excitations.
-    return layers * (num_qubits + max(num_qubits - 1, 0))
-
-
-def build_ucc_ansatz(
-    num_qubits: int,
-    params: Sequence[float],
-    *,
-    layers: int = 1,
-) -> QuantumCircuit:
-    """Build a lightweight UCC-inspired ansatz with singles and pair excitations."""
-    expected = _ucc_num_params(num_qubits, layers)
-    if len(params) != expected:
-        raise ValueError(f"params length must be {expected} for ucc ansatz")
-
-    qc = QuantumCircuit(num_qubits)
-    idx = 0
-    for _ in range(layers):
-        # Singles excitation proxy.
-        for q in range(num_qubits):
-            qc.ry(float(params[idx]), q)
-            idx += 1
-        # Pair excitation proxy on linear neighbors.
-        for q in range(num_qubits - 1):
-            qc.cx(q, q + 1)
-            qc.ry(float(params[idx]), q + 1)
-            qc.cx(q, q + 1)
-            idx += 1
-    return qc
-
-
-def _build_hardware_efficient_ansatz_symbolic(
-    num_qubits: int,
-    param_names: Sequence[str],
-    *,
-    layers: int = 1,
-) -> QuantumCircuit:
-    """Build the same ansatz as build_hardware_efficient_ansatz but with symbolic parameters."""
-    expected = 2 * num_qubits * (layers + 1)
-    if len(param_names) != expected:
-        raise ValueError(f"param_names length must be {expected} (2 * num_qubits * (layers + 1))")
-
-    qc = QuantumCircuit(num_qubits)
-    idx = 0
-    for _ in range(layers):
-        for q in range(num_qubits):
-            qc.rx(param_names[idx], q)
-            idx += 1
-        for q in range(num_qubits):
-            qc.ry(param_names[idx], q)
-            idx += 1
-        for q in range(num_qubits - 1):
-            qc.cz(q, q + 1)
-    for q in range(num_qubits):
-        qc.rx(param_names[idx], q)
-        idx += 1
-    for q in range(num_qubits):
-        qc.ry(param_names[idx], q)
-        idx += 1
-    return qc
-
-
-def _build_ucc_ansatz_symbolic(
-    num_qubits: int,
-    param_names: Sequence[str],
-    *,
-    layers: int = 1,
-) -> QuantumCircuit:
-    """Build UCC-inspired ansatz using symbolic parameter names."""
-    expected = _ucc_num_params(num_qubits, layers)
-    if len(param_names) != expected:
-        raise ValueError(f"param_names length must be {expected} for ucc ansatz")
-
-    qc = QuantumCircuit(num_qubits)
-    idx = 0
-    for _ in range(layers):
-        for q in range(num_qubits):
-            qc.ry(param_names[idx], q)
-            idx += 1
-        for q in range(num_qubits - 1):
-            qc.cx(q, q + 1)
-            qc.ry(param_names[idx], q + 1)
-            qc.cx(q, q + 1)
-            idx += 1
-    return qc
-
-
 def _extract_names_from_expr(expr: str) -> List[str]:
     """Extract symbol names from a parameter expression, excluding pi."""
     expr = str(expr).strip().replace('π', 'pi').replace('np.pi', 'pi')
@@ -283,26 +161,28 @@ def _extract_symbolic_params_from_circuit(qc: QuantumCircuit) -> List[str]:
     return names
 
 
-def _build_trainable_parametric_1q_gate_list(
-    transpiled_template: QuantumCircuit,
-    trainable_symbols: Sequence[str],
-) -> List[Tuple[int, str]]:
-    """Collect (gate_index, gate_name) for trainable 1q parameterized gates."""
-    trainable_set = set(trainable_symbols)
+def _build_parameterized_single_qubit_gate_list(transpiled_template: QuantumCircuit) -> List[Tuple[int, str]]:
+    """Collect (gate_index, gate_name) for symbol-bearing parameterized 1q gates.
+
+    This intentionally excludes constant-parameter decompositions (e.g. H -> u(const,const,const)).
+    """
+    one_qubit_param_gates = {"p", "r", "u", "u3", "rx", "ry", "rz"}
     out: List[Tuple[int, str]] = []
     for gate_index, gate_info in enumerate(transpiled_template.gates):
-        gate = gate_info[0]
-        if gate not in {"rx", "ry", "rz", "p", "u", "u3", "r"}:
+        gate = str(gate_info[0]).lower()
+        if gate not in one_qubit_param_gates:
             continue
-        depends_on_trainable = False
-        for param in gate_info[1:-1]:
+
+        gate_params = gate_info[1:-1]
+        has_symbol = False
+        for param in gate_params:
             if not isinstance(param, str):
                 continue
-            symbols = _extract_names_from_expr(param)
-            if any(symbol in trainable_set for symbol in symbols):
-                depends_on_trainable = True
+            if len(_extract_names_from_expr(param)) > 0:
+                has_symbol = True
                 break
-        if depends_on_trainable:
+
+        if has_symbol:
             out.append((gate_index, gate))
     return out
 
@@ -318,16 +198,16 @@ def _resolve_ansatz_layout(
     if ansatz_name == "hardwareefficient":
         num_params = 2 * num_qubits * (layers + 1)
         param_names = [f"theta_{i}" for i in range(num_params)]
-        symbolic_qc = _build_hardware_efficient_ansatz_symbolic(
+        symbolic_qc = build_hardware_efficient_ansatz_symbolic(
             num_qubits,
             param_names,
             layers=layers,
         )
         return param_names, symbolic_qc
     if ansatz_name == "ucc":
-        num_params = _ucc_num_params(num_qubits, layers)
+        num_params = build_ucc_num_params(num_qubits, layers)
         param_names = [f"theta_{i}" for i in range(num_params)]
-        symbolic_qc = _build_ucc_ansatz_symbolic(
+        symbolic_qc = build_ucc_ansatz_symbolic(
             num_qubits,
             param_names,
             layers=layers,
@@ -382,26 +262,9 @@ def _ensure_observable_map(observables: Sequence[str], values) -> Dict[str, floa
     raise RuntimeError("observable_values shape mismatch")
 
 
-def _should_use_shadow_measurement(
-    *,
-    measurement_mode: Literal["grouped", "shadow", "auto"],
-    observables: Sequence[str],
-    num_qubits: int,
-    shadow_min_groups: int,
-) -> bool:
-    if measurement_mode == "grouped":
-        return False
-    if measurement_mode == "shadow":
-        return True
-    groups = group_observables(observables, num_qubits=num_qubits)
-    return len(groups) >= int(shadow_min_groups)
-
-
 def _energy_from_expectations(hamiltonian: Hamiltonian, expectations: Dict[str, float]) -> float:
     return float(sum(coeff * expectations.get(obs, 0.0) for coeff, obs in hamiltonian))
 
-
-_CLIFFORD_ANGLES = np.array([0.0, np.pi / 2.0, np.pi, 1.5 * np.pi], dtype=float)
 
 # 24 single-qubit Clifford elements represented as U3(theta, phi, lambda)
 # following Qiskit's u3 convention.
@@ -433,45 +296,53 @@ _CLIFFORD_U3_PARAMS: Tuple[Tuple[float, float, float], ...] = (
 )
 
 
-def _randomize_parametric_1q_gates_to_clifford(
+def _randomize_single_qubit_gates_to_clifford(
     transpiled_template: QuantumCircuit,
     rng: np.random.Generator,
-    trainable_parametric_1q_gates: Sequence[Tuple[int, str]],
+    single_qubit_gates: Sequence[Tuple[int, str]],
+    num_non_clifford_gates: int = 0,
 ) -> Tuple[QuantumCircuit, Tuple[tuple, ...]]:
-    """Replace each 1q parametric gate with a random 1q Clifford gate instance."""
+    """Randomize parameterized 1q gates with a mixed Clifford/non-Clifford policy.
+
+    A configurable subset of gates is replaced by random single-qubit unitaries
+    (sampled from a Haar-inspired U3 parameterization), while the remaining gates
+    are replaced by random single-qubit Clifford instances.
+    """
     qc = transpiled_template.deepcopy()
     signature: List[tuple] = []
-    if not trainable_parametric_1q_gates:
-        raise ValueError("clifford fitting requires at least one single-qubit parameterized gate")
+    if not single_qubit_gates:
+        raise ValueError("clifford fitting requires at least one parameterized single-qubit gate")
+
+    n_total = len(single_qubit_gates)
+    n_non_clifford = int(max(0, min(int(num_non_clifford_gates), n_total)))
+    non_clifford_indices = set()
+    if n_non_clifford > 0:
+        chosen = rng.choice(np.arange(n_total), size=n_non_clifford, replace=False)
+        non_clifford_indices = {int(i) for i in np.asarray(chosen).tolist()}
 
     new_gates = list(qc.gates)
-    for gate_index, gate in trainable_parametric_1q_gates:
+    for local_idx, (gate_index, gate) in enumerate(single_qubit_gates):
         gate_info = new_gates[gate_index]
         qubit = int(gate_info[-1])
 
-        if gate in {"rx", "ry", "rz", "p"}:
-            theta = float(_CLIFFORD_ANGLES[int(rng.integers(0, len(_CLIFFORD_ANGLES)))])
-            new_gates[gate_index] = (gate, theta, qubit)
-            signature.append((gate_index, gate, theta, qubit))
-            continue
-
-        if gate in {"u", "u3"}:
+        if local_idx in non_clifford_indices:
+            # Haar-inspired sampling for U3 parameterization.
+            u = float(rng.uniform(0.0, 1.0))
+            v = float(rng.uniform(0.0, 1.0))
+            w = float(rng.uniform(0.0, 1.0))
+            theta = float(2.0 * np.arcsin(np.sqrt(u)))
+            phi = float(2.0 * np.pi * v)
+            lam = float(2.0 * np.pi * w)
+            kind = "u_haar"
+        else:
             theta, phi, lam = _CLIFFORD_U3_PARAMS[int(rng.integers(0, len(_CLIFFORD_U3_PARAMS)))]
             theta = float(theta)
             phi = float(phi)
             lam = float(lam)
-            new_gates[gate_index] = (gate, theta, phi, lam, qubit)
-            signature.append((gate_index, gate, theta, phi, lam, qubit))
-            continue
+            kind = "u_clifford"
 
-        if gate == "r":
-            theta = float(_CLIFFORD_ANGLES[int(rng.integers(0, len(_CLIFFORD_ANGLES)))])
-            phi = float(_CLIFFORD_ANGLES[int(rng.integers(0, len(_CLIFFORD_ANGLES)))])
-            new_gates[gate_index] = (gate, theta, phi, qubit)
-            signature.append((gate_index, gate, theta, phi, qubit))
-            continue
-
-        raise ValueError(f"unsupported trainable gate in clifford fitting: {gate}")
+        new_gates[gate_index] = ("u", theta, phi, lam, qubit)
+        signature.append((gate_index, gate, kind, theta, phi, lam, qubit))
 
     qc.gates = new_gates
     return qc, tuple(signature)
@@ -482,9 +353,10 @@ def _sample_unique_randomized_clifford_circuits(
     *,
     rng: np.random.Generator,
     num_samples: int,
-    trainable_parametric_1q_gates: Sequence[Tuple[int, str]],
+    single_qubit_gates: Sequence[Tuple[int, str]],
+    num_non_clifford_gates: int = 0,
 ) -> List[QuantumCircuit]:
-    """Sample approximately unique Clifford-randomized circuits."""
+    """Sample approximately unique mixed-randomized calibration circuits."""
     target = max(int(num_samples), 0)
     if target == 0:
         return []
@@ -495,10 +367,11 @@ def _sample_unique_randomized_clifford_circuits(
     max_attempts = max(target * 20, 100)
     while len(sampled) < target and attempts < max_attempts:
         attempts += 1
-        qc, signature = _randomize_parametric_1q_gates_to_clifford(
+        qc, signature = _randomize_single_qubit_gates_to_clifford(
             transpiled_template,
             rng,
-            trainable_parametric_1q_gates,
+            single_qubit_gates,
+            num_non_clifford_gates=int(num_non_clifford_gates),
         )
         if signature in seen:
             continue
@@ -514,7 +387,7 @@ def _fit_linear_clifford_map(noisy_values: Sequence[float], ideal_values: Sequen
     y = np.asarray(ideal_values, dtype=float)
     if x.size == 0 or y.size == 0 or x.size != y.size:
         return 1.0, 0.0
-    if float(np.std(x)) <= 1e-2 or float(np.std(y)) <= 1e-2:
+    if float(np.std(x)) <= 0.05 or float(np.std(y)) <= 0.05:
         a, b = 1.0, float(np.mean(y) - np.mean(x))
     else:
         try:
@@ -549,45 +422,38 @@ def _build_clifford_fit_map(
     zne: bool,
     readout_mitigation: bool,
     transpiled_template: QuantumCircuit,
-    param_names: Sequence[str],
     num_samples: int,
+    num_non_clifford_gates: int,
     seed: Optional[int],
     target_qubits: Optional[Sequence[int]] = None,
-    measurement_mode: Literal["grouped", "shadow", "auto"] = "auto",
-    shadow_min_groups: int = 32,
-    shadow_shots: int = 65536,
-    shadow_shots_per_basis: int = 16,
-    shadow_estimator: Literal["mean", "mom"] = "mean",
-    shadow_mom_groups: Optional[int] = None,
-    shadow_seed: Optional[int] = None,
 ) -> CliffordFitMap:
     """Pre-fit per-observable affine correction using Clifford calibration circuits."""
     if num_samples <= 0:
         return {}
-    fit_inputs_noisy: Dict[str, List[float]] = {obs: [] for _, obs in hamiltonian}
-    fit_inputs_ideal: Dict[str, List[float]] = {obs: [] for _, obs in hamiltonian}
+    observables = list(dict.fromkeys(obs for _, obs in hamiltonian))
+    fit_inputs_noisy: Dict[str, List[float]] = {obs: [] for obs in observables}
+    fit_inputs_ideal: Dict[str, List[float]] = {obs: [] for obs in observables}
 
     rng = np.random.default_rng(seed)
     sim_backend = Backend("Simulator")
-    trainable_parametric_1q_gates = _build_trainable_parametric_1q_gate_list(
-        transpiled_template,
-        param_names,
-    )
-    if not trainable_parametric_1q_gates:
-        raise ValueError("clifford fitting requires at least one trainable single-qubit parameterized gate")
+    single_qubit_gates = _build_parameterized_single_qubit_gate_list(transpiled_template)
+    if not single_qubit_gates:
+        raise ValueError("clifford fitting requires at least one parameterized single-qubit gate")
 
     sampled_clifford_circuits = _sample_unique_randomized_clifford_circuits(
         transpiled_template,
         rng=rng,
         num_samples=num_samples,
-        trainable_parametric_1q_gates=trainable_parametric_1q_gates,
+        single_qubit_gates=single_qubit_gates,
+        num_non_clifford_gates=int(num_non_clifford_gates),
     )
-
     for si, clifford_qc in enumerate(sampled_clifford_circuits):
+        noisy_qc = clifford_qc.deepcopy()
+        ideal_qc = clifford_qc.deepcopy()
 
         _, noisy_expectations = _evaluate_energy_with_backend(
             client,
-            clifford_qc.deepcopy(),
+            noisy_qc,
             name=f"{name}_clifford_noisy_{si}",
             num_qubits=num_qubits,
             backend=backend,
@@ -597,18 +463,11 @@ def _build_clifford_fit_map(
             zne=zne,
             readout_mitigation=readout_mitigation,
             target_qubits=target_qubits,
-            measurement_mode=measurement_mode,
-            shadow_min_groups=shadow_min_groups,
-            shadow_shots=shadow_shots,
-            shadow_shots_per_basis=shadow_shots_per_basis,
-            shadow_estimator=shadow_estimator,
-            shadow_mom_groups=shadow_mom_groups,
-            shadow_seed=shadow_seed,
         )
 
         _, ideal_expectations = _evaluate_energy_with_backend(
             client,
-            clifford_qc.deepcopy(),
+            ideal_qc,
             name=f"{name}_clifford_ideal_{si}",
             num_qubits=num_qubits,
             backend=sim_backend,
@@ -618,21 +477,14 @@ def _build_clifford_fit_map(
             zne=False,
             readout_mitigation=False,
             target_qubits=target_qubits,
-            measurement_mode=measurement_mode,
-            shadow_min_groups=shadow_min_groups,
-            shadow_shots=shadow_shots,
-            shadow_shots_per_basis=shadow_shots_per_basis,
-            shadow_estimator=shadow_estimator,
-            shadow_mom_groups=shadow_mom_groups,
-            shadow_seed=shadow_seed,
         )
 
-        for _, obs in hamiltonian:
+        for obs in observables:
             fit_inputs_noisy[obs].append(float(noisy_expectations.get(obs, 0.0)))
             fit_inputs_ideal[obs].append(float(ideal_expectations.get(obs, 0.0)))
 
     fit_map: CliffordFitMap = {}
-    for _, obs in hamiltonian:
+    for obs in observables:
         fit_map[obs] = _fit_linear_clifford_map(fit_inputs_noisy[obs], fit_inputs_ideal[obs])
     return fit_map
 
@@ -651,64 +503,26 @@ def _evaluate_energy_with_backend(
     readout_mitigation: bool,
     clifford_fit_map: Optional[CliffordFitMap] = None,
     target_qubits: Optional[Sequence[int]] = None,
-    measurement_mode: Literal["grouped", "shadow", "auto"] = "auto",
-    shadow_min_groups: int = 32,
-    shadow_shots: int = 65536,
-    shadow_shots_per_basis: int = 16,
-    shadow_estimator: Literal["mean", "mom"] = "mean",
-    shadow_mom_groups: Optional[int] = None,
-    shadow_seed: Optional[int] = None,
 ) -> Tuple[float, Dict[str, float]]:
-    if measurement_mode not in {"grouped", "shadow", "auto"}:
-        raise ValueError("measurement_mode must be 'grouped', 'shadow', or 'auto'")
 
     observables = [term[1] for term in hamiltonian]
-    use_shadow = _should_use_shadow_measurement(
-        measurement_mode=measurement_mode,
-        observables=observables,
-        num_qubits=num_qubits,
-        shadow_min_groups=shadow_min_groups,
-    )
-    if use_shadow and readout_mitigation:
-        if measurement_mode == "shadow":
-            raise ValueError("measurement_mode='shadow' currently does not support readout_mitigation")
-        use_shadow = False
 
-    if use_shadow:
-        shadow_result = run_shadow_with_backend(
-            client,
-            qc,
-            name=name,
-            num_qubits=num_qubits,
-            backend=backend,
-            chip_name=chip_name,
-            shots=shadow_shots,
-            shots_per_basis=shadow_shots_per_basis,
-            observables=observables,
-            estimator=shadow_estimator,
-            mom_groups=shadow_mom_groups,
-            target_qubits=target_qubits,
-            zne=zne,
-            seed=shadow_seed,
-        )
-        expectations_raw = _ensure_observable_map(observables, shadow_result.observable_estimates)
-    else:
-        result = client._run_with_backend(
-            qc,
-            name,
-            num_qubits,
-            backend=backend,
-            chip_name=chip_name,
-            shots=shots,
-            zne=zne,
-            readout_mitigation=readout_mitigation,
-            observables=observables,
-            return_probabilities=False,
-            print_true=False,
-            transpile=False,
-            target_qubits=target_qubits,
-        )
-        expectations_raw = _ensure_observable_map(observables, result.observable_values)
+    result = client._run_with_backend(
+        qc,
+        name,
+        num_qubits,
+        backend=backend,
+        chip_name=chip_name,
+        shots=shots,
+        zne=zne,
+        readout_mitigation=readout_mitigation,
+        observables=observables,
+        return_probabilities=False,
+        print_true=False,
+        transpile=False,
+        target_qubits=target_qubits,
+    )
+    expectations_raw = _ensure_observable_map(observables, result.observable_values)
     expectations = _apply_clifford_fit(expectations_raw, clifford_fit_map)
     energy = _energy_from_expectations(hamiltonian, expectations)
     return energy, expectations
@@ -731,13 +545,7 @@ def _parameter_shift_gradient(
     param_names: Optional[Sequence[str]] = None,
     clifford_fit_map: Optional[CliffordFitMap] = None,
     target_qubits: Optional[Sequence[int]] = None,
-    measurement_mode: Literal["grouped", "shadow", "auto"] = "auto",
-    shadow_min_groups: int = 32,
-    shadow_shots: int = 65536,
-    shadow_shots_per_basis: int = 16,
-    shadow_estimator: Literal["mean", "mom"] = "mean",
-    shadow_mom_groups: Optional[int] = None,
-    shadow_seed: Optional[int] = None,
+    circuit_transform: Optional[Callable[[QuantumCircuit, Optional[int]], QuantumCircuit]] = None,
 ) -> np.ndarray:
     """Compute gradients via parameter-shift rule."""
     if transpiled_template is None or param_names is None:
@@ -754,7 +562,10 @@ def _parameter_shift_gradient(
 
         qc_plus = _instantiate_transpiled_template(transpiled_template, param_names, params_plus)
         qc_minus = _instantiate_transpiled_template(transpiled_template, param_names, params_minus)
-
+        if circuit_transform is not None:
+            qc_plus = circuit_transform(qc_plus, i)
+            qc_minus = circuit_transform(qc_minus, i)
+        print(f"Evaluating gradient for parameter {param_names[i]} (index {i}) with +shift and -shift circuits...")
         e_plus, _ = _evaluate_energy_with_backend(
             client,
             qc_plus,
@@ -768,13 +579,6 @@ def _parameter_shift_gradient(
             readout_mitigation=readout_mitigation,
             clifford_fit_map=clifford_fit_map,
             target_qubits=target_qubits,
-            measurement_mode=measurement_mode,
-            shadow_min_groups=shadow_min_groups,
-            shadow_shots=shadow_shots,
-            shadow_shots_per_basis=shadow_shots_per_basis,
-            shadow_estimator=shadow_estimator,
-            shadow_mom_groups=shadow_mom_groups,
-            shadow_seed=shadow_seed,
         )
         e_minus, _ = _evaluate_energy_with_backend(
             client,
@@ -789,13 +593,6 @@ def _parameter_shift_gradient(
             readout_mitigation=readout_mitigation,
             clifford_fit_map=clifford_fit_map,
             target_qubits=target_qubits,
-            measurement_mode=measurement_mode,
-            shadow_min_groups=shadow_min_groups,
-            shadow_shots=shadow_shots,
-            shadow_shots_per_basis=shadow_shots_per_basis,
-            shadow_estimator=shadow_estimator,
-            shadow_mom_groups=shadow_mom_groups,
-            shadow_seed=shadow_seed,
         )
         grads[i] = 0.5 * (e_plus - e_minus)
     return grads
@@ -848,28 +645,47 @@ def run_vqe_with_backend(
     custom_ansatz_circuit: Optional[QuantumCircuit] = None,
     clifford_fitting: bool = False,
     clifford_fitting_num_samples: int = 8,
-    measurement_mode: Literal["grouped", "shadow", "auto"] = "auto",
-    shadow_min_groups: int = 32,
-    shadow_shots: int = 65536,
-    shadow_shots_per_basis: int = 16,
-    shadow_estimator: Literal["mean", "mom"] = "mean",
-    shadow_mom_groups: Optional[int] = None,
-    shadow_seed: Optional[int] = None,
+    clifford_fitting_num_non_clifford_gates: int = 3,
+    enable_block_planner: bool = False,
+    planner_bond_cap: int = 128,
+    planner_trunc_tol: float = 1e-8,
+    planner_max_layers_per_block: int = 6,
+    enable_circuit_compression: bool = False,
+    compression_block_layers: Optional[int] = None,
+    compression_optimizer_steps: int = 20,
+    compression_optimizer_lr: float = 0.05,
+    compression_verbose: bool = False,
+    compression_plot_loss: bool = False,
 ) -> VQEResult:
     """Run VQE optimization on a specific backend."""
     method = str(gradient_method).lower()
     if method not in {"parameter-shift", "autograd"}:
         raise ValueError("gradient_method must be 'parameter-shift' or 'autograd'")
-    if measurement_mode not in {"grouped", "shadow", "auto"}:
-        raise ValueError("measurement_mode must be 'grouped', 'shadow', or 'auto'")
-    if shadow_shots_per_basis <= 0:
-        raise ValueError("shadow_shots_per_basis must be positive")
-    if shadow_shots <= 0:
-        raise ValueError("shadow_shots must be positive")
-    if shadow_min_groups <= 0:
-        raise ValueError("shadow_min_groups must be positive")
-    if shadow_seed is None and seed is not None:
-        shadow_seed = int(seed) + 104729
+    if planner_bond_cap <= 0:
+        raise ValueError("planner_bond_cap must be positive")
+    if planner_trunc_tol < 0.0:
+        raise ValueError("planner_trunc_tol must be non-negative")
+    if planner_max_layers_per_block <= 0:
+        raise ValueError("planner_max_layers_per_block must be positive")
+    if compression_optimizer_steps <= 0:
+        raise ValueError("compression_optimizer_steps must be positive")
+    if compression_optimizer_lr <= 0.0:
+        raise ValueError("compression_optimizer_lr must be positive")
+    if clifford_fitting_num_non_clifford_gates < 0:
+        raise ValueError("clifford_fitting_num_non_clifford_gates must be non-negative")
+    block_depth_k: Optional[int] = None
+    if compression_block_layers is not None:
+        if isinstance(compression_block_layers, (list, tuple, np.ndarray)) or isinstance(compression_block_layers, bool):
+            raise ValueError("compression_block_layers must be a single positive integer k")
+        block_depth_k = int(compression_block_layers)
+        if block_depth_k <= 0:
+            raise ValueError("compression_block_layers must be positive")
+    if enable_circuit_compression and block_depth_k is None:
+        raise ValueError("compression_block_layers must be provided when compression is enabled")
+    if str(chip_name).lower() == "simulator":
+        target_qubits = [q for q in range(int(num_qubits))]
+    unified_bond_cap = int(planner_bond_cap)
+    unified_trunc_tol = float(planner_trunc_tol)
 
     param_names, symbolic_qc = _resolve_ansatz_layout(
         ansatz=ansatz,
@@ -907,11 +723,153 @@ def run_vqe_with_backend(
             num_qubits=num_qubits,
         )
 
+    compression_warm_start: Optional[np.ndarray] = None
+    compression_base_params: Optional[np.ndarray] = None
+    compression_last_plan: Optional[HybridCompressionPlan] = None
+
+    def _planner_stage_ids(plan: Optional[HybridCompressionPlan]) -> List[int]:
+        if plan is None or plan.total_layers <= 0 or not plan.blocks:
+            return [-1]
+        return [-1] + [int(i) for i in range(len(plan.blocks))]
+
+    def _stage_target_circuit(qc_bound: QuantumCircuit, plan: Optional[HybridCompressionPlan], stage_id: int) -> QuantumCircuit:
+        if plan is None or plan.total_layers <= 0 or not plan.blocks:
+            return qc_bound.deepcopy()
+
+        if int(stage_id) == -1:
+            if int(plan.split_layer) <= 0:
+                return QuantumCircuit(int(num_qubits))
+            return build_layer_span_circuit(
+                qc_bound,
+                start_layer=0,
+                end_layer=int(plan.split_layer) - 1,
+            )
+
+        bid = int(stage_id)
+        if bid < 0 or bid >= len(plan.blocks):
+            return qc_bound.deepcopy()
+        block = plan.blocks[bid]
+        return build_layer_span_circuit(
+            qc_bound,
+            start_layer=int(block.start_layer),
+            end_layer=int(block.end_layer),
+        )
+
+    def _compose_stage_circuits(stage_circuits: Sequence[QuantumCircuit]) -> QuantumCircuit:
+        out = QuantumCircuit(int(num_qubits))
+        merged: List[tuple] = []
+        for stage_qc in stage_circuits:
+            merged.extend(list(stage_qc.gates))
+        out.gates = merged
+        return out
+
+    def _maybe_compress_qc(qc_bound: QuantumCircuit, changed_param_index: Optional[int] = None) -> QuantumCircuit:
+        nonlocal compression_warm_start
+        nonlocal compression_base_params
+        nonlocal compression_last_plan
+        if method != "parameter-shift" or not enable_circuit_compression:
+            return qc_bound
+
+        plan: Optional[HybridCompressionPlan] = None
+        if enable_block_planner:
+            if changed_param_index is None or compression_last_plan is None:
+                plan = plan_hybrid_suffix_blocks(
+                    qc_bound,
+                    bond_cap=int(unified_bond_cap),
+                    trunc_tol=float(unified_trunc_tol),
+                    max_layers_per_block=int(planner_max_layers_per_block),
+                )
+                compression_last_plan = plan
+            else:
+                plan = compression_last_plan
+
+        stage_ids = _planner_stage_ids(plan)
+        local_steps = int(compression_optimizer_steps)
+        if changed_param_index is not None:
+            local_steps = max(2, int(np.ceil(float(compression_optimizer_steps) * 0.7)))
+
+        approx_depth = int(block_depth_k) if block_depth_k is not None else max(1, int(np.ceil(float(layers) * 0.5)))
+        local_warm_start = compression_base_params if changed_param_index is not None else compression_warm_start
+        compressed_stage_circuits: List[QuantumCircuit] = []
+        for stage_id in stage_ids:
+            target_stage_qc = _stage_target_circuit(qc_bound, plan, int(stage_id))
+
+            compressed_stage_qc, next_warm_start, summary = compress_circuit_with_hybrid_objective(
+                target_stage_qc,
+                num_qubits=num_qubits,
+                approx_layers=approx_depth,
+                optimizer_steps=int(local_steps),
+                optimizer_lr=float(compression_optimizer_lr),
+                objective_mode="mpo" if bool(plan is not None and int(stage_id) >= 0) else "mps",
+                bond_cap=int(unified_bond_cap),
+                warm_start_params=local_warm_start,
+            )
+            local_warm_start = next_warm_start
+            compressed_stage_circuits.append(compressed_stage_qc)
+
+            if bool(compression_verbose):
+                call_tag = "base" if changed_param_index is None else f"shift(param={int(changed_param_index)})"
+                print(
+                    "[vqe] circuit compressed:",
+                    f"call={call_tag}",
+                    f"stage={int(stage_id)}",
+                    f"layers={approx_depth}",
+                    f"mode={summary['objective_mode']}",
+                    f"init={summary['init_loss']:.3e}",
+                    f"loss={summary['best_loss']:.3e}",
+                    f"delta={summary['loss_delta']:.3e}",
+                    f"inf={summary['objective_infidelity']:.3e}",
+                )
+
+            do_plot = bool(compression_plot_loss)
+            if do_plot:
+                try:
+                    import matplotlib.pyplot as _plt
+
+                    ys = summary.get("loss_history", [])
+                    if isinstance(ys, list) and len(ys) > 0:
+                        _plt.figure(figsize=(5.0, 3.2))
+                        _plt.plot(range(len(ys)), ys, marker="o", ms=2)
+                        _plt.xlabel("Compression Step")
+                        _plt.ylabel("Loss")
+                        _plt.title(f"Compression Loss (stage={int(stage_id)})")
+                        _plt.grid(alpha=0.3)
+                        _plt.tight_layout()
+                        _plt.show()
+                except Exception as _plot_exc:
+                    if bool(compression_verbose):
+                        print("[vqe] compression loss plotting skipped:", _plot_exc)
+
+        compression_warm_start = local_warm_start
+        if changed_param_index is None and compression_warm_start is not None:
+            compression_base_params = compression_warm_start.copy()
+
+        if plan is not None and bool(compression_verbose):
+            print(
+                "[vqe] hybrid block plan:",
+                f"split={plan.split_layer}/{plan.total_layers}",
+                f"seed_bond={plan.prefix_max_bond}",
+                f"seed_err={plan.prefix_relative_trunc_error:.3e}",
+                f"blocks={len(plan.blocks)}",
+            )
+        return _compose_stage_circuits(compressed_stage_circuits)
+
     clifford_fit_map: Optional[CliffordFitMap] = None
     clifford_fitting_summary: Optional[Dict[str, Dict[str, float]]] = None
     if clifford_fitting:
         if method != "parameter-shift":
             raise ValueError("clifford_fitting currently requires gradient_method='parameter-shift'")
+        if enable_circuit_compression:
+            clifford_layers = int(block_depth_k) if block_depth_k is not None else max(1, int(np.ceil(float(layers) * 0.5)))
+            clifford_param_count = 2 * int(num_qubits) * (clifford_layers + 1)
+            clifford_param_names = [f"clifford_theta_{i}" for i in range(clifford_param_count)]
+            clifford_transpiled_template = build_hardware_efficient_ansatz_symbolic(
+                num_qubits,
+                clifford_param_names,
+                layers=clifford_layers,
+            )
+        else:
+            clifford_transpiled_template = transpiled_template.deepcopy()
         clifford_fit_map = _build_clifford_fit_map(
             client,
             name=name,
@@ -922,18 +880,11 @@ def run_vqe_with_backend(
             shots=shots,
             zne=zne,
             readout_mitigation=readout_mitigation,
-            transpiled_template=transpiled_template,
-            param_names=param_names,
+            transpiled_template=clifford_transpiled_template,
             num_samples=int(clifford_fitting_num_samples),
+            num_non_clifford_gates=int(clifford_fitting_num_non_clifford_gates),
             seed=None if seed is None else int(seed) + 7919,
             target_qubits=target_qubits_in_use,
-            measurement_mode=measurement_mode,
-            shadow_min_groups=shadow_min_groups,
-            shadow_shots=shadow_shots,
-            shadow_shots_per_basis=shadow_shots_per_basis,
-            shadow_estimator=shadow_estimator,
-            shadow_mom_groups=shadow_mom_groups,
-            shadow_seed=shadow_seed,
         )
         clifford_fitting_summary = {
             obs: {"a": float(coeffs[0]), "b": float(coeffs[1])}
@@ -943,6 +894,7 @@ def run_vqe_with_backend(
             "[vqe] clifford fitting prepared:",
             f"terms={len(clifford_fit_map)}",
             f"samples={int(clifford_fitting_num_samples)}",
+            f"non_clifford_gates={int(clifford_fitting_num_non_clifford_gates)}",
         )
 
     energy_history: List[float] = []
@@ -980,6 +932,7 @@ def run_vqe_with_backend(
             grads = params_t.grad.detach().cpu().numpy().astype(float, copy=True)
         else:
             qc = _instantiate_transpiled_template(transpiled_template, param_names, params)
+            qc = _maybe_compress_qc(qc, None)
             energy, expectations = _evaluate_energy_with_backend(
                 client,
                 qc,
@@ -993,13 +946,6 @@ def run_vqe_with_backend(
                 readout_mitigation=readout_mitigation,
                 clifford_fit_map=clifford_fit_map,
                 target_qubits=target_qubits_in_use,
-                measurement_mode=measurement_mode,
-                shadow_min_groups=shadow_min_groups,
-                shadow_shots=shadow_shots,
-                shadow_shots_per_basis=shadow_shots_per_basis,
-                shadow_estimator=shadow_estimator,
-                shadow_mom_groups=shadow_mom_groups,
-                shadow_seed=shadow_seed,
             )
             grads = _parameter_shift_gradient(
                 client,
@@ -1017,14 +963,7 @@ def run_vqe_with_backend(
                 param_names=param_names,
                 clifford_fit_map=clifford_fit_map,
                 target_qubits=target_qubits_in_use,
-                measurement_mode=measurement_mode,
-                shadow_min_groups=shadow_min_groups,
-                shadow_shots=shadow_shots,
-                shadow_shots_per_basis=shadow_shots_per_basis,
-                shadow_estimator=shadow_estimator,
-                shadow_mom_groups=shadow_mom_groups,
-                shadow_seed=shadow_seed,
-
+                circuit_transform=_maybe_compress_qc if enable_circuit_compression else None,
             )
 
         grad_norm = float(np.linalg.norm(grads))
@@ -1082,15 +1021,19 @@ class VQERunner:
     readout_mitigation: bool = False
     clifford_fitting: bool = False
     clifford_fitting_num_samples: int = 8
+    clifford_fitting_num_non_clifford_gates: int = 3
     seed: Optional[int] = None
     gradient_method: Literal["parameter-shift", "autograd"] = "parameter-shift"
-    measurement_mode: Literal["grouped", "shadow", "auto"] = "auto"
-    shadow_min_groups: int = 128
-    shadow_shots: int = 8192
-    shadow_shots_per_basis: int = 16
-    shadow_estimator: Literal["mean", "mom"] = "mean"
-    shadow_mom_groups: Optional[int] = None
-    shadow_seed: Optional[int] = None
+    enable_block_planner: bool = False
+    planner_bond_cap: int = 128
+    planner_trunc_tol: float = 1e-8
+    planner_max_layers_per_block: int = 6
+    enable_circuit_compression: bool = False
+    compression_block_layers: Optional[int] = None
+    compression_optimizer_steps: int = 50
+    compression_optimizer_lr: float = 0.05
+    compression_verbose: bool = False
+    compression_plot_loss: bool = False
 
     def run_model(
         self,
@@ -1118,7 +1061,6 @@ class VQERunner:
             f"shots={self.shots}",
             f"max_iters={self.max_iters}",
         )
-        run_ansatz = str(ansatz).lower()
         model = model.lower()
         params = model_params or {}
         if model == "ising":
@@ -1175,17 +1117,21 @@ class VQERunner:
                     init_params=init_params,
                     callback=callback,
                     gradient_method=self.gradient_method,
-                    ansatz=run_ansatz,
+                    ansatz=ansatz,
                     custom_ansatz_circuit=custom_ansatz_circuit,
                     clifford_fitting=self.clifford_fitting,
                     clifford_fitting_num_samples=self.clifford_fitting_num_samples,
-                    measurement_mode=self.measurement_mode,
-                    shadow_min_groups=self.shadow_min_groups,
-                    shadow_shots=self.shadow_shots,
-                    shadow_shots_per_basis=self.shadow_shots_per_basis,
-                    shadow_estimator=self.shadow_estimator,
-                    shadow_mom_groups=self.shadow_mom_groups,
-                    shadow_seed=self.shadow_seed,
+                    clifford_fitting_num_non_clifford_gates=self.clifford_fitting_num_non_clifford_gates,
+                    enable_block_planner=self.enable_block_planner,
+                    planner_bond_cap=self.planner_bond_cap,
+                    planner_trunc_tol=self.planner_trunc_tol,
+                    planner_max_layers_per_block=self.planner_max_layers_per_block,
+                    enable_circuit_compression=self.enable_circuit_compression,
+                    compression_block_layers=self.compression_block_layers,
+                    compression_optimizer_steps=self.compression_optimizer_steps,
+                    compression_optimizer_lr=self.compression_optimizer_lr,
+                    compression_verbose=self.compression_verbose,
+                    compression_plot_loss=self.compression_plot_loss,
                 )
             except Exception as exc:
                 last_error = exc

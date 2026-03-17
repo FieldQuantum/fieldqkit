@@ -445,7 +445,7 @@ def _sample_bits_from_mps(
     return bits_all.detach().cpu().tolist()
 
 
-def _simulate_mps(
+def simulate_mps(
     qc: QuantumCircuit,
     *,
     param_values: Dict[str, object] | None = None,
@@ -572,7 +572,7 @@ def simulate_counts(
     device: torch.device | str | None = None,
 ) -> Dict[str, int]:
     """Simulate counts with MPS backend, matching statevector bitstring order."""
-    mps = _simulate_mps(qc, param_values=param_values, device=device)
+    mps = simulate_mps(qc, param_values=param_values, device=device)
     samples = _sample_bits_from_mps(mps, int(shots), seed=seed)
 
     out: Dict[str, int] = {}
@@ -621,7 +621,7 @@ def energy_and_expectations(
         params = params.to(selected_device)
 
     param_values = build_param_values_from_tensor(params=params, param_names=param_names)
-    mps = _simulate_mps(symbolic_qc, param_values=param_values, device=selected_device)
+    mps = simulate_mps(symbolic_qc, param_values=param_values, device=selected_device)
 
     energy = torch.zeros((), dtype=params.dtype, device=params.device)
     expectations: dict[str, float] = {}

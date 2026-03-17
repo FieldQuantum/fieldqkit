@@ -99,4 +99,3 @@
 - [QuantumHardwareClient](../api/QuantumHardwareClient.md)
 - [ShadowTomography.run](../algorithms/shadow_tomography.md)
 - [VQERunner.run_model](../algorithms/vqe_runner.md)
-- [QAOARunner.run_model](../algorithms/qaoa_runner.md)
