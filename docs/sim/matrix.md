@@ -56,7 +56,8 @@ import torch
 from quantum_hw.sim.matrix import ketn0, gate_matrix_dict
 
 psi0 = ketn0(3)
-rx = gate_matrix_dict["rx"](torch.pi / 3)
+rx_fn = gate_matrix_dict["rx"]
+rx = rx_fn(torch.pi / 3)
 cz = gate_matrix_dict["cz"]
 
 print(psi0.shape)
@@ -66,3 +67,6 @@ print(rx.shape, cz.shape)
 ## 相关页面
 
 - [statevector simulator](./statevector.md)
+- [mps simulator](./mps.md)
+- [mpo process simulator](./mpo.md)
+- [simulator common helpers](./common.md)

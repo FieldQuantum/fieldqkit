@@ -4,7 +4,7 @@ import pytest
 torch = pytest.importorskip("torch")
 
 from quantum_hw.circuit import QuantumCircuit
-from quantum_hw.sim.mps import _simulate_mps
+from quantum_hw.sim.mps import simulate_mps
 from quantum_hw.sim.mps import simulate_counts as simulate_counts_mps
 from quantum_hw.sim.statevector import simulate_counts as simulate_counts_statevector
 from quantum_hw.sim.statevector import simulate_statevector
@@ -65,7 +65,7 @@ def test_nonadjacent_two_qubit_mps_matches_statevector(gate_name, gate_args):
     getattr(qc, gate_name)(*gate_args)
 
     expected = simulate_statevector(qc)
-    actual = _mps_to_statevector(_simulate_mps(qc))
+    actual = _mps_to_statevector(simulate_mps(qc))
     actual = _align_global_phase(expected, actual)
 
     assert torch.allclose(actual, expected, atol=1e-12, rtol=1e-12)
@@ -93,7 +93,7 @@ def test_three_qubit_mps_matches_statevector(gate_name, num_qubits, gate_args):
     getattr(qc, gate_name)(*gate_args)
 
     expected = simulate_statevector(qc)
-    actual = _mps_to_statevector(_simulate_mps(qc))
+    actual = _mps_to_statevector(simulate_mps(qc))
     actual = _align_global_phase(expected, actual)
 
     assert torch.allclose(actual, expected, atol=1e-12, rtol=1e-12)

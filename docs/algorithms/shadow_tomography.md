@@ -132,9 +132,10 @@ print(result.num_samples)
 - `estimator="mom"` 对重尾噪声更稳健，但在样本量较小时方差可能变大。
 - 当 `observables=None` 时，依旧会执行 shadow 采样，但估计结果字典为空。
 - ZNE 路径下，文档中“raw”字段均对应 1x 噪声数据，最终字段为线性外推结果。
+- 当 `prefer_chips="Simulator"` 时，底层测量仍通过统一仿真接口执行（详见 sim interface 文档）。
 
 ## 相关页面
 
 - [VQERunner.run_model](./vqe_runner.md)
-- [QAOARunner.run_model](./qaoa_runner.md)
 - [result types](../core/result_types.md)
+- [simulator interface](../sim/interface.md)

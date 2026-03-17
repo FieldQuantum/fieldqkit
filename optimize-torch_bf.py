@@ -346,3 +346,65 @@ def Cal_Obs_MPS(MPS, Obs_list, pos_list):
     for i in range(Ns):
         TL = torch.einsum('ij,ikl,jkm->lm', TL, MPS[i], torch.conj(MPS_copy[i]))
     return torch.trace(TL).real
+
+def Run_parallel_MPS(MPS_target_all, Dp, Ds, depth_optim, space, epoch_smp, xi_1, xi_2, epsilon, m):
+    depth_target_max = len(MPS_target_all)
+    Ns = len(MPS_target_all[0])
+    F = np.zeros((depth_target_max//space))
+    gate_all_optim = Generate_Gate(Ns, Dp, 2*depth_optim, train=True)
+    for depth_target in range(space, depth_target_max+1, space):
+        MPS_target = MPS_target_all[depth_target-1]
+        grad_old = [0 for num in range(len(gate_all_optim))]
+        grad2_old = [0 for num in range(len(gate_all_optim))]
+        for epoch in range(epoch_smp):
+            MPS_optim, _, _ = MPS_Circuit(gate_all_optim, Ns, Ds, Dp, depth_optim, trun=True)
+            loss = 1 - Overlap_MPS(MPS_target, MPS_optim)
+            loss.backward()
+            grad_all = [None]*len(gate_all_optim)
+            for num in range(len(gate_all_optim)):
+                gate = gate_all_optim[num]
+                grad_all[num] =  1/2 * (torch.tensordot(torch.transpose(torch.conj(gate), 0, 1), gate.grad, dims=([1], [0])) - torch.tensordot(torch.transpose(torch.conj(gate.grad), 0, 1), gate, dims=([1], [0])))
+                grad_old[num] = xi_1 * grad_old[num] + (1-xi_1) * grad_all[num]
+                grad2_old[num] = xi_2 * grad2_old[num] + (1-xi_2) * (grad_all[num].abs())**2
+
+            for num in range(len(gate_all_optim)):
+                gate = gate_all_optim[num]
+                gate = torch.tensordot(gate, LA.matrix_exp(-eta * grad_old[num]/(1-xi_1**(epoch+1))/(torch.sqrt(grad2_old[num]/(1-xi_2**(epoch+1)))+epsilon)), dims=([1], [0]))
+                gate_all_optim[num] = gate.clone().detach().requires_grad_(True)
+            # if epoch % 10 == 9:
+            #     print(f'Epoch {epoch+1}/{epoch_smp}, Fidelity: {1-loss.item()}')
+        print(f'{depth_target}, {depth_optim}, Fidelity: {1-loss.item()}')
+        # np.savez(f'MPS/gate/gate_Ns={Ns}_depth={depth_target}_QFT_MPS_m={m}_depth={depth_optim}.npz', [gate.detach().numpy() for gate in gate_all_optim])
+        F[depth_target//space-1] = 1-loss.item()
+    return F
+
+def Run_parallel_MPO(MPO_target_all, Dp, Ds2, depth_optim, space, epoch_smp, xi_1, xi_2, epsilon, m):
+    depth_target_max = len(MPO_target_all)
+    Ns = len(MPO_target_all[0])
+    F = np.zeros((depth_target_max//space))
+    gate_all_optim = Generate_Gate(Ns, Dp, 2*depth_optim, train=True)
+    for depth_target in range(space, depth_target_max+1, space):
+        MPO_target = MPO_target_all[depth_target-1]
+        grad_old = [0 for num in range(len(gate_all_optim))]
+        grad2_old = [0 for num in range(len(gate_all_optim))]
+        for epoch in range(epoch_smp):
+            MPO_optim, _ = MPO_Circuit(gate_all_optim, Ns, Ds2, Dp, depth_optim, trun=True)
+            loss = 1 - Overlap_MPO(MPO_target, MPO_optim) / Dp**Ns
+            loss.backward()
+            grad_all = [None]*len(gate_all_optim)
+            for num in range(len(gate_all_optim)):
+                gate = gate_all_optim[num]
+                grad_all[num] =  1/2 * (torch.tensordot(torch.transpose(torch.conj(gate), 0, 1), gate.grad, dims=([1], [0])) - torch.tensordot(torch.transpose(torch.conj(gate.grad), 0, 1), gate, dims=([1], [0])))
+                grad_old[num] = xi_1 * grad_old[num] + (1-xi_1) * grad_all[num]
+                grad2_old[num] = xi_2 * grad2_old[num] + (1-xi_2) * (grad_all[num].abs())**2
+
+            for num in range(len(gate_all_optim)):
+                gate = gate_all_optim[num]
+                gate = torch.tensordot(gate, LA.matrix_exp(-eta * grad_old[num]/(1-xi_1**(epoch+1))/(torch.sqrt(grad2_old[num]/(1-xi_2**(epoch+1)))+epsilon)), dims=([1], [0]))
+                gate_all_optim[num] = gate.clone().detach().requires_grad_(True)
+            if epoch % 50 == 49:
+                print(f'Epoch {epoch+1}/{epoch_smp}, Fidelity: {1-loss.item()}')
+        # print(f'Epoch {epoch+1}/{epoch_smp}, Fidelity: {1-loss.item()}')
+        # np.savez(f'MPO/gate/gate_Ns={Ns}_depth={depth_target}_QFT_MPO_m={m}_depth={depth_optim}.npz', [gate.detach().numpy() for gate in gate_all_optim])
+        F[depth_target//space-1] = 1-loss.item()
+    return F

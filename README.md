@@ -77,6 +77,7 @@ print(result.probabilities)
 - [VQE：顶层接口 + parameter-shift 手动梯度下降](examples/demo_vqe.ipynb)
 - [VQE(LiH, 6Q active-space)](examples/demo_vqe_lih_6q.ipynb)
 - [VQE(F2, 12Q active-space)](examples/demo_vqe_f2_12q.ipynb)
+- [VQE(F2, 12Q compression)](examples/demo_vqe_f2_12q_compression.ipynb)
 - [Backend 拓扑与芯片排序](examples/demo_backend.ipynb)
 
 ## 学习路径（入门 → 进阶 → 硬件 → 优化）

@@ -12,7 +12,7 @@
 	- 对应： [ReadoutCalibrationManager](./calibration/ReadoutCalibrationManager.md)、[readout](./core/readout.md)、[zne](./core/zne.md)
 - [VQE：demo_vqe.ipynb](../examples/demo_vqe.ipynb)
 	- 对应： [VQERunner.run_model](./algorithms/vqe_runner.md)、[observables](./core/observables.md)
-- [VQE(H2)：demo_vqe_h2.ipynb](../examples/demo_vqe_h2.ipynb)
+- [VQE(H2)：demo_vqe_h2_4q.ipynb](../examples/demo_vqe_h2_4q.ipynb)
 	- 对应： [VQERunner.run_model](./algorithms/vqe_runner.md)、[WSL Chemistry Workflow](./wsl_chemistry_workflow.md)
 - [VQE(H2, 2Q taper)：demo_vqe_h2_2q.ipynb](../examples/demo_vqe_h2_2q.ipynb)
 	- 对应： [VQERunner.run_model](./algorithms/vqe_runner.md)、[WSL Chemistry Workflow](./wsl_chemistry_workflow.md)
@@ -20,6 +20,8 @@
 	- 对应： [VQERunner.run_model](./algorithms/vqe_runner.md)、[WSL Chemistry Workflow](./wsl_chemistry_workflow.md)
 - [VQE(F2, 12Q active-space)：demo_vqe_f2_12q.ipynb](../examples/demo_vqe_f2_12q.ipynb)
 	- 对应： [VQERunner.run_model](./algorithms/vqe_runner.md)、[WSL Chemistry Workflow](./wsl_chemistry_workflow.md)
+- [VQE(F2, 12Q compression)：demo_vqe_f2_12q_compression.ipynb](../examples/demo_vqe_f2_12q_compression.ipynb)
+	- 对应： [VQERunner.run_model](./algorithms/vqe_runner.md)、[circuit compression](./algorithms/circuit_compression.md)
 - [Backend：demo_backend.ipynb](../examples/demo_backend.ipynb)
 	- 对应： [Backend](./api/Backend.md)、[rank_chips](./api/rank_chips.md)
 
@@ -31,7 +33,7 @@
 4. 优化：
 	- [Shadow：demo_shadow.ipynb](../examples/demo_shadow.ipynb)
 	- [VQE：demo_vqe.ipynb](../examples/demo_vqe.ipynb)
-	- [VQE(H2)：demo_vqe_h2.ipynb](../examples/demo_vqe_h2.ipynb)
+	- [VQE(H2)：demo_vqe_h2_4q.ipynb](../examples/demo_vqe_h2_4q.ipynb)
 	- [VQE(H2, 2Q taper)：demo_vqe_h2_2q.ipynb](../examples/demo_vqe_h2_2q.ipynb)
 	- [VQE(LiH, 6Q active-space)：demo_vqe_lih_6q.ipynb](../examples/demo_vqe_lih_6q.ipynb)
 	- [VQE(F2, 12Q active-space)：demo_vqe_f2_12q.ipynb](../examples/demo_vqe_f2_12q.ipynb)
@@ -53,7 +55,8 @@
 
 - [ShadowTomography.run](./algorithms/shadow_tomography.md)
 - [VQERunner.run_model](./algorithms/vqe_runner.md)
-- [QAOARunner.run_model](./algorithms/qaoa_runner.md)
+- [circuit compression](./algorithms/circuit_compression.md)
+- [ansatz templates](./algorithms/ansatz_templates.md)
 
 ## Workflow
 
@@ -89,3 +92,7 @@
 
 - [statevector simulator](./sim/statevector.md)
 - [matrix utilities](./sim/matrix.md)
+- [mps simulator](./sim/mps.md)
+- [mpo process simulator](./sim/mpo.md)
+- [simulator interface](./sim/interface.md)
+- [simulator common helpers](./sim/common.md)

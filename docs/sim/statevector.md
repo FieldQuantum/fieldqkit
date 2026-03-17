@@ -8,6 +8,8 @@
 
 该模块是 Torch 实现的状态向量模拟器，并同时提供 VQE 自动微分所需的能量计算辅助函数。
 
+在高层调用中，通常通过 `quantum_hw.sim.interface` 进行后端选择；当 qubit 数不超过阈值时才会路由到本模块。
+
 核心能力：
 
 - 线路前向演化：`simulate_statevector(...)`
@@ -92,4 +94,7 @@ print(float(energy.detach().cpu().item()), exps)
 ## 相关页面
 
 - [matrix utilities](./matrix.md)
+- [simulator common helpers](./common.md)
+- [simulator interface](./interface.md)
+- [mps simulator](./mps.md)
 - [VQERunner.run_model](../algorithms/vqe_runner.md)
