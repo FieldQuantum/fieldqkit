@@ -18,14 +18,16 @@ dependencies = [
   "networkx>=3.0",
   "openqasm3[parser]>=0.5",
   "requests>=2.31",
+  "matplotlib>=3.7"
 ]
 
 [project.optional-dependencies]
-viz = ["matplotlib>=3.7"]
 test = [
-  "quarkstudio",
-  "quarkcircuit",
   "pytest>=7.4",
+]
+test-quark = [
+  "quarkcircuit",
+  "quarkstudio",
 ]
 
 [tool.setuptools]

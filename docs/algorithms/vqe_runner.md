@@ -214,11 +214,6 @@ _parameter_shift_gradient(
 - 要求：在当前流程中需要传入 `param_template` 与 `param_names`（用于仅替换参数值、避免重复编译）。
 - 返回：`np.ndarray`，长度与 `params` 相同。
 
-### 压缩 stage 合成语义
-
-- `_compose_stage_circuits(...)` 在拼接多 stage 压缩线路时，保留首个 stage 的 `QuantumCircuit.qubits` 原始顺序。
-- 该顺序可能携带 transpiler/layout 后的物理比特映射信息，不能用 `qubits_in_use` 的去重排序结果替代。
-
 ### 自动微分路径（`gradient_method="autograd"`）
 
 - 触发条件：`run_vqe_with_backend(..., gradient_method="autograd")` 或 `VQERunner(gradient_method="autograd")`。
@@ -342,24 +337,13 @@ result = runner.run_model(
   - 会在可训练单比特参数门上进行 Clifford 随机化采样。
   - 拟合粒度为“每个 observable 一组 `(a,b)`”，不再是单一哈密顿量级别系数。
 
-## H2 化学数据工作流（Windows + WSL）
-
-- 推荐将化学积分与映射步骤放在 WSL 侧执行，再输出 JSON 给 Windows 侧 VQE 使用。
-- 参考文档：[WSL Chemistry Workflow](../wsl_chemistry_workflow.md)
-- 该流程可避免 Windows 上 `PySCF` 编译链问题，并保持量子侧框架使用不变。
-
 ## 相关页面
 
 - [run_with_backend](../api/run_with_backend.md)
 - [result types](../core/result_types.md)
 - [circuit compression](./circuit_compression.md)
 - [ansatz templates](./ansatz_templates.md)
-- [WSL Chemistry Workflow](../wsl_chemistry_workflow.md)
 - [simulator interface](../sim/interface.md)
 - [statevector simulator](../sim/statevector.md)
 - [mps simulator](../sim/mps.md)
 - [simulator common helpers](../sim/common.md)
-
-## 相关示例
-
-- [F2 12Q 压缩示例](../../examples/demo_vqe_f2_12q_compression.ipynb)

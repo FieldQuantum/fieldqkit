@@ -1,9 +1,9 @@
 """Export H2 qubit Hamiltonian data with OpenFermion+PySCF (intended for WSL/Linux).
 
 Usage examples:
-  python scripts/export_h2_terms_wsl.py --R 2.6 --unit angstrom
-  python scripts/export_h2_terms_wsl.py --R 2.6 --unit bohr --output examples/data/chemistry/h2_R2.6_bohr_sto-3g.json
-    python scripts/export_h2_terms_wsl.py --R 2.6 --unit angstrom --encoding scbk2
+    python chemistry/scripts/export_h2_terms_wsl.py --R 2.6 --unit angstrom
+    python chemistry/scripts/export_h2_terms_wsl.py --R 2.6 --unit bohr --output chemistry/data/h2_R2.6_bohr_sto-3g.json
+    python chemistry/scripts/export_h2_terms_wsl.py --R 2.6 --unit angstrom --encoding scbk2
 """
 
 from __future__ import annotations
@@ -143,7 +143,7 @@ def main() -> None:
     parser.add_argument(
         "--output",
         type=str,
-        default="examples/data/chemistry/h2_R2.6_angstrom_sto-3g.json",
+        default="chemistry/data/h2_R2.6_angstrom_sto-3g.json",
         help="Output JSON path (relative to project root or absolute)",
     )
     args = parser.parse_args()
