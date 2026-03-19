@@ -1,10 +1,10 @@
 """Export F2 qubit Hamiltonian data with OpenFermion+PySCF (intended for WSL/Linux).
 
 Usage examples:
-    python scripts/export_f2_terms_wsl.py --R 1.4 --unit angstrom
-    python scripts/export_f2_terms_wsl.py --R 2.6 --unit bohr --output examples/data/chemistry/f2_R2.6_bohr_sto-3g_12q.json
-    python scripts/export_f2_terms_wsl.py --reduction paper12 --encoding jw --output examples/data/chemistry/f2_R1.4_angstrom_sto-3g_12q.json
-    python scripts/export_f2_terms_wsl.py --reduction none --encoding jw --output examples/data/chemistry/f2_full_sto-3g.json
+    python chemistry/scripts/export_f2_terms_wsl.py --R 1.4 --unit angstrom
+    python chemistry/scripts/export_f2_terms_wsl.py --R 2.6 --unit bohr --output chemistry/data/f2_R2.6_bohr_sto-3g_12q.json
+    python chemistry/scripts/export_f2_terms_wsl.py --reduction paper12 --encoding jw --output chemistry/data/f2_R1.4_angstrom_sto-3g_12q.json
+    python chemistry/scripts/export_f2_terms_wsl.py --reduction none --encoding jw --output chemistry/data/f2_full_sto-3g.json
 
 Notes:
     - Default reduction is the 12-qubit active-space setting requested in the paper-style spec:
@@ -301,7 +301,7 @@ def main() -> None:
     parser.add_argument(
         "--output",
         type=str,
-        default="examples/data/chemistry/f2_R1.4_angstrom_sto-3g_12q.json",
+        default="chemistry/data/f2_R1.4_angstrom_sto-3g_12q.json",
         help="Output JSON path (relative to project root or absolute)",
     )
     args = parser.parse_args()

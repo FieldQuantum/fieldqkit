@@ -1,10 +1,10 @@
 """Export LiH qubit Hamiltonian data with OpenFermion+PySCF (intended for WSL/Linux).
 
 Usage examples:
-    python scripts/export_lih_terms_wsl.py --R 1.6 --unit angstrom
-  python scripts/export_lih_terms_wsl.py --R 3.0 --unit bohr --encoding jw --output examples/data/chemistry/lih_R3.0_bohr_sto-3g.json
-    python scripts/export_lih_terms_wsl.py --reduction paper4 --encoding jw --output examples/data/chemistry/lih_R1.6_angstrom_sto-3g_4q.json
-    python scripts/export_lih_terms_wsl.py --reduction none --encoding jw --output examples/data/chemistry/lih_full_sto-3g.json
+        python chemistry/scripts/export_lih_terms_wsl.py --R 1.6 --unit angstrom
+        python chemistry/scripts/export_lih_terms_wsl.py --R 3.0 --unit bohr --encoding jw --output chemistry/data/lih_R3.0_bohr_sto-3g.json
+        python chemistry/scripts/export_lih_terms_wsl.py --reduction paper --encoding jw --output chemistry/data/lih_R1.6_angstrom_sto-3g_6q.json
+        python chemistry/scripts/export_lih_terms_wsl.py --reduction none --encoding jw --output chemistry/data/lih_full_sto-3g.json
 
 Notes:
     - Default reduction is the 6-qubit active-space setting:
@@ -193,7 +193,7 @@ def main() -> None:
     parser.add_argument(
         "--output",
         type=str,
-        default="examples/data/chemistry/lih_R1.6_angstrom_sto-3g_6q.json",
+        default="chemistry/data/lih_R1.6_angstrom_sto-3g_6q.json",
         help="Output JSON path (relative to project root or absolute)",
     )
     args = parser.parse_args()

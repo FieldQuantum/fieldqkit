@@ -18,11 +18,11 @@
 pip install -e .
 ```
 
-> 运行依赖：Python >= 3.9，`numpy>=1.24`，`scipy>=1.10`，`ipython>=8.0`，`networkx>=3.0`，`requests>=2.31`。
+> 运行依赖：Python >= 3.9，`numpy>=1.24`，`torch>=2.1`，`scipy>=1.10`，`ipython>=8.0`，`networkx>=3.0`，`requests>=2.31`。
 > OpenQASM3 解析依赖 `openqasm3[parser]`。
-> 作图示例需要 `matplotlib`。
-> 一键安装依赖：`pip install -e .[viz]`。
-> 测试依赖组 `[test]`：`quarkstudio`、`quarkcircuit`、`pytest>=7.4`。
+> 作图示例依赖 `matplotlib`，当前已包含在默认安装依赖中。
+> 测试依赖组 `[test]`：`pytest>=7.4`。
+> `quarkstudio`，`quarkcircuit` 因依赖声明问题（错误依赖 `clirk>=1.2.0`）拆分到 `[test-quark]`。
 
 如果你需要本地运行测试，建议使用：
 
@@ -30,10 +30,11 @@ pip install -e .
 pip install -e .[test]
 ```
 
-如需同时安装作图与测试依赖：
+如果你需要 quark 相关测试，建议在安装基础测试依赖后单独安装：
 
 ```bash
-pip install -e .[viz,test]
+pip install -e .[test]
+pip install -e .[test-quark] --no-deps
 ```
 
 ## 快速开始
@@ -75,9 +76,6 @@ print(result.probabilities)
 - [Shadow tomography 分层教程](examples/demo_shadow.ipynb)
 - [Readout calibration + ZNE 专项](examples/demo_readout_zne.ipynb)
 - [VQE：顶层接口 + parameter-shift 手动梯度下降](examples/demo_vqe.ipynb)
-- [VQE(LiH, 6Q active-space)](examples/demo_vqe_lih_6q.ipynb)
-- [VQE(F2, 12Q active-space)](examples/demo_vqe_f2_12q.ipynb)
-- [VQE(F2, 12Q compression)](examples/demo_vqe_f2_12q_compression.ipynb)
 - [Backend 拓扑与芯片排序](examples/demo_backend.ipynb)
 
 ## 学习路径（入门 → 进阶 → 硬件 → 优化）
@@ -93,3 +91,7 @@ print(result.probabilities)
 ## 文档 (Docs)
 
 Docs 总览见 [docs/README.md](docs/README.md)。
+
+## Chemistry 应用
+
+化学相关的数据、脚本、示例和说明文档已独立收纳在 [chemistry](chemistry)。
