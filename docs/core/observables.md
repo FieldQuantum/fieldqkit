@@ -38,7 +38,7 @@
 
 - 作用：按给定基模式先做基变换，再追加测量。
 - 行为：
-	- `target_qubits=None` 时默认测量 `range(len(basis_pattern))`。
+	- `target_qubits=None` 时，优先使用 `qc.qubits`（保持线路内记录的 qubit 顺序）；若对象无 `qubits` 属性，再退化为 `range(len(basis_pattern))`。
 	- 测量映射到紧凑经典位序：`qc.measure(target_qubits, range(len(target_qubits)))`。
 
 ### `group_observables(observables: Sequence[str], num_qubits: int) -> List[Dict[str, object]]`
@@ -59,7 +59,7 @@
 
 - `apply_measurement_basis_rotations` / `append_measurement_basis` 支持 `target_qubits`。
 - 当执行在物理映射后线路上时，可用 `target_qubits` 指定“模式元素与物理比特”的对应关系。
-- 若不传，默认按模式长度从 `0..n-1` 映射。
+- 若不传，默认优先使用 `qc.qubits` 的顺序（常用于保留 transpiler/layout 映射语义）。
 
 ## 常见报错
 

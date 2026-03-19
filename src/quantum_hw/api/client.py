@@ -281,7 +281,7 @@ class QuantumHardwareClient:
 					raise ValueError("target_qubits must cover all qubits used in the circuit")
 				target_qubits_in_use = list(target_qubits)
 			else:
-				used = list(base_qct.qubits_in_use)
+				used = list(base_qct.qubits)
 				target_qubits_in_use = used if used else list(range(num_qubits))
 
 		for gi, group in enumerate(groups):

@@ -57,6 +57,7 @@ _run_with_backend(
 2. 根据 `transpile` 与 `chip_name` 决定是否编译。
         - `transpile=True`：执行 `_transpile_with_backend(...)`。
         - `transpile=False`：直接使用输入线路副本，避免重复编译开销。
+        - `transpile=False` 且 `target_qubits=None`：默认使用 `base_qct.qubits` 顺序作为执行/测量物理比特顺序；若为空再退化到 `list(range(num_qubits))`。
 3. 对每个测量组构造线路并执行：
    - 硬件：提交异步任务并等待完成。
    - 模拟器：直接调用 `simulate_counts(...)`。
