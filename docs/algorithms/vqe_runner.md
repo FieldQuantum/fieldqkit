@@ -8,6 +8,9 @@
 - **当前推荐入口**：`VQERunner.run_model(...)`
 - **Simulator 自动微分入口**：`quantum_hw.sim.energy_and_expectations`（由 sim 接口层按 qubit 数在 statevector/MPS 间分发）。
 - **压缩能力（parameter-shift 路径）**：支持后缀分块规划 + stage 级压缩（prefix 用 `mps` 目标，suffix block 用 `mpo` 目标）。
+- **硬件压缩执行路径**：压缩开启时使用“双模板”模式：
+  - 梯度模板：原始 symbolic ansatz（每次参数化后再压缩）。
+  - 执行模板：预编译 hardware-efficient 压缩模板（仅注入压缩参数后执行）。
 
 ## 推荐签名（`VQERunner.run_model`）
 
@@ -200,7 +203,7 @@ _parameter_shift_gradient(
   shift,
   zne,
   readout_mitigation,
-  transpiled_template,
+  param_template,
   param_names,
 ) -> np.ndarray
 ```
@@ -208,8 +211,13 @@ _parameter_shift_gradient(
 - 作用：基于 parameter-shift 规则估计梯度向量。
 - 公式：
   - 第 `i` 个分量使用 `0.5 * (E(theta_i + shift) - E(theta_i - shift))`。
-- 要求：在当前流程中需要传入 `transpiled_template` 与 `param_names`（用于仅替换参数值、避免重复编译）。
+- 要求：在当前流程中需要传入 `param_template` 与 `param_names`（用于仅替换参数值、避免重复编译）。
 - 返回：`np.ndarray`，长度与 `params` 相同。
+
+### 压缩 stage 合成语义
+
+- `_compose_stage_circuits(...)` 在拼接多 stage 压缩线路时，保留首个 stage 的 `QuantumCircuit.qubits` 原始顺序。
+- 该顺序可能携带 transpiler/layout 后的物理比特映射信息，不能用 `qubits_in_use` 的去重排序结果替代。
 
 ### 自动微分路径（`gradient_method="autograd"`）
 

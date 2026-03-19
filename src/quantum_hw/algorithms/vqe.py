@@ -541,16 +541,16 @@ def _parameter_shift_gradient(
     shift: float,
     zne: bool,
     readout_mitigation: bool,
-    transpiled_template: Optional[QuantumCircuit] = None,
+    param_template: Optional[QuantumCircuit] = None,
     param_names: Optional[Sequence[str]] = None,
     clifford_fit_map: Optional[CliffordFitMap] = None,
     target_qubits: Optional[Sequence[int]] = None,
     circuit_transform: Optional[Callable[[QuantumCircuit, Optional[int]], QuantumCircuit]] = None,
 ) -> np.ndarray:
     """Compute gradients via parameter-shift rule."""
-    if transpiled_template is None or param_names is None:
+    if param_template is None or param_names is None:
         raise ValueError(
-            "_parameter_shift_gradient requires transpiled_template and param_names in current VQE flow"
+            "_parameter_shift_gradient requires param_template and param_names in current VQE flow"
         )
 
     grads = np.zeros_like(params, dtype=float)
@@ -560,12 +560,11 @@ def _parameter_shift_gradient(
         params_plus[i] += shift
         params_minus[i] -= shift
 
-        qc_plus = _instantiate_transpiled_template(transpiled_template, param_names, params_plus)
-        qc_minus = _instantiate_transpiled_template(transpiled_template, param_names, params_minus)
+        qc_plus = _instantiate_transpiled_template(param_template, param_names, params_plus)
+        qc_minus = _instantiate_transpiled_template(param_template, param_names, params_minus)
         if circuit_transform is not None:
             qc_plus = circuit_transform(qc_plus, i)
             qc_minus = circuit_transform(qc_minus, i)
-        print(f"Evaluating gradient for parameter {param_names[i]} (index {i}) with +shift and -shift circuits...")
         e_plus, _ = _evaluate_energy_with_backend(
             client,
             qc_plus,
@@ -682,8 +681,6 @@ def run_vqe_with_backend(
             raise ValueError("compression_block_layers must be positive")
     if enable_circuit_compression and block_depth_k is None:
         raise ValueError("compression_block_layers must be provided when compression is enabled")
-    if str(chip_name).lower() == "simulator":
-        target_qubits = [q for q in range(int(num_qubits))]
     unified_bond_cap = int(planner_bond_cap)
     unified_trunc_tol = float(planner_trunc_tol)
 
@@ -703,6 +700,11 @@ def run_vqe_with_backend(
             raise ValueError(f"init_params length must be {num_params}")
 
     params = init_values.copy()
+    transpiled_template: Optional[QuantumCircuit] = None
+    gradient_param_template: Optional[QuantumCircuit] = None
+    compressed_transpiled_template: Optional[QuantumCircuit] = None
+    compressed_param_names: Optional[List[str]] = None
+    compressed_layers: Optional[int] = None
     if method == "autograd":
         if str(chip_name).lower() != "simulator":
             raise ValueError("autograd mode is only supported on Simulator backend")
@@ -710,18 +712,44 @@ def run_vqe_with_backend(
         if seed is not None:
             torch.manual_seed(int(seed))
     else:
-        # For parameter-shift mode, transpile a symbolic ansatz once and then only update values.
-        transpiled_template = client._transpile_with_backend(
-            symbolic_qc,
-            backend,
-            target_qubits=target_qubits,
-            use_gate_compressor=False,
-        )
-        target_qubits_in_use = client._ordered_target_qubits_from_layout(
-            compiled_qc=transpiled_template,
-            original_qc=symbolic_qc,
-            num_qubits=num_qubits,
-        )
+        if not enable_circuit_compression:
+            # No compression: keep the existing fast path by transpiling symbolic template once.
+            transpiled_template = client._transpile_with_backend(
+                symbolic_qc,
+                backend,
+                target_qubits=target_qubits,
+                use_gate_compressor=False,
+            )
+            gradient_param_template = transpiled_template
+            target_qubits_in_use = client._ordered_target_qubits_from_layout(
+                compiled_qc=transpiled_template,
+                original_qc=symbolic_qc,
+                num_qubits=num_qubits,
+            )
+        else:
+            # Compression enabled:
+            # 1) do NOT transpile original symbolic ansatz; instantiate it per-iteration/per-shift then compress.
+            # 2) transpile one hardware-efficient compressed template, and only inject compressed params for execution.
+            gradient_param_template = symbolic_qc
+            compressed_layers = int(block_depth_k) if block_depth_k is not None else max(1, int(np.ceil(float(layers) * 0.5)))
+            compressed_param_count = 2 * int(num_qubits) * (int(compressed_layers) + 1)
+            compressed_param_names = [f"cmp_phi_{i}" for i in range(compressed_param_count)]
+            compressed_symbolic_qc = build_hardware_efficient_ansatz_symbolic(
+                num_qubits,
+                compressed_param_names,
+                layers=int(compressed_layers),
+            )
+            compressed_transpiled_template = client._transpile_with_backend(
+                compressed_symbolic_qc,
+                backend,
+                target_qubits=target_qubits,
+                use_gate_compressor=False,
+            )
+            target_qubits_in_use = client._ordered_target_qubits_from_layout(
+                compiled_qc=compressed_transpiled_template,
+                original_qc=compressed_symbolic_qc,
+                num_qubits=num_qubits,
+            )
 
     compression_warm_start: Optional[np.ndarray] = None
     compression_base_params: Optional[np.ndarray] = None
@@ -756,9 +784,17 @@ def run_vqe_with_backend(
         )
 
     def _compose_stage_circuits(stage_circuits: Sequence[QuantumCircuit]) -> QuantumCircuit:
-        out = QuantumCircuit(int(num_qubits))
+        if not stage_circuits:
+            return QuantumCircuit(int(num_qubits))
+
+        out_nqubits = int(stage_circuits[0].nqubits)
+        out_ncbits = int(stage_circuits[0].ncbits)
+        out = QuantumCircuit(out_nqubits, out_ncbits)
+        out.qubits = stage_circuits[0].qubits.copy()
         merged: List[tuple] = []
         for stage_qc in stage_circuits:
+            if int(stage_qc.nqubits) != out_nqubits:
+                raise ValueError("all stage circuits must have the same nqubits")
             merged.extend(list(stage_qc.gates))
         out.gates = merged
         return out
@@ -790,10 +826,9 @@ def run_vqe_with_backend(
 
         approx_depth = int(block_depth_k) if block_depth_k is not None else max(1, int(np.ceil(float(layers) * 0.5)))
         local_warm_start = compression_base_params if changed_param_index is not None else compression_warm_start
-        compressed_stage_circuits: List[QuantumCircuit] = []
+        compressed_stage_exec_circuits: List[QuantumCircuit] = []
         for stage_id in stage_ids:
             target_stage_qc = _stage_target_circuit(qc_bound, plan, int(stage_id))
-
             compressed_stage_qc, next_warm_start, summary = compress_circuit_with_hybrid_objective(
                 target_stage_qc,
                 num_qubits=num_qubits,
@@ -805,8 +840,16 @@ def run_vqe_with_backend(
                 warm_start_params=local_warm_start,
             )
             local_warm_start = next_warm_start
-            compressed_stage_circuits.append(compressed_stage_qc)
 
+            if compressed_transpiled_template is not None and compressed_param_names is not None:
+                stage_exec_qc = _instantiate_transpiled_template(
+                    compressed_transpiled_template,
+                    compressed_param_names,
+                    next_warm_start,
+                )
+                compressed_stage_exec_circuits.append(stage_exec_qc)
+            else:
+                compressed_stage_exec_circuits.append(compressed_stage_qc)
             if bool(compression_verbose):
                 call_tag = "base" if changed_param_index is None else f"shift(param={int(changed_param_index)})"
                 print(
@@ -852,7 +895,7 @@ def run_vqe_with_backend(
                 f"seed_err={plan.prefix_relative_trunc_error:.3e}",
                 f"blocks={len(plan.blocks)}",
             )
-        return _compose_stage_circuits(compressed_stage_circuits)
+        return _compose_stage_circuits(compressed_stage_exec_circuits)
 
     clifford_fit_map: Optional[CliffordFitMap] = None
     clifford_fitting_summary: Optional[Dict[str, Dict[str, float]]] = None
@@ -860,15 +903,12 @@ def run_vqe_with_backend(
         if method != "parameter-shift":
             raise ValueError("clifford_fitting currently requires gradient_method='parameter-shift'")
         if enable_circuit_compression:
-            clifford_layers = int(block_depth_k) if block_depth_k is not None else max(1, int(np.ceil(float(layers) * 0.5)))
-            clifford_param_count = 2 * int(num_qubits) * (clifford_layers + 1)
-            clifford_param_names = [f"clifford_theta_{i}" for i in range(clifford_param_count)]
-            clifford_transpiled_template = build_hardware_efficient_ansatz_symbolic(
-                num_qubits,
-                clifford_param_names,
-                layers=clifford_layers,
-            )
+            if compressed_transpiled_template is None:
+                raise RuntimeError("compressed_transpiled_template is required when compression is enabled")
+            clifford_transpiled_template = compressed_transpiled_template.deepcopy()
         else:
+            if transpiled_template is None:
+                raise RuntimeError("transpiled_template is required when compression is disabled")
             clifford_transpiled_template = transpiled_template.deepcopy()
         clifford_fit_map = _build_clifford_fit_map(
             client,
@@ -931,7 +971,9 @@ def run_vqe_with_backend(
             energy = float(energy_t.detach().cpu().item())
             grads = params_t.grad.detach().cpu().numpy().astype(float, copy=True)
         else:
-            qc = _instantiate_transpiled_template(transpiled_template, param_names, params)
+            if gradient_param_template is None:
+                raise RuntimeError("gradient_param_template is not prepared for parameter-shift flow")
+            qc = _instantiate_transpiled_template(gradient_param_template, param_names, params)
             qc = _maybe_compress_qc(qc, None)
             energy, expectations = _evaluate_energy_with_backend(
                 client,
@@ -959,7 +1001,7 @@ def run_vqe_with_backend(
                 shift=shift,
                 zne=zne,
                 readout_mitigation=readout_mitigation,
-                transpiled_template=transpiled_template,
+                param_template=gradient_param_template,
                 param_names=param_names,
                 clifford_fit_map=clifford_fit_map,
                 target_qubits=target_qubits_in_use,

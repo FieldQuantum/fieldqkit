@@ -80,7 +80,7 @@ def pauli_basis_pattern(pauli: str, num_qubits: int) -> List[str]:
 def apply_measurement_basis_rotations(qc, basis_pattern: Sequence[str], target_qubits: Sequence[int] = None) -> None:
 	"""Apply only basis rotations for a full I/X/Y/Z pattern."""
 	if target_qubits is None:
-		target_qubits = list(range(len(basis_pattern)))
+		target_qubits = qc.qubits if hasattr(qc, "qubits") else list(range(len(basis_pattern)))
 	for idx, op in zip(target_qubits, basis_pattern):
 		ops = _BASIS_ROTATION_OPS.get(op)
 		if ops is None:
@@ -92,7 +92,7 @@ def apply_measurement_basis_rotations(qc, basis_pattern: Sequence[str], target_q
 def append_measurement_basis(qc, basis_pattern: Sequence[str], target_qubits: Sequence[int] = None) -> None:
 	"""Apply basis rotations for a full pattern and append measurements."""
 	if target_qubits is None:
-		target_qubits = list(range(len(basis_pattern)))
+		target_qubits = qc.qubits if hasattr(qc, "qubits") else list(range(len(basis_pattern)))
 	apply_measurement_basis_rotations(qc, basis_pattern, target_qubits=target_qubits)
 	qc.barrier()
 	# Map measured qubits onto a dense classical register order.
