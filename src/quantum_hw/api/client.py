@@ -9,6 +9,9 @@ from pathlib import Path
 import numpy as np
 from .task import Task
 from .backend import Backend
+from .platform_credentials import get_cqlib_login_key
+from .unified_backend import CqlibBackendAdapter, QuafuBackendAdapter
+from .unified_task import CqlibTaskAdapter, QuafuTaskAdapter, TaskRequest
 
 from ..circuit import QuantumCircuit
 
@@ -22,7 +25,6 @@ from ..core.observables import (
 	pauli_basis_pattern,
 	pauli_support,
 )
-from .backend import rank_chips
 from ..core.readout import (
 	build_local_confusion_matrix,
 	mitigate_observable_from_samples,
@@ -43,6 +45,8 @@ class QuantumHardwareClient:
 		self.chip_name = None
 		# Task manager is the single entry point for submitting hardware jobs.
 		self.tmgr = Task()
+		# Placeholder credential for future cqlib-based providers.
+		self.cqlib_login_key = get_cqlib_login_key()
 		self.chip_backend = None
 
 	@staticmethod
@@ -468,6 +472,7 @@ class QuantumHardwareClient:
 		name: str,
 		num_qubits: int,
 		*,
+		provider: str = "quafu",
 		shots: int = 8192,
 		zne: bool = False,
 		readout_mitigation: bool = False,
@@ -477,39 +482,57 @@ class QuantumHardwareClient:
 		target_qubits: Optional[Sequence[int]] = None,
 		prefer_chips: Optional[Sequence[str] | str] = None,
 		rank_weights: Optional[Dict[str, float]] = None,
+		cqlib_platform: str = "tianyan",
+		cqlib_submit_mode: str = "submit_job",
+		cqlib_transpile: bool = True,
+		cqlib_max_wait_time: int = 3600,
+		cqlib_sleep_time: int = 5,
 		print_true: bool = True,
 	) -> RunResult:
 		"""Automatically select hardware, run, and return results."""
 		# Normalize input circuit and strip measurements if present.
 		qc = self._normalize_input_circuit(circuit, num_qubits)
-		ranked_chips = rank_chips(
-			self.tmgr,
-			num_qubits=num_qubits,
-			prefer_chips=prefer_chips,
-			weights=rank_weights,
-		)
-		if not ranked_chips:
-			raise RuntimeError("no available chips satisfy num_qubits requirement")
+		provider = str(provider).lower()
 
-		for chip_name in ranked_chips:
-			backend = Backend(chip_name)
-			self.chip_name = chip_name
-			self.chip_backend = backend
-			return self._run_with_backend(
-				qc,
-				name,
-				num_qubits,
-				backend=backend,
-				chip_name=chip_name,
-				shots=shots,
-				zne=zne,
-				readout_mitigation=readout_mitigation,
-				readout_shots=readout_shots,
-				observables=observables,
-				return_probabilities=return_probabilities,
-				target_qubits=target_qubits,
-				print_true=print_true,
+		if provider == "quafu":
+			backend_adapter = QuafuBackendAdapter(tmgr=self.tmgr)
+			task_adapter = QuafuTaskAdapter(client=self)
+		elif provider == "cqlib":
+			backend_adapter = CqlibBackendAdapter(
+				login_key=self.cqlib_login_key,
+				platform=cqlib_platform,
 			)
+			task_adapter = CqlibTaskAdapter(login_key=self.cqlib_login_key)
+		else:
+			raise ValueError("provider must be 'quafu' or 'cqlib'")
 
-		raise RuntimeError("all candidate chips failed to transpile or run")
+		resolved_backend = backend_adapter.resolve_backend(
+			num_qubits=num_qubits,
+			prefer_hardware=prefer_chips,
+			rank_weights=rank_weights,
+		)
+
+		self.chip_name = resolved_backend.hardware_name
+		self.chip_backend = resolved_backend.backend
+
+		request = TaskRequest(
+			qc=qc,
+			name=name,
+			num_qubits=num_qubits,
+			shots=shots,
+			zne=zne,
+			readout_mitigation=readout_mitigation,
+			readout_shots=readout_shots,
+			observables=observables,
+			return_probabilities=return_probabilities,
+			target_qubits=target_qubits,
+			print_true=print_true,
+			provider_options={
+				"submit_mode": cqlib_submit_mode,
+				"transpile_on_client": cqlib_transpile,
+				"max_wait_time": cqlib_max_wait_time,
+				"sleep_time": cqlib_sleep_time,
+			},
+		)
+		return task_adapter.run_task(request, resolved_backend)
 
