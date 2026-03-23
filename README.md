@@ -77,6 +77,7 @@ print(result.probabilities)
 - [Readout calibration + ZNE 专项](examples/demo_readout_zne.ipynb)
 - [VQE：顶层接口 + parameter-shift 手动梯度下降](examples/demo_vqe.ipynb)
 - [Backend 拓扑与芯片排序](examples/demo_backend.ipynb)
+- [cqlib Provider 最小接入示例](examples/demo_cqlib_provider.ipynb)
 
 ## 学习路径（入门 → 进阶 → 硬件 → 优化）
 

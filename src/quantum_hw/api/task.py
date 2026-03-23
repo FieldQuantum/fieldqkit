@@ -24,6 +24,7 @@ import time
 from typing import Literal
 
 import requests
+from .platform_credentials import get_quafu_api_token
 
 
 class Task(object):
@@ -38,10 +39,10 @@ class Task(object):
         return cls.instance
 
     def __init__(self) -> None:
-        # Task client for Quafu REST API; token can come from env or argument.
-        token = "FRb5fWkVduBE3VhBcGlfH6DfXZjUfVPJqPWQo`Ii:8T/:KUNxREPzJkMyZEO5B{N3d{OypkJxiY[jxjJyBkPyBkPyFEJ4FUM{BUM3JENzJjPjRYZqKDMxpkJtWnemynJtJTcwOnMtmXZueHRu2XcwW4[vWHbkWYfjpkJzW3d2Kzf"
-        self.token = os.getenv('QPU_API_TOKEN', token)
-        assert self.token, 'token cannot be empty!'
+        # Task client for Quafu REST API; token comes from centralized config.
+        self.token = get_quafu_api_token()
+        if not self.token:
+            raise ValueError('token cannot be empty!')
 
         self.tasks = {}
 
