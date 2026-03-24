@@ -1,101 +1,212 @@
-# Task
+﻿# Task
 
 ## 概览
 
-- **模块**：`quantum_hw.api.task`
-- **作用**：Quafu REST API 的轻量客户端，负责任务提交、查询、取消、结果拉取。
-- **模式**：单例（`Task()` 重复创建返回同一实例）。
+- 模块：quantum_hw.api.task
+- 作用：定义 provider 无关的任务请求/句柄/适配器协议，屏蔽各平台任务接口差异。
+- 核心对象：OpenQasmSubmitRequest、ProviderTaskHandle、TaskAdapter。
 
-## 构造与认证
+## 数据结构
 
-```python
-from quantum_hw.api.task import Task
+### OpenQasmSubmitRequest
 
-tmgr = Task()
-```
+`python
+@dataclass
+class OpenQasmSubmitRequest:
+    name: str
+    qasm: str
+    shots: int
+    chip_name: str
+    submit_options: Dict[str, Any] = field(default_factory=dict)
+`
 
-认证逻辑：
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| 
+ame | str | 任务名。 |
+| qasm | str | OpenQASM 源码（2.0 或 3.0）。 |
+| shots | int | 采样次数。 |
+| chip_name | str | 目标芯片名。 |
+| submit_options | Dict[str, Any] | provider 扩展参数（如轮询超时、sleep 间隔等）。 |
 
-- 优先读取环境变量 `QPU_API_TOKEN`
-- 若未设置，使用模块内默认 token 字符串
-- 初始化时调用 `verify()` 校验 token
+### ProviderTaskHandle
 
-> 建议在生产环境显式设置环境变量，避免依赖默认 token。
+`python
+@dataclass
+class ProviderTaskHandle:
+    provider: str
+    task_id: str
+    payload: Dict[str, Any] = field(default_factory=dict)
+`
 
-## 主要方法
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| provider | str | provider 名称。 |
+| 	ask_id | str | 任务标识。 |
+| payload | Dict[str, Any] | provider 侧上下文（平台对象、批量子任务 ID 等）。 |
 
-### `verify()`
+## 适配器协议详解
 
-校验当前 token 是否可用。
+### TaskAdapter.submit_openqasm(...)
 
-### `status(tid: int = 0)`
+**签名：**
+`python
+def submit_openqasm(
+    self,
+    submit_request: OpenQasmSubmitRequest,
+    backend: ResolvedBackend
+) -> ProviderTaskHandle
+`
 
-- `tid=0` 时返回整体状态（常用于芯片队列）
-- `tid>0` 时查询单任务状态
+**用途：** 提交 OpenQASM 任务到目标平台。
 
-### `run(task: dict, repeat: int = 1)`
+**参数：**
 
-提交任务，返回任务 ID（通常为 `int`）。
+| 参数 | 类型 | 说明 |
+|---|---|---|
+| submit_request | OpenQasmSubmitRequest | 任务请求对象（包含线路、shots、芯片名等）。 |
+| ackend | ResolvedBackend | 已解析的后端对象（用于获取平台特定配置）。 |
 
-`task` 常用字段：
+**返回值：** ProviderTaskHandle —— 包含任务标识和平台特定的上下文信息。
 
-- `chip`（必填）
-- `circuit`（必填，OpenQASM 字符串）
-- `name`（可选）
-- `shots`（可选）
-- `compile`（可选，默认 `True`）
-- `options`（可选）
+**异常：**
+- RuntimeError：任务提交失败（网络、认证、芯片离线等）。
+- ValueError：submit_request 中的芯片名或参数非法。
 
-### `result(tid: int, timeout: float = 0.0)`
+---
 
-- `timeout=0`：单次拉取
-- `timeout>0`：轮询直到拿到非空结果或超时（抛 `TimeoutError`）
+### TaskAdapter.query_status(handle)
 
-### `query(...)`
+**签名：**
+`python
+def query_status(self, handle: ProviderTaskHandle) -> str
+`
 
-按任务 ID、芯片、状态、时间窗口等条件分页查询历史任务。
+**用途：** 查询任务的实时状态。
 
-### `cancel(tid: int)` / `delete(tid: int)`
+**参数：**
 
-取消任务或删除任务记录。
+| 参数 | 类型 | 说明 |
+|---|---|---|
+| handle | ProviderTaskHandle | 由 submit_openqasm 返回的任务句柄。 |
 
-## 请求层
+**返回值：** 状态字符串，常见值：
+- "Queued"：排队中
+- "Running"：执行中
+- "Finished"：完成
+- "Failed"：失败
+- "Canceled"：已取消
+- "Unknown"：未知（不推荐）
 
-底层统一走：
+**异常：**
+- RuntimeError：状态查询失败或任务已清理。
 
-```python
-request(url: str, data: dict = {}, method: str = "get")
-```
+---
 
-- GET：`session.get`
-- POST：`session.post(data=json.dumps(data))`
-- Header 自动注入 `token`
+### TaskAdapter.fetch_result(handle)
+
+**签名：**
+`python
+def fetch_result(self, handle: ProviderTaskHandle) -> Dict[str, Any]
+`
+
+**用途：** 获取任务的标准化结果。
+
+**返回值：** 结果字典，至少包含以下字段：
+
+`python
+{
+    "count": Dict[str, int],      # 测量计数 {"bit_string": count, ...}
+    ...                             # 平台特定字段（如原始测量数据）
+}
+`
+
+其中 count 的 bit_string 格式为不带空格的二进制字符串（例如 "0011"）。
+
+**异常：**
+- RuntimeError：任务未完成或结果已过期（通常 24-48 小时）。
+- ValueError：结果数据格式非标准。
+
+---
+
+### TaskAdapter.cancel_task(handle)
+
+**签名：**
+`python
+def cancel_task(self, handle: ProviderTaskHandle) -> None
+`
+
+**用途：** 取消未完成的任务。
+
+**参数：**
+
+| 参数 | 类型 | 说明 |
+|---|---|---|
+| handle | ProviderTaskHandle | 由 submit_openqasm 返回的任务句柄。 |
+
+**返回值：** None
+
+**异常：**
+- RuntimeError：任务已完成或取消失败。
+
+**使用场景：** 用户中断长时间运行的任务、释放队列资源等。
+
+---
+
+## 实现方
+
+- Quafu：quantum_hw.api.quantum_platform.quafu.QuafuTaskAdapter
+- TianYan：quantum_hw.api.quantum_platform.tianyan.TianYanTaskAdapter
+- GuoDun：quantum_hw.api.quantum_platform.guodun.GuoDunTaskAdapter
+
+## 与 QuantumHardwareClient 的配合
+
+- QuantumHardwareClient._submit_openqasm_async(...) 负责创建 OpenQasmSubmitRequest 并调用 TaskAdapter.submit_openqasm(...)。
+- _wait_task(...) 轮询 query_status(...)。
+- _get_task_result(...) 通过 etch_result(...) 取结果。
 
 ## 示例
 
-```python
-from quantum_hw.api.task import Task
+`python
+from quantum_hw.api.task import OpenQasmSubmitRequest
+from quantum_hw.api.quantum_platform import QuafuBackendAdapter
 
-tmgr = Task()
-print(tmgr.verify())
+adapter = QuafuBackendAdapter()
+resolved = adapter.resolve_backend(num_qubits=4, prefer_hardware="Simulator")
 
-task_id = tmgr.run(
-    {
-        "chip": "Simulator",
-        "name": "demo",
-        "circuit": "OPENQASM 2.0; qreg q[1]; creg c[1]; measure q[0] -> c[0];",
-        "shots": 1024,
-        "compile": False,
-    }
+qasm = """
+OPENQASM 2.0;
+qreg q[4];
+creg c[4];
+h q[0];
+cx q[0], q[1];
+cx q[1], q[2];
+cx q[2], q[3];
+measure q -> c;
+"""
+
+req = OpenQasmSubmitRequest(
+    name="ghz_4",
+    qasm=qasm,
+    shots=1024,
+    chip_name="Simulator",
+    submit_options={}
 )
 
-print("task_id:", task_id)
-print("status:", tmgr.status(task_id))
-print("result:", tmgr.result(task_id, timeout=30.0))
-```
+handle = adapter.submit_openqasm(req, resolved)
+print(f"Task ID: {handle.task_id}, Provider: {handle.provider}")
 
-## 注意事项
+# 查询状态
+status = adapter.query_status(handle)
+print(f"Status: {status}")
 
-- `Task` 是单例，多个 `Task()` 共享 `tasks/cache/session` 状态。
-- 网络异常、认证失败、接口返回异常都可能导致抛错或返回错误字典。
-- 方法内部包含短暂 `sleep`，用于降低轮询和提交频率。
+# 获取结果
+result = adapter.fetch_result(handle)
+print(f"Counts: {result['count']}")
+`
+
+## 相关页面
+
+- [QuantumHardwareClient](./QuantumHardwareClient.md)
+- [run_with_backend](./run_with_backend.md)
+- [provider_runtime](./provider_runtime.md)

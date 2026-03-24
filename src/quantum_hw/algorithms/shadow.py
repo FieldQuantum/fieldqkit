@@ -7,8 +7,7 @@ from typing import Dict, List, Optional, Sequence, Tuple, Union
 
 import numpy as np
 
-from ..api.backend import Backend
-from ..api.backend import rank_chips
+from ..api.quantum_platform import create_provider_runtime
 from ..circuit import QuantumCircuit
 from ..core.observables import pauli_basis_pattern
 from ..core.types import ShadowResult
@@ -115,6 +114,9 @@ def run_shadow_with_backend(
     target_qubits: Optional[Sequence[int]] = None,
     zne: bool = False,
     seed: Optional[int] = None,
+    qasm_version: str = "2.0",
+    use_dd: bool = True,
+    submit_options: Optional[Dict] = None,
 ) -> ShadowResult:
     """Run classical shadow tomography on a specific backend."""
     if observables is None:
@@ -158,6 +160,9 @@ def run_shadow_with_backend(
         merge_groups=False,
         zne=zne,
         print_true=False,
+        qasm_version=qasm_version,
+        use_dd=use_dd,
+        submit_options=submit_options,
     )
     if res.task_ids:
         task_ids.extend([str(t) for t in res.task_ids])
@@ -235,6 +240,7 @@ class ShadowTomography:
         name: str,
         num_qubits: int,
         *,
+        provider: str = "quafu",
         shots: int = 8192,
         shots_per_basis: int = 1,
         observables: Optional[Sequence[str]] = None,
@@ -243,38 +249,59 @@ class ShadowTomography:
         mom_groups: Optional[int] = None,
         target_qubits: Optional[Sequence[int]] = None,
         prefer_chips: Optional[Sequence[str] | str] = None,
-        rank_weights: Optional[Dict[str, float]] = None,
+		max_wait_time: int = 3600,
+		sleep_time: int = 5,
     ) -> ShadowResult:
         """Select hardware and run classical shadow tomography."""
-        print("[shadow] read hardware information and select")
+        provider_name = str(provider).lower()
+        qasm_version = self.client._default_qasm_version_for_provider(provider_name)
+        use_dd = provider_name not in {"tianyan", "guodun"}
+        print("[shadow] read hardware information and select", f"provider={provider_name}")
         # Normalize input circuit and strip measurements if present.
         qc = self.client._normalize_input_circuit(circuit, num_qubits)
 
-        ranked_chips = rank_chips(
-            self.client.tmgr,
+        runtime = create_provider_runtime(provider=provider_name, client=self.client)
+        profiles = runtime.backend_adapter.discover_hardware(
             num_qubits=num_qubits,
-            prefer_chips=prefer_chips,
-            weights=rank_weights,
+            prefer_hardware=prefer_chips,
         )
-        if not ranked_chips:
-            raise RuntimeError("no available chips satisfy num_qubits requirement")
+        if not profiles:
+            raise RuntimeError(f"no available {provider_name} hardware for num_qubits={num_qubits}")
 
         if isinstance(observables, str):
             observables = [observables]
 
         last_error: Optional[Exception] = None
-        for chip_name in ranked_chips:
-            backend = Backend(chip_name)
-            self.client.chip_name = chip_name
-            self.client.chip_backend = backend
+        for profile in profiles:
+            resolved = runtime.backend_adapter.resolve_backend(
+                num_qubits=num_qubits,
+                prefer_hardware=[profile.hardware_name],
+            )
+            self.client.chip_name = resolved.hardware_name
+            self.client.chip_backend = resolved.backend
+
+            def _as_int(value, default):
+                try:
+                    return int(value)
+                except Exception:
+                    return int(default)
+
+            submit_options = {
+                "max_wait_time": _as_int(max_wait_time, 3600),
+                "sleep_time": _as_int(sleep_time, 5),
+            }
+            self.client._active_task_adapter = runtime.task_adapter
+            self.client._active_resolved_backend = resolved
+            self.client._active_num_qubits = num_qubits
+
             try:
                 return run_shadow_with_backend(
                     self.client,
                     qc,
                     name=name,
                     num_qubits=num_qubits,
-                    backend=backend,
-                    chip_name=chip_name,
+                    backend=resolved.backend,
+                    chip_name=resolved.hardware_name,
                     shots=shots,
                     shots_per_basis=shots_per_basis,
                     observables=observables,
@@ -283,6 +310,9 @@ class ShadowTomography:
                     estimator=estimator,
                     mom_groups=mom_groups,
                     seed=self.seed,
+                    qasm_version=qasm_version,
+                    use_dd=use_dd,
+                    submit_options=submit_options,
                 )
             except Exception as exc:
                 last_error = exc

@@ -1,4 +1,4 @@
-# VQERunner.run_model
+﻿# VQERunner.run_model
 
 ## 概览
 
@@ -55,7 +55,6 @@ run_model(
     init_params=None,
     callback=None,
     prefer_chips=None,
-    rank_weights=None,
     ansatz="hardwareefficient",
     custom_ansatz_circuit=None,
 ) -> VQEResult
@@ -98,7 +97,6 @@ run_model(
 | `init_params` | `Optional[Sequence[float]]` | `None` | 否 | 显式初始参数；长度必须等于 `2 * num_qubits * (layers + 1)`。 |
 | `callback` | `Optional[Callable[[int, float, np.ndarray], None]]` | `None` | 否 | 每轮回调，参数为 `(iter_idx, energy, params)`。 |
 | `prefer_chips` | `Optional[Sequence[str] \| str]` | `None` | 否 | 候选芯片限制（可传 `"Simulator"`）。 |
-| `rank_weights` | `Optional[Dict[str, float]]` | `None` | 否 | 芯片排序权重（`queue/nqubits/error`）。 |
 | `ansatz` | `Literal["hardwareefficient", "ucc", "custom"]` | `"hardwareefficient"` | 否 | 变分线路类型。 |
 | `custom_ansatz_circuit` | `Optional[QuantumCircuit]` | `None` | 否 | 当 `ansatz="custom"` 时必填；线路中的未解析字符串参数会被自动识别并优化。 |
 

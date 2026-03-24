@@ -7,11 +7,9 @@ from copy import deepcopy
 from pathlib import Path
 
 import numpy as np
-from .task import Task
+from .quantum_platform import create_provider_runtime
 from .backend import Backend
-from .platform_credentials import get_cqlib_login_key
-from .unified_backend import CqlibBackendAdapter, QuafuBackendAdapter
-from .unified_task import CqlibTaskAdapter, QuafuTaskAdapter, TaskRequest
+from .task import OpenQasmSubmitRequest, ProviderTaskHandle, TaskAdapter
 
 from ..circuit import QuantumCircuit
 
@@ -43,11 +41,10 @@ class QuantumHardwareClient:
 	def __init__(self):
 		"""Create a hardware client."""
 		self.chip_name = None
-		# Task manager is the single entry point for submitting hardware jobs.
-		self.tmgr = Task()
-		# Placeholder credential for future cqlib-based providers.
-		self.cqlib_login_key = get_cqlib_login_key()
 		self.chip_backend = None
+		self._active_task_adapter: Optional[TaskAdapter] = None
+		self._active_resolved_backend = None
+		self._active_num_qubits: Optional[int] = None
 
 	@staticmethod
 	def _is_openqasm2(source: str) -> bool:
@@ -125,17 +122,30 @@ class QuantumHardwareClient:
 		qasm: str,
 		shots: int,
 		chip_name: Optional[str] = None,
+		submit_options: Optional[Dict[str, object]] = None,
 	):
 		"""Submit an asynchronous OpenQASM task and return its task id."""
 		resolved_chip_name = self._resolve_chip_name(chip_name)
-		task = {
-			"chip": resolved_chip_name,
-			"name": name,
-			"circuit": qasm,
-			"shots": shots,
-			"compile": False,
-		}
-		return self.tmgr.run(task)
+		options = dict(submit_options or {})
+		if "num_qubits" not in options and self._active_num_qubits is not None:
+			options["num_qubits"] = self._active_num_qubits
+
+		adapter = self._active_task_adapter
+		backend = self._active_resolved_backend
+		if adapter is None or backend is None:
+			raise RuntimeError("active task adapter is required before submitting OpenQASM")
+
+		handle = adapter.submit_openqasm(
+			OpenQasmSubmitRequest(
+				name=name,
+				qasm=qasm,
+				shots=shots,
+				chip_name=resolved_chip_name,
+				submit_options=options,
+			),
+			backend,
+		)
+		return handle
 
 	def _resolve_chip_name(self, chip_name: Optional[str] = None) -> str:
 		"""Resolve effective chip name from argument or client state."""
@@ -147,10 +157,20 @@ class QuantumHardwareClient:
 
 	def _wait_task(self, task_id):
 		"""Wait for a task to finish and return its final status."""
+		adapter = self._active_task_adapter
+		if adapter is None or not isinstance(task_id, ProviderTaskHandle):
+			raise RuntimeError("active task adapter and ProviderTaskHandle are required when waiting task status")
 		while True:
-			status = self.tmgr.status(task_id)
+			status = adapter.query_status(task_id)
 			if status in {"Finished", "Failed", "Canceled"}:
 				return status
+
+	def _get_task_result(self, task_id):
+		"""Fetch normalized task result for current active adapter."""
+		adapter = self._active_task_adapter
+		if adapter is None or not isinstance(task_id, ProviderTaskHandle):
+			raise RuntimeError("active task adapter and ProviderTaskHandle are required when fetching task result")
+		return adapter.fetch_result(task_id)
 
 	def _compact_for_sim(self, qct: QuantumCircuit, target_qubits: Optional[Sequence[int]] = None) -> Tuple[QuantumCircuit, Dict[int, int]]:
 		qct_sim = qct.deepcopy()
@@ -189,6 +209,13 @@ class QuantumHardwareClient:
 		if len(set(ordered)) != len(ordered):
 			return None
 		return ordered
+
+	@staticmethod
+	def _default_qasm_version_for_provider(provider: str) -> str:
+		provider_name = str(provider).lower()
+		if provider_name in {"tianyan", "guodun"}:
+			return "3.0"
+		return "2.0"
 	
 	def _run_with_backend(
 		self,
@@ -207,8 +234,10 @@ class QuantumHardwareClient:
 		target_qubits: Optional[Sequence[int]] = None,
 		merge_groups: bool = True,
 		qasm_version: str = "2.0",
+		use_dd: bool = True,
 		print_true: bool = False,
 		transpile: bool = True,
+		submit_options: Optional[Dict[str, object]] = None,
 	) -> RunResult:
 		"""Run a circuit on a specific backend with optional mitigation."""
 		if isinstance(observables, str):
@@ -269,7 +298,12 @@ class QuantumHardwareClient:
 		group_counts: Dict[int, Dict[str, Dict[str, int]]] = {i: {} for i in range(len(groups))}
 		# Transpile once and reuse across measurement groups.
 		if transpile:
-			base_qct = self._transpile_with_backend(deepcopy(qc), backend, target_qubits=target_qubits)
+			base_qct = self._transpile_with_backend(
+				deepcopy(qc),
+				backend,
+				target_qubits=target_qubits,
+				use_dd=use_dd,
+			)
 			# Fall back to transpiler layout mapping first, then transpiled qubits/logical range.
 			target_qubits_in_use = self._ordered_target_qubits_from_layout(
 				compiled_qc=base_qct,
@@ -307,6 +341,7 @@ class QuantumHardwareClient:
 					qasm=qasm_1,
 					shots=shots,
 					chip_name=chip_name,
+					submit_options=submit_options,
 				)
 				if print_true:
 					print("[run] compile and run circuit:", f"{name}_g{gi}")
@@ -330,6 +365,7 @@ class QuantumHardwareClient:
 						qasm=qct.to_openqasm2 if qasm_version == "2.0" else qct.to_openqasm3,
 						shots=shots,
 						chip_name=chip_name,
+						submit_options=submit_options,
 					)
 					if print_true:
 						print("[run] run circuit:", "zero-noise extrapolation")
@@ -355,7 +391,7 @@ class QuantumHardwareClient:
 				cache_dir=Path(__file__).resolve().parent / ".cache",
 				submit_openqasm_async=self._submit_openqasm_async,
 				wait_task=self._wait_task,
-				get_task_result=self.tmgr.result,
+				get_task_result=self._get_task_result,
 				compact_for_sim=self._compact_for_sim,
 				simulate_counts=simulate_counts,
 			)
@@ -378,7 +414,7 @@ class QuantumHardwareClient:
 				status = self._wait_task(task_id)
 				if status != "Finished":
 					raise RuntimeError(f"task {task_id} ended with status {status}")
-				counts = self.tmgr.result(task_id)["count"]
+				counts = self._get_task_result(task_id)["count"]
 				group_counts[gi][scale] = counts
 
 		samples_list: List[List[List[int]] | None] = []
@@ -481,58 +517,64 @@ class QuantumHardwareClient:
 		return_probabilities: bool = False,
 		target_qubits: Optional[Sequence[int]] = None,
 		prefer_chips: Optional[Sequence[str] | str] = None,
-		rank_weights: Optional[Dict[str, float]] = None,
-		cqlib_platform: str = "tianyan",
-		cqlib_submit_mode: str = "submit_job",
-		cqlib_transpile: bool = True,
-		cqlib_max_wait_time: int = 3600,
-		cqlib_sleep_time: int = 5,
+		transpile_on_client: bool = True,
+		max_wait_time: int = 3600,
+		sleep_time: int = 5,
 		print_true: bool = True,
 	) -> RunResult:
 		"""Automatically select hardware, run, and return results."""
 		# Normalize input circuit and strip measurements if present.
 		qc = self._normalize_input_circuit(circuit, num_qubits)
 		provider = str(provider).lower()
+		qasm_version = self._default_qasm_version_for_provider(provider)
+		use_dd = provider not in {"tianyan", "guodun"}
 
-		if provider == "quafu":
-			backend_adapter = QuafuBackendAdapter(tmgr=self.tmgr)
-			task_adapter = QuafuTaskAdapter(client=self)
-		elif provider == "cqlib":
-			backend_adapter = CqlibBackendAdapter(
-				login_key=self.cqlib_login_key,
-				platform=cqlib_platform,
-			)
-			task_adapter = CqlibTaskAdapter(login_key=self.cqlib_login_key)
-		else:
-			raise ValueError("provider must be 'quafu' or 'cqlib'")
+		runtime = create_provider_runtime(provider=provider, client=self)
 
-		resolved_backend = backend_adapter.resolve_backend(
+		resolved_backend = runtime.backend_adapter.resolve_backend(
 			num_qubits=num_qubits,
 			prefer_hardware=prefer_chips,
-			rank_weights=rank_weights,
 		)
 
 		self.chip_name = resolved_backend.hardware_name
 		self.chip_backend = resolved_backend.backend
 
-		request = TaskRequest(
-			qc=qc,
-			name=name,
-			num_qubits=num_qubits,
-			shots=shots,
-			zne=zne,
-			readout_mitigation=readout_mitigation,
-			readout_shots=readout_shots,
-			observables=observables,
-			return_probabilities=return_probabilities,
-			target_qubits=target_qubits,
-			print_true=print_true,
-			provider_options={
-				"submit_mode": cqlib_submit_mode,
-				"transpile_on_client": cqlib_transpile,
-				"max_wait_time": cqlib_max_wait_time,
-				"sleep_time": cqlib_sleep_time,
-			},
-		)
-		return task_adapter.run_task(request, resolved_backend)
+		def _as_int(value, default):
+			try:
+				return int(value)
+			except Exception:
+				return int(default)
+
+		submit_options = {
+			"transpile_on_client": bool(transpile_on_client),
+			"max_wait_time": _as_int(max_wait_time, 3600),
+			"sleep_time": _as_int(sleep_time, 5),
+		}
+		self._active_task_adapter = runtime.task_adapter
+		self._active_resolved_backend = resolved_backend
+		self._active_num_qubits = num_qubits
+		try:
+			return self._run_with_backend(
+				qc,
+				name,
+				num_qubits,
+				backend=resolved_backend.backend,
+				chip_name=resolved_backend.hardware_name,
+				shots=shots,
+				zne=zne,
+				readout_mitigation=readout_mitigation,
+				readout_shots=readout_shots,
+				observables=observables,
+				return_probabilities=return_probabilities,
+				target_qubits=target_qubits,
+				qasm_version=qasm_version,
+				use_dd=use_dd,
+				print_true=print_true,
+				transpile=bool(submit_options["transpile_on_client"]),
+				submit_options=submit_options,
+			)
+		finally:
+			self._active_task_adapter = None
+			self._active_resolved_backend = None
+			self._active_num_qubits = None
 

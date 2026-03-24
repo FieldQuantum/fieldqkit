@@ -1,41 +1,56 @@
 from quantum_hw.api.client import QuantumHardwareClient
-from quantum_hw.api.unified_backend import ResolvedBackend
+from quantum_hw.api.quantum_platform import ProviderRuntime
+from quantum_hw.api.backend import ResolvedBackend
 from quantum_hw.circuit import QuantumCircuit
 from quantum_hw.core.types import RunResult
 
 
 class _FakeBackendAdapter:
-    def __init__(self, *, tmgr=None, login_key=None, platform=None):
-        self.tmgr = tmgr
-        self.login_key = login_key
-        self.platform = platform
+    def __init__(self, *, provider="quafu"):
+        self.provider = provider
         self.calls = []
 
-    def resolve_backend(self, *, num_qubits, prefer_hardware=None, rank_weights=None):
+    def resolve_backend(self, *, num_qubits, prefer_hardware=None):
         self.calls.append(
             {
                 "num_qubits": num_qubits,
                 "prefer_hardware": prefer_hardware,
-                "rank_weights": rank_weights,
             }
         )
         return ResolvedBackend(
-            provider="quafu" if self.login_key is None else "cqlib",
+            provider=self.provider,
             hardware_name="fake_machine",
             backend={"fake": True},
-            target_qubits=[9, 8, 7],
-            metadata={"platform_name": "tianyan", "machine_name": "fake_machine"},
+            metadata={"platform_obj": object()},
         )
 
 
 class _FakeTaskAdapter:
-    def __init__(self, *, client=None, login_key=None):
-        self.client = client
-        self.login_key = login_key
-        self.calls = []
+    pass
 
-    def run_task(self, request, backend):
-        self.calls.append({"request": request, "backend": backend})
+
+def _install_runtime_mocks(monkeypatch, *, backend_adapter, task_adapter):
+    import quantum_hw.api.client as client_module
+
+    seen = {}
+
+    def fake_create_provider_runtime(*, provider, client):
+        seen["provider"] = provider
+        seen["client"] = client
+        return ProviderRuntime(provider=provider, backend_adapter=backend_adapter, task_adapter=task_adapter)
+
+    monkeypatch.setattr(client_module, "create_provider_runtime", fake_create_provider_runtime)
+    return seen
+
+
+def _install_run_with_backend_mock(monkeypatch):
+    seen = {}
+
+    def fake_run_with_backend(self, qc, name, num_qubits, **kwargs):
+        seen["qc"] = qc
+        seen["name"] = name
+        seen["num_qubits"] = num_qubits
+        seen["kwargs"] = kwargs
         return RunResult(
             task_ids=["rid"],
             samples=[[[0]]],
@@ -46,15 +61,15 @@ class _FakeTaskAdapter:
             observable_values_raw={"Z0": 1.0},
         )
 
+    monkeypatch.setattr(QuantumHardwareClient, "_run_with_backend", fake_run_with_backend)
+    return seen
+
 
 def test_run_auto_quafu_routes_to_quafu_adapters(monkeypatch):
-    import quantum_hw.api.client as client_module
-
-    backend_adapter = _FakeBackendAdapter(tmgr=object())
-    task_adapter = _FakeTaskAdapter(client=object())
-
-    monkeypatch.setattr(client_module, "QuafuBackendAdapter", lambda tmgr: backend_adapter)
-    monkeypatch.setattr(client_module, "QuafuTaskAdapter", lambda client: task_adapter)
+    backend_adapter = _FakeBackendAdapter(provider="quafu")
+    task_adapter = _FakeTaskAdapter()
+    seen = _install_runtime_mocks(monkeypatch, backend_adapter=backend_adapter, task_adapter=task_adapter)
+    run_seen = _install_run_with_backend_mock(monkeypatch)
 
     client = QuantumHardwareClient()
     qc = QuantumCircuit(1)
@@ -68,73 +83,70 @@ def test_run_auto_quafu_routes_to_quafu_adapters(monkeypatch):
         observables=["Z0"],
         return_probabilities=True,
         prefer_chips=["A", "B"],
-        rank_weights={"error": 1.0},
         print_true=False,
     )
 
     assert res.task_ids == ["rid"]
     assert client.chip_name == "fake_machine"
     assert client.chip_backend == {"fake": True}
+    assert seen["provider"] == "quafu"
     assert backend_adapter.calls[0]["prefer_hardware"] == ["A", "B"]
-    assert backend_adapter.calls[0]["rank_weights"] == {"error": 1.0}
-    req = task_adapter.calls[0]["request"]
-    assert req.name == "n1"
-    assert req.shots == 321
-    assert req.observables == ["Z0"]
+    assert run_seen["name"] == "n1"
+    assert run_seen["kwargs"]["qasm_version"] == "2.0"
+    assert run_seen["kwargs"]["use_dd"] is True
 
 
-def test_run_auto_cqlib_routes_to_cqlib_adapters(monkeypatch):
-    import quantum_hw.api.client as client_module
-
-    backend_adapter = _FakeBackendAdapter(login_key="lk", platform="tianyan")
-    task_adapter = _FakeTaskAdapter(login_key="lk")
-
-    monkeypatch.setattr(client_module, "CqlibBackendAdapter", lambda login_key, platform: backend_adapter)
-    monkeypatch.setattr(client_module, "CqlibTaskAdapter", lambda login_key: task_adapter)
+def test_run_auto_tianyan_routes_to_tianyan_runtime(monkeypatch):
+    backend_adapter = _FakeBackendAdapter(provider="tianyan")
+    task_adapter = _FakeTaskAdapter()
+    seen = _install_runtime_mocks(monkeypatch, backend_adapter=backend_adapter, task_adapter=task_adapter)
+    run_seen = _install_run_with_backend_mock(monkeypatch)
 
     client = QuantumHardwareClient()
     qc = QuantumCircuit(2)
 
-    client.run_auto(
-        circuit=qc,
-        name="job_cq",
-        num_qubits=2,
-        provider="cqlib",
-        cqlib_platform="tianyan",
-        cqlib_submit_mode="submit_experiment",
-        cqlib_transpile=False,
-        cqlib_max_wait_time=88,
-        cqlib_sleep_time=3,
-        prefer_chips="tianyan176",
-        print_true=False,
-    )
+    client.run_auto(circuit=qc, name="job_ty", num_qubits=2, provider="tianyan", print_true=False)
 
-    req = task_adapter.calls[0]["request"]
-    assert req.provider_options["submit_mode"] == "submit_experiment"
-    assert req.provider_options["transpile_on_client"] is False
-    assert req.provider_options["max_wait_time"] == 88
-    assert req.provider_options["sleep_time"] == 3
-    assert backend_adapter.calls[0]["prefer_hardware"] == "tianyan176"
+    assert seen["provider"] == "tianyan"
+    assert backend_adapter.calls[0]["num_qubits"] == 2
+    assert run_seen["kwargs"]["qasm_version"] == "3.0"
+    assert run_seen["kwargs"]["use_dd"] is False
+
+
+def test_run_auto_guodun_routes_to_guodun_runtime(monkeypatch):
+    backend_adapter = _FakeBackendAdapter(provider="guodun")
+    task_adapter = _FakeTaskAdapter()
+    seen = _install_runtime_mocks(monkeypatch, backend_adapter=backend_adapter, task_adapter=task_adapter)
+    run_seen = _install_run_with_backend_mock(monkeypatch)
+
+    client = QuantumHardwareClient()
+    qc = QuantumCircuit(2)
+
+    client.run_auto(circuit=qc, name="job_gd", num_qubits=2, provider="guodun", print_true=False)
+
+    assert seen["provider"] == "guodun"
+    assert backend_adapter.calls[0]["num_qubits"] == 2
+    assert run_seen["kwargs"]["qasm_version"] == "3.0"
+    assert run_seen["kwargs"]["use_dd"] is False
 
 
 def test_run_auto_invalid_provider_raises():
+    from quantum_hw.api import quantum_platform as runtime_module
+
     client = QuantumHardwareClient()
-    qc = QuantumCircuit(1)
 
     try:
-        client.run_auto(circuit=qc, name="bad", num_qubits=1, provider="unknown")
+        runtime_module.create_provider_runtime(provider="unknown", client=client)
         assert False, "expected ValueError"
     except ValueError as exc:
-        assert "provider must be 'quafu' or 'cqlib'" in str(exc)
+        assert "provider must be one of" in str(exc)
 
 
 def test_run_auto_sets_client_backend_state(monkeypatch):
-    import quantum_hw.api.client as client_module
-
-    backend_adapter = _FakeBackendAdapter(tmgr=object())
-    task_adapter = _FakeTaskAdapter(client=object())
-    monkeypatch.setattr(client_module, "QuafuBackendAdapter", lambda tmgr: backend_adapter)
-    monkeypatch.setattr(client_module, "QuafuTaskAdapter", lambda client: task_adapter)
+    backend_adapter = _FakeBackendAdapter(provider="quafu")
+    task_adapter = _FakeTaskAdapter()
+    _install_runtime_mocks(monkeypatch, backend_adapter=backend_adapter, task_adapter=task_adapter)
+    _install_run_with_backend_mock(monkeypatch)
 
     client = QuantumHardwareClient()
     qc = QuantumCircuit(1)
@@ -145,13 +157,11 @@ def test_run_auto_sets_client_backend_state(monkeypatch):
     assert client.chip_backend == {"fake": True}
 
 
-def test_run_auto_passes_target_qubits_and_flags_to_task_request(monkeypatch):
-    import quantum_hw.api.client as client_module
-
-    backend_adapter = _FakeBackendAdapter(tmgr=object())
-    task_adapter = _FakeTaskAdapter(client=object())
-    monkeypatch.setattr(client_module, "QuafuBackendAdapter", lambda tmgr: backend_adapter)
-    monkeypatch.setattr(client_module, "QuafuTaskAdapter", lambda client: task_adapter)
+def test_run_auto_passes_target_qubits_and_flags_to_run_flow(monkeypatch):
+    backend_adapter = _FakeBackendAdapter(provider="quafu")
+    task_adapter = _FakeTaskAdapter()
+    run_seen = _install_run_with_backend_mock(monkeypatch)
+    _install_runtime_mocks(monkeypatch, backend_adapter=backend_adapter, task_adapter=task_adapter)
 
     client = QuantumHardwareClient()
     qc = QuantumCircuit(3)
@@ -168,20 +178,17 @@ def test_run_auto_passes_target_qubits_and_flags_to_task_request(monkeypatch):
         print_true=False,
     )
 
-    req = task_adapter.calls[0]["request"]
-    assert req.zne is True
-    assert req.readout_mitigation is True
-    assert req.readout_shots == 77
-    assert req.target_qubits == [0, 2, 1]
+    assert run_seen["kwargs"]["zne"] is True
+    assert run_seen["kwargs"]["readout_mitigation"] is True
+    assert run_seen["kwargs"]["readout_shots"] == 77
+    assert run_seen["kwargs"]["target_qubits"] == [0, 2, 1]
 
 
-def test_run_auto_request_contains_cqlib_options_even_for_quafu(monkeypatch):
-    import quantum_hw.api.client as client_module
-
-    backend_adapter = _FakeBackendAdapter(tmgr=object())
-    task_adapter = _FakeTaskAdapter(client=object())
-    monkeypatch.setattr(client_module, "QuafuBackendAdapter", lambda tmgr: backend_adapter)
-    monkeypatch.setattr(client_module, "QuafuTaskAdapter", lambda client: task_adapter)
+def test_run_auto_request_contains_provider_options(monkeypatch):
+    backend_adapter = _FakeBackendAdapter(provider="quafu")
+    task_adapter = _FakeTaskAdapter()
+    run_seen = _install_run_with_backend_mock(monkeypatch)
+    _install_runtime_mocks(monkeypatch, backend_adapter=backend_adapter, task_adapter=task_adapter)
 
     client = QuantumHardwareClient()
     qc = QuantumCircuit(1)
@@ -191,15 +198,12 @@ def test_run_auto_request_contains_cqlib_options_even_for_quafu(monkeypatch):
         name="opts",
         num_qubits=1,
         provider="quafu",
-        cqlib_submit_mode="submit_job",
-        cqlib_transpile=True,
-        cqlib_max_wait_time=12,
-        cqlib_sleep_time=9,
+        transpile_on_client=True,
+        max_wait_time=12,
+        sleep_time=9,
         print_true=False,
     )
 
-    req = task_adapter.calls[0]["request"]
-    assert req.provider_options["submit_mode"] == "submit_job"
-    assert req.provider_options["transpile_on_client"] is True
-    assert req.provider_options["max_wait_time"] == 12
-    assert req.provider_options["sleep_time"] == 9
+    assert run_seen["kwargs"]["transpile"] is True
+    assert run_seen["kwargs"]["submit_options"]["max_wait_time"] == 12
+    assert run_seen["kwargs"]["submit_options"]["sleep_time"] == 9

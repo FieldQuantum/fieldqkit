@@ -11,11 +11,11 @@ def test_backend_graph_from_dict():
         "size": (1, 2),
         "priority_qubits": [[0, 1]],
         "qubits_info": {
-            "Q0": {"fidelity": 0.99, "coordinate": [0, 0]},
-            "Q1": {"fidelity": 0.98, "coordinate": [1, 0]},
+            "Q0": {"fidelity": 0.99},
+            "Q1": {"fidelity": 0.98},
         },
         "couplers_info": {
-            "C0": {"qubits_index": [0, 1], "fidelity": 0.95, "index": 0}
+            "C0": {"qubits_index": [0, 1], "fidelity": 0.95}
         },
         "global_info": {"two_qubit_gate_basis": "cz"},
     }
@@ -31,23 +31,56 @@ def test_backend_graph_from_dict():
     assert filtered.number_of_edges() == 0
 
 
-def test_rank_chips_uses_local_backend_info(monkeypatch):
-    def fake_status(_tmgr):
-        return {"chip_a": 1, "chip_b": 5}
+def test_normalize_hardware_preferences_accepts_string_or_list():
+    assert hardware_module.normalize_hardware_preferences("chip_a") == ["chip_a"]
+    assert hardware_module.normalize_hardware_preferences(["chip_a", "chip_b"]) == ["chip_a", "chip_b"]
 
-    def fake_info(name):
-        if name == "chip_a":
-            return {"global_info": {"nqubits_available": 6, "error_rate_2q": 0.02}}
-        return {"global_info": {"nqubits_available": 8, "error_rate_2q": 0.1}}
 
-    monkeypatch.setattr(hardware_module, "get_available_chip_status", fake_status)
-    monkeypatch.setattr(hardware_module, "get_chip_info", fake_info)
+def test_backend_treats_low_fidelity_coupler_as_disconnected():
+    chip_info = {
+        "qubits_info": {
+            "Q0": {"fidelity": 0.99},
+            "Q1": {"fidelity": 0.98},
+        },
+        "couplers_info": {
+            "C0": {"qubits_index": [0, 1], "fidelity": 0.89},
+        },
+        "global_info": {"two_qubit_gate_basis": "cz"},
+    }
 
-    ranked = hardware_module.rank_chips(object(), num_qubits=4)
-    assert ranked[0] == "chip_a"
+    backend = Backend(chip_info)
 
-    ranked_pref = hardware_module.rank_chips(object(), num_qubits=4, prefer_chips=["chip_b"])
-    assert ranked_pref == ["chip_b"]
+    assert sorted(backend.graph.nodes()) == [0, 1]
+    assert list(backend.graph.edges()) == []
+
+
+def test_build_hardware_profile_excludes_low_fidelity_coupler():
+    chip_info = {
+        "chip_name": "x",
+        "qubits_info": {
+            "Q0": {"fidelity": 0.99},
+            "Q1": {"fidelity": 0.98},
+            "Q2": {"fidelity": 0.97},
+        },
+        "couplers_info": {
+            "C0": {"qubits_index": [0, 1], "fidelity": 0.89},
+            "C1": {"qubits_index": [1, 2], "fidelity": 0.95},
+        },
+        "global_info": {"two_qubit_gate_basis": "cz"},
+    }
+
+    backend = Backend(chip_info)
+    profile = hardware_module.build_hardware_profile(
+        provider="quafu",
+        hardware_name="x",
+        backend=backend,
+        queue_length=None,
+        raw_info=chip_info,
+    )
+
+    assert profile.topology.couplers == [(1, 2)]
+    assert "C0" not in profile.calibration.coupler_fidelity
+    assert profile.calibration.coupler_fidelity["C1"] == 0.95
 
 
 def test_transpiler_layout_smoke():
@@ -57,11 +90,11 @@ def test_transpiler_layout_smoke():
         "size": (1, 2),
         "priority_qubits": [[0, 1]],
         "qubits_info": {
-            "Q0": {"fidelity": 0.99, "coordinate": [0, 0]},
-            "Q1": {"fidelity": 0.98, "coordinate": [1, 0]},
+            "Q0": {"fidelity": 0.99},
+            "Q1": {"fidelity": 0.98},
         },
         "couplers_info": {
-            "C0": {"qubits_index": [0, 1], "fidelity": 0.95, "index": 0}
+            "C0": {"qubits_index": [0, 1], "fidelity": 0.95}
         },
         "global_info": {"two_qubit_gate_basis": "cz"},
     }

@@ -56,7 +56,7 @@ calibrate_readout(
 	- 结构：
 		- `timestamps: {"<qubit>": ISO8601时间}`
 		- `per_qubit_confusion: {"<qubit>": [[...],[...]]}`
-	- TTL：默认 1 小时（`cache_is_fresh(..., ttl_hours=1)`）。
+	- TTL：12 小时（`cache_is_fresh(..., ttl_hours=12)`）。
 	- 增量刷新：仅缺失/过期的比特会重新校准。
 
 - **与 `run_auto(readout_mitigation=True)` 的联动**
@@ -109,7 +109,7 @@ print(res.per_qubit_confusion[res.target_qubits[0]])
 - 缓存辅助（`quantum_hw.calibration._cache`）
 	- `cache_file`：缓存文件命名。
 	- `load_timestamped_payload` / `save_timestamped_payload`：时间戳缓存读写。
-	- `cache_is_fresh`：TTL 判定（默认 1 小时）。
+	- `cache_is_fresh`：TTL 判定（12 小时）。
 
 ## 常见问题
 

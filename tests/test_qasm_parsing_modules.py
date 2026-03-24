@@ -131,7 +131,8 @@ def test_qasm3_delay_reset_barrier():
     c[1] = measure q[1];
     """
     gates, qubits, cbits = parse_openqasm3_to_gates(qasm)
-    assert _find_gate(gates, "delay")
+    delay_gate = _find_gate(gates, "delay")[0]
+    assert np.isclose(delay_gate[1], 5e-9)
     assert ("reset", 1) in gates
     assert ("barrier", (0, 1)) in gates
     assert ("measure", [1], [1]) in gates

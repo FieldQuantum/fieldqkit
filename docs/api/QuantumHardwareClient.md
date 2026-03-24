@@ -2,167 +2,210 @@
 
 ## 概览
 
-- **模块**：`quantum_hw.api.client`
-- **定位**：统一封装“线路输入规范化 → 芯片选择 → 编译执行 → 结果后处理”。
-- **公开入口**：推荐优先使用 `run_auto(...)`。
+- 模块：`quantum_hw.api.client`
+- 作用：统一封装线路输入标准化、硬件自动选择、任务提交、结果聚合，以及 ZNE/readout 缓解流程。
+- 推荐入口：`run_auto(...)`
+- 低层执行入口：`_run_with_backend(...)`（供算法层与高级用户复用）
 
-## 构造
+## 推荐签名
+
+```python
+QuantumHardwareClient()
+
+run_auto(
+    circuit: str | QuantumCircuit,
+    name: str,
+    num_qubits: int,
+    *,
+    provider: str = "quafu",
+    shots: int = 8192,
+    zne: bool = False,
+    readout_mitigation: bool = False,
+    readout_shots: int | None = None,
+    observables: Sequence[str] | str | None = None,
+    return_probabilities: bool = False,
+    target_qubits: Sequence[int] | None = None,
+    prefer_chips: Sequence[str] | str | None = None,
+    transpile_on_client: bool = True,
+    max_wait_time: int = 3600,
+    sleep_time: int = 5,
+    print_true: bool = True,
+) -> RunResult
+```
+
+## 参数
+
+| 参数 | 类型 | 默认值 | 必填 | 说明 |
+|---|---|---:|:---:|---|
+| `circuit` | `str \| QuantumCircuit` | - | 是 | 支持三类输入：预置线路名（如 `"ghz"`）、OpenQASM2/3 字符串、`QuantumCircuit` 对象。 |
+| `name` | `str` | - | 是 | 任务名前缀。 |
+| `num_qubits` | `int` | - | 是 | 本次任务逻辑比特数。 |
+| `provider` | `str` | `"quafu"` | 否 | 平台名，支持 `quafu/tianyan/guodun`（大小写不敏感）。 |
+| `shots` | `int` | `8192` | 否 | 每个测量任务采样次数。 |
+| `zne` | `bool` | `False` | 否 | 是否启用零噪声外推（当前通过 CZ tripling + 线性外推实现）。 |
+| `readout_mitigation` | `bool` | `False` | 否 | 是否启用读出误差缓解。 |
+| `readout_shots` | `Optional[int]` | `None` | 否 | 读出校准 shots；`None` 时使用校准模块默认值。 |
+| `observables` | `Optional[Sequence[str] \| str]` | `None` | 否 | 待测 Pauli 可观测量列表或单项字符串。 |
+| `return_probabilities` | `bool` | `False` | 否 | 是否返回概率向量。 |
+| `target_qubits` | `Optional[Sequence[int]]` | `None` | 否 | 指定物理比特映射。 |
+| `prefer_chips` | `Optional[Sequence[str] \| str]` | `None` | 否 | 候选芯片白名单，可显式传 `"Simulator"`。 |
+| `transpile_on_client` | `bool` | `True` | 否 | `True` 时客户端先编译再提交。 |
+| `max_wait_time` | `int` | `3600` | 否 | 任务查询最大等待时间（秒），透传到 provider task adapter。 |
+| `sleep_time` | `int` | `5` | 否 | 查询轮询间隔（秒），透传到 provider task adapter。 |
+| `print_true` | `bool` | `True` | 否 | 是否打印运行日志。 |
+
+## 返回值
+
+返回 `RunResult`（`quantum_hw.core.types.RunResult`）：
+
+- `task_ids: Optional[List[str]]`：硬件任务 ID 列表（Simulator 为 `None`）。
+- `samples: List[List[List[int]]]`：每个观测分组对应的样本矩阵。
+- `samples_zne: Optional[List[List[List[int]]]]`：启用 ZNE 时的噪声放大样本。
+- `probabilities: List[List[float]]`：处理后的概率向量（含可选 ZNE/REM）。
+- `probabilities_raw: List[List[float]]`：未缓解原始概率。
+- `observable_values: Dict[str, float]`：处理后的可观测量期望值。
+- `observable_values_raw: Dict[str, float]`：原始期望值。
+
+## 关键方法
+
+### `build_circuit(kind, **kwargs) -> QuantumCircuit`
+
+**签名：**
+```python
+def build_circuit(self, kind: str, **kwargs) -> QuantumCircuit
+```
+
+**用途：** 构建预定义的量子线路。
+
+**支持的线路类型及参数：**
+
+#### `kind="ghz"` - GHZ 纠缠态
+```python
+client.build_circuit("ghz", num_qubits=4)
+```
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+|---|---|:---:|---:|---|
+| `num_qubits` | `int` | 是 | - | GHZ 态比特数（最少 2）。 |
+| `measure` | `bool` | 否 | `False` | 是否添加末尾测量。 |
+
+**示例：** 4 比特 GHZ 态 = H(q0) + CX(0,1) + CX(1,2) + CX(2,3)
+
+---
+
+#### `kind="cluster"` - 1D 簇态
+```python
+client.build_circuit("cluster", num_qubits=6)
+```
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+|---|---|:---:|---:|---|
+| `num_qubits` | `int` | 是 | - | 簇态比特数。 |
+| `measure` | `bool` | 否 | `False` | 是否添加末尾测量。 |
+
+**示例：** 6 比特簇态 = H(all) + CZ(0,1) + CZ(1,2) + CZ(2,3) + CZ(3,4) + CZ(4,5)
+
+---
+
+#### `kind="qft"` - 量子傅里叶变换
+```python
+client.build_circuit("qft", num_qubits=8, with_swaps=True)
+```
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+|---|---|:---:|---:|---|
+| `num_qubits` | `int` | 是 | - | QFT 比特数。 |
+| `measure` | `bool` | 否 | `False` | 是否添加末尾测量。 |
+| `with_swaps` | `bool` | 否 | `True` | 是否包含 bit-reversal swap。 |
+
+**说明：** 包含受控相位转旋，可选 bit-reversal 交换来调整输出顺序。
+
+---
+
+#### `kind="ising"` / `"ising_time_evolution"` / `"ising_time"` - Ising 时间演化
+```python
+client.build_circuit("ising", num_qubits=6, j=0.5, h=1.0, t=1.0, steps=5)
+```
+| 参数 | 类型 | 必填 | 默认值 | 说明 |
+|---|---|:---:|---:|---|
+| `num_qubits` | `int` | 是 | - | Ising 模型比特数。 |
+| `j` | `float` | 是 | - | ZZ 耦合强度系数；越大两比特相互作用越强。 |
+| `h` | `float` | 是 | - | X 磁场强度系数；越大量子磁场效应越强。 |
+| `t` | `float` | 是 | - | 拓扑演化时间；越大演化时间越长。 |
+| `steps` | `int` | 否 | `1` | Trotter 分解步数；步数越多精度越高。 |
+| `measure` | `bool` | 否 | `False` | 是否添加末尾测量。 |
+
+**说明：** 一阶 Trotter 分解：每步内先 ZZ 相互作用（CX-RZ-CX），后 X 旋转。dt = t/steps。
+
+---
+
+**返回值：** `QuantumCircuit` 对象。
+
+**异常：**
+- `ValueError`：`kind` 不在支持列表中；或缺少必填参数。
+- `KeyError`：缺少必填的 `**kwargs` 字段。
+
+**示例：**
+```python
+client = QuantumHardwareClient()
+
+# GHZ 态
+qc_ghz = client.build_circuit("ghz", num_qubits=4)
+
+# Ising 时间演化（4 个比特，ZZ 耦合 0.5，X 磁场 1.0，演化 0.5 秒，5 步）
+qc_ising = client.build_circuit("ising", num_qubits=4, j=0.5, h=1.0, t=0.5, steps=5)
+
+# QFT 带 swap
+qc_qft = client.build_circuit("qft", num_qubits=8, with_swaps=True)
+```
+
+### `_run_with_backend(...) -> RunResult`
+
+- 作用：在已解析 backend 条件下执行统一流程。
+- 主要步骤：
+  - 可观测量分组（减少任务数量）
+  - 基变换与测量附加
+  - 可选本地编译
+  - 硬件异步提交或本地模拟
+  - 可选 ZNE 与 readout mitigation
+  - 统一汇总 `RunResult`
+
+### `_submit_openqasm_async(...) -> ProviderTaskHandle`
+
+- 作用：通过当前激活 `TaskAdapter` 提交 OpenQASM 异步任务。
+
+## 异常与约束
+
+- `ValueError`
+  - `provider` 非法（由 provider runtime 工厂抛出）。
+  - `num_qubits` 与输入线路不一致。
+  - `target_qubits` 覆盖不完整或长度不匹配。
+- `RuntimeError`
+  - 未设置激活 task adapter/后端却尝试提交任务。
+  - 任务状态非 `Finished`。
+
+## 示例
 
 ```python
 from quantum_hw.api.client import QuantumHardwareClient
 
 client = QuantumHardwareClient()
-```
-
-构造后会初始化：
-
-- `client.tmgr`：`Task` 实例（用于提交/查询任务）。
-- `client.chip_name`：最近一次运行使用的芯片名。
-- `client.chip_backend`：最近一次运行绑定的 `Backend`。
-
-## 主要方法
-
-### `build_circuit(kind: str, **kwargs) -> QuantumCircuit`
-
-快速构建内置常见线路。
-
-```python
-build_circuit(kind: str, **kwargs) -> QuantumCircuit
-```
-
-支持的 `kind`（大小写不敏感）：
-
-- `"ghz"` → `build_ghz(**kwargs)`
-- `"cluster"` → `build_cluster(**kwargs)`
-- `"qft"` → `build_qft(**kwargs)`
-- `"ising" / "ising_time_evolution" / "ising_time"` → `build_ising_time_evolution(**kwargs)`
-
-若 `kind` 不受支持会抛出 `ValueError`。
-
-示例：
-
-```python
-qc = client.build_circuit("ghz", num_qubits=6, measure=False)
-res = client.run_auto(circuit=qc, name="ghz_from_builder", num_qubits=6)
-```
-
-### `run_auto(...) -> RunResult`
-
-```python
-run_auto(
-        circuit,
-        name,
-        num_qubits,
-        *,
-        shots=8192,
-        zne=False,
-        readout_mitigation=False,
-        readout_shots=None,
-        observables=None,
-        return_probabilities=False,
-        target_qubits=None,
-        prefer_chips=None,
-        rank_weights=None,
-        print_true=True,
-) -> RunResult
-```
-
-#### 参数说明
-
-- `circuit: str | QuantumCircuit`
-    - 支持 4 类输入：
-        1. 预置线路名（`"ghz" / "cluster" / "qft" / "ising"` 等）
-        2. OpenQASM2 字符串（以 `OPENQASM 2.0` 开头）
-        3. OpenQASM3 字符串（以 `OPENQASM 3.0` 开头）
-        4. `QuantumCircuit` 对象
-    - 若传入 `QuantumCircuit` 且已包含 `measure`，会先移除，再按测量基重新追加。
-- `name: str`：任务名前缀。
-- `num_qubits: int`：逻辑比特数。
-- `shots: int`：每次运行采样次数。
-- `zne: bool`：是否启用 ZNE（通过 CZ tripling + 线性外推）。
-- `readout_mitigation: bool`：是否启用读出误差缓解。
-- `readout_shots: Optional[int]`：读出校准 shots，不给时使用校准模块默认值。
-- `observables: Optional[Sequence[str] | str]`：可观测量（Pauli string 或其列表）。
-- `return_probabilities: bool`：是否返回概率分布（含 raw 与处理后结果）。
-- `target_qubits: Optional[Sequence[int]]`：指定物理比特映射。
-- `prefer_chips: Optional[Sequence[str] | str]`：限制候选芯片集合。
-    - 可传单个字符串或字符串列表。
-    - 包含 `"Simulator"`（大小写不敏感）时，会触发 `rank_chips` 的模拟器快捷路径。
-- `rank_weights: Optional[Dict[str, float]]`：芯片排序权重，键为 `queue/nqubits/error`。
-- `print_true: bool`：打印调试信息。
-
-#### 返回值 `RunResult`
-
-`RunResult` 定义于 `quantum_hw.core.types`，字段如下：
-
-- `task_ids: Optional[List[str]]`
-    - 硬件模式下返回任务 ID 列表；模拟器模式通常为 `None`。
-- `samples: List[List[List[int]]]`
-    - 每个测量组一份样本；外层列表长度等于测量组数量。
-- `samples_zne: Optional[List[List[List[int]]]]`
-    - 仅当 `zne=True` 时返回，对应噪声缩放 `scale=3` 的样本。
-- `probabilities: List[List[float]]`
-    - 若 `return_probabilities=False`，返回空列表 `[]`。
-    - 若启用 readout/ZNE，此字段是处理后的结果。
-- `probabilities_raw: List[List[float]]`
-    - 若 `return_probabilities=False`，返回空列表 `[]`。
-    - 表示未缓解的原始概率。
-- `observable_values: Dict[str, float]`
-    - 可观测量最终估计值（可被 readout/ZNE 更新）。
-- `observable_values_raw: Dict[str, float]`
-    - 可观测量原始估计值（不含缓解）。
-
-## 执行行为说明
-
-`run_auto` 内部流程：
-
-1. 规范化线路输入（内置名称 / OpenQASM2/3 / `QuantumCircuit`）。
-2. 调用 `rank_chips(...)` 选择候选芯片。
-3. 选择排序结果中的首个芯片，构造 `Backend` 并执行。
-4. 默认会执行一次 `Transpiler` 编译；若下层显式传 `transpile=False`，则直接复用输入线路。
-5. 对 `observables` 进行分组并追加测量基。
-6. 执行硬件任务或本地模拟。
-7. 可选执行 readout 缓解与 ZNE 外推，最终组装 `RunResult`。
-
-说明：当前实现中，`run_auto(...)` 会直接使用排序第一的候选芯片执行；若该次执行抛错，异常会向上抛出，不会在方法内自动尝试后续芯片。
-
-### `run_with_backend(...) -> RunResult`（源码对应 `_run_with_backend`）
-
-该函数是固定后端执行的核心入口。`run_auto(...)` 在完成芯片排序后，最终就是调用它。
-
-## 异常与约束
-
-- `num_qubits` 与输入 `QuantumCircuit` 不一致时抛 `ValueError`。
-- `readout_mitigation=True` 且“有效目标物理比特数”不等于 `num_qubits` 时抛 `ValueError`。
-    - 有效目标物理比特：优先使用 `target_qubits`；未给定时回退到编译后线路 `qubits_in_use`，若仍为空则回退到 `range(num_qubits)`。
-- 无可用芯片时抛 `RuntimeError`。
-- 若硬件任务最终状态不是 `Finished`，抛 `RuntimeError`。
-
-## 示例
-
-```python
-from quantum_hw import QuantumHardwareClient
-
-client = QuantumHardwareClient()
-
-result = client.run_auto(
-        circuit="ghz",
-        name="ghz_demo",
-        num_qubits=6,
-        shots=4096,
-        observables=["ZZIIII", "IIZZII"],
-        return_probabilities=True,
-        zne=False,
-        readout_mitigation=False,
+res = client.run_auto(
+    circuit="ghz",
+    name="ghz_demo",
+    num_qubits=4,
+    provider="quafu",
+    prefer_chips="Simulator",
+    observables=["Z0 Z1", "X0 X1 X2 X3"],
+    shots=4096,
+    zne=False,
+    readout_mitigation=False,
+    print_true=False,
 )
 
-print(result.observable_values)
-print(result.probabilities[0][:8])
+print(res.observable_values)
 ```
 
 ## 相关页面
 
-- [`run_with_backend`](./run_with_backend.md)
-- [`rank_chips`](./rank_chips.md)
-- [`Backend`](./Backend.md)
-- [`Task`](./Task.md)
+- [run_with_backend](./run_with_backend.md)
+- [Backend](./Backend.md)
+- [Task](./Task.md)
+- [provider_runtime](./provider_runtime.md)

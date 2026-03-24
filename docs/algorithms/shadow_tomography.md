@@ -1,4 +1,4 @@
-# ShadowTomography.run
+﻿# ShadowTomography.run
 
 ## 概览
 
@@ -15,6 +15,7 @@ run(
   name,
   num_qubits,
   *,
+  provider: str = "quafu",
   shots=8192,
   shots_per_basis=1,
   observables=None,
@@ -23,7 +24,8 @@ run(
   mom_groups=None,
   target_qubits=None,
   prefer_chips=None,
-  rank_weights=None,
+  max_wait_time: int = 3600,
+  sleep_time: int = 5,
 ) -> ShadowResult
 ```
 
@@ -35,6 +37,7 @@ run(
 | `circuit` | `str \| QuantumCircuit` | - | 是 | 线路输入（内置名称、OpenQASM2/3 字符串或 `QuantumCircuit`）。 |
 | `name` | `str` | - | 是 | 任务名前缀，内部会追加 `_shadow`。 |
 | `num_qubits` | `int` | - | 是 | 逻辑比特数。 |
+| `provider` | `str` | `"quafu"` | 否 | 平台名，支持 `quafu/tianyan/guodun`，或指定 `"Simulator"`。 |
 | `shots` | `int` | `8192` | 否 | 总采样预算。实际会被按 batch 分配。 |
 | `shots_per_basis` | `int` | `1` | 否 | 每个随机测量基的 shots。batch 数量为 `ceil(shots / shots_per_basis)`。 |
 | `observables` | `Optional[Sequence[str] \| str]` | `None` | 否 | 待估计的 Pauli 字符串；可传单个字符串。 |
@@ -43,7 +46,8 @@ run(
 | `mom_groups` | `Optional[int]` | `None` | 否 | `estimator="mom"` 时分组数；为空则使用 `max(1, int(sqrt(nshots)))`。 |
 | `target_qubits` | `Optional[Sequence[int]]` | `None` | 否 | 指定物理比特映射。 |
 | `prefer_chips` | `Optional[Sequence[str] \| str]` | `None` | 否 | 限制候选芯片（可传 `"Simulator"`）。 |
-| `rank_weights` | `Optional[Dict[str, float]]` | `None` | 否 | 芯片排序权重（`queue/nqubits/error`）。 |
+| `max_wait_time` | `int` | `3600` | 否 | 任务查询最大等待时间（秒）。 |
+| `sleep_time` | `int` | `5` | 否 | 查询轮询间隔（秒）。 |
 | `seed` | `Optional[int]` | `None` | 否 | `ShadowTomography` 初始化时设置的随机种子。 |
 
 ## 低层接口（手动指定后端）
@@ -65,6 +69,9 @@ run_shadow_with_backend(
   target_qubits=None,
   zne=False,
   seed=None,
+  qasm_version="2.0",
+  use_dd=True,
+  submit_options=None,
 ) -> ShadowResult
 ```
 

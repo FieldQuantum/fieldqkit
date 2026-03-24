@@ -49,7 +49,7 @@ def save_timestamped_payload(
 	)
 
 
-def cache_is_fresh(ts_str: Optional[str], *, now: datetime, ttl_hours: int = 1) -> bool:
+def cache_is_fresh(ts_str: Optional[str], *, now: datetime, ttl_hours: int = 12) -> bool:
 	"""Return True when timestamp exists and is within TTL."""
 	if ts_str is None:
 		return False

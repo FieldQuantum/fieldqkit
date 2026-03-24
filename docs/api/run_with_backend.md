@@ -2,114 +2,126 @@
 
 ## 概览
 
-- **模块**：`quantum_hw.api.client`
-- **源码函数**：`QuantumHardwareClient._run_with_backend(...)`
-- **作用**：在已确定 `Backend` 与 `chip_name` 的前提下，完成线路执行、可观测量估计、可选 ZNE 与 readout 缓解，并返回 `RunResult`。
+- 模块：`quantum_hw.api.client`
+- 实际函数名：`QuantumHardwareClient._run_with_backend(...)`
+- 作用：在给定 backend/chip 条件下，统一执行编译、提交、采样、ZNE、readout 缓解并返回 `RunResult`。
 
-> 这是执行链路的核心函数。`run_auto(...)` 在选片后会调用它。
+> 说明：当前源码公开的高层入口是 `run_auto(...)`。本页面记录的是供算法层复用的低层执行接口。
 
 ## 签名
 
 ```python
 _run_with_backend(
-        qc: QuantumCircuit,
-        name: str,
-        num_qubits: int,
-        *,
-        backend: Backend,
-        chip_name: str,
-        shots: int = 1024,
-        zne: bool = False,
-        readout_mitigation: bool = False,
-        readout_shots: Optional[int] = None,
-        observables: Optional[Sequence[str] | str] = None,
-        return_probabilities: bool = False,
-        target_qubits: Optional[Sequence[int]] = None,
-        merge_groups: bool = True,
-        qasm_version: str = "2.0",
-        print_true: bool = False,
-        transpile: bool = True,
+    qc: QuantumCircuit,
+    name: str,
+    num_qubits: int,
+    *,
+    backend: Backend,
+    chip_name: str,
+    shots: int = 1024,
+    zne: bool = False,
+    readout_mitigation: bool = False,
+    readout_shots: int | None = None,
+    observables: Sequence[str] | str | None = None,
+    return_probabilities: bool = False,
+    target_qubits: Sequence[int] | None = None,
+    merge_groups: bool = True,
+    qasm_version: str = "2.0",
+    use_dd: bool = True,
+    print_true: bool = False,
+    transpile: bool = True,
+    submit_options: Dict[str, object] | None = None,
 ) -> RunResult
 ```
 
-## 参数说明
+## 参数
 
-- `qc`：待执行的 `QuantumCircuit`。
-- `name`：任务名前缀。
-- `num_qubits`：逻辑比特数，用于解析样本与 observable 支持。
-- `backend`：目标后端对象，决定拓扑和双比特门基。
-- `chip_name`：目标芯片名。`"simulator"`（大小写不敏感）会走模拟路径。
-- `shots`：每组采样次数。
-- `zne`：是否执行 ZNE（CZ tripling + 线性外推）。
-- `readout_mitigation`：是否执行 readout 缓解。
-- `readout_shots`：readout 校准 shots。
-- `observables`：可观测量（单个 Pauli string 或列表）。
-- `return_probabilities`：是否返回概率分布结果。
-- `target_qubits`：物理比特映射。
-- `merge_groups`：是否将兼容测量基的 observables 合并成一个测量组。
-- `qasm_version`：硬件提交序列化版本。`"2.0"` 走 `to_openqasm2`，否则走 `to_openqasm3`。
-- `print_true`：是否打印执行过程日志。
-- `transpile`：是否先执行 `Transpiler`。默认 `True`；传 `False` 时直接复用输入线路（常用于上层算法已完成预编译、仅替换参数再执行的场景）。
+| 参数 | 类型 | 默认值 | 必填 | 说明 |
+|---|---|---:|:---:|---|
+| `qc` | `QuantumCircuit` | - | 是 | 待执行线路。 |
+| `name` | `str` | - | 是 | 任务前缀。 |
+| `num_qubits` | `int` | - | 是 | 逻辑比特数。 |
+| `backend` | `Backend` | - | 是 | 已解析的后端拓扑对象。 |
+| `chip_name` | `str` | - | 是 | 芯片名；`"Simulator"` 走本地分支。 |
+| `shots` | `int` | `1024` | 否 | 每个测量任务的 shots。 |
+| `zne` | `bool` | `False` | 否 | 是否启用 ZNE（scale=1 与 scale=3 线性外推）。 |
+| `readout_mitigation` | `bool` | `False` | 否 | 是否做读出误差缓解。 |
+| `readout_shots` | `Optional[int]` | `None` | 否 | readout 校准 shots。 |
+| `observables` | `Optional[Sequence[str] \| str]` | `None` | 否 | 可观测量列表；为空时仅返回采样/概率。 |
+| `return_probabilities` | `bool` | `False` | 否 | 是否返回概率向量。 |
+| `target_qubits` | `Optional[Sequence[int]]` | `None` | 否 | 指定目标物理比特。 |
+| `merge_groups` | `bool` | `True` | 否 | 是否按可共测规则合并 observable 组。 |
+| `qasm_version` | `str` | `"2.0"` | 否 | 硬件提交时导出 OpenQASM 版本（`2.0/3.0`）。 |
+| `use_dd` | `bool` | `True` | 否 | transpile 时是否启用 DD。 |
+| `print_true` | `bool` | `False` | 否 | 是否打印日志。 |
+| `transpile` | `bool` | `True` | 否 | 是否先在客户端编译。 |
+| `submit_options` | `Optional[Dict[str, object]]` | `None` | 否 | 任务提交附加选项，透传到 task adapter。 |
 
-## 行为要点
+## 返回值
 
-1. 处理 `observables` 输入并构造测量组。
-2. 根据 `transpile` 与 `chip_name` 决定是否编译。
-        - `transpile=True`：执行 `_transpile_with_backend(...)`。
-        - `transpile=False`：直接使用输入线路副本，避免重复编译开销。
-3. 对每个测量组构造线路并执行：
-   - 硬件：提交异步任务并等待完成。
-   - 模拟器：直接调用 `simulate_counts(...)`。
-4. 若启用 `zne`，每组增加 scale=3 线路并做线性外推。
-5. 若启用 `readout_mitigation`，调用 `ReadoutCalibrationManager` 标定并做缓解。
-6. 汇总 `samples / probabilities / observable_values` 并返回 `RunResult`。
+返回 `RunResult`，字段定义见 `quantum_hw.core.types`：
+
+- `task_ids`
+- `samples`
+- `samples_zne`
+- `probabilities`
+- `probabilities_raw`
+- `observable_values`
+- `observable_values_raw`
+
+## 执行流程
+
+1. 标准化 `observables`，并预计算每个 observable 的 support。
+2. 按是否可共测分组（`merge_groups=True` 时调用 `group_observables`）。
+3. 预编译一次基线路（可选），每组仅追加基变换和测量。
+4. `chip_name="Simulator"` 时直接本地 `simulate_counts`。
+5. 硬件模式下逐组异步提交任务，随后统一轮询与取结果。
+6. 若启用 ZNE，额外执行 scale=3 线路并线性外推。
+7. 若启用 readout mitigation，调用 `ReadoutCalibrationManager` 获取 confusion matrix 并做概率/observable 缓解。
+8. 汇总并返回 `RunResult`。
 
 ## 异常与约束
 
-- `readout_mitigation=True` 时，要求有效目标物理比特数等于 `num_qubits`，否则抛 `ValueError`。
-- 硬件任务若最终状态不是 `Finished`，抛 `RuntimeError`。
+- `ValueError`
+  - `target_qubits` 与 `num_qubits` 不匹配。
+  - `target_qubits` 未覆盖线路实际使用比特。
+- `RuntimeError`
+  - 硬件任务状态不是 `Finished`。
+  - 获取任务结果时缺少激活 task adapter。
 
 ## 示例
 
 ```python
-from quantum_hw import QuantumHardwareClient
+from quantum_hw.api.client import QuantumHardwareClient
 from quantum_hw.api.backend import Backend
+from quantum_hw.circuit import QuantumCircuit
 
 client = QuantumHardwareClient()
-qc = client._normalize_input_circuit("ghz", num_qubits=6)
-
 backend = Backend("Simulator")
 
-result = client._run_with_backend(
-        qc,
-        name="ghz_fixed_backend",
-        num_qubits=6,
-        backend=backend,
-        chip_name="Simulator",
-        shots=4096,
-        observables=["ZZIIII", "IIZZII"],
-        return_probabilities=True,
-        zne=False,
-        readout_mitigation=False,
-        target_qubits=list(range(6)),
-        merge_groups=True,
-        qasm_version="2.0",
-        transpile=True,
+qc = QuantumCircuit(2)
+qc.h(0)
+qc.cx(0, 1)
+
+res = client._run_with_backend(
+    qc=qc,
+    name="manual_backend",
+    num_qubits=2,
+    backend=backend,
+    chip_name="Simulator",
+    shots=2048,
+    observables=["Z0 Z1"],
+    return_probabilities=True,
+    transpile=True,
 )
 
-print(result.observable_values)
-print(result.probabilities[0][:8])
+print(res.observable_values)
 ```
-
-#### 适用场景
-
-- 你已经明确要跑某个芯片，不希望自动排序切换。
-- 需要精细控制执行细节（如 `merge_groups`、`qasm_version`、`transpile`）。
-- 在上层算法或实验框架中复用统一执行内核。
 
 ## 相关页面
 
-- [`QuantumHardwareClient`](./QuantumHardwareClient.md)
-- [`rank_chips`](./rank_chips.md)
-- [`Backend`](./Backend.md)
-- [`Task`](./Task.md)
+- [QuantumHardwareClient](./QuantumHardwareClient.md)
+- [Backend](./Backend.md)
+- [Task](./Task.md)
+- [readout](../core/readout.md)
+- [zne](../core/zne.md)
