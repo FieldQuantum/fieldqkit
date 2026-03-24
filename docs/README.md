@@ -13,7 +13,7 @@
 - [VQE：demo_vqe.ipynb](../examples/demo_vqe.ipynb)
 	- 对应： [VQERunner.run_model](./algorithms/vqe_runner.md)、[observables](./core/observables.md)
 - [Backend：demo_backend.ipynb](../examples/demo_backend.ipynb)
-	- 对应： [Backend](./api/Backend.md)、[rank_chips](./api/rank_chips.md)
+	- 对应： [hardware_discovery](./api/hardware_discovery.md)、[Backend](./api/Backend.md)
 
 ## 学习路径（入门 → 进阶 → 硬件 → 优化）
 
@@ -29,13 +29,18 @@
 
 ## API
 
+- [api module reference](./api/README.md)
 - [QuantumHardwareClient](./api/QuantumHardwareClient.md)
 - [run_with_backend](./api/run_with_backend.md)
-- [rank_chips](./api/rank_chips.md)
+- [hardware_discovery](./api/hardware_discovery.md)
 - [Backend](./api/Backend.md)
 - [Task](./api/Task.md)
+- [provider runtime](./api/provider_runtime.md)
+- [provider adapters](./api/providers.md)
+- [shared cqlib layer](./api/cqlib.md)
+- [platform credentials](./api/platform_credentials.md)
 
-> 建议阅读顺序：`QuantumHardwareClient` → `rank_chips` → `Backend` → `Task`。
+> 建议阅读顺序：`QuantumHardwareClient` → `run_with_backend` → `hardware_discovery` → `Backend` → `Task` → `provider_runtime` → `providers` → `cqlib` → `platform_credentials`。
 
 ## Algorithms
 

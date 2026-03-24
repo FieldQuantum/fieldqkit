@@ -77,7 +77,6 @@ print(result.probabilities)
 - [Readout calibration + ZNE 专项](examples/demo_readout_zne.ipynb)
 - [VQE：顶层接口 + parameter-shift 手动梯度下降](examples/demo_vqe.ipynb)
 - [Backend 拓扑与芯片排序](examples/demo_backend.ipynb)
-- [cqlib Provider 最小接入示例](examples/demo_cqlib_provider.ipynb)
 
 ## 学习路径（入门 → 进阶 → 硬件 → 优化）
 
@@ -92,6 +91,8 @@ print(result.probabilities)
 ## 文档 (Docs)
 
 Docs 总览见 [docs/README.md](docs/README.md)。
+
+完整 API 文档见 [docs/api/](docs/api/) —— 包含 QuantumHardwareClient、硬件发现、后端操作、任务管理、Provider 实现等详细说明。
 
 ## Chemistry 应用
 

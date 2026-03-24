@@ -81,11 +81,11 @@ class ReadoutCalibrationManager:
 			if ts_str is None or mat is None:
 				missing.append(q)
 				continue
-			if not cache_is_fresh(ts_str, now=now, ttl_hours=12):
+			if not cache_is_fresh(ts_str, now=now):
 				missing.append(q)
 				continue
 			cached_confusion[int(q)] = mat
-		# Cache TTL is one hour.
+		# Cache TTL is 12 hours.
 		if not missing:
 			if print_true:
 				print("[readout] using cached readout calibration")

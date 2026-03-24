@@ -9,7 +9,7 @@ from typing import Callable, Dict, List, Literal, Optional, Sequence, Tuple
 
 import numpy as np
 from ..api.backend import Backend
-from ..api.backend import rank_chips
+from ..api.quantum_platform import create_provider_runtime
 
 from ..circuit import QuantumCircuit
 
@@ -426,6 +426,7 @@ def _build_clifford_fit_map(
     num_non_clifford_gates: int,
     seed: Optional[int],
     target_qubits: Optional[Sequence[int]] = None,
+    qasm_version: str = "2.0",
 ) -> CliffordFitMap:
     """Pre-fit per-observable affine correction using Clifford calibration circuits."""
     if num_samples <= 0:
@@ -463,6 +464,7 @@ def _build_clifford_fit_map(
             zne=zne,
             readout_mitigation=readout_mitigation,
             target_qubits=target_qubits,
+            qasm_version=qasm_version,
         )
 
         _, ideal_expectations = _evaluate_energy_with_backend(
@@ -477,6 +479,7 @@ def _build_clifford_fit_map(
             zne=False,
             readout_mitigation=False,
             target_qubits=target_qubits,
+            qasm_version=qasm_version,
         )
 
         for obs in observables:
@@ -503,6 +506,7 @@ def _evaluate_energy_with_backend(
     readout_mitigation: bool,
     clifford_fit_map: Optional[CliffordFitMap] = None,
     target_qubits: Optional[Sequence[int]] = None,
+    qasm_version: str = "2.0",
 ) -> Tuple[float, Dict[str, float]]:
 
     observables = [term[1] for term in hamiltonian]
@@ -521,6 +525,7 @@ def _evaluate_energy_with_backend(
         print_true=False,
         transpile=False,
         target_qubits=target_qubits,
+        qasm_version=qasm_version,
     )
     expectations_raw = _ensure_observable_map(observables, result.observable_values)
     expectations = _apply_clifford_fit(expectations_raw, clifford_fit_map)
@@ -546,6 +551,7 @@ def _parameter_shift_gradient(
     clifford_fit_map: Optional[CliffordFitMap] = None,
     target_qubits: Optional[Sequence[int]] = None,
     circuit_transform: Optional[Callable[[QuantumCircuit, Optional[int]], QuantumCircuit]] = None,
+    qasm_version: str = "2.0",
 ) -> np.ndarray:
     """Compute gradients via parameter-shift rule."""
     if param_template is None or param_names is None:
@@ -578,6 +584,7 @@ def _parameter_shift_gradient(
             readout_mitigation=readout_mitigation,
             clifford_fit_map=clifford_fit_map,
             target_qubits=target_qubits,
+            qasm_version=qasm_version,
         )
         e_minus, _ = _evaluate_energy_with_backend(
             client,
@@ -592,6 +599,7 @@ def _parameter_shift_gradient(
             readout_mitigation=readout_mitigation,
             clifford_fit_map=clifford_fit_map,
             target_qubits=target_qubits,
+            qasm_version=qasm_version,
         )
         grads[i] = 0.5 * (e_plus - e_minus)
     return grads
@@ -655,6 +663,8 @@ def run_vqe_with_backend(
     compression_optimizer_lr: float = 0.05,
     compression_verbose: bool = False,
     compression_plot_loss: bool = False,
+    qasm_version: str = "2.0",
+    use_dd: bool = True,
 ) -> VQEResult:
     """Run VQE optimization on a specific backend."""
     method = str(gradient_method).lower()
@@ -718,6 +728,7 @@ def run_vqe_with_backend(
                 symbolic_qc,
                 backend,
                 target_qubits=target_qubits,
+                use_dd=use_dd,
                 use_gate_compressor=False,
             )
             gradient_param_template = transpiled_template
@@ -743,6 +754,7 @@ def run_vqe_with_backend(
                 compressed_symbolic_qc,
                 backend,
                 target_qubits=target_qubits,
+                use_dd=use_dd,
                 use_gate_compressor=False,
             )
             target_qubits_in_use = client._ordered_target_qubits_from_layout(
@@ -925,6 +937,7 @@ def run_vqe_with_backend(
             num_non_clifford_gates=int(clifford_fitting_num_non_clifford_gates),
             seed=None if seed is None else int(seed) + 7919,
             target_qubits=target_qubits_in_use,
+            qasm_version=qasm_version,
         )
         clifford_fitting_summary = {
             obs: {"a": float(coeffs[0]), "b": float(coeffs[1])}
@@ -988,6 +1001,7 @@ def run_vqe_with_backend(
                 readout_mitigation=readout_mitigation,
                 clifford_fit_map=clifford_fit_map,
                 target_qubits=target_qubits_in_use,
+                qasm_version=qasm_version,
             )
             grads = _parameter_shift_gradient(
                 client,
@@ -1006,6 +1020,7 @@ def run_vqe_with_backend(
                 clifford_fit_map=clifford_fit_map,
                 target_qubits=target_qubits_in_use,
                 circuit_transform=_maybe_compress_qc if enable_circuit_compression else None,
+                qasm_version=qasm_version,
             )
 
         grad_norm = float(np.linalg.norm(grads))
@@ -1076,12 +1091,15 @@ class VQERunner:
     compression_optimizer_lr: float = 0.05
     compression_verbose: bool = False
     compression_plot_loss: bool = False
+    max_wait_time: int = 3600
+    sleep_time: int = 5
 
     def run_model(
         self,
         name: str,
         num_qubits: int,
         *,
+        provider: str = "quafu",
         model: str = "ising",
         model_params: Optional[Dict[str, float]] = None,
         hamiltonian: Optional[Sequence[Tuple[float, str]]] = None,
@@ -1089,7 +1107,6 @@ class VQERunner:
         init_params: Optional[Sequence[float]] = None,
         callback: Optional[Callable[[int, float, np.ndarray], None]] = None,
         prefer_chips: Optional[Sequence[str] | str] = None,
-        rank_weights: Optional[Dict[str, float]] = None,
         ansatz: AnsatzKind = "hardwareefficient",
         custom_ansatz_circuit: Optional[QuantumCircuit] = None,
     ) -> VQEResult:
@@ -1098,6 +1115,7 @@ class VQERunner:
             "[vqe] prepare run:",
             f"name={name}",
             f"num_qubits={num_qubits}",
+            f"provider={provider}",
             f"model={model}",
             f"layers={self.layers}",
             f"shots={self.shots}",
@@ -1120,29 +1138,38 @@ class VQERunner:
         else:
             raise ValueError(f"unsupported model: {model}")
 
-        ranked_chips = rank_chips(
-            self.client.tmgr,
+        provider_name = str(provider).lower()
+        qasm_version = self.client._default_qasm_version_for_provider(provider_name)
+        use_dd = provider_name not in {"tianyan", "guodun"}
+        runtime = create_provider_runtime(provider=provider_name, client=self.client)
+        profiles = runtime.backend_adapter.discover_hardware(
             num_qubits=num_qubits,
-            prefer_chips=prefer_chips,
-            weights=rank_weights,
+            prefer_hardware=prefer_chips,
         )
-        print("[vqe] candidate chips:", ranked_chips)
-        if not ranked_chips:
-            raise RuntimeError("no available chips satisfy num_qubits requirement")
+        print("[vqe] candidate chips:", [p.hardware_name for p in profiles])
+        if not profiles:
+            raise RuntimeError(f"no available {provider_name} hardware for num_qubits={num_qubits}")
 
         last_error: Optional[Exception] = None
-        for chip_name in ranked_chips:
-            backend = Backend(chip_name)
-            self.client.chip_name = chip_name
-            self.client.chip_backend = backend
+        for profile in profiles:
+            resolved = runtime.backend_adapter.resolve_backend(
+                num_qubits=num_qubits,
+                prefer_hardware=[profile.hardware_name],
+            )
+            self.client.chip_name = resolved.hardware_name
+            self.client.chip_backend = resolved.backend
+
+            self.client._active_task_adapter = runtime.task_adapter
+            self.client._active_resolved_backend = resolved
+            self.client._active_num_qubits = num_qubits
             try:
-                print("[vqe] running on chip:", chip_name)
+                print("[vqe] running on chip:", resolved.hardware_name)
                 return run_vqe_with_backend(
                     self.client,
                     name=name,
                     num_qubits=num_qubits,
-                    backend=backend,
-                    chip_name=chip_name,
+                    backend=resolved.backend,
+                    chip_name=resolved.hardware_name,
                     hamiltonian=hamiltonian,
                     layers=self.layers,
                     shots=self.shots,
@@ -1174,6 +1201,8 @@ class VQERunner:
                     compression_optimizer_lr=self.compression_optimizer_lr,
                     compression_verbose=self.compression_verbose,
                     compression_plot_loss=self.compression_plot_loss,
+                    qasm_version=qasm_version,
+                    use_dd=use_dd,
                 )
             except Exception as exc:
                 last_error = exc
