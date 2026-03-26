@@ -58,3 +58,5 @@ class QAOAResult:
 	params_history: Optional[List[List[float]]] = None
 	grad_history: Optional[List[List[float]]] = None
 	last_expectations: Optional[Dict[str, float]] = None
+	clifford_fitting: Optional[Dict[str, Dict[str, float]]] = None
+

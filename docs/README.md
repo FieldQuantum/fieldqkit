@@ -12,6 +12,8 @@
 	- 对应： [ReadoutCalibrationManager](./calibration/ReadoutCalibrationManager.md)、[readout](./core/readout.md)、[zne](./core/zne.md)
 - [VQE：demo_vqe.ipynb](../examples/demo_vqe.ipynb)
 	- 对应： [VQERunner.run_model](./algorithms/vqe_runner.md)、[observables](./core/observables.md)
+- [QAOA：demo_qaoa.ipynb](../examples/demo_qaoa.ipynb)
+	- 对应： [QAOARunner.run_model](./algorithms/qaoa_runner.md)、[observables](./core/observables.md)
 - [Backend：demo_backend.ipynb](../examples/demo_backend.ipynb)
 	- 对应： [hardware_discovery](./api/hardware_discovery.md)、[Backend](./api/Backend.md)
 
@@ -23,6 +25,7 @@
 4. 优化：
 	- [Shadow：demo_shadow.ipynb](../examples/demo_shadow.ipynb)
 	- [VQE：demo_vqe.ipynb](../examples/demo_vqe.ipynb)
+	- [QAOA：demo_qaoa.ipynb](../examples/demo_qaoa.ipynb)
 5. 拓扑补充： [Backend：demo_backend.ipynb](../examples/demo_backend.ipynb)
 
 主 README 导航见 [../README.md](../README.md)。
@@ -46,6 +49,7 @@
 
 - [ShadowTomography.run](./algorithms/shadow_tomography.md)
 - [VQERunner.run_model](./algorithms/vqe_runner.md)
+- [QAOARunner.run_model](./algorithms/qaoa_runner.md)
 - [circuit compression](./algorithms/circuit_compression.md)
 - [ansatz templates](./algorithms/ansatz_templates.md)
 

@@ -82,6 +82,9 @@
 - `params_history: Optional[List[List[float]]]`：每轮更新后的参数。
 - `grad_history: Optional[List[List[float]]]`：每轮梯度。
 - `last_expectations: Optional[Dict[str, float]]`：最后一轮的各 observable 估计。
+- `clifford_fitting: Optional[Dict[str, Dict[str, float]]]`：可选的 Clifford 拟合系数。
+	- 结构：`{observable: {"a": float, "b": float}}`
+	- 语义：按 observable 做线性校正 `ideal ~= a * noisy + b`。
 
 ## 单/多 observable 形状说明
 

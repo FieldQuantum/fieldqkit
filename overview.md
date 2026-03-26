@@ -56,17 +56,69 @@ Quantum_control/
 
 ### 3.1 整体布局
 
+
 ```
-src/quantum_hw/
-├── __init__.py                顶层公开 API 导出
-├── api/        (~2,200 行)   硬件 API 层
-├── circuit/    (~3,200 行)   量子线路表示
-├── compile/    (~2,100 行)   编译 / 转译
-├── algorithms/ (~1,900 行)   量子算法
-├── core/       (~500 行)     通用工具
-├── calibration/(~900 行)    硬件校准
-├── sim/        (~1,400 行)   量子模拟器
-└── vendor/     (~1,700 行)   内置第三方代码（QASM↔QCIS）
+quantum_hw/                          入口 __init__.py（导出顶层 API）
+├── api/         (~2,200 行)         硬件 API 层
+│   ├── client.py                    QuantumHardwareClient — 唯一用户入口
+│   ├── backend.py                   Backend / HardwareProfile / BackendAdapter (ABC)
+│   ├── task.py                      OpenQasmSubmitRequest / TaskAdapter (ABC) / ProviderTaskHandle
+│   ├── platform_credentials.py      凭证管理（Quafu / TianYan / GuoDun）
+│   └── quantum_platform/            三平台具体适配
+│       ├── quafu.py                 Quafu REST API（BAQIS）
+│       ├── tianyan.py               天衍（cqlib 协议）
+│       ├── guodun.py                国盾（cqlib 协议）
+│       └── cqlib.py                 cqlib 公共 HTTP 客户端 + QASM↔QCIS 转换
+│
+├── circuit/     (~3,200 行)         线路表示
+│   ├── quantumcircuit.py            QuantumCircuit 类（门操作、参数化、deepcopy）
+│   ├── qasm2.py / qasm3.py          OpenQASM 2/3 解析器
+│   ├── matrix.py                    门矩阵定义（numpy）
+│   ├── render.py                    线路文本可视化
+│   └── utils.py                     辅助工具
+│
+├── compile/     (~2,100 行)         编译转译
+│   ├── transpiler.py                Transpiler — pass 管理器
+│   ├── basepasses.py                TranspilerPass (ABC)
+│   ├── decompose.py                 门分解（CX/SWAP/iSWAP/ECR/CCX… → U+CZ）
+│   ├── layout.py                    Layout（逻辑↔物理比特映射）
+│   ├── routing.py                   SabreRouting（SWAP 插入）
+│   ├── translate.py                 TranslateToBasisGates（翻译到 {U, CZ} 本征门集）
+│   ├── optimize.py                  GateCompressor（单比特门合并）
+│   ├── schedule.py                  DynamicalDecoupling（CZ 间隙填充 DD 序列）
+│   └── dag.py                       DAG 转换与可视化
+│
+├── algorithms/  (~1,900 行)         量子算法
+│   ├── vqe.py                       VQERunner — Ising/Heisenberg/XXZ/XY/自定义 Hamiltonian
+│   │                                parameter-shift / autograd 梯度, Adam 优化, Clifford fitting
+│   ├── shadow.py                    ShadowTomography — classical shadow 协议
+│   ├── ansatz_templates.py          Hardware-efficient / UCC ansatz 构建
+│   └── circuit_compression.py       MPS/MPO 混合后缀压缩（降低线路深度）
+│
+├── core/        (~500 行)           通用工具
+│   ├── circuits.py                  预置线路（GHZ / Cluster / QFT / Ising 演化）
+│   ├── observables.py               Pauli 字符串解析、期望值计算、测量基转换
+│   ├── readout.py                   Readout 误差缓解（逆混淆矩阵）
+│   ├── zne.py                       ZNE（CZ 三倍插入 + 线性外推）
+│   ├── types.py                     RunResult / VQEResult / ShadowResult / QAOAResult
+│   └── plotting.py                  概率分布和可观测量对比图
+│
+├── calibration/ (~900 行)           校准
+│   ├── readout.py                   ReadoutCalibrationManager（带缓存的 readout 校准）
+│   ├── rb.py                        NativeTwoQubitRBManager（原生两比特 RB）
+│   ├── tomography.py                NativeTwoQubitTomographyManager（过程层析）
+│   └── _cache.py / _coupler_utils   缓存 TTL / coupler 过滤
+│
+├── sim/         (~1,400 行)         模拟器
+│   ├── statevector.py               全态矢量模拟（torch，支持 autograd）
+│   ├── mps.py                       MPS 张量网络模拟器（可微）
+│   ├── mpo.py                       MPO 量子过程模拟器
+│   ├── matrix.py                    torch 门矩阵（支持梯度）
+│   ├── interface.py                 统一模拟入口 simulate_counts / expectation_pauli
+│   └── common.py                    参数解析工具
+│
+└── vendor/      (~1,700 行)         内置第三方代码
+    └── cqlib/                       QASM↔QCIS 转换器（天衍/国盾平台指令集）
 ```
 
 ---
@@ -428,25 +480,29 @@ print(result.probabilities)       # numpy array of length 2^6
 ## 十、未来发展方向
 
 ### 算法扩充
-- **QAOA Runner**：复用 `_run_with_backend` 链路，支持 MaxCut 及自定义 Z/ZZ 代价项
-- **QML**：参数化线路分类器（PQC），复用 `sim` autograd 本地训练
-- **动态线路**：支持 mid-circuit measurement + classical feedforward
+
+- **QAOA 实现**：实现 `QAOARunner`，复用 `_run_with_backend` 链路，支持 MaxCut 及自定义 Z/ZZ 代价项（类型 `QAOAResult` 已定义）。
+- **QML 支持**：增加参数化线路分类器（PQC classifier），复用 `sim` 的 autograd 做本地训练。
+- **动态线路**：在 `QuantumCircuit` 中支持 mid-circuit measurement + classical feedforward。
 
 ### 噪声建模与仿真
-- **噪声模拟器**：退极化 / 振幅阻尼 / 读出翻转噪声通道（Kraus 算子或 MPO 密度矩阵）
-- **芯片噪声导入**：从 `HardwareProfile.calibration` 自动构建噪声模型（"数字孪生"仿真）
+
+- **噪声模拟器**：在 `sim/` 增加退极化 / 振幅阻尼 / 读出翻转噪声通道（Kraus 算子或 MPO 密度矩阵），在本地评估缓解策略效果。
+- **芯片噪声导入**：从 `HardwareProfile.calibration` 自动构建噪声模型，实现"数字孪生"式仿真。
 
 ### 编译器增强
-- **多策略路由**：随机路由 / 噪声感知路由（优先高保真 coupler）
-- **本征门集扩展**：支持 iSWAP / √iSWAP 原生门
-- **等价性验证**：编译前后幺正矩阵比较工具（已有 `sim/mpo.py` 基础）
+
+- **多策略 routing**：引入 stochastic routing / 噪声感知 routing（优先使用高保真 coupler）。
+- **本征门集扩展**：支持 iSWAP / √iSWAP 本征门（部分硬件原生支持），减少不必要的门分解。
+- **电路等价性验证**：提供编译前后的酉矩阵比较工具（已有 `sim/mpo.py` 基础）。
 
 ### 工程质量
-- **凭证管理**：`~/.quantum_hw/config.toml` 或 keyring 方案
-- **异步任务**：`asyncio` 化的 submit/poll，支持批量并行提交
-- **CLI 入口**：`python -m quantum_hw run --circuit ghz --qubits 6 --provider quafu`
-- **CI/CD**：GitHub Actions + mock provider 自动回归测试
-- **日志体系**：统一 `logging` 模块替代散布的 `print()`
+
+- **凭证管理**：引入 `~/.quantum_hw/config.toml` 或 keyring 方案，移除硬编码 debug token。
+- **异步任务**：`asyncio` 化的 submit / poll，支持 batch 并行提交。
+- **CLI 入口**：`python -m quantum_hw run --circuit ghz --qubits 6 --provider quafu`。
+- **CI / 自动测试**：GitHub Actions 配合 mock provider，每次提交自动跑 pytest。
+- **日志体系**：统一 `logging` 替代散布的 `print()`。
 
 ---
 

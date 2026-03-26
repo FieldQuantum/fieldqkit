@@ -487,3 +487,234 @@ def compress_circuit_with_hybrid_objective(
         "loss_history": loss_history,
     }
     return compressed_qc, best_params, summary
+
+
+# ---------------------------------------------------------------------------
+# High-level compression transform builder
+# ---------------------------------------------------------------------------
+
+def _planner_stage_ids(plan: Optional[HybridCompressionPlan]) -> List[int]:
+    """Return stage IDs for hybrid block planner (prefix = -1, then block indices)."""
+    if plan is None or plan.total_layers <= 0 or not plan.blocks:
+        return [-1]
+    return [-1] + [int(i) for i in range(len(plan.blocks))]
+
+
+def _stage_target_circuit(
+    qc_bound: QuantumCircuit,
+    plan: Optional[HybridCompressionPlan],
+    stage_id: int,
+    num_qubits: int,
+) -> QuantumCircuit:
+    """Extract the sub-circuit for a given planner stage."""
+    if plan is None or plan.total_layers <= 0 or not plan.blocks:
+        return qc_bound.deepcopy()
+
+    if int(stage_id) == -1:
+        if int(plan.split_layer) <= 0:
+            return QuantumCircuit(int(num_qubits))
+        return build_layer_span_circuit(
+            qc_bound, start_layer=0, end_layer=int(plan.split_layer) - 1,
+        )
+
+    bid = int(stage_id)
+    if bid < 0 or bid >= len(plan.blocks):
+        return qc_bound.deepcopy()
+    block = plan.blocks[bid]
+    return build_layer_span_circuit(
+        qc_bound, start_layer=int(block.start_layer), end_layer=int(block.end_layer),
+    )
+
+
+def _compose_stage_circuits(
+    stage_circuits: Sequence[QuantumCircuit],
+    num_qubits: int,
+) -> QuantumCircuit:
+    """Compose multiple stage sub-circuits into one circuit."""
+    if not stage_circuits:
+        return QuantumCircuit(int(num_qubits))
+
+    out_nqubits = int(stage_circuits[0].nqubits)
+    out_ncbits = int(stage_circuits[0].ncbits)
+    out = QuantumCircuit(out_nqubits, out_ncbits)
+    out.qubits = stage_circuits[0].qubits.copy()
+    merged: List[tuple] = []
+    for stage_qc in stage_circuits:
+        if int(stage_qc.nqubits) != out_nqubits:
+            raise ValueError("all stage circuits must have the same nqubits")
+        merged.extend(list(stage_qc.gates))
+    out.gates = merged
+    return out
+
+
+def build_compression_transform(
+    client,
+    *,
+    num_qubits: int,
+    layers: int,
+    backend,
+    target_qubits: Optional[Sequence[int]] = None,
+    use_dd: bool = True,
+    enable_block_planner: bool = False,
+    planner_bond_cap: int = 128,
+    planner_trunc_tol: float = 1e-8,
+    planner_max_layers_per_block: int = 6,
+    compression_block_layers: Optional[int] = None,
+    compression_optimizer_steps: int = 20,
+    compression_optimizer_lr: float = 0.05,
+    compression_verbose: bool = False,
+    compression_plot_loss: bool = False,
+    tag: str = "compress",
+) -> dict:
+    """Build a circuit compression transform callable and its associated templates.
+
+    Creates a stateful compression callback compatible with the
+    ``circuit_transform`` parameter of
+    :func:`~quantum_hw.algorithms.optimizer_utils.run_variational_loop`.
+    Also prepares a compressed hardware-efficient template that is
+    transpiled once and reused across iterations.
+
+    Args:
+        client: ``QuantumHardwareClient`` instance.
+        num_qubits: Number of logical qubits.
+        layers: Original ansatz depth (used for default compressed depth).
+        backend: Target ``Backend``.
+        target_qubits: Physical qubit mapping.
+        use_dd: Enable dynamical decoupling during transpilation.
+        enable_block_planner: Enable hybrid block planner.
+        planner_bond_cap: MPS bond dimension cap.
+        planner_trunc_tol: MPS truncation tolerance.
+        planner_max_layers_per_block: Max layers per block.
+        compression_block_layers: Compressed circuit depth ``k``
+            (required; validated by caller).
+        compression_optimizer_steps: Optimiser steps per compression.
+        compression_optimizer_lr: Optimiser learning rate.
+        compression_verbose: Print compression diagnostics.
+        compression_plot_loss: Plot compression loss curves.
+        tag: Log prefix for verbose output.
+
+    Returns:
+        Dict with keys:
+
+        - ``transform``: callable ``(qc, param_index) -> qc``
+        - ``compressed_transpiled_template``: transpiled compressed template
+        - ``target_qubits_in_use``: resolved physical qubit mapping
+    """
+    from .optimizer_utils import instantiate_transpiled_template
+
+    block_depth_k = int(compression_block_layers) if compression_block_layers is not None else None
+    compressed_layers = block_depth_k if block_depth_k is not None else max(1, int(np.ceil(float(layers) * 0.5)))
+    compressed_param_count = 2 * int(num_qubits) * (int(compressed_layers) + 1)
+    compressed_param_names = [f"cmp_phi_{i}" for i in range(compressed_param_count)]
+    compressed_symbolic_qc = _build_hardware_efficient_ansatz_symbolic(
+        num_qubits, compressed_param_names, layers=int(compressed_layers),
+    )
+    compressed_transpiled_template = client._transpile_with_backend(
+        compressed_symbolic_qc, backend,
+        target_qubits=target_qubits, use_dd=use_dd, use_gate_compressor=False,
+    )
+    target_qubits_in_use = client._ordered_target_qubits_from_layout(
+        compiled_qc=compressed_transpiled_template,
+        original_qc=compressed_symbolic_qc,
+        num_qubits=num_qubits,
+    )
+
+    unified_bond_cap = int(planner_bond_cap)
+    unified_trunc_tol = float(planner_trunc_tol)
+    approx_depth = compressed_layers
+
+    # Mutable compression state (captured by closure)
+    warm_start: List[Optional[np.ndarray]] = [None]
+    base_params: List[Optional[np.ndarray]] = [None]
+    last_plan: List = [None]
+
+    def _transform(qc_bound: QuantumCircuit, changed_param_index: Optional[int] = None) -> QuantumCircuit:
+        plan = None
+        if enable_block_planner:
+            if changed_param_index is None or last_plan[0] is None:
+                plan = plan_hybrid_suffix_blocks(
+                    qc_bound,
+                    bond_cap=unified_bond_cap,
+                    trunc_tol=unified_trunc_tol,
+                    max_layers_per_block=int(planner_max_layers_per_block),
+                )
+                last_plan[0] = plan
+            else:
+                plan = last_plan[0]
+
+        stage_ids = _planner_stage_ids(plan)
+        local_steps = int(compression_optimizer_steps)
+        if changed_param_index is not None:
+            local_steps = max(2, int(np.ceil(float(compression_optimizer_steps) * 0.7)))
+
+        local_warm_start = base_params[0] if changed_param_index is not None else warm_start[0]
+        compressed_stage_exec_circuits: List[QuantumCircuit] = []
+        for stage_id in stage_ids:
+            target_stage_qc = _stage_target_circuit(qc_bound, plan, int(stage_id), num_qubits)
+            compressed_stage_qc, next_warm_start, summary = compress_circuit_with_hybrid_objective(
+                target_stage_qc,
+                num_qubits=num_qubits,
+                approx_layers=approx_depth,
+                optimizer_steps=int(local_steps),
+                optimizer_lr=float(compression_optimizer_lr),
+                objective_mode="mpo" if (plan is not None and int(stage_id) >= 0) else "mps",
+                bond_cap=unified_bond_cap,
+                warm_start_params=local_warm_start,
+            )
+            local_warm_start = next_warm_start
+
+            stage_exec_qc = instantiate_transpiled_template(
+                compressed_transpiled_template, compressed_param_names, next_warm_start,
+            )
+            compressed_stage_exec_circuits.append(stage_exec_qc)
+
+            if compression_verbose:
+                call_tag = "base" if changed_param_index is None else f"shift(param={int(changed_param_index)})"
+                print(
+                    f"[{tag}] circuit compressed:",
+                    f"call={call_tag}",
+                    f"stage={int(stage_id)}",
+                    f"layers={approx_depth}",
+                    f"mode={summary['objective_mode']}",
+                    f"init={summary['init_loss']:.3e}",
+                    f"loss={summary['best_loss']:.3e}",
+                    f"delta={summary['loss_delta']:.3e}",
+                    f"inf={summary['objective_infidelity']:.3e}",
+                )
+
+            if compression_plot_loss:
+                try:
+                    import matplotlib.pyplot as _plt
+                    ys = summary.get("loss_history", [])
+                    if isinstance(ys, list) and len(ys) > 0:
+                        _plt.figure(figsize=(5.0, 3.2))
+                        _plt.plot(range(len(ys)), ys, marker="o", ms=2)
+                        _plt.xlabel("Compression Step")
+                        _plt.ylabel("Loss")
+                        _plt.title(f"Compression Loss (stage={int(stage_id)})")
+                        _plt.grid(alpha=0.3)
+                        _plt.tight_layout()
+                        _plt.show()
+                except Exception as _plot_exc:
+                    if compression_verbose:
+                        print(f"[{tag}] compression loss plotting skipped:", _plot_exc)
+
+        warm_start[0] = local_warm_start
+        if changed_param_index is None and warm_start[0] is not None:
+            base_params[0] = warm_start[0].copy()
+
+        if plan is not None and compression_verbose:
+            print(
+                f"[{tag}] hybrid block plan:",
+                f"split={plan.split_layer}/{plan.total_layers}",
+                f"seed_bond={plan.prefix_max_bond}",
+                f"seed_err={plan.prefix_relative_trunc_error:.3e}",
+                f"blocks={len(plan.blocks)}",
+            )
+        return _compose_stage_circuits(compressed_stage_exec_circuits, num_qubits)
+
+    return {
+        "transform": _transform,
+        "compressed_transpiled_template": compressed_transpiled_template,
+        "target_qubits_in_use": target_qubits_in_use,
+    }

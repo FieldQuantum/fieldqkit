@@ -6,7 +6,7 @@ from .core.circuits import build_ghz, build_cluster, build_qft, build_ising_time
 from .core.observables import pauli_expectation
 from .core.readout import mitigate_readout
 from .calibration import ReadoutCalibrationManager, NativeTwoQubitRBManager, NativeTwoQubitTomographyManager
-from .core.types import ShadowResult, VQEResult
+from .core.types import QAOAResult, ShadowResult, VQEResult
 from .core.zne import apply_zne_cz_tripling
 from .algorithms.shadow import ShadowTomography
 from .algorithms.vqe import (
@@ -16,6 +16,11 @@ from .algorithms.vqe import (
     build_ising_hamiltonian,
     build_xy_hamiltonian,
     build_xxz_hamiltonian,
+)
+from .algorithms.qaoa import (
+    QAOARunner,
+    build_maxcut_hamiltonian,
+    build_custom_cost_hamiltonian,
 )
 
 __all__ = [
@@ -35,6 +40,8 @@ __all__ = [
     "ShadowResult",
     "VQERunner",
     "VQEResult",
+    "QAOAResult",
+    "QAOARunner",
     "build_custom_hamiltonian",
     "build_heisenberg_hamiltonian",
     "build_ising_hamiltonian",
