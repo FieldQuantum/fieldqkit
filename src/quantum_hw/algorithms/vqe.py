@@ -110,6 +110,106 @@ def build_custom_hamiltonian(terms: Sequence[Tuple[float, str]], num_qubits: int
     return out
 
 
+def build_maxcut_hamiltonian(
+    edges: Sequence[Tuple[int, int]],
+    num_qubits: int,
+    weight: float = 0.5,
+) -> Hamiltonian:
+    """Build the MaxCut cost Hamiltonian for QAOA.
+
+    The MaxCut cost function is::
+
+        C = weight * sum_{(u, v) in edges} (1 - Z_u Z_v)
+
+    The constant ``weight * |edges|`` does not affect the optimisation, so
+    only the ZZ terms are returned::
+
+        [(−weight, "Z{u} Z{v}") for (u, v) in edges]
+
+    Parameters
+    ----------
+    edges:
+        List of undirected edges ``(u, v)`` with 0-based qubit indices.
+    num_qubits:
+        Total number of qubits (used for index validation).
+    weight:
+        Per-edge weight coefficient (default 0.5).  Use 1.0 if you prefer
+        integer-valued cut counts.
+
+    Returns
+    -------
+    Hamiltonian
+        List of ``(coefficient, pauli_string)`` tuples representing the
+        QAOA MaxCut cost operator.
+    """
+    if not edges:
+        raise ValueError("edges must be a non-empty sequence")
+    out: Hamiltonian = []
+    for u, v in edges:
+        if u < 0 or v < 0 or u >= num_qubits or v >= num_qubits:
+            raise ValueError(
+                f"Edge ({u}, {v}) contains qubit index out of valid range [0, {num_qubits})"
+            )
+        if u == v:
+            raise ValueError(f"Self-loop edge ({u}, {v}) is not valid for MaxCut")
+        out.append((-float(weight), f"Z{u} Z{v}"))
+    return out
+
+
+def build_custom_cost_hamiltonian(
+    num_qubits: int,
+    z_terms: Optional[Sequence[Tuple[float, int]]] = None,
+    zz_terms: Optional[Sequence[Tuple[float, int, int]]] = None,
+) -> Hamiltonian:
+    """Build a custom QAOA cost Hamiltonian from Z and ZZ terms.
+
+    Parameters
+    ----------
+    num_qubits:
+        Total number of qubits.
+    z_terms:
+        Single-qubit Z terms as ``[(coefficient, qubit_index), ...]``.
+    zz_terms:
+        Two-qubit ZZ terms as ``[(coefficient, qubit_i, qubit_j), ...]``.
+
+    Returns
+    -------
+    Hamiltonian
+        List of ``(coefficient, pauli_string)`` tuples suitable for use
+        with :class:`VQERunner` or :func:`run_vqe_with_backend`.
+
+    Examples
+    --------
+    >>> H = build_custom_cost_hamiltonian(
+    ...     num_qubits=4,
+    ...     z_terms=[(0.5, 0), (-0.5, 2)],
+    ...     zz_terms=[(1.0, 0, 1), (1.0, 2, 3)],
+    ... )
+    """
+    if z_terms is None and zz_terms is None:
+        raise ValueError("At least one of z_terms or zz_terms must be provided")
+    out: Hamiltonian = []
+    if z_terms:
+        for coeff, q in z_terms:
+            if q < 0 or q >= num_qubits:
+                raise ValueError(
+                    f"Z term qubit index {q} out of valid range [0, {num_qubits})"
+                )
+            out.append((float(coeff), f"Z{q}"))
+    if zz_terms:
+        for coeff, qi, qj in zz_terms:
+            if qi < 0 or qi >= num_qubits or qj < 0 or qj >= num_qubits:
+                raise ValueError(
+                    f"ZZ term qubit indices ({qi}, {qj}) out of valid range [0, {num_qubits})"
+                )
+            if qi == qj:
+                raise ValueError(
+                    f"ZZ term qubit indices must be distinct, got ({qi}, {qj})"
+                )
+            out.append((float(coeff), f"Z{qi} Z{qj}"))
+    return out
+
+
 def _extract_names_from_expr(expr: str) -> List[str]:
     """Extract symbol names from a parameter expression, excluding pi."""
     expr = str(expr).strip().replace('π', 'pi').replace('np.pi', 'pi')

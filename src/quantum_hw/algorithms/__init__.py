@@ -10,7 +10,9 @@ from .shadow import ShadowTomography, estimate_observables, run_shadow_with_back
 from .vqe import (
     VQERunner,
     build_custom_hamiltonian,
+    build_custom_cost_hamiltonian,
     build_heisenberg_hamiltonian,
+    build_maxcut_hamiltonian,
     build_ucc_ansatz,
     build_ising_hamiltonian,
     build_xy_hamiltonian,
