@@ -16,7 +16,7 @@ from .statevector import expectation_pauli as _expectation_pauli_statevector
 from .statevector import simulate_counts as _simulate_counts_statevector
 
 
-MPS_THRESHOLD_QUBITS: int = 12
+MPS_THRESHOLD_QUBITS: int = 16
 
 def simulate_counts(
     qc: QuantumCircuit,

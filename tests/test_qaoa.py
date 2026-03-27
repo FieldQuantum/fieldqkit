@@ -7,7 +7,6 @@ torch = pytest.importorskip("torch")
 
 from quantum_hw.algorithms.qaoa import (
     build_maxcut_hamiltonian,
-    build_custom_cost_hamiltonian,
     build_qaoa_ansatz_symbolic,
     run_qaoa_with_backend,
     QAOARunner,
@@ -27,14 +26,14 @@ class TestBuildMaxcutHamiltonian:
         h = build_maxcut_hamiltonian(edges, num_qubits=3)
         assert len(h) == 3
         for coeff, pauli in h:
-            assert coeff == -0.5
+            assert coeff == 0.5
             assert len(pauli) == 3
             assert pauli.count("Z") == 2
 
     def test_single_edge(self):
         h = build_maxcut_hamiltonian([(0, 1)], num_qubits=2)
         assert len(h) == 1
-        assert h[0] == (-0.5, "ZZ")
+        assert h[0] == (0.5, "ZZ")
 
     def test_edge_out_of_range_raises(self):
         with pytest.raises(ValueError, match="out of range"):
@@ -47,22 +46,6 @@ class TestBuildMaxcutHamiltonian:
     def test_zero_qubits_raises(self):
         with pytest.raises(ValueError, match="positive"):
             build_maxcut_hamiltonian([], num_qubits=0)
-
-
-class TestBuildCustomCostHamiltonian:
-    def test_valid_terms(self):
-        terms = [(0.5, "ZZI"), (-0.3, "IZZ")]
-        h = build_custom_cost_hamiltonian(terms, num_qubits=3)
-        assert len(h) == 2
-        assert h[0] == (0.5, "ZZI")
-
-    def test_wrong_length_raises(self):
-        with pytest.raises(ValueError, match="length"):
-            build_custom_cost_hamiltonian([(1.0, "ZZ")], num_qubits=3)
-
-    def test_invalid_char_raises(self):
-        with pytest.raises(ValueError, match="invalid"):
-            build_custom_cost_hamiltonian([(1.0, "ZA")], num_qubits=2)
 
 
 # ---------------------------------------------------------------------------

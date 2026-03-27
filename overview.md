@@ -88,12 +88,17 @@ quantum_hw/                          入口 __init__.py（导出顶层 API）
 │   ├── schedule.py                  DynamicalDecoupling（CZ 间隙填充 DD 序列）
 │   └── dag.py                       DAG 转换与可视化
 │
-├── algorithms/  (~1,900 行)         量子算法
+├── algorithms/  (~2,200 行)         量子算法
 │   ├── vqe.py                       VQERunner — Ising/Heisenberg/XXZ/XY/自定义 Hamiltonian
 │   │                                parameter-shift / autograd 梯度, Adam 优化, Clifford fitting
+│   ├── qaoa.py                      QAOARunner — MaxCut / 自定义 Z/ZZ 代价项
+│   │                                parameter-shift / autograd 梯度, Adam 优化, Clifford fitting
+│   ├── optimizer_utils.py            共享优化工具（能量计算、参数移位梯度、Adam、
+│   │                                Clifford fitting、run_variational_loop 通用优化循环）
 │   ├── shadow.py                    ShadowTomography — classical shadow 协议
 │   ├── ansatz_templates.py          Hardware-efficient / UCC ansatz 构建
 │   └── circuit_compression.py       MPS/MPO 混合后缀压缩（降低线路深度）
+│                                    + build_compression_transform（可复用压缩变换工厂）
 │
 ├── core/        (~500 行)           通用工具
 │   ├── circuits.py                  预置线路（GHZ / Cluster / QFT / Ising 演化）
@@ -223,14 +228,29 @@ quantum_hw/                          入口 __init__.py（导出顶层 API）
 
 ### 3.5 量子算法层（`algorithms/`）
 
+#### 共享优化引擎（`optimizer_utils.py`）
+
+`run_variational_loop()` 是 VQE 和 QAOA 共用的通用变分优化循环，支持：
+- parameter-shift 梯度（硬件）/ autograd（模拟器）两条路径
+- Adam 优化器（`adam_update`）
+- 可插拔 `circuit_transform` 回调（供压缩等后处理使用）
+- Clifford fitting 仿射噪声校正（`build_clifford_fit_map`）
+
 #### VQE（`vqe.py`）—— 变分量子本征求解器
 
-`VQERunner` 支持：
+`VQERunner` 薄封装 `run_vqe_with_backend`，后者负责：
 - Hamiltonian：Ising / Heisenberg / XXZ / XY / 自定义 Pauli 字符串
-- 梯度策略：parameter-shift 规则 或 PyTorch autograd
-- 优化器：Adam
-- Ansatz：Hardware-efficient / UCC（来自 `ansatz_templates.py`）
-- Clifford fitting 加速
+- Ansatz 构建（Hardware-efficient / UCC / 自定义）
+- 调用 `run_variational_loop` 执行优化循环
+- 可选路径：Clifford fitting、混合后缀规划压缩（`build_compression_transform`）
+
+#### QAOA（`qaoa.py`）—— 经典组合优化
+
+`QAOARunner` 薄封装 `run_qaoa_with_backend`，后者负责：
+- MaxCut（`build_maxcut_hamiltonian`）和自定义 Z/ZZ 代价项
+- QAOA 参数化 ansatz 构建（RZZ + RX 交替层，`build_qaoa_ansatz_symbolic`）
+- 调用 `run_variational_loop` 执行优化循环
+- 可选 Clifford fitting 噪声校正
 
 #### Shadow Tomography（`shadow.py`）
 
@@ -241,9 +261,10 @@ quantum_hw/                          入口 __init__.py（导出顶层 API）
 
 #### 线路压缩（`circuit_compression.py`）
 
-`MPS/MPO 混合后缀压缩`：
-- 将深层参数化线路的后缀压缩为等效 MPS 形式
-- 降低 VQE 等算法的线路深度，节省量子资源
+`MPS/MPO 混合后缀压缩` + 可复用压缩变换工厂：
+- `plan_hybrid_suffix_blocks`：基于 MPS 键维分析，将线路后缀规划为多段压缩块
+- `compress_circuit_with_hybrid_objective`：单段 MPS/MPO 目标优化压缩
+- `build_compression_transform`：工厂函数，封装压缩状态（warm-start、block plan 缓存）并返回可直接传入 `run_variational_loop` 的 `circuit_transform` 回调，以及预转译的压缩模板
 
 #### Ansatz 模板（`ansatz_templates.py`）
 
@@ -469,7 +490,7 @@ print(result.probabilities)       # numpy array of length 2^6
 | 测试组 | 文件 |
 |---|---|
 | API 层 | `test_api_exports_unified`、`test_api_provider_runtime`、`test_api_run_auto_unified`、`test_api_unified_backend`、`test_api_unified_task` |
-| 算法 | `test_algorithms_provider_symmetry`、`test_vqe_autograd`、`test_vqe_hybrid_suffix_planner` |
+| 算法 | `test_algorithms_provider_symmetry`、`test_vqe_autograd`、`test_vqe_hybrid_suffix_planner`、`test_qaoa` |
 | 线路 | `test_circuit_migration`、`test_circuit_openqasm_advanced`、`test_circuit_refactor`、`test_circuit_safety` |
 | 编译器 | `test_compile_passes`、`test_decompose_matrices` |
 | 模拟器 | `test_sim_mps`、`test_sim_mpo` |
@@ -481,7 +502,7 @@ print(result.probabilities)       # numpy array of length 2^6
 
 ### 算法扩充
 
-- **QAOA 实现**：实现 `QAOARunner`，复用 `_run_with_backend` 链路，支持 MaxCut 及自定义 Z/ZZ 代价项（类型 `QAOAResult` 已定义）。
+- **QAOA 实现**：已实现 `QAOARunner`，通过 `run_variational_loop` 与 VQE 共享优化核心，支持 MaxCut 及自定义 Z/ZZ 代价项。✅
 - **QML 支持**：增加参数化线路分类器（PQC classifier），复用 `sim` 的 autograd 做本地训练。
 - **动态线路**：在 `QuantumCircuit` 中支持 mid-circuit measurement + classical feedforward。
 

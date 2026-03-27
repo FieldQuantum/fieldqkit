@@ -37,8 +37,6 @@ run_model(
     edges,
   *,
     provider="quafu",
-    model="maxcut",
-    hamiltonian=None,
     target_qubits=None,
     init_params=None,
     callback=None,
@@ -54,8 +52,6 @@ run_model(
 | `name` | `str` | - | 是 | 任务名前缀。 |
 | `num_qubits` | `int` | - | 是 | 逻辑比特数（图节点数）。 |
 | `edges` | `Sequence[Tuple[int, int]]` | - | 是 | 图的边列表，用于构建 ansatz 的 RZZ 层。 |
-| `model` | `str` | `"maxcut"` | 否 | 代价模型：`maxcut` 或 `custom`。 |
-| `hamiltonian` | `Optional[Sequence[Tuple[float, str]]]` | `None` | 否 | 自定义代价哈密顿量（仅 `model="custom"` 时使用）。 |
 | `p` | `int` | `1` | 否 | `QAOARunner` 初始化参数：QAOA 层数。 |
 | `shots` | `int` | `1024` | 否 | `QAOARunner` 初始化参数：每次评估 shots。 |
 | `max_iters` | `int` | `30` | 否 | `QAOARunner` 初始化参数：迭代轮数。 |
@@ -110,7 +106,6 @@ print(f"Best cost: {result.best_cost:.4f}")
 ## 底层函数
 
 - `build_maxcut_hamiltonian(edges, num_qubits)` — 构建 MaxCut ZZ 代价项。
-- `build_custom_cost_hamiltonian(terms, num_qubits)` — 验证自定义 Pauli 代价项。
 - `build_qaoa_ansatz_symbolic(num_qubits, edges, p)` — 构建符号化 QAOA ansatz 线路。
 - `run_qaoa_with_backend(...)` — 底层优化循环（支持 parameter-shift / autograd）。
 

@@ -1058,6 +1058,22 @@ class QuantumCircuit:
         self.gates = new
         return self
 
+    @staticmethod
+    def _resolve_expr(param, params_dic):
+        """Resolve a symbolic parameter: direct lookup or ``a*b`` product."""
+        if param in params_dic:
+            return params_dic[param]
+        if isinstance(param, str) and '*' in param:
+            parts = param.split('*')
+            val = 1.0
+            for p in parts:
+                p = p.strip()
+                if p not in params_dic:
+                    return param          # unresolvable — keep symbolic
+                val *= float(params_dic[p])
+            return val
+        return param
+
     def apply_value(self, params_dic: dict, *, deep: bool = False) -> 'QuantumCircuit':
         """Apply parameter values to the circuit.
 
@@ -1075,6 +1091,7 @@ class QuantumCircuit:
         if not deep:
             return self
 
+        _resolve = self._resolve_expr
         gates = []
         for gate_info in self.gates:
             gate = gate_info[0]
@@ -1082,16 +1099,14 @@ class QuantumCircuit:
                 params = list(gate_info[1:-1])
                 qubit = gate_info[-1]
                 for idx, param in enumerate(params):
-                    if param in params_dic.keys():
-                        params[idx] = params_dic[param]
+                    params[idx] = _resolve(param, params_dic)
                 gate_info = (gate,*params,qubit)
                 gates.append(gate_info)
             elif gate in two_qubit_parameter_gates_available.keys():
                 params = list(gate_info[1:-2])
                 qubits = gate_info[-2:]
                 for idx, param in enumerate(params):
-                    if param in params_dic.keys():
-                        params[idx] = params_dic[param]
+                    params[idx] = _resolve(param, params_dic)
                 gate_info = (gate,*params,*qubits)
                 gates.append(gate_info)
             else:

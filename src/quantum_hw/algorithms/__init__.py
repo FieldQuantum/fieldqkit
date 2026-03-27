@@ -6,9 +6,17 @@ from .circuit_compression import (
     compress_circuit_with_hybrid_objective,
     plan_hybrid_suffix_blocks,
 )
+from .qml import (
+    run_pqc_classifier,
+)
+from .qml_encoding import (
+    angle_encoding_circuit,
+    angle_encoding_circuit_symbolic,
+    iqp_encoding_circuit,
+    iqp_encoding_circuit_symbolic,
+)
 from .qaoa import (
     QAOARunner,
-    build_custom_cost_hamiltonian,
     build_maxcut_hamiltonian,
     run_qaoa_with_backend,
 )
@@ -38,10 +46,14 @@ __all__ = [
     "run_vqe_with_backend",
     "QAOARunner",
     "build_maxcut_hamiltonian",
-    "build_custom_cost_hamiltonian",
     "run_qaoa_with_backend",
     "HybridCompressionPlan",
     "SuffixCompressionBlock",
     "plan_hybrid_suffix_blocks",
     "compress_circuit_with_hybrid_objective",
+    "run_pqc_classifier",
+    "angle_encoding_circuit",
+    "angle_encoding_circuit_symbolic",
+    "iqp_encoding_circuit",
+    "iqp_encoding_circuit_symbolic",
 ]

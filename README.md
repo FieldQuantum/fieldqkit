@@ -99,10 +99,12 @@ quantum_hw/                          入口 __init__.py（导出顶层 API）
 │   │                                parameter-shift / autograd 梯度, Adam 优化, Clifford fitting
 │   ├── qaoa.py                      QAOARunner — MaxCut / 自定义 Z/ZZ 代价项
 │   │                                parameter-shift / autograd 梯度, Adam 优化, Clifford fitting
-│   ├── optimizer_utils.py            共享优化工具（能量计算、参数移位梯度、Adam、Clifford fitting）
+│   ├── optimizer_utils.py            共享优化工具（能量计算、参数移位梯度、Adam、
+│   │                                Clifford fitting、run_variational_loop 通用优化循环）
 │   ├── shadow.py                    ShadowTomography — classical shadow 协议
 │   ├── ansatz_templates.py          Hardware-efficient / UCC ansatz 构建
 │   └── circuit_compression.py       MPS/MPO 混合后缀压缩（降低线路深度）
+│                                    + build_compression_transform（可复用压缩变换工厂）
 │
 ├── core/        (~500 行)           通用工具
 │   ├── circuits.py                  预置线路（GHZ / Cluster / QFT / Ising 演化）

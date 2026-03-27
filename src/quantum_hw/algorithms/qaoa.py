@@ -32,7 +32,7 @@ def build_maxcut_hamiltonian(
 
     The cost function is  ``C = Σ_{(i,j)} 0.5 (I - Z_i Z_j)``.
     The constant offset is dropped so that minimising ⟨H⟩ maximises the cut:
-    ``H = Σ_{(i,j)} -0.5 Z_i Z_j``.
+    ``H = Σ_{(i,j)} +0.5 Z_i Z_j``.
 
     Args:
         edges: Sequence of ``(i, j)`` undirected edges.
@@ -56,42 +56,7 @@ def build_maxcut_hamiltonian(
         pauli = ["I"] * num_qubits
         pauli[i] = "Z"
         pauli[j] = "Z"
-        hamiltonian.append((-0.5, "".join(pauli)))
-    return hamiltonian
-
-
-def build_custom_cost_hamiltonian(
-    terms: Sequence[Tuple[float, str]],
-    num_qubits: int,
-) -> Hamiltonian:
-    """Validate and return a user-supplied cost Hamiltonian.
-
-    Each term is ``(coeff, pauli_string)`` where *pauli_string* has length
-    *num_qubits* and contains only ``I``, ``X``, ``Y``, ``Z``.
-
-    Args:
-        terms: Sequence of ``(coefficient, pauli_string)`` pairs.
-        num_qubits: Expected Pauli-string length.
-
-    Returns:
-        Validated Hamiltonian term list.
-
-    Raises:
-        ValueError: If a Pauli string has wrong length, contains invalid
-            characters, or *num_qubits* is non-positive.
-    """
-    if num_qubits <= 0:
-        raise ValueError("num_qubits must be positive")
-    valid_chars = set("IXYZ")
-    hamiltonian: Hamiltonian = []
-    for coeff, pauli in terms:
-        if len(pauli) != num_qubits:
-            raise ValueError(
-                f"pauli string length {len(pauli)} != num_qubits {num_qubits}"
-            )
-        if not all(c in valid_chars for c in pauli):
-            raise ValueError(f"invalid pauli string: {pauli}")
-        hamiltonian.append((float(coeff), pauli))
+        hamiltonian.append((0.5, "".join(pauli)))
     return hamiltonian
 
 
@@ -368,8 +333,6 @@ class QAOARunner:
         edges: Sequence[Tuple[int, int]],
         *,
         provider: str = "quafu",
-        model: str = "maxcut",
-        hamiltonian: Optional[Sequence[Tuple[float, str]]] = None,
         target_qubits: Optional[Sequence[int]] = None,
         init_params: Optional[Sequence[float]] = None,
         callback: Optional[Callable[[int, float, np.ndarray], None]] = None,
@@ -382,8 +345,6 @@ class QAOARunner:
             num_qubits: Number of logical qubits.
             edges: Graph edge list for the QAOA ansatz (RZZ cost layer).
             provider: Hardware provider (``"quafu"`` / ``"tianyan"`` / ``"guodun"``).
-            model: Cost model — ``"maxcut"`` or ``"custom"``.
-            hamiltonian: Required when ``model="custom"``; list of ``(coeff, pauli_str)``.
             target_qubits: Optional physical qubit mapping.
             init_params: Explicit initial parameters (length must be ``2 * p``).
             callback: Per-iteration callback ``(iter, cost, params)``.
@@ -394,20 +355,11 @@ class QAOARunner:
             f"name={name}",
             f"num_qubits={num_qubits}",
             f"provider={provider}",
-            f"model={model}",
             f"p={self.p}",
             f"shots={self.shots}",
             f"max_iters={self.max_iters}",
         )
-        model = model.lower()
-        if model == "maxcut":
-            hamiltonian = build_maxcut_hamiltonian(edges, num_qubits)
-        elif model == "custom":
-            if hamiltonian is None:
-                raise ValueError("custom model requires hamiltonian")
-            hamiltonian = build_custom_cost_hamiltonian(hamiltonian, num_qubits)
-        else:
-            raise ValueError(f"unsupported QAOA model: {model}")
+        hamiltonian = build_maxcut_hamiltonian(edges, num_qubits)
 
         provider_name = str(provider).lower()
         qasm_version = self.client._default_qasm_version_for_provider(provider_name)

@@ -60,3 +60,13 @@ class QAOAResult:
 	last_expectations: Optional[Dict[str, float]] = None
 	clifford_fitting: Optional[Dict[str, Dict[str, float]]] = None
 
+
+@dataclass
+class QMLResult:
+	task: str
+	best_loss: float
+	best_params: List[float]
+	loss_history: List[float]
+	params_history: Optional[List[List[float]]] = None
+	accuracy: Optional[float] = None
+
