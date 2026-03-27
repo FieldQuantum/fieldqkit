@@ -11,6 +11,7 @@
 - Shadow tomography：随机测量基的可观测量估计
 - VQE：基于量子测量的变分优化框架（Adam 优化）
 - QAOA：经典组合优化问题到量子电路的接口（MaxCut + 自定义 Z/ZZ 代价项）
+- QML：参数化量子电路分类器（PQC classifier）+ 无监督 QNN 分布学习
 
 ## 安装
 
@@ -94,11 +95,13 @@ quantum_hw/                          入口 __init__.py（导出顶层 API）
 │   ├── schedule.py                  DynamicalDecoupling（CZ 间隙填充 DD 序列）
 │   └── dag.py                       DAG 转换与可视化
 │
-├── algorithms/  (~1,900 行)         量子算法
+├── algorithms/  (~2,200 行)         量子算法
 │   ├── vqe.py                       VQERunner — Ising/Heisenberg/XXZ/XY/自定义 Hamiltonian
 │   │                                parameter-shift / autograd 梯度, Adam 优化, Clifford fitting
 │   ├── qaoa.py                      QAOARunner — MaxCut / 自定义 Z/ZZ 代价项
 │   │                                parameter-shift / autograd 梯度, Adam 优化, Clifford fitting
+│   ├── qml.py                       QML — PQC 监督分类 + 无监督 QNN 分布学习
+│   │                                autograd / parameter-shift, Adam 优化
 │   ├── optimizer_utils.py            共享优化工具（能量计算、参数移位梯度、Adam、
 │   │                                Clifford fitting、run_variational_loop 通用优化循环）
 │   ├── shadow.py                    ShadowTomography — classical shadow 协议
@@ -111,7 +114,8 @@ quantum_hw/                          入口 __init__.py（导出顶层 API）
 │   ├── observables.py               Pauli 字符串解析、期望值计算、测量基转换
 │   ├── readout.py                   Readout 误差缓解（逆混淆矩阵）
 │   ├── zne.py                       ZNE（CZ 三倍插入 + 线性外推）
-│   ├── types.py                     RunResult / VQEResult / ShadowResult / QAOAResult
+│   ├── types.py                     RunResult / VQEResult / ShadowResult / QAOAResult /
+│   │                                QMLResult / QBMResult
 │   └── plotting.py                  概率分布和可观测量对比图
 │
 ├── calibration/ (~900 行)           校准
@@ -125,7 +129,8 @@ quantum_hw/                          入口 __init__.py（导出顶层 API）
 │   ├── mps.py                       MPS 张量网络模拟器（可微）
 │   ├── mpo.py                       MPO 量子过程模拟器
 │   ├── matrix.py                    torch 门矩阵（支持梯度）
-│   ├── interface.py                 统一模拟入口 simulate_counts / expectation_pauli
+│   ├── interface.py                 统一模拟入口 simulate_counts / expectation_pauli /
+│   │                                sample_probabilities
 │   └── common.py                    参数解析工具
 │
 └── vendor/      (~1,700 行)         内置第三方代码
@@ -169,6 +174,9 @@ QuantumHardwareClient.run_auto(provider="quafu", circuit=..., observables=...)
 - [Readout calibration + ZNE 专项](examples/demo_readout_zne.ipynb)
 - [VQE：顶层接口 + parameter-shift 手动梯度下降](examples/demo_vqe.ipynb)
 - [QAOA：MaxCut + 自定义哈密顿量 + VQE 对比](examples/demo_qaoa.ipynb)
+- [QML 分类：PQC 监督分类器](examples/demo_qml.ipynb)
+- [QML Iris：Iris 数据集多分类](examples/demo_qml_iris.ipynb)
+- [QNN 无监督：量子分布学习](examples/demo_qnn_unsupervised.ipynb)
 - [Backend 拓扑与芯片排序](examples/demo_backend.ipynb)
 
 ## 学习路径（入门 → 进阶 → 硬件 → 优化）
@@ -180,7 +188,11 @@ QuantumHardwareClient.run_auto(provider="quafu", circuit=..., observables=...)
     - [Shadow tomography 分层教程](examples/demo_shadow.ipynb)
     - [VQE：顶层接口 + parameter-shift 手动梯度下降](examples/demo_vqe.ipynb)
     - [QAOA：MaxCut + 自定义哈密顿量 + VQE 对比](examples/demo_qaoa.ipynb)
-5. 硬件拓扑补充：参考 [Backend 拓扑与芯片排序](examples/demo_backend.ipynb)
+5. 量子机器学习：按顺序学习
+    - [QML 分类：PQC 监督分类器](examples/demo_qml.ipynb)
+    - [QML Iris：Iris 数据集多分类](examples/demo_qml_iris.ipynb)
+    - [QNN 无监督：量子分布学习](examples/demo_qnn_unsupervised.ipynb)
+6. 硬件拓扑补充：参考 [Backend 拓扑与芯片排序](examples/demo_backend.ipynb)
 
 ## 文档 (Docs)
 
@@ -197,7 +209,7 @@ Docs 总览见 [docs/README.md](docs/README.md)。
 ### 算法扩充
 
 - **QAOA 实现**：已实现 `QAOARunner`，复用 `_run_with_backend` 链路，支持 MaxCut 及自定义 Z/ZZ 代价项（类型 `QAOAResult` 已定义）。✅
-- **QML 支持**：增加参数化线路分类器（PQC classifier），复用 `sim` 的 autograd 做本地训练。
+- **QML 支持**：增加参数化线路分类器（PQC classifier）和无监督 QNN 分布学习，复用 `sim` 的 autograd 做本地训练。✅
 - **动态线路**：在 `QuantumCircuit` 中支持 mid-circuit measurement + classical feedforward。
 
 ### 噪声建模与仿真

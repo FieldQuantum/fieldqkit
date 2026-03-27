@@ -182,6 +182,32 @@ def expectation_pauli(
     return torch.vdot(state, acted)
 
 
+def sample_probabilities(
+    state,
+    samples,
+):
+    """Return probabilities for given sample vectors.
+
+    Args:
+        state: Statevector tensor of length ``2**n``.
+        samples: ``(N, n_qubits)`` integer tensor or array with entries 0/1,
+            big-endian (column 0 = qubit 0).
+
+    Returns:
+        1-D tensor of length *N* with ``P(sample_i) = |⟨b_i|ψ⟩|²``.
+        Fully differentiable.
+    """
+    if not isinstance(samples, torch.Tensor):
+        samples = torch.tensor(samples, dtype=torch.long, device=state.device)
+    else:
+        samples = samples.to(device=state.device, dtype=torch.long)
+    n_qubits = samples.shape[1]
+    weights = (2 ** torch.arange(n_qubits - 1, -1, -1, device=samples.device)).unsqueeze(0)
+    indices = (samples * weights).sum(dim=1)
+    amplitudes = state[indices]
+    return amplitudes.real ** 2 + amplitudes.imag ** 2
+
+
 def energy_and_expectations(
     symbolic_qc: QuantumCircuit,
     *,

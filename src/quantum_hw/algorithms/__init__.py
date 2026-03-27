@@ -8,6 +8,7 @@ from .circuit_compression import (
 )
 from .qml import (
     run_pqc_classifier,
+    run_qnn_unsupervised,
 )
 from .qml_encoding import (
     angle_encoding_circuit,
@@ -52,6 +53,7 @@ __all__ = [
     "plan_hybrid_suffix_blocks",
     "compress_circuit_with_hybrid_objective",
     "run_pqc_classifier",
+    "run_qnn_unsupervised",
     "angle_encoding_circuit",
     "angle_encoding_circuit_symbolic",
     "iqp_encoding_circuit",

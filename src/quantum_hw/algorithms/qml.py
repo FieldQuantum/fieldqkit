@@ -26,7 +26,7 @@ from typing import (
 import numpy as np
 
 from ..circuit import QuantumCircuit
-from ..core.types import QMLResult
+from ..core.types import QBMResult, QMLResult
 from .ansatz_templates import (
     build_hardware_efficient_ansatz_symbolic,
 )
@@ -103,10 +103,74 @@ def _classifier_loss_and_dl_dz(
         return loss, grad
 
 
+def _batch_loss_and_grads(
+    z_values_list: Sequence[Sequence[float]],
+    labels: Sequence[int],
+    num_classes: int,
+) -> Tuple[float, List[np.ndarray]]:
+    """Average loss and per-sample dL/d⟨Z⟩ over a batch."""
+    total = 0.0
+    dl_dz_list: List[np.ndarray] = []
+    for z_vals, lab in zip(z_values_list, labels):
+        l, dl = _classifier_loss_and_dl_dz(z_vals, lab, num_classes)
+        total += l
+        dl_dz_list.append(dl)
+    return total / len(labels), dl_dz_list
+
+
+def _predictions_from_z(
+    z_values_list: Sequence[Sequence[float]],
+    num_classes: int,
+) -> List[int]:
+    """Convert ⟨Z⟩ values to class predictions."""
+    preds: List[int] = []
+    for z_vals in z_values_list:
+        if num_classes == 2:
+            preds.append(0 if z_vals[0] > 0 else 1)
+        else:
+            preds.append(int(np.argmax(z_vals)))
+    return preds
+
+
+def _get_z_autograd(build_state, expectation_pauli, template, param_names,
+                    features_list, theta, z_observables, num_qubits):
+    """Get ⟨Z⟩ values for all samples via autograd simulator (no grad)."""
+    import torch
+    results: List[List[float]] = []
+    params_t = torch.tensor(theta, dtype=torch.float64)
+    with torch.no_grad():
+        for feat in features_list:
+            feat_t = torch.tensor(feat, dtype=torch.float64)
+            all_p = torch.cat([feat_t, params_t])
+            state = build_state(template, params=all_p, param_names=param_names)
+            z_vals = [
+                float(expectation_pauli(state, obs, num_qubits=num_qubits).real)
+                for obs in z_observables
+            ]
+            results.append(z_vals)
+    return results
+
+
+def _get_z_backend(client, template, param_names, features_list, theta,
+                   z_observables, z_hamiltonian, backend_kwargs, name_prefix):
+    """Get ⟨Z⟩ values for all samples via hardware backend."""
+    results: List[List[float]] = []
+    for si, feat in enumerate(features_list):
+        all_vals = np.concatenate([feat, theta])
+        qc_bound = instantiate_transpiled_template(template, param_names, all_vals)
+        _, exps = evaluate_energy_with_backend(
+            client, qc_bound, name=f"{name_prefix}_s{si}",
+            hamiltonian=z_hamiltonian, **backend_kwargs,
+        )
+        results.append([exps.get(obs, 0.0) for obs in z_observables])
+    return results
+
+
 def run_pqc_classifier(
     num_qubits: int,
     train_data: Sequence[Tuple[Sequence[float], int]],
     *,
+    test_data: Optional[Sequence[Tuple[Sequence[float], int]]] = None,
     encoding: Union[str, Callable] = "angle",
     encoding_kwargs: Optional[dict] = None,
     num_classes: int = 2,
@@ -137,6 +201,9 @@ def run_pqc_classifier(
     Args:
         num_qubits: Number of qubits.
         train_data: List of ``(features, label)`` pairs.
+        test_data: Optional list of ``(features, label)`` pairs for validation.
+            When provided, the best model is selected by test loss instead of
+            training loss, and test accuracy is reported.
         encoding: Encoding strategy — ``"angle"`` / ``"iqp"``, or a callable
             ``(num_qubits, num_features) -> (QuantumCircuit, param_names)``.
         encoding_kwargs: Extra keyword arguments forwarded to the encoding
@@ -186,6 +253,17 @@ def run_pqc_classifier(
     labels = [int(lab) for _, lab in train_data]
     enc_kwargs = dict(encoding_kwargs or {})
 
+    # Test data (optional)
+    has_test = test_data is not None and len(test_data) > 0
+    if has_test:
+        test_features_list = [np.asarray(d, dtype=np.float64) for d, _ in test_data]
+        test_labels = [int(lab) for _, lab in test_data]
+        n_test = len(test_data)
+    else:
+        test_features_list = []
+        test_labels = []
+        n_test = 0
+
     if callable(encoding) and not isinstance(encoding, str):
         enc_qc, enc_param_names = encoding(num_qubits, num_features, **enc_kwargs)
     elif encoding == "angle":
@@ -230,6 +308,7 @@ def run_pqc_classifier(
         target_qubits_in_use = None
 
     loss_history: List[float] = []
+    test_loss_history: List[float] = []
     params_history: List[List[float]] = []
     best_loss = float("inf")
     best_params = params.copy()
@@ -240,13 +319,17 @@ def run_pqc_classifier(
     beta1, beta2, adam_eps = 0.9, 0.999, 1e-8
     lr = learning_rate
 
+    # Shared backend kwargs (parameter-shift only, avoids repeating 6+ times)
+    if method == "parameter-shift":
+        backend_kwargs = dict(
+            num_qubits=num_qubits, backend=backend, chip_name=chip_name,
+            shots=shots, zne=zne, readout_mitigation=readout_mitigation,
+            target_qubits=target_qubits_in_use, qasm_version=qasm_version,
+        )
+
     print(f"[qml-classifier] start: {num_qubits}q, {num_ansatz_params} ansatz params, "
           f"{len(enc_param_names)} encoding params, "
           f"{n_samples} samples, {max_iters} iters, gradient={method}")
-
-    def _make_all_values(sample_idx: int, theta: np.ndarray) -> np.ndarray:
-        """Concatenate encoding feature values + ansatz params."""
-        return np.concatenate([features_list[sample_idx], theta])
 
     for it in range(max_iters):
         # ---- autograd path ----
@@ -289,31 +372,16 @@ def run_pqc_classifier(
         # ---- parameter-shift path ----
         else:
             # Forward: get ⟨Z_q⟩ for each sample
-            sample_z: List[List[float]] = []
-            for si in range(n_samples):
-                all_vals = _make_all_values(si, params)
-                qc_bound = instantiate_transpiled_template(
-                    transpiled_template, all_param_names, all_vals,
-                )
-                _, exps = evaluate_energy_with_backend(
-                    client, qc_bound,
-                    name=f"qml_iter{it}_s{si}",
-                    num_qubits=num_qubits, backend=backend, chip_name=chip_name,
-                    shots=shots, hamiltonian=z_hamiltonian,
-                    zne=zne, readout_mitigation=readout_mitigation,
-                    target_qubits=target_qubits_in_use,
-                    qasm_version=qasm_version,
-                )
-                sample_z.append([exps.get(obs, 0.0) for obs in z_observables])
+            sample_z = _get_z_backend(
+                client, transpiled_template, all_param_names,
+                features_list, params, z_observables, z_hamiltonian,
+                backend_kwargs, name_prefix=f"qml_iter{it}",
+            )
 
             # Loss + analytical dL/d⟨Z⟩ per sample
-            total_loss_val = 0.0
-            dl_dz_list: List[np.ndarray] = []
-            for si in range(n_samples):
-                l, dl = _classifier_loss_and_dl_dz(sample_z[si], labels[si], num_classes)
-                total_loss_val += l
-                dl_dz_list.append(dl)
-            loss_val = total_loss_val / n_samples
+            loss_val, dl_dz_list = _batch_loss_and_grads(
+                sample_z, labels, num_classes,
+            )
 
             # Gradient via parameter-shift + chain rule (only over ansatz params)
             grads = np.zeros(num_ansatz_params, dtype=np.float64)
@@ -323,36 +391,21 @@ def run_pqc_classifier(
                 params_plus[i] += shift
                 params_minus[i] -= shift
 
+                z_plus = _get_z_backend(
+                    client, transpiled_template, all_param_names,
+                    features_list, params_plus, z_observables, z_hamiltonian,
+                    backend_kwargs, name_prefix=f"qml_iter{it}_g{i}p",
+                )
+                z_minus = _get_z_backend(
+                    client, transpiled_template, all_param_names,
+                    features_list, params_minus, z_observables, z_hamiltonian,
+                    backend_kwargs, name_prefix=f"qml_iter{it}_g{i}m",
+                )
+
                 grad_i = 0.0
                 for si in range(n_samples):
-                    all_vals_p = _make_all_values(si, params_plus)
-                    all_vals_m = _make_all_values(si, params_minus)
-                    qc_p = instantiate_transpiled_template(
-                        transpiled_template, all_param_names, all_vals_p,
-                    )
-                    qc_m = instantiate_transpiled_template(
-                        transpiled_template, all_param_names, all_vals_m,
-                    )
-                    _, exps_p = evaluate_energy_with_backend(
-                        client, qc_p,
-                        name=f"qml_iter{it}_g{i}p_s{si}",
-                        num_qubits=num_qubits, backend=backend, chip_name=chip_name,
-                        shots=shots, hamiltonian=z_hamiltonian,
-                        zne=zne, readout_mitigation=readout_mitigation,
-                        target_qubits=target_qubits_in_use,
-                        qasm_version=qasm_version,
-                    )
-                    _, exps_m = evaluate_energy_with_backend(
-                        client, qc_m,
-                        name=f"qml_iter{it}_g{i}m_s{si}",
-                        num_qubits=num_qubits, backend=backend, chip_name=chip_name,
-                        shots=shots, hamiltonian=z_hamiltonian,
-                        zne=zne, readout_mitigation=readout_mitigation,
-                        target_qubits=target_qubits_in_use,
-                        qasm_version=qasm_version,
-                    )
-                    for qi, obs in enumerate(z_observables):
-                        dz = 0.5 * (exps_p.get(obs, 0.0) - exps_m.get(obs, 0.0))
+                    for qi in range(len(z_observables)):
+                        dz = 0.5 * (z_plus[si][qi] - z_minus[si][qi])
                         grad_i += dl_dz_list[si][qi] * dz
                 grads[i] = grad_i / n_samples
 
@@ -364,64 +417,79 @@ def run_pqc_classifier(
 
         loss_history.append(loss_val)
         params_history.append(params.tolist())
-        if loss_val < best_loss:
-            best_loss = loss_val
+
+        # ---- Test loss evaluation ----
+        test_loss_val = None
+        if has_test:
+            if method == "autograd":
+                test_z = _get_z_autograd(
+                    _build_state, _expectation_pauli, full_symbolic_template,
+                    all_param_names, test_features_list, params,
+                    z_observables, num_qubits,
+                )
+            else:
+                test_z = _get_z_backend(
+                    client, transpiled_template, all_param_names,
+                    test_features_list, params, z_observables, z_hamiltonian,
+                    backend_kwargs, name_prefix=f"qml_iter{it}_test",
+                )
+            test_loss_val, _ = _batch_loss_and_grads(
+                test_z, test_labels, num_classes,
+            )
+            test_loss_history.append(test_loss_val)
+
+        # ---- Best model selection ----
+        selection_loss = test_loss_val if test_loss_val is not None else loss_val
+        if selection_loss < best_loss:
+            best_loss = selection_loss
             best_params = params.copy()
 
         if it % max(1, max_iters // 10) == 0:
-            print(f"[qml-classifier] iter {it} loss={loss_val:.6f}")
+            msg = f"[qml-classifier] iter {it} loss={loss_val:.6f}"
+            if test_loss_val is not None:
+                msg += f" test_loss={test_loss_val:.6f}"
+            print(msg)
         if callback is not None:
             callback(it, loss_val)
 
     # ---- Accuracy evaluation ----
-    correct = 0
     if method == "autograd":
-        params_t = torch.tensor(best_params, dtype=torch.float64)
-        for si in range(n_samples):
-            with torch.no_grad():
-                feat_t = torch.tensor(features_list[si], dtype=torch.float64)
-                all_params_t = torch.cat([feat_t, params_t])
-                state = _build_state(
-                    full_symbolic_template,
-                    params=all_params_t,
-                    param_names=all_param_names,
-                )
-                if num_classes == 2:
-                    exp_val = _expectation_pauli(state, z_observables[0], num_qubits=num_qubits).real
-                    pred = 0 if float(exp_val) > 0 else 1
-                else:
-                    logits = [
-                        float(_expectation_pauli(state, obs, num_qubits=num_qubits).real)
-                        for obs in z_observables
-                    ]
-                    pred = int(np.argmax(logits))
-                if pred == labels[si]:
-                    correct += 1
+        train_z = _get_z_autograd(
+            _build_state, _expectation_pauli, full_symbolic_template,
+            all_param_names, features_list, best_params,
+            z_observables, num_qubits,
+        )
     else:
-        for si in range(n_samples):
-            all_vals = _make_all_values(si, best_params)
-            qc_bound = instantiate_transpiled_template(
-                transpiled_template, all_param_names, all_vals,
-            )
-            _, exps = evaluate_energy_with_backend(
-                client, qc_bound,
-                name=f"qml_eval_s{si}",
-                num_qubits=num_qubits, backend=backend, chip_name=chip_name,
-                shots=shots, hamiltonian=z_hamiltonian,
-                zne=zne, readout_mitigation=readout_mitigation,
-                target_qubits=target_qubits_in_use,
-                qasm_version=qasm_version,
-            )
-            if num_classes == 2:
-                pred = 0 if exps.get(z_observables[0], 0.0) > 0 else 1
-            else:
-                logits = [exps.get(obs, 0.0) for obs in z_observables]
-                pred = int(np.argmax(logits))
-            if pred == labels[si]:
-                correct += 1
+        train_z = _get_z_backend(
+            client, transpiled_template, all_param_names,
+            features_list, best_params, z_observables, z_hamiltonian,
+            backend_kwargs, name_prefix="qml_eval",
+        )
+    train_preds = _predictions_from_z(train_z, num_classes)
+    accuracy = sum(p == l for p, l in zip(train_preds, labels)) / n_samples
 
-    accuracy = correct / n_samples
-    print(f"[qml-classifier] done. best_loss={best_loss:.6f} accuracy={accuracy:.4f}")
+    # ---- Test accuracy evaluation ----
+    test_accuracy = None
+    if has_test:
+        if method == "autograd":
+            test_z_final = _get_z_autograd(
+                _build_state, _expectation_pauli, full_symbolic_template,
+                all_param_names, test_features_list, best_params,
+                z_observables, num_qubits,
+            )
+        else:
+            test_z_final = _get_z_backend(
+                client, transpiled_template, all_param_names,
+                test_features_list, best_params, z_observables, z_hamiltonian,
+                backend_kwargs, name_prefix="qml_test_eval",
+            )
+        test_preds = _predictions_from_z(test_z_final, num_classes)
+        test_accuracy = sum(p == l for p, l in zip(test_preds, test_labels)) / n_test
+
+    msg = f"[qml-classifier] done. best_loss={best_loss:.6f} train_accuracy={accuracy:.4f}"
+    if test_accuracy is not None:
+        msg += f" test_accuracy={test_accuracy:.4f}"
+    print(msg)
 
     return QMLResult(
         task="supervised",
@@ -430,4 +498,297 @@ def run_pqc_classifier(
         loss_history=loss_history,
         params_history=params_history,
         accuracy=accuracy,
+        test_loss_history=test_loss_history if test_loss_history else None,
+        test_accuracy=test_accuracy,
+    )
+
+
+# ---------------------------------------------------------------------------
+# 2. Unsupervised QNN — learn probability distributions from samples
+# ---------------------------------------------------------------------------
+
+def _mmd_rbf(samples_p: np.ndarray, samples_q: np.ndarray, sigma: float) -> float:
+    """Compute MMD² with RBF kernel between two sets of binary vectors.
+
+    samples_p, samples_q: (N, d) arrays with entries in {0, 1}.
+    """
+    def _gram_mean(a: np.ndarray, b: np.ndarray) -> float:
+        # Hamming distances → RBF kernel
+        diff = a[:, None, :] ^ b[None, :, :]  # (Na, Nb, d)
+        dist_sq = diff.sum(axis=-1).astype(np.float64)  # (Na, Nb)
+        return float(np.exp(-dist_sq / (2.0 * sigma ** 2)).mean())
+
+    return _gram_mean(samples_p, samples_p) - 2 * _gram_mean(samples_p, samples_q) + _gram_mean(samples_q, samples_q)
+
+
+def _deduplicate_samples(samples: np.ndarray):
+    """Return (unique_samples, weights) from a sample array.
+
+    unique_samples: (K, n_qubits) with unique rows.
+    weights: (K,) float64 normalised to sum=1.
+    """
+    # Use structured view for np.unique on rows
+    n = samples.shape[0]
+    uniq, counts = np.unique(samples, axis=0, return_counts=True)
+    weights = counts.astype(np.float64) / n
+    return uniq, weights
+
+
+def _simulate_samples(
+    qc: QuantumCircuit,
+    shots: int,
+    param_values: dict,
+    seed: int | None,
+) -> np.ndarray:
+    """Simulate and return (shots, n_qubits) big-endian sample array."""
+    from ..sim.statevector import simulate_counts as _sim_counts_sv
+    from ..core.utils import get_samples as _get_samples
+    counts = _sim_counts_sv(qc, shots, param_values=param_values, seed=seed)
+    num_qubits = int(qc.nqubits)
+    return _get_samples(counts, num_qubits)
+
+
+def run_qnn_unsupervised(
+    num_qubits: int,
+    train_samples: np.ndarray,
+    *,
+    test_samples: Optional[np.ndarray] = None,
+    ansatz: str = "hardware_efficient",
+    layers: int = 2,
+    max_iters: int = 100,
+    learning_rate: float = 0.01,
+    seed: Optional[int] = None,
+    callback: Optional[Callable[[int, float], None]] = None,
+    gradient_method: str = "autograd",
+    # --- parameter-shift / hardware params ---
+    client=None,
+    backend=None,
+    chip_name: str = "",
+    shots: int = 4096,
+    shift: float = np.pi / 2,
+    zne: bool = False,
+    readout_mitigation: bool = False,
+    target_qubits: Optional[Sequence[int]] = None,
+    qasm_version: str = "2.0",
+    # --- MMD params (parameter-shift only) ---
+    mmd_sigma: float = 1.0,
+    # --- generation ---
+    gen_shots: int = 1024,
+) -> QBMResult:
+    """Train a QNN to learn the probability distribution behind given samples.
+
+    **autograd** path (simulator): Negative log-likelihood loss.
+        Directly computes ``P(b|θ)`` via ``sample_probabilities`` and minimises
+        ``-1/N Σ log P(bᵢ|θ)``.
+
+    **parameter-shift** path (hardware): Maximum Mean Discrepancy (MMD) loss.
+        Samples from the circuit on hardware and minimises MMD² between the
+        training distribution and the generated distribution using an RBF kernel.
+
+    Args:
+        num_qubits: Number of qubits.
+        train_samples: ``(N, num_qubits)`` integer array with entries 0/1,
+            big-endian (column *i* = qubit *i*).
+        test_samples: Optional ``(M, num_qubits)`` array for monitoring.
+        ansatz: Ansatz type (only ``"hardware_efficient"`` supported).
+        layers: Number of ansatz layers.
+        max_iters: Training iterations.
+        learning_rate: Adam learning rate.
+        seed: Optional random seed.
+        callback: ``(iter, loss)`` callback.
+        gradient_method: ``"autograd"`` or ``"parameter-shift"``.
+        mmd_sigma: RBF kernel bandwidth for MMD (parameter-shift only).
+        gen_shots: Number of shots for sample generation at the end.
+
+    Returns:
+        ``QBMResult`` with loss history and generated samples
+        (``generated_samples`` is a ``List[List[int]]``).
+    """
+    method = gradient_method.lower()
+    if method not in ("autograd", "parameter-shift"):
+        raise ValueError(f"gradient_method must be 'autograd' or 'parameter-shift', got {method!r}")
+    if method == "parameter-shift" and (client is None or backend is None):
+        raise ValueError("parameter-shift requires client and backend")
+
+    train_samples = np.asarray(train_samples, dtype=np.int64)
+    n_train = train_samples.shape[0]
+
+    if method == "autograd":
+        import torch
+        from ..sim.statevector import (
+            build_state_from_symbolic as _build_state,
+            sample_probabilities as _sample_probs_sv,
+        )
+
+    rng = np.random.default_rng(seed)
+    if seed is not None:
+        np.random.seed(int(seed))
+        if method == "autograd":
+            torch.manual_seed(int(seed))
+
+    # ---- Build ansatz (no encoding — just parameterized circuit) ----
+    ansatz_qc, ansatz_param_names = _build_ansatz_symbolic(num_qubits, layers)
+    num_params = len(ansatz_param_names)
+    params = rng.uniform(-np.pi, np.pi, size=num_params)
+
+    # Deduplicate training samples for NLL efficiency
+    unique_train, train_weights = _deduplicate_samples(train_samples)
+    n_unique_train = unique_train.shape[0]
+
+    has_test = test_samples is not None and len(test_samples) > 0
+    if has_test:
+        test_samples = np.asarray(test_samples, dtype=np.int64)
+        unique_test, test_weights = _deduplicate_samples(test_samples)
+
+    # Transpile once for parameter-shift
+    if method == "parameter-shift":
+        transpiled_template = client._transpile_with_backend(
+            ansatz_qc, backend, target_qubits=target_qubits,
+            use_dd=False, use_gate_compressor=False,
+        )
+        target_qubits_in_use = client._ordered_target_qubits_from_layout(
+            compiled_qc=transpiled_template,
+            original_qc=ansatz_qc,
+            num_qubits=num_qubits,
+        )
+        backend_kwargs = dict(
+            num_qubits=num_qubits, backend=backend, chip_name=chip_name,
+            shots=shots, zne=zne, readout_mitigation=readout_mitigation,
+            target_qubits=target_qubits_in_use, qasm_version=qasm_version,
+        )
+        print(f"[qnn-unsupervised] transpiled ONCE, target_qubits={target_qubits_in_use}")
+
+        def _run_and_get_samples(qc_bound, name, n_shots=None):
+            """Submit bound circuit and return (N, n_qubits) sample array."""
+            kw = backend_kwargs if n_shots is None else {**backend_kwargs, "shots": n_shots}
+            res = client._run_with_backend(
+                qc_bound, name, observables=[], transpile=False, **kw,
+            )
+            return np.asarray(res.samples[0], dtype=np.int64)
+    else:
+        transpiled_template = ansatz_qc
+
+    loss_history: List[float] = []
+    test_loss_history: List[float] = []
+    params_history: List[List[float]] = []
+    best_loss = float("inf")
+    best_params = params.copy()
+
+    # Adam state
+    m = np.zeros(num_params, dtype=np.float64)
+    v = np.zeros(num_params, dtype=np.float64)
+    beta1, beta2, adam_eps = 0.9, 0.999, 1e-8
+    lr = learning_rate
+
+    print(f"[qnn-unsupervised] start: {num_qubits}q, {num_params} params, "
+          f"{n_train} train samples ({n_unique_train} unique), "
+          f"{max_iters} iters, gradient={method}, "
+          f"loss={'NLL' if method == 'autograd' else 'MMD'}")
+
+    for it in range(max_iters):
+        # ---- autograd: NLL loss ----
+        if method == "autograd":
+            params_t = torch.tensor(params, dtype=torch.float64, requires_grad=True)
+            state = _build_state(
+                ansatz_qc, params=params_t, param_names=ansatz_param_names,
+            )
+            probs = _sample_probs_sv(state, unique_train)
+            weights_t = torch.tensor(train_weights, dtype=torch.float64, device=probs.device)
+            nll = -(weights_t * torch.log(probs + 1e-10)).sum()
+            nll.backward()
+            loss_val = float(nll.detach().cpu().item())
+            grads = params_t.grad.detach().cpu().numpy().astype(float, copy=True)
+
+        # ---- parameter-shift: MMD loss ----
+        else:
+            # Forward: sample from current params
+            qc_fwd = instantiate_transpiled_template(
+                transpiled_template, ansatz_param_names, params,
+            )
+            gen_array = _run_and_get_samples(qc_fwd, f"qnn_iter{it}")
+            loss_val = _mmd_rbf(train_samples, gen_array, sigma=mmd_sigma)
+
+            # Gradient via parameter-shift on MMD
+            grads = np.zeros(num_params, dtype=np.float64)
+            for i in range(num_params):
+                params_plus = params.copy()
+                params_minus = params.copy()
+                params_plus[i] += shift
+                params_minus[i] -= shift
+
+                qc_p = instantiate_transpiled_template(
+                    transpiled_template, ansatz_param_names, params_plus,
+                )
+                qc_m = instantiate_transpiled_template(
+                    transpiled_template, ansatz_param_names, params_minus,
+                )
+                gen_p = _run_and_get_samples(qc_p, f"qnn_iter{it}_p{i}")
+                gen_m = _run_and_get_samples(qc_m, f"qnn_iter{it}_m{i}")
+                mmd_p = _mmd_rbf(train_samples, gen_p, sigma=mmd_sigma)
+                mmd_m = _mmd_rbf(train_samples, gen_m, sigma=mmd_sigma)
+                grads[i] = (mmd_p - mmd_m) / (2.0 * shift)
+
+        # ---- Adam update ----
+        params, m, v = adam_update(
+            params, grads, m, v, it + 1,
+            lr=lr, beta1=beta1, beta2=beta2, eps=adam_eps,
+        )
+
+        loss_history.append(loss_val)
+        params_history.append(params.tolist())
+
+        # ---- Test loss ----
+        test_loss_val = None
+        if has_test:
+            if method == "autograd":
+                with torch.no_grad():
+                    params_eval = torch.tensor(params, dtype=torch.float64)
+                    state_eval = _build_state(
+                        ansatz_qc, params=params_eval, param_names=ansatz_param_names,
+                    )
+                    probs_test = _sample_probs_sv(state_eval, unique_test)
+                    test_weights_t = torch.tensor(test_weights, dtype=torch.float64, device=probs_test.device)
+                    test_loss_val = float(-(test_weights_t * torch.log(probs_test + 1e-10)).sum().cpu().item())
+            else:
+                qc_test = instantiate_transpiled_template(
+                    transpiled_template, ansatz_param_names, params,
+                )
+                gen_test = _run_and_get_samples(qc_test, f"qnn_iter{it}_test")
+                test_loss_val = _mmd_rbf(test_samples, gen_test, sigma=mmd_sigma)
+            test_loss_history.append(test_loss_val)
+
+        # ---- Best model selection ----
+        selection_loss = test_loss_val if test_loss_val is not None else loss_val
+        if selection_loss < best_loss:
+            best_loss = selection_loss
+            best_params = params.copy()
+
+        if it % max(1, max_iters // 10) == 0:
+            msg = f"[qnn-unsupervised] iter {it} loss={loss_val:.6f}"
+            if test_loss_val is not None:
+                msg += f" test_loss={test_loss_val:.6f}"
+            print(msg)
+        if callback is not None:
+            callback(it, loss_val)
+
+    # ---- Generate samples with best params ----
+    if method == "autograd":
+        param_values = {name: float(val) for name, val in zip(ansatz_param_names, best_params)}
+        generated = _simulate_samples(ansatz_qc, gen_shots, param_values, seed)
+    else:
+        qc_gen = instantiate_transpiled_template(
+            transpiled_template, ansatz_param_names, best_params,
+        )
+        generated = _run_and_get_samples(qc_gen, "qnn_gen", n_shots=gen_shots)
+
+    generated_list = generated.tolist()
+    print(f"[qnn-unsupervised] done. best_loss={best_loss:.6f}, generated {len(generated_list)} samples")
+
+    return QBMResult(
+        best_loss=best_loss,
+        best_params=best_params.tolist(),
+        loss_history=loss_history,
+        test_loss_history=test_loss_history if test_loss_history else None,
+        params_history=params_history,
+        generated_samples=generated_list,
     )

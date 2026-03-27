@@ -11,6 +11,8 @@
 - `ShadowResult`
 - `VQEResult`
 - `QAOAResult`
+- `QMLResult`
+- `QBMResult`
 
 ## `RunResult`
 
@@ -86,6 +88,30 @@
 	- 结构：`{observable: {"a": float, "b": float}}`
 	- 语义：按 observable 做线性校正 `ideal ~= a * noisy + b`。
 
+## `QMLResult`
+
+用于 PQC 监督分类结果。
+
+- `task: str`：任务类型（`"supervised"`）。
+- `best_loss: float`：历史最优 loss。
+- `best_params: List[float]`：最优参数。
+- `loss_history: List[float]`：每轮训练 loss。
+- `params_history: Optional[List[List[float]]]`：每轮参数。
+- `accuracy: Optional[float]`：训练集准确率。
+- `test_loss_history: Optional[List[float]]`：每轮验证 loss（仅有 test_data 时非 None）。
+- `test_accuracy: Optional[float]`：验证集准确率（仅有 test_data 时非 None）。
+
+## `QBMResult`
+
+用于无监督 QNN / QBM 分布学习结果。
+
+- `best_loss: float`：历史最优 loss。
+- `best_params: List[float]`：最优参数。
+- `loss_history: List[float]`：每轮训练 loss。
+- `test_loss_history: Optional[List[float]]`：每轮验证 loss（仅有 test_samples 时非 None）。
+- `params_history: Optional[List[List[float]]]`：每轮参数。
+- `generated_samples: Optional[List[List[int]]]`：训练完成后生成的样本（big-endian 0/1 数组）。
+
 ## 单/多 observable 形状说明
 
 - `RunResult.observable_values` 与 `RunResult.observable_values_raw` 统一为 `Dict[str, float]`。
@@ -102,3 +128,4 @@
 - [QuantumHardwareClient](../api/QuantumHardwareClient.md)
 - [ShadowTomography.run](../algorithms/shadow_tomography.md)
 - [VQERunner.run_model](../algorithms/vqe_runner.md)
+- [QML — run_pqc_classifier / run_qnn_unsupervised](../algorithms/qml.md)

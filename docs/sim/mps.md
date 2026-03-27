@@ -12,6 +12,7 @@
 - 采样计数：simulate_counts(...)
 - Pauli 期望：expectation_pauli(...)
 - VQE 能量计算：energy_and_expectations(...)
+- 样本概率计算：sample_probabilities(...)——用于无监督 QNN 的 NLL 损失
 
 同时该模块也包含一组内部张量网络工具函数，用于：
 
@@ -49,6 +50,12 @@
 
 - 输入 state 必须是非空 MPS 张量列表。
 - 计算 <psi|P|psi>，其中 P 为 Pauli string。
+
+### sample_probabilities(mps, samples) -> torch.Tensor
+
+- 输入 MPS 态和样本数组 `samples`（`(N, n_qubits)` 整数，元素 0/1，big-endian）。
+- 通过批量 MPS 振幅收缩计算每个样本的概率 $|\langle b|\psi\rangle|^2$。
+- 返回 1-D 张量，支持自动微分。
 
 ### energy_and_expectations(symbolic_qc, *, params, param_names, hamiltonian, device=None)
 

@@ -431,6 +431,42 @@ def _sample_bits_from_mps(
     return bits_all.detach().cpu().tolist()
 
 
+def sample_probabilities(
+    mps: Sequence[torch.Tensor],
+    samples,
+) -> torch.Tensor:
+    """Compute probabilities for given sample vectors from an MPS state.
+
+    Args:
+        mps: List of MPS site tensors.
+        samples: ``(N, n_qubits)`` integer tensor or array with entries 0/1,
+            big-endian (column 0 = qubit 0).
+
+    Returns:
+        1-D tensor of length *N* with probabilities (differentiable).
+    """
+    n = len(mps)
+    device = mps[0].device
+    dtype = mps[0].dtype
+
+    if not isinstance(samples, torch.Tensor):
+        bits = torch.tensor(samples, dtype=torch.long, device=device)
+    else:
+        bits = samples.to(device=device, dtype=torch.long)
+    num_bs = bits.shape[0]
+
+    # Batched MPS amplitude contraction:
+    env = torch.ones((num_bs, 1), dtype=dtype, device=device)
+    for i in range(n):
+        t = mps[i]  # (bond_l, 2, bond_r)
+        t_selected = t[:, bits[:, i], :]  # (bond_l, num_bs, bond_r)
+        t_selected = t_selected.permute(1, 0, 2)  # (num_bs, bond_l, bond_r)
+        env = torch.einsum("ia,iab->ib", env, t_selected)
+
+    amplitudes = env.squeeze(-1).squeeze(-1)  # (num_bs,)
+    return amplitudes.real ** 2 + amplitudes.imag ** 2
+
+
 def simulate_mps(
     qc: QuantumCircuit,
     *,

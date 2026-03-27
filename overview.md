@@ -15,7 +15,8 @@
 | **统一硬件访问** | 单一 `QuantumHardwareClient` 对接多平台 |
 | **自动编译** | 逻辑电路 → 物理芯片的完整转译流水线 |
 | **误差缓解** | Readout 校准 + 零噪声外推（ZNE） |
-| **变分算法** | VQE、QAOA、Shadow Tomography |
+| **变分算法** | VQE、QAOA、Shadow Tomography、QML |
+| **量子机器学习** | PQC 监督分类 + 无监督 QNN 分布学习 |
 | **硬件校准** | Readout、原生两比特 RB、过程层析 |
 | **高效仿真** | 全态矢量 + MPS + MPO，支持梯度计算 |
 
@@ -43,6 +44,10 @@ Quantum_control/
 │   ├── demo_circuit_core.ipynb 线路 & 核心工具
 │   ├── demo_shadow.ipynb      Shadow Tomography
 │   ├── demo_vqe.ipynb         VQE 变分优化
+│   ├── demo_qaoa.ipynb        QAOA 组合优化
+│   ├── demo_qml.ipynb         PQC 监督分类器
+│   ├── demo_qml_iris.ipynb    Iris 多分类
+│   ├── demo_qnn_unsupervised.ipynb 无监督 QNN 分布学习
 │   ├── demo_readout_zne.ipynb Readout 缓解 + ZNE
 │   └── demo_backend.ipynb     硬件拓扑与后端
 ├── scripts/                   辅助脚本
@@ -93,6 +98,8 @@ quantum_hw/                          入口 __init__.py（导出顶层 API）
 │   │                                parameter-shift / autograd 梯度, Adam 优化, Clifford fitting
 │   ├── qaoa.py                      QAOARunner — MaxCut / 自定义 Z/ZZ 代价项
 │   │                                parameter-shift / autograd 梯度, Adam 优化, Clifford fitting
+│   ├── qml.py                       QML — PQC 监督分类 + 无监督 QNN 分布学习
+│   │                                autograd / parameter-shift, Adam 优化
 │   ├── optimizer_utils.py            共享优化工具（能量计算、参数移位梯度、Adam、
 │   │                                Clifford fitting、run_variational_loop 通用优化循环）
 │   ├── shadow.py                    ShadowTomography — classical shadow 协议
@@ -105,7 +112,8 @@ quantum_hw/                          入口 __init__.py（导出顶层 API）
 │   ├── observables.py               Pauli 字符串解析、期望值计算、测量基转换
 │   ├── readout.py                   Readout 误差缓解（逆混淆矩阵）
 │   ├── zne.py                       ZNE（CZ 三倍插入 + 线性外推）
-│   ├── types.py                     RunResult / VQEResult / ShadowResult / QAOAResult
+│   ├── types.py                     RunResult / VQEResult / ShadowResult / QAOAResult /
+│   │                                QMLResult / QBMResult
 │   └── plotting.py                  概率分布和可观测量对比图
 │
 ├── calibration/ (~900 行)           校准
@@ -119,7 +127,8 @@ quantum_hw/                          入口 __init__.py（导出顶层 API）
 │   ├── mps.py                       MPS 张量网络模拟器（可微）
 │   ├── mpo.py                       MPO 量子过程模拟器
 │   ├── matrix.py                    torch 门矩阵（支持梯度）
-│   ├── interface.py                 统一模拟入口 simulate_counts / expectation_pauli
+│   ├── interface.py                 统一模拟入口 simulate_counts / expectation_pauli /
+│   │                                sample_probabilities
 │   └── common.py                    参数解析工具
 │
 └── vendor/      (~1,700 行)         内置第三方代码
@@ -252,6 +261,17 @@ quantum_hw/                          入口 __init__.py（导出顶层 API）
 - 调用 `run_variational_loop` 执行优化循环
 - 可选 Clifford fitting 噪声校正
 
+#### QML — 量子机器学习（`qml.py`）
+
+`run_pqc_classifier`：参数化量子线路（PQC）监督分类器
+- 支持 angle / IQP / 自定义编码，autograd 或 parameter-shift 梯度
+- 支持 train/test 分离评估，返回 `QMLResult`（含 test accuracy）
+
+`run_qnn_unsupervised`：无监督 QNN 分布学习
+- autograd 路径：NLL 损失（通过 `sample_probabilities` 计算 $P(b|\theta)$）
+- parameter-shift 路径：MMD² 损失（RBF 核）
+- 返回 `QBMResult`（含生成样本）
+
 #### Shadow Tomography（`shadow.py`）
 
 `ShadowTomography` 实现 **Classical Shadow 协议**：
@@ -281,7 +301,7 @@ quantum_hw/                          入口 __init__.py（导出顶层 API）
 | `observables.py` | Pauli 字符串解析（"ZZIX" 紧凑格式 / "Z0 X2" 索引格式）、测量基转换、期望值计算、可观测量分组 |
 | `readout.py` | Readout 误差缓解：构建混淆矩阵、伪逆校正、无偏奇偶估计器 |
 | `zne.py` | ZNE：CZ 三倍插入（1× → 3× 噪声）+ 线性外推至零噪声 |
-| `types.py` | 结果数据类：`RunResult`、`VQEResult`、`ShadowResult`、`QAOAResult` |
+| `types.py` | 结果数据类：`RunResult`、`VQEResult`、`ShadowResult`、`QAOAResult`、`QMLResult`、`QBMResult` |
 | `utils.py` | 概率/采样辅助函数：counts 转概率/样本、边缘分布、Z 期望值 |
 | `plotting.py` | 概率分布与可观测量对比可视化（matplotlib） |
 
@@ -334,6 +354,7 @@ quantum_hw/                          入口 __init__.py（导出顶层 API）
 主要 API：
 - `simulate_counts(qc, shots, seed, param_values)` → 测量计数字典
 - `expectation_pauli(state, pauli, num_qubits)` → Pauli 期望值
+- `sample_probabilities(state, samples, num_qubits)` → 样本概率（可微，用于 QNN NLL 损失）
 - `energy_and_expectations(symbolic_qc, params, param_names, hamiltonian)` → VQE 能量评估
 
 ---
@@ -407,6 +428,8 @@ QuantumHardwareClient.run_auto(
 | `VQEResult` | `energy`、`params`、`energy_history`、`expectation_history` |
 | `ShadowResult` | `task_ids`、`samples`、`basis_patterns`、`observables`、`observable_estimates`、`observable_stderr` |
 | `QAOAResult` | `best_cost`、`best_params`、`cost_history` |
+| `QMLResult` | `task`、`best_loss`、`best_params`、`loss_history`、`accuracy`、`test_loss_history`、`test_accuracy` |
+| `QBMResult` | `best_loss`、`best_params`、`loss_history`、`test_loss_history`、`generated_samples` |
 
 ---
 
@@ -469,6 +492,10 @@ print(result.probabilities)       # numpy array of length 2^6
 | `demo_shadow.ipynb` | Classical Shadow Tomography |
 | `demo_readout_zne.ipynb` | Readout 校准 + ZNE 误差缓解 |
 | `demo_vqe.ipynb` | VQE 变分优化（parameter-shift 梯度） |
+| `demo_qaoa.ipynb` | QAOA MaxCut + 自定义代价项 |
+| `demo_qml.ipynb` | PQC 监督分类器 |
+| `demo_qml_iris.ipynb` | Iris 数据集多分类 |
+| `demo_qnn_unsupervised.ipynb` | 无监督 QNN 分布学习 |
 | `demo_backend.ipynb` | 硬件拓扑与后端排序 |
 
 **推荐学习路径：**
@@ -477,7 +504,8 @@ print(result.probabilities)       # numpy array of length 2^6
 入门 → demo_full
 进阶 → demo_circuit_core
 硬件 → demo_readout_zne
-优化 → demo_shadow → demo_vqe
+优化 → demo_shadow → demo_vqe → demo_qaoa
+QML  → demo_qml → demo_qml_iris → demo_qnn_unsupervised
 拓扑 → demo_backend
 ```
 
@@ -503,7 +531,7 @@ print(result.probabilities)       # numpy array of length 2^6
 ### 算法扩充
 
 - **QAOA 实现**：已实现 `QAOARunner`，通过 `run_variational_loop` 与 VQE 共享优化核心，支持 MaxCut 及自定义 Z/ZZ 代价项。✅
-- **QML 支持**：增加参数化线路分类器（PQC classifier），复用 `sim` 的 autograd 做本地训练。
+- **QML 支持**：增加参数化线路分类器（PQC classifier）和无监督 QNN 分布学习，复用 `sim` 的 autograd 做本地训练。✅
 - **动态线路**：在 `QuantumCircuit` 中支持 mid-circuit measurement + classical feedforward。
 
 ### 噪声建模与仿真

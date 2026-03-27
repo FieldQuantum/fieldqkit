@@ -69,4 +69,16 @@ class QMLResult:
 	loss_history: List[float]
 	params_history: Optional[List[List[float]]] = None
 	accuracy: Optional[float] = None
+	test_loss_history: Optional[List[float]] = None
+	test_accuracy: Optional[float] = None
+
+
+@dataclass
+class QBMResult:
+	best_loss: float
+	best_params: List[float]
+	loss_history: List[float]
+	test_loss_history: Optional[List[float]] = None
+	params_history: Optional[List[List[float]]] = None
+	generated_samples: Optional[List[List[int]]] = None
 

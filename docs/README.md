@@ -14,6 +14,12 @@
 	- 对应： [VQERunner.run_model](./algorithms/vqe_runner.md)、[observables](./core/observables.md)
 - [QAOA：demo_qaoa.ipynb](../examples/demo_qaoa.ipynb)
 	- 对应： [QAOARunner.run_model](./algorithms/qaoa_runner.md)、[observables](./core/observables.md)
+- [QML 分类：demo_qml.ipynb](../examples/demo_qml.ipynb)
+	- 对应： [QML — run_pqc_classifier](./algorithms/qml.md)
+- [QML Iris 分类：demo_qml_iris.ipynb](../examples/demo_qml_iris.ipynb)
+	- 对应： [QML — run_pqc_classifier](./algorithms/qml.md)
+- [QNN 无监督分布学习：demo_qnn_unsupervised.ipynb](../examples/demo_qnn_unsupervised.ipynb)
+	- 对应： [QML — run_qnn_unsupervised](./algorithms/qml.md)
 - [Backend：demo_backend.ipynb](../examples/demo_backend.ipynb)
 	- 对应： [hardware_discovery](./api/hardware_discovery.md)、[Backend](./api/Backend.md)
 
@@ -26,9 +32,11 @@
 	- [Shadow：demo_shadow.ipynb](../examples/demo_shadow.ipynb)
 	- [VQE：demo_vqe.ipynb](../examples/demo_vqe.ipynb)
 	- [QAOA：demo_qaoa.ipynb](../examples/demo_qaoa.ipynb)
-5. 拓扑补充： [Backend：demo_backend.ipynb](../examples/demo_backend.ipynb)
-
-主 README 导航见 [../README.md](../README.md)。
+5. 量子机器学习：
+	- [QML 分类：demo_qml.ipynb](../examples/demo_qml.ipynb)
+	- [QML Iris：demo_qml_iris.ipynb](../examples/demo_qml_iris.ipynb)
+	- [QNN 无监督：demo_qnn_unsupervised.ipynb](../examples/demo_qnn_unsupervised.ipynb)
+6. 拓扑补充： [Backend：demo_backend.ipynb](../examples/demo_backend.ipynb)
 
 ## API
 
@@ -50,6 +58,7 @@
 - [ShadowTomography.run](./algorithms/shadow_tomography.md)
 - [VQERunner.run_model](./algorithms/vqe_runner.md)
 - [QAOARunner.run_model](./algorithms/qaoa_runner.md)
+- [QML — run_pqc_classifier / run_qnn_unsupervised](./algorithms/qml.md)
 - [circuit compression](./algorithms/circuit_compression.md)
 - [ansatz templates](./algorithms/ansatz_templates.md)
 

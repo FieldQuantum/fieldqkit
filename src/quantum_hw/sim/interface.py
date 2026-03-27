@@ -5,16 +5,19 @@ This module is the single place that decides whether to use statevector or MPS.
 
 from __future__ import annotations
 
-from typing import Dict, Optional
+from typing import Dict, Optional, Sequence
 
 import torch
 
 from ..circuit import QuantumCircuit
+
 from .mps import energy_and_expectations as _energy_and_expectations_mps
 from .mps import expectation_pauli as _expectation_pauli_mps
+from .mps import sample_probabilities as _sample_probabilities_mps
 from .mps import simulate_counts as _simulate_counts_mps
 from .statevector import energy_and_expectations as _energy_and_expectations_statevector
 from .statevector import expectation_pauli as _expectation_pauli_statevector
+from .statevector import sample_probabilities as _sample_probabilities_statevector
 from .statevector import simulate_counts as _simulate_counts_statevector
 
 
@@ -59,6 +62,24 @@ def expectation_pauli(
     if int(num_qubits) > MPS_THRESHOLD_QUBITS:
         return _expectation_pauli_mps(state, pauli, num_qubits=num_qubits)
     return _expectation_pauli_statevector(state, pauli, num_qubits=num_qubits)
+
+
+def sample_probabilities(
+    state,
+    samples,
+    *,
+    num_qubits: int,
+):
+    """Return probabilities for sample vectors via threshold-based dispatch.
+
+    Args:
+        state: Statevector or MPS.
+        samples: ``(N, n_qubits)`` integer tensor/array with entries 0/1.
+        num_qubits: Used to select backend.
+    """
+    if int(num_qubits) > MPS_THRESHOLD_QUBITS:
+        return _sample_probabilities_mps(state, samples)
+    return _sample_probabilities_statevector(state, samples)
 
 
 def energy_and_expectations(

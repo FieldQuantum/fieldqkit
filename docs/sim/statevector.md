@@ -15,6 +15,7 @@
 - 线路前向演化：`simulate_statevector(...)`
 - 采样计数：`simulate_counts(...)`
 - 可微分能量评估：`build_state_from_symbolic(...)`、`expectation_pauli(...)`、`energy_and_expectations(...)`
+- 样本概率计算：`sample_probabilities(...)`——用于无监督 QNN 的 NLL 损失
 
 ## 关键函数
 
@@ -40,6 +41,13 @@
 - 计算 `⟨psi|P|psi⟩`，其中 `P` 是 Pauli string。
 - 内部先将 Pauli 字符串展开到逐比特模式，再逐位施加局部 `X/Y/Z` 算符。
 - 返回复标量（VQE 能量中通常取 `.real`）。
+
+### `sample_probabilities(state, samples) -> torch.Tensor`
+
+- 输入态向量 `state`（长度 $2^n$）和样本数组 `samples`（`(N, n_qubits)` 整数，元素 0/1，big-endian）。
+- 返回 1-D 张量，长度 N，$P(b_i) = |\langle b_i|\psi\rangle|^2$。
+- 完全可微分，支持 autograd 回传。
+- 主要用途：无监督 QNN 的负对数似然（NLL）损失计算。
 
 ### `energy_and_expectations(symbolic_qc, *, params, param_names, hamiltonian)`
 
