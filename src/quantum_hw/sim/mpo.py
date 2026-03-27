@@ -19,9 +19,8 @@ from ..circuit.quantumcircuit_helpers import (
     two_qubit_gates_available,
     two_qubit_parameter_gates_available,
 )
-from .common import materialize_gate_matrix, resolve_param
+from .common import auto_sim_device, materialize_gate_matrix, resolve_param
 from .mps import (
-    _auto_sim_device,
     _expand_sparse_gate_mpo_to_span,
     _max_bond_in_span,
     _two_qubit_unitary_to_mpo,
@@ -191,7 +190,7 @@ def simulate_mpo_process(
         return []
 
     dtype = torch.complex128
-    sim_device = _auto_sim_device(device)
+    sim_device = auto_sim_device(device)
     mpo = _identity_mpo(num_qubits, dtype=dtype, device=sim_device)
 
     dirty_start: int | None = None

@@ -105,7 +105,7 @@ def test_simulate_mpo_process_matches_dense_reference_on_nonadjacent_and_three_q
     qc.ccx(0, 2, 3)
 
     mpo = simulate_mpo_process(qc)
-    actual = _mpo_to_matrix(mpo)
+    actual = _mpo_to_matrix(mpo).cpu()
     expected = _reference_unitary_from_circuit(qc)
 
     assert torch.allclose(actual, expected, atol=1e-12, rtol=1e-12)

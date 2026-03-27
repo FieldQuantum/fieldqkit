@@ -10,6 +10,15 @@ from ..circuit import QuantumCircuit
 from .matrix import gate_matrix_dict
 
 
+def auto_sim_device(device: torch.device | str | None = None) -> torch.device:
+    """Resolve simulation device: explicit > CUDA > CPU."""
+    if device is not None:
+        return torch.device(device)
+    if torch.cuda.is_available():
+        return torch.device("cuda")
+    return torch.device("cpu")
+
+
 def resolve_param(
     qc: QuantumCircuit,
     param,

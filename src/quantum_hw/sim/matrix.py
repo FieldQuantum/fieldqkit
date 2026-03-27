@@ -31,17 +31,19 @@ ket0 = torch.tensor([[1.0], [0.0]], dtype=torch.complex128)
 ket1 = torch.tensor([[0.0], [1.0]], dtype=torch.complex128)
 
 
-def ketn0(nqubits: int) -> torch.Tensor:
-    state = ket0
+def ketn0(nqubits: int, *, device: torch.device | str | None = None) -> torch.Tensor:
+    k0 = ket0 if device is None else ket0.to(device=device)
+    state = k0
     for _ in range(nqubits - 1):
-        state = torch.kron(state, ket0)
+        state = torch.kron(state, k0)
     return state
 
 
-def ketn1(nqubits: int) -> torch.Tensor:
-    state = ket1
+def ketn1(nqubits: int, *, device: torch.device | str | None = None) -> torch.Tensor:
+    k1 = ket1 if device is None else ket1.to(device=device)
+    state = k1
     for _ in range(nqubits - 1):
-        state = torch.kron(state, ket1)
+        state = torch.kron(state, k1)
     return state
 
 

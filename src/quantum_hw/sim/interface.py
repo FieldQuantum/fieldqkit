@@ -7,6 +7,8 @@ from __future__ import annotations
 
 from typing import Dict, Optional
 
+import torch
+
 from ..circuit import QuantumCircuit
 from .mps import energy_and_expectations as _energy_and_expectations_mps
 from .mps import expectation_pauli as _expectation_pauli_mps
@@ -24,6 +26,7 @@ def simulate_counts(
     *,
     seed: Optional[int] = None,
     param_values: Dict[str, object] | None = None,
+    device: torch.device | str | None = None,
 ) -> Dict[str, int]:
     """Simulate counts with threshold-based backend selection."""
 
@@ -34,6 +37,7 @@ def simulate_counts(
             shots,
             seed=seed,
             param_values=param_values,
+            device=device,
         )
     else:
         return _simulate_counts_statevector(
@@ -41,6 +45,7 @@ def simulate_counts(
             shots,
             seed=seed,
             param_values=param_values,
+            device=device,
         )
 
 
@@ -62,6 +67,7 @@ def energy_and_expectations(
     params,
     param_names,
     hamiltonian,
+    device: torch.device | str | None = None,
 ):
     """Evaluate Hamiltonian energy via threshold-based backend selection."""
     nqubits = int(getattr(symbolic_qc, "nqubits", 0) or 0)
@@ -71,10 +77,12 @@ def energy_and_expectations(
             params=params,
             param_names=param_names,
             hamiltonian=hamiltonian,
+            device=device,
         )
     return _energy_and_expectations_statevector(
         symbolic_qc,
         params=params,
         param_names=param_names,
         hamiltonian=hamiltonian,
+        device=device,
     )

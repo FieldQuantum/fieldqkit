@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from .common import auto_sim_device
 from .interface import energy_and_expectations
 from .interface import expectation_pauli
 from .interface import simulate_counts
@@ -11,6 +12,7 @@ from .mps import simulate_mps
 
 
 __all__ = [
+    "auto_sim_device",
     "energy_and_expectations",
     "expectation_pauli",
     "simulate_counts",

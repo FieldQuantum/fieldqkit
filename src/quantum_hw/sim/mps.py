@@ -21,6 +21,7 @@ from ..circuit.quantumcircuit_helpers import (
 )
 from ..core.observables import pauli_basis_pattern
 from .common import (
+    auto_sim_device,
     build_param_values_from_tensor,
     materialize_gate_matrix,
     resolve_param,
@@ -74,21 +75,6 @@ class ComplexSVD(torch.autograd.Function):
 
 def complex_svd(x: torch.Tensor):
     return ComplexSVD.apply(x)
-
-
-def _auto_sim_device(device: torch.device | str | None = None) -> torch.device:
-    if device is not None:
-        return torch.device(device)
-
-    # Respect torch global default device when explicitly configured.
-    if hasattr(torch, "get_default_device"):
-        default = torch.device(torch.get_default_device())
-        return default
-
-    if torch.cuda.is_available():
-        return torch.device("cuda")
-
-    return torch.device("cpu")
 
 
 def _mps_zero_state(num_qubits: int, *, dtype: torch.dtype, device: torch.device) -> List[torch.Tensor]:
@@ -457,7 +443,7 @@ def simulate_mps(
         return []
 
     dtype = torch.complex128
-    sim_device = _auto_sim_device(device)
+    sim_device = auto_sim_device(device)
     mps = _mps_zero_state(num_qubits, dtype=dtype, device=sim_device)
     dirty_start: int | None = None
     dirty_end: int | None = None
@@ -616,7 +602,7 @@ def energy_and_expectations(
     if not isinstance(params, torch.Tensor):
         raise TypeError("params must be a torch.Tensor")
 
-    selected_device = _auto_sim_device(device)
+    selected_device = auto_sim_device(device)
     if params.device != selected_device:
         params = params.to(selected_device)
 

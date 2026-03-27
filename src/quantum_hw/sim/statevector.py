@@ -9,6 +9,7 @@ import torch
 from ..circuit import QuantumCircuit
 from .matrix import ketn0
 from .common import (
+    auto_sim_device,
     build_param_values_from_tensor,
     materialize_gate_matrix,
     resolve_param,
@@ -61,13 +62,15 @@ def simulate_statevector(
     qc: QuantumCircuit,
     *,
     param_values: Dict[str, object] | None = None,
+    device: torch.device | str | None = None,
 ):
     num_qubits = int(qc.nqubits)
+    sim_device = auto_sim_device(device)
     if num_qubits <= 0:
-        return torch.tensor([1.0 + 0.0j], dtype=torch.complex128)
+        return torch.tensor([1.0 + 0.0j], dtype=torch.complex128, device=sim_device)
 
     # Start from |0...0> and apply gates in circuit order.
-    state = ketn0(num_qubits).reshape(-1)
+    state = ketn0(num_qubits, device=sim_device).reshape(-1)
     dtype = state.dtype
     device = state.device
 
@@ -121,9 +124,10 @@ def simulate_counts(
     *,
     seed: int | None = None,
     param_values: Dict[str, object] | None = None,
+    device: torch.device | str | None = None,
 ) -> Dict[str, int]:
     # Sample from the statevector distribution, then emit little-endian bitstrings.
-    state = simulate_statevector(qc, param_values=param_values)
+    state = simulate_statevector(qc, param_values=param_values, device=device)
     num_qubits = int(qc.nqubits)
     probs = (state.abs() ** 2).real
     total = probs.sum()
@@ -150,10 +154,11 @@ def build_state_from_symbolic(
     *,
     params,
     param_names: Sequence[str],
+    device: torch.device | str | None = None,
 ):
     """Build statevector from a symbolic circuit and differentiable param tensor."""
     param_values = build_param_values_from_tensor(params=params, param_names=param_names)
-    return simulate_statevector(symbolic_qc, param_values=param_values)
+    return simulate_statevector(symbolic_qc, param_values=param_values, device=device)
 
 
 def expectation_pauli(
@@ -183,10 +188,14 @@ def energy_and_expectations(
     params,
     param_names: Sequence[str],
     hamiltonian: List[Tuple[float, str]],
+    device: torch.device | str | None = None,
 ) -> Tuple[object, dict[str, float]]:
     """Evaluate Hamiltonian energy from a symbolic circuit template in a differentiable way."""
     num_qubits = int(symbolic_qc.nqubits)
-    state = build_state_from_symbolic(symbolic_qc, params=params, param_names=param_names)
+    sim_device = auto_sim_device(device)
+    if params.device != sim_device:
+        params = params.to(sim_device)
+    state = build_state_from_symbolic(symbolic_qc, params=params, param_names=param_names, device=sim_device)
     energy = torch.zeros((), dtype=params.dtype, device=params.device)
     expectations: dict[str, float] = {}
     for coeff, obs in hamiltonian:
