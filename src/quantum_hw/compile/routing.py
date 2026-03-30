@@ -21,6 +21,7 @@
 
 from collections import OrderedDict
 import copy
+import math
 import random
 from typing import Literal
 import networkx as nx
@@ -65,10 +66,24 @@ class SabreRouting(TranspilerPass):
         iterations: int = 5,
         heuristic: Literal["basic", "lookahead", "basic_decay", "lookahead_decay"] = "lookahead_decay",
         max_extended_set_weight: float = 0.5,
+        noise_aware: bool = False,
+        n_trials: int = 1,
     ):
         super().__init__()
         self.coupling_graph = subgraph
-        self.distance_matrix = floyd_warshall_numpy(subgraph)
+        if noise_aware:
+            # Weight edges by -log(fidelity) so high-fidelity paths are cheaper.
+            wg = subgraph.copy()
+            for u, v, data in wg.edges(data=True):
+                f = data.get("fidelity", 1.0)
+                f = max(f, 1e-6)  # avoid log(0)
+                wg[u][v]["weight"] = -math.log(f)
+            self.distance_matrix = floyd_warshall_numpy(wg, weight="weight")
+        else:
+            self.distance_matrix = floyd_warshall_numpy(subgraph)
+        # Hop-count matrix (always unweighted) for adjacency checks.
+        self.hop_matrix = floyd_warshall_numpy(subgraph)
+        self.n_trials = n_trials
         if "normal_order" not in subgraph.graph:
             subgraph.graph["normal_order"] = list(subgraph.nodes())
         self.physical_qubits = subgraph.graph["normal_order"]
@@ -181,6 +196,11 @@ class SabreRouting(TranspilerPass):
                         E.update([node_successor])
             self.extended_successor_set = list(E)
 
+    def _hop_distance(self, pq1: int, pq2: int):
+        idx1 = self.physical_qubits_index[pq1]
+        idx2 = self.physical_qubits_index[pq2]
+        return self.hop_matrix[idx1][idx2]
+
     def _get_execute_node_list(self, front_layer: list):
         execute_node_list = []
         for node in front_layer:
@@ -190,8 +210,7 @@ class SabreRouting(TranspilerPass):
             else:
                 vq1, vq2 = extract_qubits(node)
                 pq1, pq2 = self.v2p[vq1], self.v2p[vq2]
-                dis = self._distance_matrix_element(pq1, pq2)
-                if dis == 1:
+                if self._hop_distance(pq1, pq2) == 1:
                     execute_node_list.append(node)
         return execute_node_list
 
@@ -377,17 +396,11 @@ class SabreRouting(TranspilerPass):
 
         return new, nswap
 
-    def run(self, qc: QuantumCircuit):
-        all_qubits = split_qubits(qc)
-        virtual_qubits = [x for sub in all_qubits for x in sub]
-
+    def _run_once(self, qc, virtual_qubits, dag, rev_dag):
+        """Execute one complete forward/reverse SABRE routing attempt."""
         self.v2p, self.p2v = self._initialize_v2p_p2v(virtual_qubits)
         init_p2v = {p: v for v, p in self.v2p.items()}
 
-        dag = qc2dag(qc, show_qubits=False)
-        rev_qc = qc.deepcopy()
-        rev_qc.gates.reverse()
-        rev_dag = qc2dag(rev_qc, show_qubits=False)
         self.do_map_node_to_gate = False
         for idx in range(self.iterations):
             if idx == self.iterations - 1:
@@ -408,11 +421,36 @@ class SabreRouting(TranspilerPass):
                     best_p2v = {p: v for v, p in self.v2p.items()}
 
         final_p2v = {p: v for v, p in self.v2p.items()}
+        return new, nswap, dict(self.v2p), final_p2v
+
+    def run(self, qc: QuantumCircuit):
+        all_qubits = split_qubits(qc)
+        virtual_qubits = [x for sub in all_qubits for x in sub]
+
+        dag = qc2dag(qc, show_qubits=False)
+        rev_qc = qc.deepcopy()
+        rev_qc.gates.reverse()
+        rev_dag = qc2dag(rev_qc, show_qubits=False)
+
+        saved_initial_mapping = self.initial_mapping
+
+        best_new, best_nswap, best_v2p, best_final_p2v = None, float("inf"), None, None
+        for trial in range(self.n_trials):
+            if trial > 0:
+                # After the first trial, use random initial mapping.
+                self.initial_mapping = "random"
+            new, nswap, v2p, final_p2v = self._run_once(qc, virtual_qubits, dag, rev_dag)
+            if nswap < best_nswap:
+                best_new, best_nswap, best_v2p, best_final_p2v = new, nswap, v2p, final_p2v
+
+        self.initial_mapping = saved_initial_mapping
+        self.v2p = best_v2p
+
         new_qc = QuantumCircuit(max(self.physical_qubits) + 1, qc.ncbits)
-        new_qc.gates = new
+        new_qc.gates = best_new
         new_qc.params_value = qc.params_value
         new_qc.qubits = self.physical_qubits
         # Expose final layout mapping for downstream measurement alignment.
-        new_qc.logical_to_physical = dict(self.v2p)
-        new_qc.physical_to_logical = dict(final_p2v)
+        new_qc.logical_to_physical = best_v2p
+        new_qc.physical_to_logical = best_final_p2v
         return new_qc

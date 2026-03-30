@@ -20,7 +20,7 @@
 | **硬件校准** | Readout、原生两比特 RB、过程层析 |
 | **高效仿真** | 全态矢量 + MPS + MPO，支持梯度计算 |
 
-代码规模约 **12,521 行**，分布于 68 个 Python 文件。
+代码规模约 **15,870 行**，分布于 72 个 Python 文件。
 
 ---
 
@@ -47,12 +47,13 @@ Quantum_control/
 │   ├── demo_qaoa.ipynb        QAOA 组合优化
 │   ├── demo_qml.ipynb         PQC 监督分类器
 │   ├── demo_qml_iris.ipynb    Iris 多分类
+│   ├── demo_qnn_bas.ipynb     BAS 数据集 QNN 分布学习
 │   ├── demo_qnn_unsupervised.ipynb 无监督 QNN 分布学习
 │   ├── demo_readout_zne.ipynb Readout 缓解 + ZNE
 │   └── demo_backend.ipynb     硬件拓扑与后端
 ├── scripts/                   辅助脚本
 └── src/quantum_hw/            主源码（详见下节）
-    └── tests/                 测试套件（19 个测试文件）
+    └── tests/                 测试套件（20 个测试文件）
 ```
 
 ---
@@ -64,7 +65,7 @@ Quantum_control/
 
 ```
 quantum_hw/                          入口 __init__.py（导出顶层 API）
-├── api/         (~2,200 行)         硬件 API 层
+├── api/         (~1,770 行)         硬件 API 层
 │   ├── client.py                    QuantumHardwareClient — 唯一用户入口
 │   ├── backend.py                   Backend / HardwareProfile / BackendAdapter (ABC)
 │   ├── task.py                      OpenQasmSubmitRequest / TaskAdapter (ABC) / ProviderTaskHandle
@@ -75,31 +76,33 @@ quantum_hw/                          入口 __init__.py（导出顶层 API）
 │       ├── guodun.py                国盾（cqlib 协议）
 │       └── cqlib.py                 cqlib 公共 HTTP 客户端 + QASM↔QCIS 转换
 │
-├── circuit/     (~3,200 行)         线路表示
+├── circuit/     (~2,850 行)         线路表示
 │   ├── quantumcircuit.py            QuantumCircuit 类（门操作、参数化、deepcopy）
+│   ├── quantumcircuit_helpers.py    门名称字典、DAG 信息转换、门→线路渲染辅助
 │   ├── qasm2.py / qasm3.py          OpenQASM 2/3 解析器
 │   ├── matrix.py                    门矩阵定义（numpy）
 │   ├── render.py                    线路文本可视化
-│   └── utils.py                     辅助工具
+│   └── utils.py                     U3/ZYZ/KAK 分解、酉矩阵等价性检验
 │
-├── compile/     (~2,100 行)         编译转译
+├── compile/     (~1,940 行)         编译转译
 │   ├── transpiler.py                Transpiler — pass 管理器
 │   ├── basepasses.py                TranspilerPass (ABC)
 │   ├── decompose.py                 门分解（CX/SWAP/iSWAP/ECR/CCX… → U+CZ）
-│   ├── layout.py                    Layout（逻辑↔物理比特映射）
-│   ├── routing.py                   SabreRouting（SWAP 插入）
+│   ├── layout.py                    Layout（逻辑↔物理比特映射，保真度优先）
+│   ├── routing.py                   SabreRouting（SWAP 插入，basic/lookahead/decay 启发式）
 │   ├── translate.py                 TranslateToBasisGates（翻译到 {U, CZ} 本征门集）
-│   ├── optimize.py                  GateCompressor（单比特门合并）
-│   ├── schedule.py                  DynamicalDecoupling（CZ 间隙填充 DD 序列）
+│   ├── optimize.py                  GateCompressor（单比特门合并/消元）
+│   ├── schedule.py                  DynamicalDecoupling（XY4 / CPMG DD 序列）
 │   └── dag.py                       DAG 转换与可视化
 │
-├── algorithms/  (~2,200 行)         量子算法
+├── algorithms/  (~3,450 行)         量子算法
 │   ├── vqe.py                       VQERunner — Ising/Heisenberg/XXZ/XY/自定义 Hamiltonian
 │   │                                parameter-shift / autograd 梯度, Adam 优化, Clifford fitting
 │   ├── qaoa.py                      QAOARunner — MaxCut / 自定义 Z/ZZ 代价项
 │   │                                parameter-shift / autograd 梯度, Adam 优化, Clifford fitting
 │   ├── qml.py                       QML — PQC 监督分类 + 无监督 QNN 分布学习
 │   │                                autograd / parameter-shift, Adam 优化
+│   ├── qml_encoding.py              编码线路模板：Angle / IQP（含符号参数版本）
 │   ├── optimizer_utils.py            共享优化工具（能量计算、参数移位梯度、Adam、
 │   │                                Clifford fitting、run_variational_loop 通用优化循环）
 │   ├── shadow.py                    ShadowTomography — classical shadow 协议
@@ -107,39 +110,47 @@ quantum_hw/                          入口 __init__.py（导出顶层 API）
 │   └── circuit_compression.py       MPS/MPO 混合后缀压缩（降低线路深度）
 │                                    + build_compression_transform（可复用压缩变换工厂）
 │
-├── core/        (~500 行)           通用工具
+├── core/        (~420 行)           通用工具
 │   ├── circuits.py                  预置线路（GHZ / Cluster / QFT / Ising 演化）
 │   ├── observables.py               Pauli 字符串解析、期望值计算、测量基转换
 │   ├── readout.py                   Readout 误差缓解（逆混淆矩阵）
 │   ├── zne.py                       ZNE（CZ 三倍插入 + 线性外推）
-│   ├── types.py                     RunResult / VQEResult / ShadowResult / QAOAResult /
-│   │                                QMLResult / QBMResult
-│   └── plotting.py                  概率分布和可观测量对比图
+│   ├── types.py                     RunResult / CalibrationResult / VQEResult / ShadowResult /
+│   │                                QAOAResult / QMLResult / QBMResult
+│   ├── utils.py                     概率/采样辅助函数
+│   └── plotting.py                  概率分布、可观测量对比、能量收敛曲线（matplotlib）
 │
-├── calibration/ (~900 行)           校准
+├── calibration/ (~580 行)           校准
 │   ├── readout.py                   ReadoutCalibrationManager（带缓存的 readout 校准）
 │   ├── rb.py                        NativeTwoQubitRBManager（原生两比特 RB）
 │   ├── tomography.py                NativeTwoQubitTomographyManager（过程层析）
 │   └── _cache.py / _coupler_utils   缓存 TTL / coupler 过滤
 │
-├── sim/         (~1,400 行)         模拟器
+├── sim/         (~1,470 行)         模拟器
 │   ├── statevector.py               全态矢量模拟（torch，支持 autograd）
-│   ├── mps.py                       MPS 张量网络模拟器（可微）
+│   ├── mps.py                       MPS 张量网络模拟器（可微，ComplexSVD 自定义 autograd）
 │   ├── mpo.py                       MPO 量子过程模拟器
 │   ├── matrix.py                    torch 门矩阵（支持梯度）
 │   ├── interface.py                 统一模拟入口 simulate_counts / expectation_pauli /
-│   │                                sample_probabilities
-│   └── common.py                    参数解析工具
+│   │                                sample_probabilities / energy_and_expectations
+│   └── common.py                    参数解析、设备选择工具
 │
-└── vendor/      (~1,700 行)         内置第三方代码
+└── vendor/      (~1,320 行)         内置第三方代码
     └── cqlib/                       QASM↔QCIS 转换器（天衍/国盾平台指令集）
+        ├── exceptions.py            异常定义
+        └── utils/                   转换核心
+            ├── const.py             指令名称常量
+            ├── laboratory_utils.py  平台特定工具函数
+            ├── simplify.py          QCIS 指令简化
+            ├── qcis_to_qasm.py      QCIS → OpenQASM 逆向转换
+            └── qasm_to_qcis/        OpenQASM → QCIS 转换（规则映射 + 数据表）
 ```
 
 ---
 
 ### 3.2 API 层（`api/`）
 
-**核心类：`QuantumHardwareClient`**（`api/client.py`）
+**核心类：`QuantumHardwareClient`**（`api/client.py`，527 行）
 
 用户的唯一入口。负责线路归一化、Provider 运行时创建、后端解析、调用转译流水线、任务提交/轮询、结果后处理。
 
@@ -148,16 +159,18 @@ quantum_hw/                          入口 __init__.py（导出顶层 API）
 | 方法 | 功能 |
 |---|---|
 | `run_auto(circuit, num_qubits, shots, observables, ...)` | 一键执行完整工作流 |
+| `_run_with_backend(qc, backend, runtime, ...)` | 底层执行：转译→提交→轮询→后处理 |
 | `build_circuit(kind, **kwargs)` | 构建预置线路（ghz/cluster/qft/ising） |
 | `_transpile_with_backend(qc, backend, ...)` | 调用编译流水线 |
 | `_normalize_input_circuit(circuit, num_qubits)` | 统一化输入（字符串/对象） |
 
-**硬件抽象**（`api/backend.py`）：
+**硬件抽象**（`api/backend.py`，407 行）：
 
 - `Backend`：基于图的硬件拓扑，提供比特距离、连通性、保真度查询
-- `HardwareProfile`：完整硬件描述（拓扑 + 校准元数据）
+- `HardwareTopology` / `HardwareCalibration` / `HardwareProfile`：完整硬件描述（拓扑 + 校准元数据）
 - `BackendAdapter`（ABC）：各 Provider 后端适配器的抽象基类
 - `ResolvedBackend`：任务绑定的后端实例
+- `list_available_hardware` / `build_hardware_profile`：硬件发现与 profile 构建
 
 **任务管理**（`api/task.py`）：
 
@@ -169,23 +182,25 @@ quantum_hw/                          入口 __init__.py（导出顶层 API）
 
 | 文件 | Provider | 协议 |
 |---|---|---|
-| `quafu.py` | Quafu（北京量子信息科学研究院） | Quafu REST API |
-| `tianyan.py` | 天衍平台 | cqlib（QASM↔QCIS） |
-| `guodun.py` | 国盾平台 | cqlib（QASM↔QCIS） |
-| `cqlib.py` | 公共 HTTP 客户端 | cqlib 共享实现 |
+| `quafu.py`（220 行） | Quafu（北京量子信息科学研究院） | Quafu REST API |
+| `tianyan.py`（113 行） | 天衍平台 | cqlib（QASM↔QCIS） |
+| `guodun.py`（131 行） | 国盾平台 | cqlib（QASM↔QCIS），含 waveform 功能 |
+| `cqlib.py`（659 行） | 公共 HTTP 客户端 | cqlib 共享实现（`RemotePlatformClient`） |
+
+`ProviderRuntime`（`quantum_platform/__init__.py`）：dataclass 封装 backend adapter + task adapter，由 `create_provider_runtime` 工厂按 provider 名创建。
 
 ---
 
 ### 3.3 量子线路层（`circuit/`）
 
-**核心类：`QuantumCircuit`**（`quantumcircuit.py`）
+**核心类：`QuantumCircuit`**（`quantumcircuit.py`，1,364 行，68 个方法）
 
 | 门类型 | 包含 |
 |---|---|
-| 单比特门 | H、X、Y、Z、S、Sdg、T、Tdg、SX、SXdg、Rx、Ry、Rz、P、U3、Reset |
+| 单比特门 | Id、H、X、Y、Z、S、Sdg、T、Tdg、SX、SXdg、Rx、Ry、Rz、P、U、R、Reset |
 | 两比特门 | CX/CNOT、CY、CZ、SWAP、iSWAP、ECR、RXX、RYY、RZZ、CP、CRZ |
 | 三比特门 | CCX（Toffoli）、CCZ、CSWAP |
-| 功能门 | measure_all、barrier、delay |
+| 功能门 | measure / measure_all、barrier、delay、pauli_evolution |
 
 重要功能：
 - `from_openqasm2()` / `from_openqasm3()` 解析 OpenQASM 字符串
@@ -194,58 +209,67 @@ quantum_hw/                          入口 __init__.py（导出顶层 API）
 - `deepcopy()` 深拷贝
 - 参数化门支持：通过 `params_value` 字典绑定符号参数
 - `logical_to_physical` 映射（由转译器写入）
+- `depth()` / `ncz()` 线路指标
+- `apply_value()` 参数绑定
+- `kak_for_unitary()` / `u3_for_unitary()` / `zyz_for_unitary()` 矩阵→门分解
 
 **其他子模块：**
 
 | 文件 | 功能 |
 |---|---|
-| `qasm2.py` / `qasm3.py` | OpenQASM 2.0 / 3.0 解析器 |
-| `matrix.py` | 门矩阵定义（NumPy） |
-| `utils.py` | U3 分解、ZYZ Euler 分解、KAK 分解 |
-| `render.py` | ASCII 线路可视化 |
+| `quantumcircuit_helpers.py`（534 行） | 门名称字典、`convert_gate_info_to_dag_info`、`add_gates_to_lines` 渲染辅助、`parse_expression` 表达式解析 |
+| `qasm2.py`（307 行）/ `qasm3.py`（353 行） | OpenQASM 2.0 / 3.0 解析器 |
+| `matrix.py`（318 行） | 门矩阵定义（NumPy），`gate_matrix_dict` 统一索引 |
+| `utils.py`（245 行） | `u3_decompose`、`zyz_decompose`、`kak_decompose`、`simult_svd`、`is_equiv_unitary`、`generate_random_unitary_matrix` |
+| `render.py`（25 行） | `draw_circuit` / `draw_circuit_simply` ASCII 线路可视化 |
 
 ---
 
 ### 3.4 编译 / 转译层（`compile/`）
 
-**核心类：`Transpiler`**（`transpiler.py`）
+**核心类：`Transpiler`**（`transpiler.py`，121 行）
 
 编译流水线按以下顺序执行：
 
 ```
 1. 三比特门分解        CCX/CCZ → U+CZ 原生门
-2. 布局（Layout）      逻辑比特 → 物理比特映射
-3. SABRE 路由          插入 SWAP 门以满足连通性约束
+2. 布局（Layout）      逻辑比特 → 物理比特映射（保真度优先子图枚举）
+3. SABRE 路由          插入 SWAP 门以满足连通性约束（basic/lookahead/decay 启发式）
 4. 基础门翻译          所有门 → {U, CZ} 本征门集
-5. 门压缩              合并相邻单比特门（减少深度）
-6. 动力学去耦（DD）    在 CZ 空闲时隙插入 DD 序列
+5. 门压缩              合并/消元相邻单比特门（减少深度）
+6. 动力学去耦（DD）    在 CZ 空闲时隙插入 DD 序列（XY4 / CPMG）
 ```
 
 各 Pass 均实现 `TranspilerPass` 抽象基类，可独立运行或组合。
 
 | 文件 | 功能 |
 |---|---|
-| `decompose.py` | 门分解（含 Toffoli） |
-| `layout.py` | 保真度优先的物理比特分配 |
-| `routing.py` | SABRE 启发式 SWAP 插入 |
-| `translate.py` | 翻译到 {U, CZ} 本征门集 |
-| `optimize.py` | 单比特门合并（GateCompressor） |
-| `schedule.py` | 动力学去耦序列（DynamicalDecoupling） |
-| `dag.py` | DAG（有向无环图）转换与可视化 |
+| `decompose.py`（432 行） | 三比特/两比特门分解（含 Toffoli、各种二比特→CZ 分解） |
+| `layout.py`（372 行） | 保真度优先的物理比特分配（子图枚举） |
+| `routing.py`（379 行） | SABRE 启发式 SWAP 插入 |
+| `translate.py`（154 行） | 翻译到 {U, CZ} 本征门集 |
+| `optimize.py`（312 行） | 单比特门合并/消元（GateCompressor） |
+| `schedule.py`（168 行） | 动力学去耦序列（DynamicalDecoupling，XY4/CPMG） |
+| `dag.py`（153 行） | DAG（有向无环图）转换与可视化 |
+| `basepasses.py`（34 行） | `TranspilerPass` ABC |
 
 ---
 
 ### 3.5 量子算法层（`algorithms/`）
 
-#### 共享优化引擎（`optimizer_utils.py`）
+#### 共享优化引擎（`optimizer_utils.py`，731 行）
 
 `run_variational_loop()` 是 VQE 和 QAOA 共用的通用变分优化循环，支持：
 - parameter-shift 梯度（硬件）/ autograd（模拟器）两条路径
 - Adam 优化器（`adam_update`）
 - 可插拔 `circuit_transform` 回调（供压缩等后处理使用）
-- Clifford fitting 仿射噪声校正（`build_clifford_fit_map`）
+- Clifford fitting 仿射噪声校正（`build_clifford_fit_map` / `apply_clifford_fit`）
+- `evaluate_energy_with_backend` / `instantiate_transpiled_template` 硬件路径辅助
 
-#### VQE（`vqe.py`）—— 变分量子本征求解器
+类型定义：
+- `Hamiltonian = List[Tuple[float, str]]` — 通用哈密顿量表示
+
+#### VQE（`vqe.py`，662 行）—— 变分量子本征求解器
 
 `VQERunner` 薄封装 `run_vqe_with_backend`，后者负责：
 - Hamiltonian：Ising / Heisenberg / XXZ / XY / 自定义 Pauli 字符串
@@ -253,7 +277,7 @@ quantum_hw/                          入口 __init__.py（导出顶层 API）
 - 调用 `run_variational_loop` 执行优化循环
 - 可选路径：Clifford fitting、混合后缀规划压缩（`build_compression_transform`）
 
-#### QAOA（`qaoa.py`）—— 经典组合优化
+#### QAOA（`qaoa.py`，374 行）—— 经典组合优化
 
 `QAOARunner` 薄封装 `run_qaoa_with_backend`，后者负责：
 - MaxCut（`build_maxcut_hamiltonian`）和自定义 Z/ZZ 代价项
@@ -261,7 +285,7 @@ quantum_hw/                          入口 __init__.py（导出顶层 API）
 - 调用 `run_variational_loop` 执行优化循环
 - 可选 Clifford fitting 噪声校正
 
-#### QML — 量子机器学习（`qml.py`）
+#### QML — 量子机器学习（`qml.py`，691 行）
 
 `run_pqc_classifier`：参数化量子线路（PQC）监督分类器
 - 支持 angle / IQP / 自定义编码，autograd 或 parameter-shift 梯度
@@ -272,24 +296,31 @@ quantum_hw/                          入口 __init__.py（导出顶层 API）
 - parameter-shift 路径：MMD² 损失（RBF 核）
 - 返回 `QBMResult`（含生成样本）
 
-#### Shadow Tomography（`shadow.py`）
+#### QML 编码模板（`qml_encoding.py`，131 行）
+
+- `angle_encoding_circuit` / `angle_encoding_circuit_symbolic`：角度编码
+- `iqp_encoding_circuit` / `iqp_encoding_circuit_symbolic`：IQP 编码
+- 每个编码提供数值版（直接编码特征向量）和符号版（返回参数化线路）
+
+#### Shadow Tomography（`shadow.py`，276 行）
 
 `ShadowTomography` 实现 **Classical Shadow 协议**：
 - 随机单比特测量基采样
 - 从有限测量快照重建可观测量期望值
 - 返回 `ShadowResult`（含估计值与标准误）
 
-#### 线路压缩（`circuit_compression.py`）
+#### 线路压缩（`circuit_compression.py`，623 行）
 
 `MPS/MPO 混合后缀压缩` + 可复用压缩变换工厂：
 - `plan_hybrid_suffix_blocks`：基于 MPS 键维分析，将线路后缀规划为多段压缩块
 - `compress_circuit_with_hybrid_objective`：单段 MPS/MPO 目标优化压缩
 - `build_compression_transform`：工厂函数，封装压缩状态（warm-start、block plan 缓存）并返回可直接传入 `run_variational_loop` 的 `circuit_transform` 回调，以及预转译的压缩模板
+- `HybridCompressionPlan` / `SuffixCompressionBlock`：压缩方案数据类
 
-#### Ansatz 模板（`ansatz_templates.py`）
+#### Ansatz 模板（`ansatz_templates.py`，106 行）
 
-- Hardware-efficient ansatz：分层 Ry 旋转 + CZ 纠缠
-- UCC（Unitary Coupled Cluster）ansatz
+- Hardware-efficient ansatz：分层 Ry 旋转 + CZ 纠缠（含符号参数版本）
+- UCC（Unitary Coupled Cluster）ansatz（含符号参数版本）
 
 ---
 
@@ -297,32 +328,32 @@ quantum_hw/                          入口 __init__.py（导出顶层 API）
 
 | 文件 | 功能 |
 |---|---|
-| `circuits.py` | 预置线路构建：`build_ghz`、`build_cluster`、`build_qft`、`build_ising_time_evolution` |
-| `observables.py` | Pauli 字符串解析（"ZZIX" 紧凑格式 / "Z0 X2" 索引格式）、测量基转换、期望值计算、可观测量分组 |
-| `readout.py` | Readout 误差缓解：构建混淆矩阵、伪逆校正、无偏奇偶估计器 |
-| `zne.py` | ZNE：CZ 三倍插入（1× → 3× 噪声）+ 线性外推至零噪声 |
-| `types.py` | 结果数据类：`RunResult`、`VQEResult`、`ShadowResult`、`QAOAResult`、`QMLResult`、`QBMResult` |
-| `utils.py` | 概率/采样辅助函数：counts 转概率/样本、边缘分布、Z 期望值 |
-| `plotting.py` | 概率分布与可观测量对比可视化（matplotlib） |
+| `circuits.py`（81 行） | 预置线路构建：`build_ghz`、`build_cluster`、`build_qft`、`build_ising_time_evolution` |
+| `observables.py`（126 行） | Pauli 字符串解析（"ZZIX" 紧凑格式 / "Z0 X2" 索引格式）、测量基转换（`append_measurement_basis` / `apply_measurement_basis_rotations`）、期望值计算、可观测量分组（`group_observables`）、`shift_pauli_string` |
+| `readout.py`（76 行） | Readout 误差缓解：`build_local_confusion_matrix`、`mitigate_readout`（伪逆校正）、`mitigate_observable_from_samples`、`expectation_from_samples_unbiased`（无偏奇偶估计器） |
+| `zne.py`（20 行） | ZNE：`apply_zne_cz_tripling` — CZ 三倍化 + 线性外推至零噪声 |
+| `types.py`（65 行） | 结果数据类：`RunResult`、`CalibrationResult`、`VQEResult`、`ShadowResult`、`QAOAResult`、`QMLResult`、`QBMResult` |
+| `utils.py`（55 行） | 概率/采样辅助函数：`get_probabilities` / `get_samples` / `get_probabilities_from_samples` / `marginal_samples` / `get_local_probabilities_from_samples` |
+| `plotting.py`（113 行） | `plot_probabilities_compare`、`plot_observables_compare`、`plot_energy_history`（matplotlib） |
 
 ---
 
 ### 3.7 硬件校准层（`calibration/`）
 
-#### Readout 校准（`readout.py`）
+#### Readout 校准（`readout.py`，200 行）
 
 `ReadoutCalibrationManager`：
 - 为目标物理比特制备 |0⟩ 和 |1⟩ 态并测量，获得每比特 2×2 混淆矩阵
 - 结果带 TTL 缓存（默认按芯片+比特索引存储），避免频繁重新校准
 - 支持模拟器模式（返回理想对角矩阵）
 
-#### 原生两比特 RB（`rb.py`）
+#### 原生两比特 RB（`rb.py`，302 行）
 
 `NativeTwoQubitRBManager`：
 - 在指定 coupler 上执行随机 Clifford 序列，拟合存活概率衰减曲线 p(L) ≈ A·λ^L
 - 输出每对比特的平均保真度和拟合参数
 
-#### 过程层析（`tomography.py`）
+#### 过程层析（`tomography.py`，307 行）
 
 `NativeTwoQubitTomographyManager`：
 - 制备 16 种输入态，测量 16 种输出基，通过最小二乘重建 4×4 Choi 矩阵
@@ -332,24 +363,24 @@ quantum_hw/                          入口 __init__.py（导出顶层 API）
 
 | 文件 | 功能 |
 |---|---|
-| `_cache.py` | TTL 文件缓存（保存/加载带 ISO8601 时间戳的数据） |
-| `_coupler_utils.py` | Coupler 规范化命名（如 "q0-q1"）、按保真度过滤 |
+| `_cache.py`（50 行） | TTL 文件缓存（`cache_file` / `load_timestamped_payload` / `save_timestamped_payload`，带 ISO8601 时间戳） |
+| `_coupler_utils.py`（22 行） | `coupler_key` 规范化命名（如 "q0-q1"）、`resolve_positive_fidelity_couplers` 按保真度过滤 |
 
 ---
 
 ### 3.8 量子模拟器层（`sim/`）
 
-统一入口 `sim/interface.py` 根据比特数自动分派：
-- **≤ 12 比特** → 全态矢量模拟器（`statevector.py`）
-- **> 12 比特** → MPS 张量网络模拟器（`mps.py`）
+统一入口 `sim/interface.py`（92 行）根据比特数自动分派：
+- **≤ 16 比特** → 全态矢量模拟器（`statevector.py`）
+- **> 16 比特** → MPS 张量网络模拟器（`mps.py`）
 
 | 模块 | 描述 |
 |---|---|
-| `statevector.py` | 基于 PyTorch 的全态矢量模拟，支持 autograd，顺序应用门矩阵 |
-| `mps.py` | MPS 张量网络模拟器，支持键维截断（默认 256）和梯度传播，适合大量子比特 |
-| `mpo.py` | MPO 量子过程模拟器，用于构建幺正矩阵（线路等价性验证） |
-| `matrix.py` | PyTorch 格式门矩阵，支持 `requires_grad=True` |
-| `common.py` | 参数绑定、门矩阵实例化、Pauli 算符构造等共享工具 |
+| `statevector.py`（198 行） | 基于 PyTorch 的全态矢量模拟，支持 autograd，顺序应用门矩阵 |
+| `mps.py`（537 行） | MPS 张量网络模拟器，支持键维截断（默认 256）和梯度传播，`ComplexSVD` 自定义 autograd 反向，适合大量子比特 |
+| `mpo.py`（242 行） | MPO 量子过程模拟器，用于构建幺正矩阵（线路等价性验证） |
+| `matrix.py`（316 行） | PyTorch 格式门矩阵（与 `circuit/matrix.py` 对应），`gate_matrix_dict` 支持 `requires_grad=True` |
+| `common.py`（66 行） | `auto_sim_device` 设备选择、`resolve_param` / `materialize_gate_matrix` 参数解析、`build_param_values_from_tensor` tensor↔dict 转换、`single_pauli` Pauli 算符构造 |
 
 主要 API：
 - `simulate_counts(qc, shots, seed, param_values)` → 测量计数字典
@@ -365,10 +396,29 @@ quantum_hw/                          入口 __init__.py（导出顶层 API）
 
 | 子模块 | 功能 |
 |---|---|
-| `qasm_to_qcis/` | OpenQASM → QCIS 转换（规则映射 + 数据表） |
-| `qcis_to_qasm.py` | QCIS → OpenQASM 逆向转换 |
-| `laboratory_utils.py` | 平台特定工具函数 |
-| `const.py` | 指令名称常量 |
+| `exceptions.py`（58 行） | 异常类定义 |
+| `utils/qasm_to_qcis/`（763 行） | OpenQASM → QCIS 转换（规则映射 + 数据表） |
+| `utils/qcis_to_qasm.py`（176 行） | QCIS → OpenQASM 逆向转换 |
+| `utils/simplify.py`（164 行） | QCIS 指令简化 |
+| `utils/laboratory_utils.py`（345 行） | 平台特定工具函数 |
+| `utils/const.py`（177 行） | 指令名称常量 |
+
+---
+
+### 3.10 模块代码量分布
+
+| 子包 | 行数 | 占比 |
+|---|---|---|
+| `algorithms/` | 3,451 | 21.7% |
+| `circuit/` | 2,853 | 18.0% |
+| `compile/` | 1,935 | 12.2% |
+| `api/`（含 `quantum_platform/`） | 1,773 | 11.2% |
+| `sim/` | 1,471 | 9.3% |
+| `vendor/` | 1,323 | 8.3% |
+| `calibration/` | 581 | 3.7% |
+| `core/` | 420 | 2.6% |
+| 根 `__init__.py` | 63 | 0.4% |
+| **合计** | **15,870** | **100%** |
 
 ---
 
@@ -425,11 +475,24 @@ QuantumHardwareClient.run_auto(
 | 类型 | 字段 |
 |---|---|
 | `RunResult` | `task_ids`、`samples`、`probabilities`、`observable_values` |
+| `CalibrationResult` | `confusion_matrices`、`mitigated_counts` |
 | `VQEResult` | `energy`、`params`、`energy_history`、`expectation_history` |
 | `ShadowResult` | `task_ids`、`samples`、`basis_patterns`、`observables`、`observable_estimates`、`observable_stderr` |
 | `QAOAResult` | `best_cost`、`best_params`、`cost_history` |
 | `QMLResult` | `task`、`best_loss`、`best_params`、`loss_history`、`accuracy`、`test_loss_history`、`test_accuracy` |
 | `QBMResult` | `best_loss`、`best_params`、`loss_history`、`test_loss_history`、`generated_samples` |
+
+核心中间类型：
+
+| 类型 | 位置 | 用途 |
+|---|---|---|
+| `Hamiltonian = List[Tuple[float, str]]` | `optimizer_utils` | 通用哈密顿量表示 |
+| `CliffordFitMap = Dict[str, Tuple[float, float]]` | `optimizer_utils` | 噪声线性拟合系数 |
+| `ProviderRuntime` | `quantum_platform/__init__` | Provider 运行时（backend adapter + task adapter） |
+| `ResolvedBackend` | `api/backend` | 解析后硬件后端 |
+| `HardwareProfile` | `api/backend` | 硬件参数 profile（拓扑 + 校准） |
+| `HybridCompressionPlan` / `SuffixCompressionBlock` | `circuit_compression` | 压缩方案 |
+| `OpenQasmSubmitRequest` / `ProviderTaskHandle` | `api/task` | 提交请求 / 任务句柄 |
 
 ---
 
@@ -495,6 +558,7 @@ print(result.probabilities)       # numpy array of length 2^6
 | `demo_qaoa.ipynb` | QAOA MaxCut + 自定义代价项 |
 | `demo_qml.ipynb` | PQC 监督分类器 |
 | `demo_qml_iris.ipynb` | Iris 数据集多分类 |
+| `demo_qnn_bas.ipynb` | BAS 数据集 QNN 分布学习 |
 | `demo_qnn_unsupervised.ipynb` | 无监督 QNN 分布学习 |
 | `demo_backend.ipynb` | 硬件拓扑与后端排序 |
 
@@ -505,7 +569,7 @@ print(result.probabilities)       # numpy array of length 2^6
 进阶 → demo_circuit_core
 硬件 → demo_readout_zne
 优化 → demo_shadow → demo_vqe → demo_qaoa
-QML  → demo_qml → demo_qml_iris → demo_qnn_unsupervised
+QML  → demo_qml → demo_qml_iris → demo_qnn_bas → demo_qnn_unsupervised
 拓扑 → demo_backend
 ```
 
@@ -513,12 +577,12 @@ QML  → demo_qml → demo_qml_iris → demo_qnn_unsupervised
 
 ## 九、测试覆盖
 
-测试文件位于 `tests/`（19 个文件），主要覆盖：
+测试文件位于 `tests/`（20 个文件），主要覆盖：
 
 | 测试组 | 文件 |
 |---|---|
 | API 层 | `test_api_exports_unified`、`test_api_provider_runtime`、`test_api_run_auto_unified`、`test_api_unified_backend`、`test_api_unified_task` |
-| 算法 | `test_algorithms_provider_symmetry`、`test_vqe_autograd`、`test_vqe_hybrid_suffix_planner`、`test_qaoa` |
+| 算法 | `test_algorithms_provider_symmetry`、`test_vqe_autograd`、`test_vqe_hybrid_suffix_planner`、`test_qaoa`、`test_qml` |
 | 线路 | `test_circuit_migration`、`test_circuit_openqasm_advanced`、`test_circuit_refactor`、`test_circuit_safety` |
 | 编译器 | `test_compile_passes`、`test_decompose_matrices` |
 | 模拟器 | `test_sim_mps`、`test_sim_mpo` |

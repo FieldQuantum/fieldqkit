@@ -37,6 +37,11 @@ from ..circuit.utils import u3_decompose
 from ..circuit.matrix import u_mat, gate_matrix_dict
 from .basepasses import TranspilerPass
 
+# Gates that are diagonal in the computational basis.
+_DIAGONAL_1Q_GATES = frozenset({'id', 'z', 's', 'sdg', 't', 'tdg', 'rz', 'p'})
+# Functional / non-unitary instructions that must never be reordered.
+_NON_REORDERABLE = frozenset({'barrier', 'measure', 'reset', 'delay'})
+
 
 class GateCompressor(TranspilerPass):
     """A transpiler pass that merges or compresses adjacent gates in a quantum circuit."""
@@ -67,6 +72,203 @@ class GateCompressor(TranspilerPass):
             "cswap",
         ]
         self._idx = 1000000
+        self._single_qubit_gates = (
+            set(one_qubit_gates_available.keys())
+            | set(one_qubit_parameter_gates_available.keys())
+        )
+
+    # ---- commutation helpers ----
+
+    @staticmethod
+    def _get_gate_qubits(gate_info):
+        """Return the qubit indices for a gate as a list."""
+        gate = gate_info[0]
+        if gate in one_qubit_gates_available or gate in one_qubit_parameter_gates_available:
+            return [gate_info[-1]]
+        if gate in two_qubit_gates_available or gate in two_qubit_parameter_gates_available:
+            return [gate_info[-2], gate_info[-1]]
+        if gate in three_qubit_gates_available:
+            return [gate_info[-3], gate_info[-2], gate_info[-1]]
+        return []  # unknown / functional gate
+
+    @staticmethod
+    def _get_any_gate_matrix(gate_info):
+        """Return the unitary matrix for any gate, or None if symbolic."""
+        gate = gate_info[0]
+        if gate in one_qubit_gates_available:
+            return gate_matrix_dict.get(gate)
+        if gate in one_qubit_parameter_gates_available:
+            params = gate_info[1:-1]
+            if any(isinstance(p, str) for p in params):
+                return None
+            return gate_matrix_dict[gate](*params)
+        if gate in two_qubit_gates_available:
+            return gate_matrix_dict.get(gate)
+        if gate in two_qubit_parameter_gates_available:
+            params = gate_info[1:-2]
+            if any(isinstance(p, str) for p in params):
+                return None
+            return gate_matrix_dict[gate](*params)
+        if gate in three_qubit_gates_available:
+            return gate_matrix_dict.get(gate)
+        return None
+
+    @staticmethod
+    def _expand_matrix(gate_mat, positions, n_total):
+        """Expand *gate_mat* acting on *positions* to the full *n_total*-qubit space."""
+        dim = 2 ** n_total
+        gate_n = len(positions)
+        result = np.zeros((dim, dim), dtype=complex)
+        pos_set = set(positions)
+        for i in range(dim):
+            for j in range(dim):
+                # Non-gate bits must be equal.
+                ok = True
+                for pos in range(n_total):
+                    if pos not in pos_set:
+                        if ((i >> (n_total - 1 - pos)) & 1) != ((j >> (n_total - 1 - pos)) & 1):
+                            ok = False
+                            break
+                if not ok:
+                    continue
+                ig = jg = 0
+                for k, pos in enumerate(positions):
+                    ig |= ((i >> (n_total - 1 - pos)) & 1) << (gate_n - 1 - k)
+                    jg |= ((j >> (n_total - 1 - pos)) & 1) << (gate_n - 1 - k)
+                result[i, j] = gate_mat[ig, jg]
+        return result
+
+    @classmethod
+    def _check_commutation(cls, gate_info1, gate_info2):
+        """Return True if *gate_info1* and *gate_info2* commute."""
+        g1, g2 = gate_info1[0], gate_info2[0]
+        # Functional gates never commute with anything.
+        if g1 in _NON_REORDERABLE or g2 in _NON_REORDERABLE:
+            return False
+        q1 = cls._get_gate_qubits(gate_info1)
+        q2 = cls._get_gate_qubits(gate_info2)
+        s1, s2 = set(q1), set(q2)
+        # Disjoint qubits -> always commute.
+        if s1.isdisjoint(s2):
+            return True
+        # Fast path: both diagonal single-qubit on same qubit.
+        if g1 in _DIAGONAL_1Q_GATES and g2 in _DIAGONAL_1Q_GATES:
+            return True
+        # Diagonal single-qubit + CZ (diagonal 2-qubit).
+        if g1 in _DIAGONAL_1Q_GATES and g2 == 'cz':
+            return True
+        if g2 in _DIAGONAL_1Q_GATES and g1 == 'cz':
+            return True
+        # CZ-CZ (both diagonal).
+        if g1 == 'cz' and g2 == 'cz':
+            return True
+        # Matrix fallback.
+        m1 = cls._get_any_gate_matrix(gate_info1)
+        m2 = cls._get_any_gate_matrix(gate_info2)
+        if m1 is None or m2 is None:
+            return False
+        all_qubits = sorted(s1 | s2)
+        p1 = [all_qubits.index(q) for q in q1]
+        p2 = [all_qubits.index(q) for q in q2]
+        n = len(all_qubits)
+        full1 = cls._expand_matrix(m1, p1, n)
+        full2 = cls._expand_matrix(m2, p2, n)
+        return np.allclose(full1 @ full2, full2 @ full1)
+
+    # ---- commutation-based gate reordering ----
+
+    def commutation_reorder(self, qc: QuantumCircuit) -> QuantumCircuit:
+        """Bubble single-qubit gates past commuting gates to form longer
+        single-qubit runs on the same qubit, enabling more merges."""
+        gates = list(qc.gates)
+        for i in range(1, len(gates)):
+            if gates[i][0] not in self._single_qubit_gates:
+                continue
+            qubit = self._gate_qubit(gates[i])
+            j = i
+            while j > 0:
+                prev_gate = gates[j - 1][0]
+                # Never cross functional instructions.
+                if prev_gate in _NON_REORDERABLE:
+                    break
+                # Stop next to a single-qubit gate on the same qubit (merge target).
+                if prev_gate in self._single_qubit_gates and self._gate_qubit(gates[j - 1]) == qubit:
+                    break
+                # Check commutation (handles disjoint and overlapping cases).
+                if not self._check_commutation(gates[j], gates[j - 1]):
+                    break
+                gates[j], gates[j - 1] = gates[j - 1], gates[j]
+                j -= 1
+        new_qc = qc.deepcopy()
+        new_qc.gates = gates
+        return new_qc
+
+    # ---- single-qubit block merge ----
+
+    @staticmethod
+    def _gate_matrix(gate_info):
+        """Return the 2×2 unitary for a single-qubit gate, or None if symbolic."""
+        gate = gate_info[0]
+        if gate in one_qubit_gates_available:
+            return gate_matrix_dict[gate]
+        if gate in one_qubit_parameter_gates_available:
+            params = gate_info[1:-1]
+            if any(isinstance(p, str) for p in params):
+                return None
+            return gate_matrix_dict[gate](*params)
+        return None
+
+    @staticmethod
+    def _gate_qubit(gate_info):
+        """Return the qubit index for a single-qubit gate."""
+        return gate_info[-1]
+
+    def merge_single_qubit_runs(self, qc: QuantumCircuit) -> QuantumCircuit:
+        """Merge consecutive single-qubit gates on the same qubit into one u gate."""
+        new_qc = qc.deepcopy()
+        gates = list(qc.gates)
+        result = []
+        i = 0
+        while i < len(gates):
+            gate = gates[i][0]
+            if gate not in self._single_qubit_gates:
+                result.append(gates[i])
+                i += 1
+                continue
+            # Start collecting a run of single-qubit gates on the same qubit.
+            qubit = self._gate_qubit(gates[i])
+            run_start = i
+            mat = self._gate_matrix(gates[i])
+            if mat is None:
+                # Symbolic parameter — can't merge, emit as-is.
+                result.append(gates[i])
+                i += 1
+                continue
+            accumulated = np.array(mat, dtype=complex)
+            i += 1
+            while i < len(gates):
+                g = gates[i][0]
+                if g not in self._single_qubit_gates:
+                    break
+                if self._gate_qubit(gates[i]) != qubit:
+                    break
+                m = self._gate_matrix(gates[i])
+                if m is None:
+                    break
+                accumulated = np.array(m, dtype=complex) @ accumulated
+                i += 1
+            run_length = i - run_start
+            if run_length == 1:
+                # Single gate, no merge needed.
+                result.append(gates[run_start])
+                continue
+            # Check if the accumulated matrix is identity.
+            if np.allclose(accumulated, np.eye(2)):
+                continue  # Entire run cancels out.
+            theta, phi, lamda, _ = u3_decompose(accumulated)
+            result.append(("u", theta, phi, lamda, qubit))
+        new_qc.gates = result
+        return new_qc
 
     def remove_identity_gates(self, qc: QuantumCircuit):
         new_qc = qc.deepcopy()
@@ -313,6 +515,8 @@ class GateCompressor(TranspilerPass):
     def run(self, qc: QuantumCircuit):
         qubits = qc.qubits
         qc1 = self.remove_identity_gates(qc)
+        qc1 = self.commutation_reorder(qc1)
+        qc1 = self.merge_single_qubit_runs(qc1)
         self.dag = qc2dag(qc1)
 
         compress = self.has_adjacent_gates()

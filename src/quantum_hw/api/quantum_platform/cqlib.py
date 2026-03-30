@@ -11,10 +11,59 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple, TYPE_CHECKING, Un
 
 import requests
 
-from ...vendor.cqlib.exceptions import CqlibInputParaError, CqlibRequestError
 from ..backend import as_int_or_none
 
 logger = logging.getLogger("cqlib")
+
+
+class CqlibRequestError(Exception):
+    """Request error with optional HTTP status code."""
+
+    def __init__(self, message, status_code=None):
+        super().__init__(message)
+        self.status_code = status_code
+        if status_code is not None:
+            self.message = f"Request failed with status code {status_code}: {message}"
+        else:
+            self.message = message
+
+
+def _assign_parameters(
+    circuits: List[str], parameters: List[List], values: List[List]
+) -> List[str]:
+    """Assign parameter values to QCIS circuit template strings."""
+    new_circuit: List[str] = []
+    for circuit, parameter, value in zip(circuits, parameters, values):
+        circuit = circuit.upper()
+        p = re.compile(r"\{(\w+)\}")
+        circuit_parameters = p.findall(circuit)
+        if circuit_parameters:
+            after_parameter = [p.upper() for p in parameter]
+            if not value:
+                raise ValueError(
+                    f"Circuit has parameters {circuit_parameters}, but no values provided."
+                )
+            if len(circuit_parameters) != len(value):
+                raise ValueError(
+                    f"Circuit has {len(circuit_parameters)} parameters, but {len(value)} values provided."
+                )
+            if after_parameter and len(circuit_parameters) != len(after_parameter):
+                raise ValueError(
+                    f"Circuit has {len(circuit_parameters)} parameters, but {len(after_parameter)} parameter names provided."
+                )
+            if set(after_parameter) != set(circuit_parameters):
+                raise ValueError(
+                    "Parameter names in circuit do not match the provided parameter names."
+                )
+            param_dic = dict(zip(after_parameter, value))
+            new_circuit.append(circuit.format(**param_dic))
+        elif parameter or value:
+            raise ValueError(
+                "Circuit has no parameters, but parameter names or values were provided."
+            )
+        else:
+            new_circuit.append(circuit)
+    return new_circuit
 
 TIANYAN_HARDWARE_NAMES = {"tianyan176", "tianyan176-2", "tianyan24", "tianyan504", "tianyan287"}
 GUODUN_HARDWARE_NAMES = {"gd_qc1", "chmy176", "gd_sim1"}
@@ -242,17 +291,14 @@ class RemotePlatformClient:
                 version = None
         else:
             if exp_id is None:
-                raise CqlibInputParaError(
+                raise ValueError(
                     "When circuit is not defined, experiment id should be defined but None has been given."
                 )
             data = {"exp_id": exp_id, "shots": num_shots, "is_verify": is_verify, "source": "SDK"}
             return self.handler_run_experiment_result(data)
 
         if circuit and parameters and values and len(parameters) == len(circuit) == len(values):
-            from ...vendor.cqlib.utils.laboratory_utils import LaboratoryUtils
-
-            laboratory_utils = LaboratoryUtils()
-            new_circuit = laboratory_utils.assign_parameters(circuit, parameters, values)
+            new_circuit = _assign_parameters(circuit, parameters, values)
             if not new_circuit:
                 logger.error("Unable to assign a value to the circuits")
                 return 0
@@ -363,14 +409,14 @@ class RemotePlatformClient:
 
     def re_execute_task(self, query_id: Optional[str] = None, lab_id: Optional[str] = None):
         if not lab_id and not query_id:
-            raise CqlibInputParaError("Please provide lab_id or query_id.")
+            raise ValueError("Please provide lab_id or query_id.")
         data = {"lab_id": lab_id, "query_id": query_id}
         result = self._send_request(self.RE_EXECUTE_TASK_PATH, method="POST", data=data)
         return result.get("data")
 
     def stop_running_experiments(self, lab_id: Optional[str] = None, query_id: Optional[str] = None):
         if not lab_id and not query_id:
-            raise CqlibInputParaError("Please provide lab_id or query_id.")
+            raise ValueError("Please provide lab_id or query_id.")
         data = {"lab_id": lab_id, "query_id": query_id}
         result = self._send_request(self.STOP_RUNNING_EXP_PATH, method="POST", data=data)
         return result.get("data")

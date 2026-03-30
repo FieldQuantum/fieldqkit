@@ -110,11 +110,13 @@ class QuantumHardwareClient:
 		use_three_qubit_decompose: bool = True,
 		use_sabre_routing: bool = True,
 		use_translate_to_basis: bool = True,
-		use_gate_compressor: bool = True,		
+		use_gate_compressor: bool = True,
+		noise_aware: bool | None = None,
+		routing_n_trials: int = 1,
 	) -> QuantumCircuit:
 		"""Transpile with a specific backend and optional target qubits."""
 
-		return Transpiler(backend).run(qc, target_qubits=list(target_qubits) if target_qubits is not None else None, use_dd=use_dd, use_three_qubit_decompose=use_three_qubit_decompose, use_sabre_routing=use_sabre_routing, use_translate_to_basis=use_translate_to_basis, use_gate_compressor=use_gate_compressor)
+		return Transpiler(backend).run(qc, target_qubits=list(target_qubits) if target_qubits is not None else None, use_dd=use_dd, use_three_qubit_decompose=use_three_qubit_decompose, use_sabre_routing=use_sabre_routing, use_translate_to_basis=use_translate_to_basis, use_gate_compressor=use_gate_compressor, noise_aware=noise_aware, routing_n_trials=routing_n_trials)
 
 	def _submit_openqasm_async(
 		self,

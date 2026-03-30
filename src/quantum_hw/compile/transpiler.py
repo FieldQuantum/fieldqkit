@@ -55,6 +55,8 @@ class Transpiler:
         use_gate_compressor: bool = True,
         routing_initial_mapping: str = "trivial",
         routing_random_choice: bool = False,
+        noise_aware: bool | None = None,
+        routing_n_trials: int = 1,
     ):
         if isinstance(qc, QuantumCircuit):
             pass
@@ -94,6 +96,10 @@ class Transpiler:
                     "If quantum circuit can be divided along the qubits, random initial mapping is restricted."
                 )
 
+        # Default noise_aware: True when using a real backend, False otherwise.
+        if noise_aware is None:
+            noise_aware = self.chip_backend is not None
+
         passes = []
         if use_three_qubit_decompose:
             passes.append(ThreeQubitGateDecompose())
@@ -104,6 +110,8 @@ class Transpiler:
                     initial_mapping=routing_initial_mapping,
                     do_random_choice=routing_random_choice,
                     iterations=niter,
+                    noise_aware=noise_aware,
+                    n_trials=routing_n_trials,
                 )
             )
         if use_translate_to_basis:

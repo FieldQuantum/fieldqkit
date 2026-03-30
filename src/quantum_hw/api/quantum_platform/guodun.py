@@ -32,10 +32,8 @@ class GuoDunPlatform(RemotePlatformClient):
         return normalize_hardware_rows(provider="guodun", records=records)
 
     def re_execute_task(self, query_id: Optional[str] = None, lab_id: Optional[str] = None):
-        from ...vendor.cqlib.exceptions import CqlibInputParaError
-
         if not lab_id and not query_id:
-            raise CqlibInputParaError("Please provide lab_id or query_id.")
+            raise ValueError("Please provide lab_id or query_id.")
         try:
             lab_id = int(lab_id)
         except TypeError:
@@ -49,10 +47,8 @@ class GuoDunPlatform(RemotePlatformClient):
         return result.get("data")
 
     def stop_running_experiments(self, lab_id: Optional[str] = None, query_id: Optional[str] = None):
-        from ...vendor.cqlib.exceptions import CqlibInputParaError
-
         if not lab_id and not query_id:
-            raise CqlibInputParaError("Please provide lab_id or query_id.")
+            raise ValueError("Please provide lab_id or query_id.")
         try:
             lab_id = int(lab_id)
         except TypeError:
@@ -66,12 +62,10 @@ class GuoDunPlatform(RemotePlatformClient):
         return result.get("data")
 
     def create_waveform_data(self, circuit, circuit_name: Optional[str] = None) -> int:
-        from ...vendor.cqlib.exceptions import CqlibInputParaError
-
         if not circuit:
-            raise CqlibInputParaError("Please provide circuit.")
+            raise ValueError("Please provide circuit.")
         if not self.machine_name:
-            raise CqlibInputParaError("The platform is missing machine_name parameter.")
+            raise ValueError("The platform is missing machine_name parameter.")
         data = {"circuit": circuit, "qcCode": self.machine_name, "circuit_name": circuit_name}
         res = self._send_request(self.CREATE_WAVEFORM_DIAGRAM, method="POST", data=data)
         return res.get("data").get("id")
@@ -103,7 +97,7 @@ class GuoDunTaskAdapter(TaskAdapter):
         self._handle_cache: Dict[str, Dict[str, Any]] = {}
 
     def submit_openqasm(self, submit_request: OpenQasmSubmitRequest, backend: ResolvedBackend) -> ProviderTaskHandle:
-        from ...vendor.cqlib.utils.qasm_to_qcis.qasm_to_qcis import QasmToQcis
+        from ...circuit.qasm_to_qcis import QasmToQcis
 
         platform_obj = backend.metadata.get("platform_obj")
         if platform_obj is None:

@@ -5,7 +5,7 @@ import fnmatch
 directory = os.path.dirname(__file__)
 # directory = r"D:\Programs\Miniconda\envs\quantum\Lib\site-packages\cqlib"
 # Set the string to search for
-search_string = r'_auto_sim_device'  # example string, replace with your desired string
+search_string = r'assign_parameters'  # example string, replace with your desired string
 
 # Loop over all the .py files in the directory
 for root, dirnames, filenames in os.walk(directory):

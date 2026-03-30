@@ -35,31 +35,6 @@ class TianYanPlatform(RemotePlatformClient):
         records = records_from_platform_list_query(self)
         return normalize_hardware_rows(provider="tianyan", records=records)
 
-    def query_experiment(
-        self,
-        query_id: str | list[str],
-        max_wait_time: int = 3600,
-        sleep_time: int = 5,
-        readout_calibration: bool = False,
-        machine_config: dict = None,
-    ):
-        data = super().query_experiment(query_id, max_wait_time, sleep_time)
-        if readout_calibration:
-            from ...vendor.cqlib.exceptions import CqlibRequestError
-            from ...vendor.cqlib.utils.laboratory_utils import LaboratoryUtils
-
-            lu = LaboratoryUtils()
-            if machine_config is None:
-                try:
-                    machine_config = self.download_config()
-                except CqlibRequestError:
-                    logger.warning("Only quantum physics machines can obtain configuration, please check the machine type.")
-            if machine_config is not None:
-                for item in data:
-                    calibration_result = lu.probability_calibration(result=item, laboratory=self, config_json=machine_config)
-                    item["probability"] = lu.probability_correction(calibration_result)
-        return data
-
 
 class TianYanBackendAdapter(BackendAdapter):
     provider = "tianyan"
@@ -82,7 +57,7 @@ class TianYanTaskAdapter(TaskAdapter):
         self._handle_cache: Dict[str, Dict[str, Any]] = {}
 
     def submit_openqasm(self, submit_request: OpenQasmSubmitRequest, backend: ResolvedBackend) -> ProviderTaskHandle:
-        from ...vendor.cqlib.utils.qasm_to_qcis.qasm_to_qcis import QasmToQcis
+        from ...circuit.qasm_to_qcis import QasmToQcis
 
         platform_obj = backend.metadata.get("platform_obj")
         if platform_obj is None:
