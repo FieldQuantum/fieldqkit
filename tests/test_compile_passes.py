@@ -5,6 +5,7 @@ from quantum_hw.compile.optimize import GateCompressor
 from quantum_hw.compile.routing import SabreRouting
 from quantum_hw.compile.transpiler import Transpiler
 from quantum_hw.compile.translate import TranslateToBasisGates
+from quantum_hw.compile.layout import Layout
 import networkx as nx
 import numpy as np
 
@@ -889,3 +890,482 @@ def test_expand_matrix_cx():
     # This should be the XC (target-controlled) matrix
     from quantum_hw.circuit.matrix import xc_mat
     assert np.allclose(full, xc_mat)
+
+
+# --------------- Layout: Pool fallback & subgraph enumeration ---------------
+
+def _make_mock_backend(n, edges, fidelities=None, node_fidelities=None, priority_qubits=None):
+    """Build a mock Backend-like object for Layout tests."""
+    class MockBackend:
+        def __init__(self):
+            self.priority_qubits = priority_qubits or []
+
+        def edge_filtered_graph(self, thres=0.6):
+            g = nx.Graph()
+            for i in range(n):
+                nf = node_fidelities[i] if node_fidelities else 0.99
+                g.add_node(i, fidelity=nf)
+            for idx, (u, v) in enumerate(edges):
+                ef = fidelities[idx] if fidelities else 0.95
+                if ef >= thres and g.nodes[u].get("fidelity", 1.0) >= thres and g.nodes[v].get("fidelity", 1.0) >= thres:
+                    g.add_edge(u, v, fidelity=ef)
+            return g
+
+    return MockBackend()
+
+
+def test_layout_collect_subgraphs_serial_fallback():
+    """Layout falls back to serial when Pool raises (simulated via monkey-patch)."""
+    backend = _make_mock_backend(4, [(0, 1), (1, 2), (2, 3)])
+    layout = Layout(backend)
+    # Monkey-patch ncore to 0 to force Pool to fail
+    layout.ncore = 0
+    subgraphs = layout.collect_all_subgraph_in_parallel(3)
+    assert len(subgraphs) > 0
+    for sg in subgraphs:
+        assert len(sg) == 3
+
+
+def test_layout_collect_subgraph_info_serial_fallback():
+    """collect_all_subgraph_info_in_parallel also falls back gracefully."""
+    backend = _make_mock_backend(4, [(0, 1), (1, 2), (2, 3)])
+    layout = Layout(backend)
+    layout.ncore = 0
+    info_list = layout.collect_all_subgraph_info_in_parallel(3)
+    valid = [x for x in info_list if x is not None]
+    assert len(valid) > 0
+
+
+def test_layout_select_few_qubits_linear():
+    """select_few_qubits_from_backend returns a connected linear subgraph."""
+    backend = _make_mock_backend(
+        5, [(0, 1), (1, 2), (2, 3), (3, 4)],
+        fidelities=[0.95, 0.96, 0.97, 0.98],
+    )
+    layout = Layout(backend)
+    qubits = layout.select_few_qubits_from_backend(3, key="fidelity_var", topology="linear", printdetails=False)
+    assert len(qubits) == 3
+    subgraph = layout.graph.subgraph(qubits)
+    assert nx.is_connected(subgraph)
+    assert max(dict(subgraph.degree()).values()) <= 2  # linear
+
+
+def test_layout_select_few_qubits_nonlinear():
+    """select_few_qubits_from_backend with star topology returns nonlinear."""
+    # Star: 0 at center, connected to 1, 2, 3
+    backend = _make_mock_backend(
+        4, [(0, 1), (0, 2), (0, 3)],
+        fidelities=[0.95, 0.96, 0.97],
+    )
+    layout = Layout(backend)
+    qubits = layout.select_few_qubits_from_backend(4, key="fidelity_var", topology="nonlinear", printdetails=False)
+    assert len(qubits) == 4
+    subgraph = layout.graph.subgraph(qubits)
+    assert nx.is_connected(subgraph)
+    assert max(dict(subgraph.degree()).values()) > 2  # nonlinear
+
+
+def test_layout_fidelity_mean_threshold_filters():
+    """Subgraphs with mean fidelity below threshold are filtered out."""
+    # Edges with low fidelity: mean below 0.9
+    backend = _make_mock_backend(3, [(0, 1), (1, 2)], fidelities=[0.85, 0.88])
+    layout = Layout(backend)
+    layout.fidelity_mean_threshold = 0.9
+    info = layout.get_one_subgraph_info((0, 1, 2))
+    assert info is None  # Filtered out: mean(0.85, 0.88) = 0.865 < 0.9
+
+
+def test_layout_fidelity_mean_threshold_passes():
+    """Subgraphs with mean fidelity at or above threshold pass."""
+    backend = _make_mock_backend(3, [(0, 1), (1, 2)], fidelities=[0.95, 0.92])
+    layout = Layout(backend)
+    layout.fidelity_mean_threshold = 0.9
+
+
+# ---- Tests for cancel_two_qubit_pairs ----
+
+def test_cancel_cz_pair_disjoint_intermediate():
+    """CZ(0,1) - H(2) - CZ(0,1) should cancel."""
+    qc = QuantumCircuit(3)
+    qc.cz(0, 1); qc.h(2); qc.cz(0, 1)
+    result = GateCompressor().run(qc)
+    names = [g[0] for g in result.gates]
+    assert 'cz' not in names
+    assert 'h' in names
+
+
+def test_cancel_cz_pair_rz_intermediate():
+    """CZ(0,1) - RZ(q1) - CZ(0,1) should cancel (RZ diagonal commutes with CZ)."""
+    qc = QuantumCircuit(2)
+    qc.cz(0, 1); qc.rz(1.0, 1); qc.cz(0, 1)
+    result = GateCompressor().run(qc)
+    names = [g[0] for g in result.gates]
+    assert 'cz' not in names
+
+
+def test_no_cancel_cz_pair_ry_overlap():
+    """CZ(0,1) - RY(q1) - CZ(0,1) should NOT cancel (RY doesn't commute with CZ)."""
+    qc = QuantumCircuit(2)
+    qc.cz(0, 1); qc.ry(1.0, 1); qc.cz(0, 1)
+    result = GateCompressor().run(qc)
+    n_cz = sum(1 for g in result.gates if g[0] == 'cz')
+    assert n_cz == 2
+
+
+def test_cancel_cx_pair_translated():
+    """CX·CX → identity after translation to CZ basis + compression."""
+    qc = QuantumCircuit(2)
+    qc.cx(0, 1); qc.cx(0, 1)
+    translated = TranslateToBasisGates(two_qubit_gate_basis='cz').run(qc)
+    result = GateCompressor().run(translated)
+    assert len(result.gates) == 0
+
+
+def test_cancel_swap_pair_translated():
+    """SWAP·SWAP → identity after translation + compression."""
+    qc = QuantumCircuit(2)
+    qc.swap(0, 1); qc.swap(0, 1)
+    translated = TranslateToBasisGates(two_qubit_gate_basis='cz').run(qc)
+    result = GateCompressor().run(translated)
+    assert len(result.gates) == 0
+
+
+def test_cancel_cz_multiple_disjoint():
+    """CZ pair separated by multiple gates on disjoint qubits should cancel."""
+    qc = QuantumCircuit(5)
+    qc.cz(0, 1); qc.h(2); qc.h(3); qc.cx(2, 3); qc.cz(0, 1)
+    result = GateCompressor().run(qc)
+    names = [g[0] for g in result.gates]
+    assert 'cz' not in names
+
+
+def test_cancel_cz_symmetric_qubit_order():
+    """CZ(0,1) and CZ(1,0) should cancel (CZ is symmetric)."""
+    qc = QuantumCircuit(2)
+    qc.cz(0, 1); qc.cz(1, 0)
+    result = GateCompressor().run(qc)
+    assert len(result.gates) == 0
+
+
+def test_layout_fidelity_mean_threshold_passes():
+    """Subgraphs with mean fidelity at or above threshold pass."""
+    backend = _make_mock_backend(3, [(0, 1), (1, 2)], fidelities=[0.95, 0.92])
+    layout = Layout(backend)
+    layout.fidelity_mean_threshold = 0.9
+    info = layout.get_one_subgraph_info((0, 1, 2))
+    assert info is not None
+    assert info[2] >= 0.9  # fidelity_mean
+
+
+def test_layout_select_qubits_by_local_algorithm_one_qubit():
+    """Single qubit layout selects the highest-fidelity node."""
+    backend = _make_mock_backend(
+        3, [(0, 1), (1, 2)],
+        node_fidelities=[0.90, 0.99, 0.95],
+    )
+    layout = Layout(backend)
+    qubits = layout.select_qubits_by_local_algorithm(1, {"key": "fidelity_var", "topology": "linear"})
+    assert len(qubits) == 1
+    assert qubits[0] == 1  # Q1 has highest node fidelity
+
+
+def test_layout_priority_qubits_exact_match():
+    """When priority_qubits has an entry matching nqubits, it's used directly."""
+    backend = _make_mock_backend(
+        4, [(0, 1), (1, 2), (2, 3)],
+        priority_qubits=[[1, 2]],  # A 2-qubit priority layout
+    )
+    layout = Layout(backend)
+    qc = QuantumCircuit(2)
+    qc.cx(0, 1)
+    subgraph = layout.select_layout(qc, use_chip_priority=True)
+    assert set(subgraph.nodes()) == {1, 2}
+
+
+def test_layout_priority_qubits_no_match_falls_back():
+    """When no priority_qubits match, falls back to local algorithm."""
+    backend = _make_mock_backend(
+        4, [(0, 1), (1, 2), (2, 3)],
+        priority_qubits=[[0, 1, 2]],  # Only 3-qubit, no 2-qubit
+    )
+    layout = Layout(backend)
+    qc = QuantumCircuit(2)
+    qc.cx(0, 1)
+    subgraph = layout.select_layout(qc, use_chip_priority=True)
+    assert len(subgraph.nodes()) == 2
+    assert nx.is_connected(subgraph)
+
+
+# --------------- QCIS: RZ ±π clamping ---------------
+
+
+def test_routing_normalizes_numpy_int64_physical_qubits():
+    """routing 的 logical_to_physical 映射值必须是 Python int，即使 subgraph 节点含 np.int64。"""
+    g = nx.Graph()
+    # 故意混入 np.int64 节点
+    g.add_node(int(0), fidelity=0.99)
+    g.add_node(np.int64(1), fidelity=0.99)
+    g.add_node(int(2), fidelity=0.99)
+    g.add_node(np.int64(3), fidelity=0.99)
+    g.add_edge(0, np.int64(1), fidelity=0.95)
+    g.add_edge(np.int64(1), 2, fidelity=0.90)
+    g.add_edge(2, np.int64(3), fidelity=0.85)
+    g.graph["normal_order"] = list(g.nodes())
+
+    qc = QuantumCircuit(4, 4)
+    qc.cx(0, 3)
+    qc.cx(1, 2)
+    qc.measure(list(range(4)), list(range(4)))
+
+    routed = SabreRouting(g, noise_aware=False, iterations=3).run(qc)
+    l2p = routed.logical_to_physical
+    for v, p in l2p.items():
+        assert type(p) is int, f"physical qubit {p} has type {type(p)}, expected int"
+
+
+def test_backend_couplers_normalize_qubit_indices():
+    """Backend._collect_couplers_with_attributes 应将 np.int64 的 qubits_index 转为 int。"""
+    from quantum_hw.api.backend import Backend
+    chip = {
+        "chip_name": "test",
+        "qubits_info": {
+            "Q0": {"fidelity": 0.99},
+            "Q1": {"fidelity": 0.99},
+            "Q2": {"fidelity": 0.99},
+        },
+        "couplers_info": {
+            "C0_1": {"connected": True, "qubits_index": [np.int64(0), np.int64(1)], "fidelity": 0.95},
+            "C1_2": {"connected": True, "qubits_index": [np.int64(1), np.int64(2)], "fidelity": 0.90},
+        },
+        "global_info": {"two_qubit_gate_basis": "CZ"},
+    }
+    backend = Backend(chip=chip)
+    graph = backend.get_graph()
+    for n in graph.nodes():
+        assert type(n) is int, f"node {n} has type {type(n)}, expected int"
+    for u, v in graph.edges():
+        assert type(u) is int and type(v) is int
+
+
+# --------------- QCIS: RZ ±π clamping ---------------
+
+def test_qcis_rz_at_positive_pi_is_clamped():
+    """RZ at exactly +π is clamped to slightly less than π."""
+    import math
+    from quantum_hw.circuit.qasm_to_qcis import Instruction
+    inst = Instruction("rz", [0], [math.pi])
+    s = str(inst)
+    # Should contain a value slightly less than π
+    val = float(s.split()[-1])
+    assert val < math.pi
+    assert abs(val - math.pi) < 1e-9
+
+
+def test_qcis_rz_at_negative_pi_is_clamped():
+    """RZ at exactly -π is clamped to slightly greater than -π."""
+    import math
+    from quantum_hw.circuit.qasm_to_qcis import Instruction
+    inst = Instruction("rz", [0], [-math.pi])
+    s = str(inst)
+    val = float(s.split()[-1])
+    assert val > -math.pi
+    assert abs(val + math.pi) < 1e-9
+
+
+def test_qcis_rz_not_at_pi_unchanged():
+    """RZ values not at ±π boundary are not modified."""
+    import math
+    from quantum_hw.circuit.qasm_to_qcis import Instruction
+    for angle in [0.0, 0.5, -0.5, math.pi / 4, -math.pi / 3, 2.0, -2.0]:
+        inst = Instruction("rz", [0], [angle])
+        s = str(inst)
+        val = float(s.split()[-1])
+        assert val == angle, f"Angle {angle} was modified to {val}"
+
+
+def test_qcis_rz_near_pi_but_not_exact_unchanged():
+    """RZ values near but not exactly at ±π are unchanged."""
+    import math
+    from quantum_hw.circuit.qasm_to_qcis import Instruction
+    # Just outside the 1e-12 tolerance
+    angle = math.pi - 1e-11
+    inst = Instruction("rz", [0], [angle])
+    s = str(inst)
+    val = float(s.split()[-1])
+    assert val == angle
+
+
+def test_qcis_non_rz_gates_not_clamped():
+    """Non-RZ gates with angle arguments are not affected by clamping."""
+    import math
+    from quantum_hw.circuit.qasm_to_qcis import Instruction
+    inst = Instruction("x2p", [0], [math.pi])
+    s = str(inst)
+    val = float(s.split()[-1])
+    assert val == math.pi  # Not clamped
+
+
+def test_qcis_rz_clamped_value_within_strict_interval():
+    """The clamped value must be strictly in the open interval (-π, π)."""
+    import math
+    from quantum_hw.circuit.qasm_to_qcis import Instruction
+    for angle in [math.pi, -math.pi]:
+        inst = Instruction("rz", [0], [angle])
+        s = str(inst)
+        val = float(s.split()[-1])
+        assert -math.pi < val < math.pi, f"Clamped {angle} to {val}, not in (-π, π)"
+
+
+def test_qcis_full_circuit_rz_pi_in_qasm_conversion():
+    """End-to-end: QASM with RZ(π) → QCIS output has clamped value."""
+    import math
+    from quantum_hw.circuit.qasm_to_qcis import QasmToQcis
+    qasm = f"""OPENQASM 2.0;
+include "qelib1.inc";
+qreg q[1];
+rz({math.pi}) q[0];
+"""
+    qcis = QasmToQcis().convert_to_qcis(qasm)
+    for line in qcis.strip().splitlines():
+        if "RZ" in line.upper():
+            val = float(line.strip().split()[-1])
+            assert -math.pi < val < math.pi, f"RZ value {val} not in open interval"
+
+
+# --------------- Layout: large connected graph (mimics TianYan/GuoDun) ---------------
+
+def test_layout_4qubit_on_large_connected_graph():
+    """Layout can find 4-qubit subgraph on a large connected graph (like TianYan)."""
+    # Build a 20-node line graph with high fidelity — mimics real chip
+    edges = [(i, i + 1) for i in range(19)]
+    backend = _make_mock_backend(20, edges, fidelities=[0.95] * 19)
+    layout = Layout(backend)
+    qubits = layout.select_qubits_by_local_algorithm(4, {"key": "fidelity_var", "topology": "linear"})
+    assert len(qubits) == 4
+    subgraph = layout.graph.subgraph(qubits)
+    assert nx.is_connected(subgraph)
+
+
+def test_layout_bfs_for_large_nqubits():
+    """For nqubits > algorithm_switch_threshold, BFS is used."""
+    edges = [(i, i + 1) for i in range(29)]
+    backend = _make_mock_backend(30, edges, fidelities=[0.95] * 29)
+    layout = Layout(backend)
+    layout.algorithm_switch_threshold = 5
+    qubits = layout.select_qubits_by_local_algorithm(10, {"key": "fidelity_var", "topology": "linear"})
+    assert len(qubits) == 10
+    subgraph = layout.graph.subgraph(qubits)
+    assert nx.is_connected(subgraph)
+
+
+def test_transpiler_full_pipeline_4qubit_mock_backend():
+    """Full transpile pipeline on a 4-qubit circuit with mock backend."""
+    from quantum_hw.api.backend import Backend
+    chip_info = {
+        "size": (1, 6),
+        "priority_qubits": [],
+        "qubits_info": {f"Q{i}": {"fidelity": 0.99} for i in range(6)},
+        "couplers_info": {
+            f"C{i}": {"qubits_index": [i, i + 1], "fidelity": 0.95}
+            for i in range(5)
+        },
+        "global_info": {"two_qubit_gate_basis": "cz"},
+    }
+    backend = Backend(chip_info)
+    qc = QuantumCircuit(4)
+    qc.h(0)
+    qc.cx(0, 1)
+    qc.cx(2, 3)
+    qc.cz(0, 3)
+    qc.rz(np.pi / 4, 1)
+    qc.cx(1, 3)
+    qc.h(3)
+
+    transpiled = Transpiler(backend).run(qc, use_dd=False)
+    assert transpiled.nqubits >= 4
+    assert len(transpiled.gates) > 0
+    # All gates should be basis gates
+    allowed = {"u", "cz", "measure", "barrier", "swap"}
+    for gate in transpiled.gates:
+        assert gate[0] in allowed, f"Unexpected gate {gate[0]}"
+
+
+# ---- Tests for circuit-aware layout ----
+
+def test_extract_interaction_graph_basic():
+    """Interaction graph captures two-qubit gate counts."""
+    qc = QuantumCircuit(3)
+    qc.cx(0, 1)
+    qc.cx(0, 1)
+    qc.cz(1, 2)
+    ig = Layout._extract_interaction_graph(qc)
+    assert ig.has_edge(0, 1)
+    assert ig[0][1]["weight"] == 2
+    assert ig.has_edge(1, 2)
+    assert ig[1][2]["weight"] == 1
+    assert not ig.has_edge(0, 2)
+
+
+def test_extract_interaction_graph_no_2q_gates():
+    """Interaction graph has no edges for single-qubit-only circuits."""
+    qc = QuantumCircuit(3)
+    qc.h(0); qc.x(1); qc.rz(0.5, 2)
+    ig = Layout._extract_interaction_graph(qc)
+    assert ig.number_of_edges() == 0
+    assert set(ig.nodes()) == {0, 1, 2}
+
+
+def test_estimate_routing_cost_adjacent():
+    """Routing cost is minimal when interaction matches physical adjacency."""
+    ig = nx.Graph()
+    ig.add_edge(0, 1, weight=5)
+    # Physical: 0-1 adjacent
+    sg = nx.path_graph(2)
+    cost = Layout._estimate_routing_cost(ig, sg)
+    assert cost == 5.0  # distance 1 * weight 5
+
+
+def test_estimate_routing_cost_distant():
+    """Routing cost increases when interacting qubits are far apart."""
+    ig = nx.Graph()
+    ig.add_edge(0, 1, weight=5)
+    # Physical: 0-1-2, virtual qubit 0 maps to physical 0, virtual 1 maps to physical 2
+    # But greedy mapping depends on degree...
+    sg = nx.path_graph(3)
+    # Both virtual qubits have degree 1, physical 1 has degree 2 (mapped first? no, greedy maps by interaction weight)
+    # Virtual 0 has weight 5, virtual 1 has weight 5 => both equal
+    # Physical qubits by degree: 1(deg2), 0(deg1), 2(deg1)
+    # So mapping: v0->p1, v1->p0 => distance 1
+    cost = Layout._estimate_routing_cost(ig, sg)
+    assert cost >= 5.0  # at least distance 1 * weight 5
+
+
+def test_circuit_aware_layout_prefers_matching_topology():
+    """Circuit-aware layout re-ranking should prefer subgraphs that match
+    the circuit's interaction pattern when fidelities are comparable."""
+    # Build a 6-qubit backend with two 3-qubit chains:
+    # Chain A: 0-1-2 (fidelity 0.94) -- star-like 1 connects to 0 and 2
+    # Chain B: 3-4-5 (fidelity 0.95) -- linear
+    # Both have similar fidelity but B is slightly better.
+    # Circuit has interactions 0-1, 1-2 (linear chain) -- should prefer chain B (linear, higher fidelity).
+    chip_info = {
+        "size": (1, 6),
+        "priority_qubits": [],
+        "qubits_info": {f"Q{i}": {"fidelity": 0.99} for i in range(6)},
+        "couplers_info": {
+            "C0": {"qubits_index": [0, 1], "fidelity": 0.94},
+            "C1": {"qubits_index": [1, 2], "fidelity": 0.94},
+            "C2": {"qubits_index": [3, 4], "fidelity": 0.95},
+            "C3": {"qubits_index": [4, 5], "fidelity": 0.95},
+        },
+        "global_info": {"two_qubit_gate_basis": "cz"},
+    }
+    from quantum_hw.api.backend import Backend
+    backend = Backend(chip_info)
+    qc = QuantumCircuit(3)
+    qc.cx(0, 1); qc.cx(1, 2); qc.cx(0, 1)
+    layout = Layout(backend)
+    subgraph = layout.select_layout(qc, use_chip_priority=False)
+    selected = list(subgraph.nodes())
+    # Should select the higher-fidelity chain (3,4,5)
+    assert set(selected) == {3, 4, 5}

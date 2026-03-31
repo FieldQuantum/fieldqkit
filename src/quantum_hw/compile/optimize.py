@@ -177,6 +177,9 @@ class GateCompressor(TranspilerPass):
 
     # ---- commutation-based gate reordering ----
 
+    # Two-qubit gates that are self-inverse: G·G = I.
+    _SELF_INVERSE_2Q = frozenset({'cx', 'cnot', 'cy', 'cz', 'swap'})
+
     def commutation_reorder(self, qc: QuantumCircuit) -> QuantumCircuit:
         """Bubble single-qubit gates past commuting gates to form longer
         single-qubit runs on the same qubit, enabling more merges."""
@@ -201,6 +204,65 @@ class GateCompressor(TranspilerPass):
                 j -= 1
         new_qc = qc.deepcopy()
         new_qc.gates = gates
+        return new_qc
+
+    # ---- two-qubit pair cancellation ----
+
+    def cancel_two_qubit_pairs(self, qc: QuantumCircuit) -> QuantumCircuit:
+        """Cancel pairs of identical self-inverse two-qubit gates when all
+        intermediate gates commute with them.
+
+        For example, CZ(a,b) ... CZ(a,b) can be removed if every gate
+        between them acts on qubits disjoint from {a, b} (or otherwise
+        commutes with CZ).
+        """
+        gates = list(qc.gates)
+        cancelled: set[int] = set()
+        changed = True
+        while changed:
+            changed = False
+            for i in range(len(gates)):
+                if i in cancelled:
+                    continue
+                name_i = gates[i][0]
+                if name_i not in self._SELF_INVERSE_2Q:
+                    continue
+                qubits_i = self._get_gate_qubits(gates[i])
+                if len(qubits_i) != 2:
+                    continue
+                # Look forward for a matching gate.
+                for j in range(i + 1, len(gates)):
+                    if j in cancelled:
+                        continue
+                    name_j = gates[j][0]
+                    # Must be the same gate on the same qubits (order-insensitive for symmetric gates).
+                    if name_j != name_i:
+                        # Check commutation of this intermediate gate with gate i.
+                        if not self._check_commutation(gates[i], gates[j]):
+                            break
+                        continue
+                    qubits_j = self._get_gate_qubits(gates[j])
+                    same_qubits = (qubits_j == qubits_i)
+                    # CZ and SWAP are symmetric in qubit order.
+                    if not same_qubits and name_i in ('cz', 'swap'):
+                        same_qubits = (qubits_j == qubits_i[::-1])
+                    if same_qubits:
+                        # All intermediate gates commuted — cancel the pair.
+                        cancelled.add(i)
+                        cancelled.add(j)
+                        changed = True
+                        break
+                    else:
+                        # Same gate type but different qubits; check commutation.
+                        if not self._check_commutation(gates[i], gates[j]):
+                            break
+                if changed:
+                    break
+        if not cancelled:
+            return qc
+        new_gates = [g for idx, g in enumerate(gates) if idx not in cancelled]
+        new_qc = qc.deepcopy()
+        new_qc.gates = new_gates
         return new_qc
 
     # ---- single-qubit block merge ----
@@ -517,6 +579,7 @@ class GateCompressor(TranspilerPass):
         qc1 = self.remove_identity_gates(qc)
         qc1 = self.commutation_reorder(qc1)
         qc1 = self.merge_single_qubit_runs(qc1)
+        qc1 = self.cancel_two_qubit_pairs(qc1)
         self.dag = qc2dag(qc1)
 
         compress = self.has_adjacent_gates()

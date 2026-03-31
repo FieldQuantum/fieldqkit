@@ -142,7 +142,7 @@ class Backend:
             pair = coupler_info.get('qubits_index')
             if not isinstance(pair, (list, tuple)) or len(pair) != 2:
                 continue
-            qubit1, qubit2 = pair
+            qubit1, qubit2 = int(pair[0]), int(pair[1])
             couplers_with_attributes.append((qubit1,qubit2,coupler_info))
         return couplers_with_attributes
 

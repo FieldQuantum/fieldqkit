@@ -33,6 +33,10 @@ from functools import partial
 from ..api.backend import Backend
 
 from ..circuit import QuantumCircuit
+from ..circuit.quantumcircuit_helpers import (
+    two_qubit_gates_available,
+    two_qubit_parameter_gates_available,
+)
 from .dag import split_qubits
 
 
@@ -46,6 +50,75 @@ class Layout:
         self.fidelity_mean_threshold = 0.9
         self.edge_fidelitys = nx.get_edge_attributes(self.graph, "fidelity")
         self.algorithm_switch_threshold = 10
+
+    # ---- circuit interaction analysis ----
+
+    _TWO_QUBIT_GATES = frozenset(
+        list(two_qubit_gates_available.keys()) + list(two_qubit_parameter_gates_available.keys())
+    )
+
+    @classmethod
+    def _extract_interaction_graph(cls, qc: QuantumCircuit):
+        """Build a weighted graph of virtual-qubit interactions from the circuit.
+
+        Each edge (i, j) has weight = number of two-qubit gates between
+        virtual qubits i and j.  Returns a ``networkx.Graph``.
+        """
+        G = nx.Graph()
+        G.add_nodes_from(qc.qubits)
+        for gate_info in qc.gates:
+            gate = gate_info[0]
+            if gate in cls._TWO_QUBIT_GATES:
+                q1, q2 = gate_info[-2], gate_info[-1]
+                if G.has_edge(q1, q2):
+                    G[q1][q2]["weight"] += 1
+                else:
+                    G.add_edge(q1, q2, weight=1)
+        return G
+
+    @staticmethod
+    def _estimate_routing_cost(interaction_graph, subgraph):
+        """Estimate the routing cost of mapping *interaction_graph* onto *subgraph*.
+
+        Uses a greedy heuristic: map virtual qubits with the most
+        interactions to the most central physical qubits, then sum
+        ``weight * shortest_path_distance`` for every interacting pair.
+        Lower is better.
+        """
+        ig = interaction_graph
+        if ig.number_of_edges() == 0:
+            return 0.0
+        # Rank virtual qubits by total interaction weight (descending).
+        v_qubits = sorted(
+            ig.nodes(),
+            key=lambda n: sum(d.get("weight", 1) for _, _, d in ig.edges(n, data=True)),
+            reverse=True,
+        )
+        # Rank physical qubits by degree centrality (descending).
+        p_qubits = sorted(
+            subgraph.nodes(),
+            key=lambda n: subgraph.degree(n),
+            reverse=True,
+        )
+        # Greedy mapping: highest-interaction virtual → highest-degree physical.
+        v_to_p = {}
+        used = set()
+        for vq in v_qubits:
+            for pq in p_qubits:
+                if pq not in used:
+                    v_to_p[vq] = pq
+                    used.add(pq)
+                    break
+        # Pre-compute shortest path lengths in the subgraph.
+        sp = dict(nx.all_pairs_shortest_path_length(subgraph))
+        total = 0.0
+        for u, v, data in ig.edges(data=True):
+            w = data.get("weight", 1)
+            pu, pv = v_to_p.get(u), v_to_p.get(v)
+            if pu is not None and pv is not None:
+                dist = sp.get(pu, {}).get(pv, len(subgraph))
+                total += w * dist
+        return total
 
     def _get_node_neighbours(self, node: int):
         return list(self.graph.neighbors(node))
@@ -102,8 +175,11 @@ class Layout:
 
     def collect_all_subgraph_in_parallel(self, nqubits):
         collect_all = []
-        with Pool(processes=self.ncore) as pool:
-            res = pool.map(partial(self.get_one_node_subgraph, nqubits=nqubits), self.graph.nodes())
+        try:
+            with Pool(processes=self.ncore) as pool:
+                res = pool.map(partial(self.get_one_node_subgraph, nqubits=nqubits), self.graph.nodes())
+        except Exception:
+            res = [self.get_one_node_subgraph(node, nqubits) for node in self.graph.nodes()]
         for collect in res:
             collect_all += collect
         return collect_all
@@ -121,8 +197,11 @@ class Layout:
 
     def collect_all_subgraph_info_in_parallel(self, nqubits: int):
         all_subgraph = self.collect_all_subgraph_in_parallel(nqubits)
-        with Pool(processes=self.ncore) as pool:
-            res = pool.map(partial(self.get_one_subgraph_info), all_subgraph)
+        try:
+            with Pool(processes=self.ncore) as pool:
+                res = pool.map(partial(self.get_one_subgraph_info), all_subgraph)
+        except Exception:
+            res = [self.get_one_subgraph_info(sg) for sg in all_subgraph]
         return res
 
     def classify_all_subgraph_according_topology(self, nqubits: int):
@@ -242,11 +321,18 @@ class Layout:
         key: Literal["fidelity_mean", "fidelity_var"] = "fidelity_var",
         topology: Literal["linear", "nonlinear"] = "linear",
         printdetails: bool = False,
+        interaction_graph=None,
     ):
+        # When circuit-aware, collect more candidates for re-ranking.
+        num = 10 if interaction_graph is not None and interaction_graph.number_of_edges() > 0 else 1
         if key == "fidelity_mean":
-            linear_list, nonlinear_list = self.sort_subgraph_according_mean_fidelity(nqubits, printdetails=printdetails)
+            linear_list, nonlinear_list = self.sort_subgraph_according_mean_fidelity(
+                nqubits, num=num, printdetails=printdetails
+            )
         elif key == "fidelity_var":
-            linear_list, nonlinear_list = self.sort_subgraph_according_var_fidelity(nqubits, printdetails=printdetails)
+            linear_list, nonlinear_list = self.sort_subgraph_according_var_fidelity(
+                nqubits, num=num, printdetails=printdetails
+            )
 
         if topology == "linear":
             layouts = linear_list
@@ -257,9 +343,26 @@ class Layout:
             raise ValueError(
                 f"There is no {nqubits} qubits that meets both key = {key} and topology = {topology}. Please change the conditions."
             )
-        # print(
-        #     f"Physical qubits layout {layouts[0][0]} are selected by the local algorithm using key = {key} and topology = {topology}."
-        # )
+
+        # Circuit-aware re-ranking: when an interaction graph is provided,
+        # re-score the top-K candidates by combining fidelity with estimated
+        # routing cost so that the chosen layout minimises expected SWAPs.
+        if interaction_graph is not None and interaction_graph.number_of_edges() > 0 and len(layouts) > 1:
+            scored = []
+            for nodes, fid_mean, fid_var in layouts:
+                sg = self.graph.subgraph(nodes)
+                cost = self._estimate_routing_cost(interaction_graph, sg)
+                # Normalise routing cost by total interaction weight so it
+                # stays in a comparable range to fidelity values.
+                total_weight = sum(d.get("weight", 1) for _, _, d in interaction_graph.edges(data=True))
+                norm_cost = cost / max(total_weight, 1)
+                # Combined score: higher fidelity is better (maximise),
+                # lower routing cost is better (minimise).
+                score = fid_mean - 0.05 * norm_cost
+                scored.append((nodes, fid_mean, fid_var, score))
+            scored.sort(key=lambda x: x[3], reverse=True)
+            return list(scored[0][0])
+
         return list(layouts[0][0])
 
     def _get_largest_component(self):
@@ -291,7 +394,7 @@ class Layout:
         # print(f"Physical qubits layout {list(visited)} are selected by BFS algorithm.")
         return list(visited)
 
-    def select_qubits_by_local_algorithm(self, nqubits, select_criteria):
+    def select_qubits_by_local_algorithm(self, nqubits, select_criteria, interaction_graph=None):
         if nqubits == 1:
             qubit = self.select_one_qubit_from_backend()
             return qubit
@@ -307,11 +410,14 @@ class Layout:
             physical_qubits_layout = []
             for key, topology in product(sorted_keys, sorted_topologys):
                 try:
-                    physical_qubits_layout = self.select_few_qubits_from_backend(nqubits, key=key, topology=topology)
+                    physical_qubits_layout = self.select_few_qubits_from_backend(
+                        nqubits, key=key, topology=topology, interaction_graph=interaction_graph,
+                    )
                 except Exception as e:
                     physical_qubits_layout = []
                     print(f"Warning! {e}")
                 if physical_qubits_layout:
+                    break
                     break
             if physical_qubits_layout == []:
                 raise ValueError("Unable to find a suitable layout.")
@@ -335,6 +441,9 @@ class Layout:
         else:
             all_qubits = split_qubits(qc)
         self.source_graph = copy.deepcopy(self.graph)
+
+        # Extract interaction graph for circuit-aware layout selection.
+        interaction_graph = self._extract_interaction_graph(qc)
 
         if target_qubits != []:
             if len(set(target_qubits)) != nqubits:
@@ -388,7 +497,7 @@ class Layout:
                 if not is_priority_provided:
                     # print("No more priority qubits were found. it will check the select_criteria for search")
                     self.graph.remove_nodes_from([x for sub in new_qubits for x in sub])
-                    qubits = self.select_qubits_by_local_algorithm(len(qubits0), select_criteria)
+                    qubits = self.select_qubits_by_local_algorithm(len(qubits0), select_criteria, interaction_graph)
                     new_qubits.append(qubits)
             subgraph = self.source_graph.subgraph([x for sub in new_qubits for x in sub])
             subgraph.graph["normal_order"] = [x for sub in new_qubits for x in sub]
@@ -398,7 +507,7 @@ class Layout:
         for qubits0 in all_qubits:
             self.graph.remove_nodes_from(list(set(e for sub in new_qubits for e in sub)))
             try:
-                qubits = self.select_qubits_by_local_algorithm(len(qubits0), select_criteria)
+                qubits = self.select_qubits_by_local_algorithm(len(qubits0), select_criteria, interaction_graph)
                 new_qubits.append(qubits)
             except Exception as e:
                 raise ValueError(f"Local algorithm search layout Faild {e}")

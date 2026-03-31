@@ -58,6 +58,27 @@ def test_parameter_expression_binding_with_negative_symbol():
     assert "ry(-0.25) q[0];" in qasm
 
 
+def test_parameter_expression_binding_with_division_symbol():
+    qc = QuantumCircuit(1, 1)
+    qc.rx("theta/2", 0)
+
+    qc.apply_value({"theta": np.pi})
+    qasm = qc.to_openqasm2
+
+    assert f"rx({np.pi / 2}) q[0];" in qasm
+
+
+def test_apply_value_deep_materializes_general_expression_params():
+    qc = QuantumCircuit(1, 1)
+    qc.ry("-theta", 0)
+    qc.rx("theta/2", 0)
+
+    qc.apply_value({"theta": np.pi}, deep=True)
+
+    assert qc.gates[0] == ("ry", -np.pi, 0)
+    assert qc.gates[1] == ("rx", np.pi / 2, 0)
+
+
 def test_adjust_index_preserves_all_gate_kinds_and_offsets():
     qc = QuantumCircuit(4, 4)
     qc.ccz(0, 1, 2)

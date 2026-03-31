@@ -86,7 +86,7 @@ class SabreRouting(TranspilerPass):
         self.n_trials = n_trials
         if "normal_order" not in subgraph.graph:
             subgraph.graph["normal_order"] = list(subgraph.nodes())
-        self.physical_qubits = subgraph.graph["normal_order"]
+        self.physical_qubits = [int(n) for n in subgraph.graph["normal_order"]]
         self.physical_qubits_index = dict(zip(list(subgraph.nodes), range(len(subgraph.nodes))))
         self.initial_mapping = initial_mapping
         self.do_random_choice = do_random_choice

@@ -54,6 +54,11 @@ class Instruction:
             instr_str += f"Q{i} "
         if self.arguments:
             for i in self.arguments:
+                if isinstance(i, float) and self.name.lower() == "rz":
+                    # GuoDun rejects RZ at exactly ±π; clamp to open interval
+                    import math
+                    if abs(abs(i) - math.pi) < 1e-12:
+                        i = math.copysign(math.pi - 1e-10, i)
                 instr_str += f"{i} "
         return instr_str.rstrip()
 

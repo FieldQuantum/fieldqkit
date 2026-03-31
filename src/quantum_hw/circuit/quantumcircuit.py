@@ -1060,18 +1060,18 @@ class QuantumCircuit:
 
     @staticmethod
     def _resolve_expr(param, params_dic):
-        """Resolve a symbolic parameter: direct lookup or ``a*b`` product."""
+        """Resolve a symbolic parameter expression when all symbols are bound."""
+        if not isinstance(param, str):
+            return param
         if param in params_dic:
             return params_dic[param]
-        if isinstance(param, str) and '*' in param:
-            parts = param.split('*')
-            val = 1.0
-            for p in parts:
-                p = p.strip()
-                if p not in params_dic:
-                    return param          # unresolvable — keep symbolic
-                val *= float(params_dic[p])
-            return val
+
+        temp_qc = QuantumCircuit(0)
+        temp_qc.params_value.update(params_dic)
+        try:
+            return temp_qc._eval_param_expression(param)
+        except ValueError:
+            return param
         return param
 
     def apply_value(self, params_dic: dict, *, deep: bool = False) -> 'QuantumCircuit':
