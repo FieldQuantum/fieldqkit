@@ -3,9 +3,9 @@ import fnmatch
 
 # Set the directory to search in
 directory = os.path.dirname(__file__)
-# directory = r"D:\Programs\Miniconda\envs\quantum\Lib\site-packages\cqlib"
+# directory = r"D:\Programs\Miniconda\envs\quantum\Lib\site-packages\tensorcircuit"
 # Set the string to search for
-search_string = r'parse_gate_params'  # example string, replace with your desired string
+search_string = r'tensorcircuit'  # example string, replace with your desired string
 
 # Loop over all the .py files in the directory
 for root, dirnames, filenames in os.walk(directory):

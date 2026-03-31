@@ -149,6 +149,7 @@ def run_qaoa_with_backend(
     clifford_fitting_num_non_clifford_gates: int = 3,
     qasm_version: str = "2.0",
     use_dd: bool = True,
+    convert_single_qubit_gate_to_u: bool = True,
 ) -> QAOAResult:
     """Run QAOA optimization on a specific backend.
 
@@ -215,6 +216,7 @@ def run_qaoa_with_backend(
             target_qubits=target_qubits,
             use_dd=use_dd,
             use_gate_compressor=False,
+            convert_single_qubit_gate_to_u=convert_single_qubit_gate_to_u,
         )
         target_qubits_in_use = client._ordered_target_qubits_from_layout(
             compiled_qc=transpiled_template,
@@ -246,6 +248,7 @@ def run_qaoa_with_backend(
             seed=None if seed is None else int(seed) + 7919,
             target_qubits=target_qubits_in_use,
             qasm_version=qasm_version,
+            convert_single_qubit_gate_to_u=convert_single_qubit_gate_to_u,
         )
         clifford_fitting_summary = {
             obs: {"a": float(c[0]), "b": float(c[1])}
@@ -285,6 +288,7 @@ def run_qaoa_with_backend(
         clifford_fit_map=clifford_fit_map,
         qasm_version=qasm_version,
         extra_info=f"p={p}",
+        convert_single_qubit_gate_to_u=convert_single_qubit_gate_to_u,
     )
 
     return QAOAResult(
@@ -363,7 +367,8 @@ class QAOARunner:
 
         provider_name = str(provider).lower()
         qasm_version = self.client._default_qasm_version_for_provider(provider_name)
-        use_dd = provider_name not in {"tianyan", "guodun"}
+        use_dd = provider_name not in {"tianyan", "guodun", "tencent"}
+        convert_single_qubit_gate_to_u = provider_name not in {"tencent"}
         runtime = create_provider_runtime(provider=provider_name, client=self.client)
         profiles = runtime.backend_adapter.discover_hardware(
             num_qubits=num_qubits,
@@ -417,6 +422,7 @@ class QAOARunner:
                     clifford_fitting_num_non_clifford_gates=self.clifford_fitting_num_non_clifford_gates,
                     qasm_version=qasm_version,
                     use_dd=use_dd,
+                    convert_single_qubit_gate_to_u=convert_single_qubit_gate_to_u,
                 )
             except Exception as exc:
                 last_error = exc

@@ -126,7 +126,7 @@ def simulate_counts(
     param_values: Dict[str, object] | None = None,
     device: torch.device | str | None = None,
 ) -> Dict[str, int]:
-    # Sample from the statevector distribution, then emit little-endian bitstrings.
+    # Sample from the statevector distribution.
     state = simulate_statevector(qc, param_values=param_values, device=device)
     num_qubits = int(qc.nqubits)
     probs = (state.abs() ** 2).real
@@ -144,7 +144,7 @@ def simulate_counts(
     for idx, count in enumerate(counts.tolist()):
         if count == 0:
             continue
-        bits = format(idx, f"0{num_qubits}b")[::-1]
+        bits = format(idx, f"0{num_qubits}b")
         out[bits] = int(count)
     return out
 

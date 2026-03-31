@@ -127,6 +127,7 @@ def evaluate_energy_with_backend(
     clifford_fit_map: Optional[CliffordFitMap] = None,
     target_qubits: Optional[Sequence[int]] = None,
     qasm_version: str = "2.0",
+    convert_single_qubit_gate_to_u: bool = True,
 ) -> Tuple[float, Dict[str, float]]:
     """Run a bound circuit on a backend and compute the Hamiltonian energy.
 
@@ -166,6 +167,7 @@ def evaluate_energy_with_backend(
         transpile=False,
         target_qubits=target_qubits,
         qasm_version=qasm_version,
+        convert_single_qubit_gate_to_u=convert_single_qubit_gate_to_u,
     )
     expectations_raw = ensure_observable_map(observables, result.observable_values)
     expectations = apply_clifford_fit(expectations_raw, clifford_fit_map)
@@ -415,6 +417,7 @@ def build_clifford_fit_map(
     seed: Optional[int],
     target_qubits: Optional[Sequence[int]] = None,
     qasm_version: str = "2.0",
+    convert_single_qubit_gate_to_u: bool = True,
 ) -> CliffordFitMap:
     """Build per-observable affine correction map via Clifford calibration.
 
@@ -479,6 +482,7 @@ def build_clifford_fit_map(
             readout_mitigation=readout_mitigation,
             target_qubits=target_qubits,
             qasm_version=qasm_version,
+            convert_single_qubit_gate_to_u=convert_single_qubit_gate_to_u,
         )
 
         _, ideal_expectations = evaluate_energy_with_backend(
@@ -529,6 +533,7 @@ def parameter_shift_gradient(
     target_qubits: Optional[Sequence[int]] = None,
     circuit_transform: Optional[Callable[[QuantumCircuit, Optional[int]], QuantumCircuit]] = None,
     qasm_version: str = "2.0",
+    convert_single_qubit_gate_to_u: bool = True,
 ) -> np.ndarray:
     """Compute gradients via the parameter-shift rule on hardware.
 
@@ -590,6 +595,7 @@ def parameter_shift_gradient(
             clifford_fit_map=clifford_fit_map,
             target_qubits=target_qubits,
             qasm_version=qasm_version,
+            convert_single_qubit_gate_to_u=convert_single_qubit_gate_to_u,
         )
         e_minus, _ = evaluate_energy_with_backend(
             client,
@@ -605,6 +611,7 @@ def parameter_shift_gradient(
             clifford_fit_map=clifford_fit_map,
             target_qubits=target_qubits,
             qasm_version=qasm_version,
+            convert_single_qubit_gate_to_u=convert_single_qubit_gate_to_u,
         )
         grads[i] = 0.5 * (e_plus - e_minus)
     return grads
@@ -685,6 +692,7 @@ def run_variational_loop(
     circuit_transform: Optional[Callable] = None,
     qasm_version: str = "2.0",
     extra_info: str = "",
+    convert_single_qubit_gate_to_u: bool = True,
 ) -> dict:
     """Core variational optimization loop shared by VQE, QAOA, etc.
 
@@ -783,6 +791,7 @@ def run_variational_loop(
                 clifford_fit_map=clifford_fit_map,
                 target_qubits=target_qubits,
                 qasm_version=qasm_version,
+                convert_single_qubit_gate_to_u=convert_single_qubit_gate_to_u,
             )
             grads = parameter_shift_gradient(
                 client,
@@ -802,6 +811,7 @@ def run_variational_loop(
                 target_qubits=target_qubits,
                 circuit_transform=circuit_transform,
                 qasm_version=qasm_version,
+                convert_single_qubit_gate_to_u=convert_single_qubit_gate_to_u,
             )
 
         grad_norm = float(np.linalg.norm(grads))

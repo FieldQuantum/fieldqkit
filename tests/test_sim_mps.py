@@ -102,9 +102,9 @@ def test_three_qubit_mps_matches_statevector(gate_name, num_qubits, gate_args):
 @pytest.mark.parametrize(
     ("qubit", "expected_bitstring"),
     [
-        (0, "001"),
+        (0, "100"),
         (1, "010"),
-        (2, "100"),
+        (2, "001"),
     ],
 )
 def test_mps_counts_endianness_basis_flip(qubit, expected_bitstring):

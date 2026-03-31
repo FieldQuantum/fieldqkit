@@ -91,6 +91,10 @@ class Backend:
             from .quantum_platform.cqlib import load_cqlib_chip_info
             self.chip_name = str(chip)
             self.chip_info = load_cqlib_chip_info(self.chip_name)
+        elif chip in ["tianji_s2", "tianji_m2", "tianxuan_s2"]:
+            from .quantum_platform.tencent import _load_tencent_chip_info
+            self.chip_name = str(chip)
+            self.chip_info = _load_tencent_chip_info(self.chip_name)
         elif chip in ["Simulator", "simulator"]:
             self.chip_name = "Simulator"
             self.chip_info = _build_simulator_chip_info()
@@ -482,4 +486,10 @@ def list_available_hardware(provider: str) -> List[Dict[str, Any]]:
         platform_obj = GuoDunPlatform(login_key=login_key, auto_login=True, machine_name=None)
         return platform_obj.list_available_hardware()
 
-    raise ValueError("provider must be one of: 'quafu', 'tianyan', or 'guodun'")
+    if provider_name == "tencent":
+        from .quantum_platform.tencent import TencentPlatform
+
+        platform_obj = TencentPlatform()
+        return platform_obj.list_available_hardware()
+
+    raise ValueError("provider must be one of: 'quafu', 'tianyan', 'guodun', or 'tencent'")

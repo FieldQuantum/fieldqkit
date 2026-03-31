@@ -70,11 +70,12 @@ quantum_hw/                          入口 __init__.py（导出顶层 API）
 │   ├── client.py                    QuantumHardwareClient — 唯一用户入口
 │   ├── backend.py                   Backend / HardwareProfile / BackendAdapter (ABC)
 │   ├── task.py                      OpenQasmSubmitRequest / TaskAdapter (ABC) / ProviderTaskHandle
-│   ├── platform_credentials.py      凭证管理（Quafu / TianYan / GuoDun）
-│   └── quantum_platform/            三平台具体适配
+│   ├── platform_credentials.py      凭证管理（Quafu / TianYan / GuoDun / Tencent）
+│   └── quantum_platform/            四平台具体适配
 │       ├── quafu.py                 Quafu REST API（BAQIS）
 │       ├── tianyan.py               天衍（cqlib 协议）
 │       ├── guodun.py                国盾（cqlib 协议）
+│       ├── tencent.py               腾讯量子云（tensorcircuit cloud API）
 │       └── cqlib.py                 cqlib 公共 HTTP 客户端 + QASM↔QCIS 转换
 │
 ├── circuit/     (~4,000 行)         线路表示

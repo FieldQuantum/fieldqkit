@@ -15,10 +15,9 @@ def get_probabilities(result: Dict[str, int], num_qubits: int) -> np.ndarray:
 
 def get_samples(result: Dict[str, int], num_qubits: int) -> np.ndarray:
 	"""Expand counts into a sample array aligned with get_probabilities bit order."""
-	# Match the same logical ordering as get_probabilities by reversing bitstrings.
 	samples = []
 	for key, count in result.items():
-		bits = [int(b) for b in key[::-1]]
+		bits = [int(b) for b in key]
 		# Expand to per-shot rows for downstream estimators.
 		samples.extend([bits] * count)
 	return np.asarray(samples, dtype=int).reshape(-1, num_qubits)

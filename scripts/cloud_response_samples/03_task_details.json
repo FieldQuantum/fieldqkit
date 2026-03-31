@@ -1,0 +1,64 @@
+{
+  "id": "dac6e6f7-cad6-4293-85e0-c826f75cd45e",
+  "queue": "txq.low",
+  "device": "tianji_s2?o=3",
+  "qubits": 2,
+  "depth": 3,
+  "state": "completed",
+  "shots": 1024,
+  "prior": 1,
+  "at": 1774935340440817,
+  "ts": {
+    "completed": 1774935340440817,
+    "pending": 1774935336564516,
+    "scheduled": 1774935336558626
+  },
+  "md5": "f31a82f44a53bc8fa6e08ef0c6a34d53",
+  "runAt": 1774935500191673,
+  "runDur": 3582789,
+  "atChip": 1774935131786659,
+  "durChip": 389733,
+  "source": "OPENQASM 2.0;\ninclude \"qelib1.inc\";\nqreg q[2];\ncreg c[2];\nh q[0];\ncx q[0],q[1];\nmeasure q[0] -> c[0];\nmeasure q[1] -> c[1];",
+  "version": "1",
+  "lang": "OPENQASM",
+  "result": {
+    "00": 459,
+    "01": 8,
+    "10": 26,
+    "11": 531
+  },
+  "optimization": {
+    "progs": [
+      {
+        "code": "Tencent Quantum Program\nversion 1.0\nqubit involved: q0,q1,q2,q3,q4,q5,q6,q7,q8,q9,q10,q11,q12\n# section: eqasm\n# section lines 3\neqasm program\nbs 1 H q11\nbs 1 CX (q11, q12)\nbs 1 MEASZ q11,q12\n# section end\n",
+        "lang": "QEXE"
+      },
+      {
+        "code": "TQASM 0.2.1;\n\nQREG q[13];\n\nH q[11];\nCX q[11], q[12];\nMEASZ q[11],q[12];\n",
+        "lang": "tqasm"
+      }
+    ],
+    "pairs": {
+      "0": 11,
+      "1": 12,
+      "10": 8,
+      "11": 10,
+      "12": 9,
+      "2": 0,
+      "3": 3,
+      "4": 6,
+      "5": 5,
+      "6": 4,
+      "7": 1,
+      "8": 2,
+      "9": 7
+    },
+    "depth": 3
+  },
+  "results": {
+    "00": 459,
+    "01": 8,
+    "10": 26,
+    "11": 531
+  }
+}

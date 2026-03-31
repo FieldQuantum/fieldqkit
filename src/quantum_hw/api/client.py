@@ -72,21 +72,22 @@ class QuantumHardwareClient:
 		"""Convert input into a QuantumCircuit and sanitize measurements."""
 		if isinstance(circuit, QuantumCircuit):
 			qc = circuit.deepcopy()
-			# Measurements are appended later based on basis/targets.
-			if self._has_measurements(qc):
-				qc.remove_gate("measure")
-			qc_qubits = self._infer_circuit_qubits(qc)
-			if qc_qubits and qc_qubits != num_qubits:
-				raise ValueError("num_qubits mismatch with QuantumCircuit")
-			if qc_qubits == 0 and num_qubits > 0:
-				qc.nqubits = num_qubits
-				qc.ncbits = max(int(getattr(qc, "ncbits", 0) or 0), num_qubits)
-			return qc
-		if self._is_openqasm2(circuit):
-			return QuantumCircuit().from_openqasm2(openqasm2_str=circuit)
-		if self._is_openqasm3(circuit):
-			return QuantumCircuit().from_openqasm3(openqasm3_str=circuit)
-		return self.build_circuit(circuit, num_qubits=num_qubits)
+		elif self._is_openqasm2(circuit):
+			qc = QuantumCircuit().from_openqasm2(openqasm2_str=circuit)
+		elif self._is_openqasm3(circuit):
+			qc = QuantumCircuit().from_openqasm3(openqasm3_str=circuit)
+		else:
+			qc = self.build_circuit(circuit, num_qubits=num_qubits)
+		# Measurements are appended later based on basis/targets.
+		if self._has_measurements(qc):
+			qc.remove_gate("measure")
+		qc_qubits = self._infer_circuit_qubits(qc)
+		if qc_qubits and qc_qubits != num_qubits:
+			raise ValueError("num_qubits mismatch with QuantumCircuit")
+		if qc_qubits == 0 and num_qubits > 0:
+			qc.nqubits = num_qubits
+			qc.ncbits = max(int(getattr(qc, "ncbits", 0) or 0), num_qubits)
+		return qc
 
 	def build_circuit(self, kind: str, **kwargs) -> QuantumCircuit:
 		"""Build a predefined circuit by name."""
@@ -113,10 +114,11 @@ class QuantumHardwareClient:
 		use_gate_compressor: bool = True,
 		noise_aware: bool | None = None,
 		routing_n_trials: int = 1,
+		convert_single_qubit_gate_to_u: bool | None = None,
 	) -> QuantumCircuit:
 		"""Transpile with a specific backend and optional target qubits."""
 
-		return Transpiler(backend).run(qc, target_qubits=list(target_qubits) if target_qubits is not None else None, use_dd=use_dd, use_three_qubit_decompose=use_three_qubit_decompose, use_sabre_routing=use_sabre_routing, use_translate_to_basis=use_translate_to_basis, use_gate_compressor=use_gate_compressor, noise_aware=noise_aware, routing_n_trials=routing_n_trials)
+		return Transpiler(backend, convert_single_qubit_gate_to_u=convert_single_qubit_gate_to_u).run(qc, target_qubits=list(target_qubits) if target_qubits is not None else None, use_dd=use_dd, use_three_qubit_decompose=use_three_qubit_decompose, use_sabre_routing=use_sabre_routing, use_translate_to_basis=use_translate_to_basis, use_gate_compressor=use_gate_compressor, noise_aware=noise_aware, routing_n_trials=routing_n_trials)
 
 	def _submit_openqasm_async(
 		self,
@@ -159,6 +161,7 @@ class QuantumHardwareClient:
 
 	def _wait_task(self, task_id):
 		"""Wait for a task to finish and return its final status."""
+		import time
 		adapter = self._active_task_adapter
 		if adapter is None or not isinstance(task_id, ProviderTaskHandle):
 			raise RuntimeError("active task adapter and ProviderTaskHandle are required when waiting task status")
@@ -166,6 +169,7 @@ class QuantumHardwareClient:
 			status = adapter.query_status(task_id)
 			if status in {"Finished", "Failed", "Canceled"}:
 				return status
+			time.sleep(3)
 
 	def _get_task_result(self, task_id):
 		"""Fetch normalized task result for current active adapter."""
@@ -240,6 +244,7 @@ class QuantumHardwareClient:
 		print_true: bool = False,
 		transpile: bool = True,
 		submit_options: Optional[Dict[str, object]] = None,
+		convert_single_qubit_gate_to_u: bool = True,
 	) -> RunResult:
 		"""Run a circuit on a specific backend with optional mitigation."""
 		if isinstance(observables, str):
@@ -270,7 +275,7 @@ class QuantumHardwareClient:
 
 		def _translate_to_basis(qct: QuantumCircuit) -> QuantumCircuit:
 			translator = TranslateToBasisGates(
-				convert_single_qubit_gate_to_u=True,
+				convert_single_qubit_gate_to_u=convert_single_qubit_gate_to_u,
 				two_qubit_gate_basis=backend.two_qubit_gate_basis,
 			)
 			return translator.run(qct)
@@ -305,6 +310,7 @@ class QuantumHardwareClient:
 				backend,
 				target_qubits=target_qubits,
 				use_dd=use_dd,
+				convert_single_qubit_gate_to_u=convert_single_qubit_gate_to_u,
 			)
 			# Fall back to transpiler layout mapping first, then transpiled qubits/logical range.
 			target_qubits_in_use = self._ordered_target_qubits_from_layout(
@@ -527,9 +533,12 @@ class QuantumHardwareClient:
 		"""Automatically select hardware, run, and return results."""
 		# Normalize input circuit and strip measurements if present.
 		qc = self._normalize_input_circuit(circuit, num_qubits)
+		print(qc.gates)
 		provider = str(provider).lower()
 		qasm_version = self._default_qasm_version_for_provider(provider)
-		use_dd = provider not in {"tianyan", "guodun"}
+		use_dd = provider not in {"tianyan", "guodun", "tencent"}
+		# Tencent QOS parser doesn't understand u(...) gates; keep native h/rz/x/y/z.
+		convert_single_qubit_gate_to_u = provider not in {"tencent"}
 
 		runtime = create_provider_runtime(provider=provider, client=self)
 
@@ -574,6 +583,7 @@ class QuantumHardwareClient:
 				print_true=print_true,
 				transpile=bool(submit_options["transpile_on_client"]),
 				submit_options=submit_options,
+				convert_single_qubit_gate_to_u=convert_single_qubit_gate_to_u,
 			)
 		finally:
 			self._active_task_adapter = None

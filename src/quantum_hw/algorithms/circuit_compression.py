@@ -565,6 +565,7 @@ def build_compression_transform(
     compression_verbose: bool = False,
     compression_plot_loss: bool = False,
     tag: str = "compress",
+    convert_single_qubit_gate_to_u: bool = True,
 ) -> dict:
     """Build a circuit compression transform callable and its associated templates.
 
@@ -612,6 +613,7 @@ def build_compression_transform(
     compressed_transpiled_template = client._transpile_with_backend(
         compressed_symbolic_qc, backend,
         target_qubits=target_qubits, use_dd=use_dd, use_gate_compressor=False,
+        convert_single_qubit_gate_to_u=convert_single_qubit_gate_to_u,
     )
     target_qubits_in_use = client._ordered_target_qubits_from_layout(
         compiled_qc=compressed_transpiled_template,

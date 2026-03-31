@@ -191,6 +191,7 @@ def run_pqc_classifier(
     readout_mitigation: bool = False,
     target_qubits: Optional[Sequence[int]] = None,
     qasm_version: str = "2.0",
+    convert_single_qubit_gate_to_u: bool = True,
 ) -> QMLResult:
     """Train a parameterized quantum classifier.
 
@@ -295,6 +296,7 @@ def run_pqc_classifier(
         transpiled_template = client._transpile_with_backend(
             full_symbolic_template, backend, target_qubits=target_qubits,
             use_dd=False, use_gate_compressor=False,
+            convert_single_qubit_gate_to_u=convert_single_qubit_gate_to_u,
         )
         target_qubits_in_use = client._ordered_target_qubits_from_layout(
             compiled_qc=transpiled_template,
@@ -325,6 +327,7 @@ def run_pqc_classifier(
             num_qubits=num_qubits, backend=backend, chip_name=chip_name,
             shots=shots, zne=zne, readout_mitigation=readout_mitigation,
             target_qubits=target_qubits_in_use, qasm_version=qasm_version,
+            convert_single_qubit_gate_to_u=convert_single_qubit_gate_to_u,
         )
 
     print(f"[qml-classifier] start: {num_qubits}q, {num_ansatz_params} ansatz params, "
@@ -570,6 +573,7 @@ def run_qnn_unsupervised(
     readout_mitigation: bool = False,
     target_qubits: Optional[Sequence[int]] = None,
     qasm_version: str = "2.0",
+    convert_single_qubit_gate_to_u: bool = True,
     # --- MMD params (parameter-shift only) ---
     mmd_sigma: float = 1.0,
     # --- generation ---
@@ -645,6 +649,7 @@ def run_qnn_unsupervised(
         transpiled_template = client._transpile_with_backend(
             ansatz_qc, backend, target_qubits=target_qubits,
             use_dd=False, use_gate_compressor=False,
+            convert_single_qubit_gate_to_u=convert_single_qubit_gate_to_u,
         )
         target_qubits_in_use = client._ordered_target_qubits_from_layout(
             compiled_qc=transpiled_template,
@@ -655,6 +660,7 @@ def run_qnn_unsupervised(
             num_qubits=num_qubits, backend=backend, chip_name=chip_name,
             shots=shots, zne=zne, readout_mitigation=readout_mitigation,
             target_qubits=target_qubits_in_use, qasm_version=qasm_version,
+            convert_single_qubit_gate_to_u=convert_single_qubit_gate_to_u,
         )
         print(f"[qnn-unsupervised] transpiled ONCE, target_qubits={target_qubits_in_use}")
 

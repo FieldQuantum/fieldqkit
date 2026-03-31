@@ -342,6 +342,7 @@ def run_vqe_with_backend(
     compression_plot_loss: bool = False,
     qasm_version: str = "2.0",
     use_dd: bool = True,
+    convert_single_qubit_gate_to_u: bool = True,
 ) -> VQEResult:
     """Run VQE optimization on a specific backend.
 
@@ -452,6 +453,7 @@ def run_vqe_with_backend(
                 target_qubits=target_qubits,
                 use_dd=use_dd,
                 use_gate_compressor=False,
+                convert_single_qubit_gate_to_u=convert_single_qubit_gate_to_u,
             )
             gradient_param_template = transpiled_template
             target_qubits_in_use = client._ordered_target_qubits_from_layout(
@@ -478,6 +480,7 @@ def run_vqe_with_backend(
                 compression_verbose=compression_verbose,
                 compression_plot_loss=compression_plot_loss,
                 tag="vqe",
+                convert_single_qubit_gate_to_u=convert_single_qubit_gate_to_u,
             )
             circuit_transform_fn = comp_ctx["transform"]
             compressed_transpiled_template = comp_ctx["compressed_transpiled_template"]
@@ -512,6 +515,7 @@ def run_vqe_with_backend(
             seed=None if seed is None else int(seed) + 7919,
             target_qubits=target_qubits_in_use,
             qasm_version=qasm_version,
+            convert_single_qubit_gate_to_u=convert_single_qubit_gate_to_u,
         )
         clifford_fitting_summary = {
             obs: {"a": float(coeffs[0]), "b": float(coeffs[1])}
@@ -554,6 +558,7 @@ def run_vqe_with_backend(
         circuit_transform=circuit_transform_fn,
         qasm_version=qasm_version,
         extra_info=f"layers={layers} ansatz={str(ansatz).lower()}",
+        convert_single_qubit_gate_to_u=convert_single_qubit_gate_to_u,
     )
 
     return VQEResult(
@@ -668,7 +673,8 @@ class VQERunner:
 
         provider_name = str(provider).lower()
         qasm_version = self.client._default_qasm_version_for_provider(provider_name)
-        use_dd = provider_name not in {"tianyan", "guodun"}
+        use_dd = provider_name not in {"tianyan", "guodun", "tencent"}
+        convert_single_qubit_gate_to_u = provider_name not in {"tencent"}
         runtime = create_provider_runtime(provider=provider_name, client=self.client)
         profiles = runtime.backend_adapter.discover_hardware(
             num_qubits=num_qubits,
@@ -731,6 +737,7 @@ class VQERunner:
                     compression_plot_loss=self.compression_plot_loss,
                     qasm_version=qasm_version,
                     use_dd=use_dd,
+                    convert_single_qubit_gate_to_u=convert_single_qubit_gate_to_u,
                 )
             except Exception as exc:
                 last_error = exc

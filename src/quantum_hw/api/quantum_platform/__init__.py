@@ -10,6 +10,7 @@ from ..backend import list_available_hardware
 from .quafu import QuafuBackendAdapter, QuafuPlatform, QuafuTaskAdapter
 from .tianyan import TianYanBackendAdapter, TianYanPlatform, TianYanTaskAdapter
 from .guodun import GuoDunBackendAdapter, GuoDunPlatform, GuoDunTaskAdapter
+from .tencent import TencentBackendAdapter, TencentPlatform, TencentTaskAdapter
 
 
 @dataclass
@@ -39,7 +40,13 @@ def create_provider_runtime(*, provider: str, client: Any) -> ProviderRuntime:
             backend_adapter=GuoDunBackendAdapter(),
             task_adapter=GuoDunTaskAdapter(client=client),
         )
-    raise ValueError("provider must be one of: 'quafu', 'tianyan', or 'guodun'")
+    if provider_name == "tencent":
+        return ProviderRuntime(
+            provider=provider_name,
+            backend_adapter=TencentBackendAdapter(),
+            task_adapter=TencentTaskAdapter(client=client),
+        )
+    raise ValueError("provider must be one of: 'quafu', 'tianyan', 'guodun', or 'tencent'")
 
 
 __all__ = [
@@ -57,4 +64,7 @@ __all__ = [
     "GuoDunPlatform",
     "GuoDunBackendAdapter",
     "GuoDunTaskAdapter",
+    "TencentPlatform",
+    "TencentBackendAdapter",
+    "TencentTaskAdapter",
 ]

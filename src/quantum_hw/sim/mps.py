@@ -599,7 +599,7 @@ def simulate_counts(
 
     out: Dict[str, int] = {}
     for bits in samples:
-        bitstr = "".join(str(int(b)) for b in bits)[::-1]
+        bitstr = "".join(str(int(b)) for b in bits)
         out[bitstr] = out.get(bitstr, 0) + 1
     return out
 

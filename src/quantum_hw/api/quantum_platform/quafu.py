@@ -31,6 +31,16 @@ def _normalize_coordinate(value: Any) -> Optional[List[float]]:
     return None
 
 
+def _flip_bitstring(bs: str) -> str:
+    """Reverse a bitstring to convert big-endian ↔ little-endian."""
+    return bs[::-1]
+
+
+def _flip_counts(counts: Dict[str, int]) -> Dict[str, int]:
+    """Flip all bitstrings in a count dict from little-endian to big-endian."""
+    return {_flip_bitstring(k): v for k, v in counts.items()}
+
+
 def load_quafu_chip_info(chip_name: str):
     session = requests.Session()
     url = "https://quafu-sqc.baqis.ac.cn"
@@ -248,6 +258,7 @@ class QuafuTaskAdapter(TaskAdapter):
         res = platform_obj.result(task_id)
         if not isinstance(res, dict) or "count" not in res:
             raise RuntimeError(f"quafu task result missing count for task_id={handle.task_id}")
+        res["count"] = _flip_counts(res["count"])
         return res
 
     def cancel_task(self, handle: ProviderTaskHandle) -> None:

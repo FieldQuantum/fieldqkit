@@ -6,13 +6,13 @@
 
 ## 一、项目定位
 
-`quantum-hw-interface`（包名 `quantum_hw`）是一个面向用户的**量子硬件控制接口**，提供从量子线路构建、编译转译、提交执行、误差缓解到变分算法的完整工作流。项目以统一 API 屏蔽多量子云平台（Quafu / 天衍 / 国盾）的差异，并内置基于 PyTorch 的本地模拟器，支持自动微分和大规模张量网络仿真。
+`quantum-hw-interface`（包名 `quantum_hw`）是一个面向用户的**量子硬件控制接口**，提供从量子线路构建、编译转译、提交执行、误差缓解到变分算法的完整工作流。项目以统一 API 屏蔽多量子云平台（Quafu / 天衍 / 国盾 / 腾讯量子云）的差异，并内置基于 PyTorch 的本地模拟器，支持自动微分和大规模张量网络仿真。
 
 核心目标：
 
 | 目标 | 说明 |
 |---|---|
-| **统一硬件访问** | 单一 `QuantumHardwareClient` 对接多平台 |
+| **统一硬件访问** | 单一 `QuantumHardwareClient` 对接多平台（Quafu/天衍/国盾/腾讯） |
 | **自动编译** | 逻辑电路 → 物理芯片的完整转译流水线 |
 | **误差缓解** | Readout 校准 + 零噪声外推（ZNE） |
 | **变分算法** | VQE、QAOA、Shadow Tomography、QML |
@@ -70,11 +70,12 @@ quantum_hw/                          入口 __init__.py（导出顶层 API）
 │   ├── client.py                    QuantumHardwareClient — 唯一用户入口
 │   ├── backend.py                   Backend / HardwareProfile / BackendAdapter (ABC)
 │   ├── task.py                      OpenQasmSubmitRequest / TaskAdapter (ABC) / ProviderTaskHandle
-│   ├── platform_credentials.py      凭证管理（Quafu / TianYan / GuoDun）
+│   ├── platform_credentials.py      凭证管理（Quafu / TianYan / GuoDun / Tencent）
 │   └── quantum_platform/            三平台具体适配
 │       ├── quafu.py                 Quafu REST API（BAQIS）
 │       ├── tianyan.py               天衍（cqlib 协议）
 │       ├── guodun.py                国盾（cqlib 协议）
+│       ├── tencent.py               腾讯量子云（tensorcircuit cloud API）
 │       └── cqlib.py                 cqlib 公共 HTTP 客户端 + QASM↔QCIS 转换
 │
 ├── circuit/     (~4,022 行)         线路表示

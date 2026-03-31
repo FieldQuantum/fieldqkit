@@ -117,6 +117,7 @@ def run_shadow_with_backend(
     qasm_version: str = "2.0",
     use_dd: bool = True,
     submit_options: Optional[Dict] = None,
+    convert_single_qubit_gate_to_u: bool = True,
 ) -> ShadowResult:
     """Run classical shadow tomography on a specific backend."""
     if observables is None:
@@ -163,6 +164,7 @@ def run_shadow_with_backend(
         qasm_version=qasm_version,
         use_dd=use_dd,
         submit_options=submit_options,
+        convert_single_qubit_gate_to_u=convert_single_qubit_gate_to_u,
     )
     if res.task_ids:
         task_ids.extend([str(t) for t in res.task_ids])
@@ -255,7 +257,8 @@ class ShadowTomography:
         """Select hardware and run classical shadow tomography."""
         provider_name = str(provider).lower()
         qasm_version = self.client._default_qasm_version_for_provider(provider_name)
-        use_dd = provider_name not in {"tianyan", "guodun"}
+        use_dd = provider_name not in {"tianyan", "guodun", "tencent"}
+        convert_single_qubit_gate_to_u = provider_name not in {"tencent"}
         print("[shadow] read hardware information and select", f"provider={provider_name}")
         # Normalize input circuit and strip measurements if present.
         qc = self.client._normalize_input_circuit(circuit, num_qubits)
@@ -313,6 +316,7 @@ class ShadowTomography:
                     qasm_version=qasm_version,
                     use_dd=use_dd,
                     submit_options=submit_options,
+                    convert_single_qubit_gate_to_u=convert_single_qubit_gate_to_u,
                 )
             except Exception as exc:
                 last_error = exc

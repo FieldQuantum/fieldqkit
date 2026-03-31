@@ -40,8 +40,9 @@ class Transpiler:
     qubit connectivity.
     """
 
-    def __init__(self, chip_backend: Backend | None = None):
+    def __init__(self, chip_backend: Backend | None = None, *, convert_single_qubit_gate_to_u: bool | None = None):
         self.chip_backend = chip_backend
+        self._convert_single_qubit_gate_to_u_override = convert_single_qubit_gate_to_u
 
     def run(
         self,
@@ -80,7 +81,7 @@ class Transpiler:
         else:
             # Use the backend's basis and topology-aware layout selection.
             self.two_qubit_gate_basis = self.chip_backend.two_qubit_gate_basis
-            self.convert_single_qubit_gate_to_u = True
+            self.convert_single_qubit_gate_to_u = True if self._convert_single_qubit_gate_to_u_override is None else self._convert_single_qubit_gate_to_u_override
             subgraph = Layout(self.chip_backend).select_layout(
                 qc,
                 target_qubits=target_qubits,
