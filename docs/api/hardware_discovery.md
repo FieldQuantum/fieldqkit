@@ -60,7 +60,7 @@ class HardwareTopology:
 @dataclass
 class HardwareCalibration:
     qubit_fidelity: Dict[int, float]           # 各物理比特的单比特门保真度
-    coupler_fidelity: Dict[str, float]         # 各两比特门对的保真度（键格式："q0-q1"）
+    coupler_fidelity: Dict[str, float]           # 各两比特门对的保真度（键为 couplers_info 原始键）
     queue_length: Optional[int]                # 该芯片的任务队列长度（可选）
 ```
 

@@ -80,6 +80,20 @@
 
 建议阅读顺序：`circuits` → `observables` → `utils` → `readout` → `zne` → `result_types`。
 
+## Compile
+
+- [compile module reference](./compile/README.md)
+- [Transpiler](./compile/transpiler.md)
+- [Layout](./compile/layout.md)
+- [SabreRouting](./compile/routing.md)
+- [GateCompressor](./compile/optimize.md)
+- [DynamicalDecoupling](./compile/schedule.md)
+- [Decompose](./compile/decompose.md)
+- [TranslateToBasisGates](./compile/translate.md)
+- [DAG 工具](./compile/dag.md)
+
+> 建议阅读顺序：`Transpiler`（总览）→ `Layout` → `SabreRouting` → `TranslateToBasisGates` → `GateCompressor` → `DynamicalDecoupling` → `Decompose` → `DAG`。
+
 ## Circuit
 
 - [circuit module reference](./circuit/README.md)

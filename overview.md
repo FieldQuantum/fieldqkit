@@ -20,7 +20,7 @@
 | **硬件校准** | Readout、原生两比特 RB、过程层析 |
 | **高效仿真** | 全态矢量 + MPS + MPO，支持梯度计算 |
 
-代码规模约 **15,870 行**，分布于 72 个 Python 文件。
+代码规模约 **17,040 行**，分布于 60 个 Python 文件。
 
 ---
 
@@ -37,6 +37,7 @@ Quantum_control/
 │   ├── algorithms/            算法模块说明
 │   ├── calibration/           校准模块说明
 │   ├── circuit/               线路层说明
+│   ├── compile/               编译模块说明
 │   ├── core/                  核心工具说明
 │   └── sim/                   模拟器说明
 ├── examples/                  Jupyter Notebook 教程
@@ -53,7 +54,7 @@ Quantum_control/
 │   └── demo_backend.ipynb     硬件拓扑与后端
 ├── scripts/                   辅助脚本
 └── src/quantum_hw/            主源码（详见下节）
-    └── tests/                 测试套件（20 个测试文件）
+tests/                         测试套件（21 个测试文件）
 ```
 
 ---
@@ -65,7 +66,7 @@ Quantum_control/
 
 ```
 quantum_hw/                          入口 __init__.py（导出顶层 API）
-├── api/         (~1,770 行)         硬件 API 层
+├── api/         (~2,577 行)         硬件 API 层
 │   ├── client.py                    QuantumHardwareClient — 唯一用户入口
 │   ├── backend.py                   Backend / HardwareProfile / BackendAdapter (ABC)
 │   ├── task.py                      OpenQasmSubmitRequest / TaskAdapter (ABC) / ProviderTaskHandle
@@ -76,7 +77,7 @@ quantum_hw/                          入口 __init__.py（导出顶层 API）
 │       ├── guodun.py                国盾（cqlib 协议）
 │       └── cqlib.py                 cqlib 公共 HTTP 客户端 + QASM↔QCIS 转换
 │
-├── circuit/     (~2,850 行)         线路表示
+├── circuit/     (~4,022 行)         线路表示
 │   ├── quantumcircuit.py            QuantumCircuit 类（门操作、参数化、deepcopy）
 │   ├── quantumcircuit_helpers.py    门名称字典、DAG 信息转换、门→线路渲染辅助
 │   ├── qasm2.py / qasm3.py          OpenQASM 2/3 解析器
@@ -84,18 +85,18 @@ quantum_hw/                          入口 __init__.py（导出顶层 API）
 │   ├── render.py                    线路文本可视化
 │   └── utils.py                     U3/ZYZ/KAK 分解、酉矩阵等价性检验
 │
-├── compile/     (~1,940 行)         编译转译
+├── compile/     (~2,757 行)         编译转译
 │   ├── transpiler.py                Transpiler — pass 管理器
 │   ├── basepasses.py                TranspilerPass (ABC)
 │   ├── decompose.py                 门分解（CX/SWAP/iSWAP/ECR/CCX… → U+CZ）
-│   ├── layout.py                    Layout（逻辑↔物理比特映射，保真度优先）
-│   ├── routing.py                   SabreRouting（SWAP 插入，basic/lookahead/decay 启发式）
+│   ├── layout.py                    Layout（线路感知布局选择，保真度+路由代价联合排序）
+│   ├── routing.py                   SabreRouting（SWAP 插入，噪声感知 + 多试验模式）
 │   ├── translate.py                 TranslateToBasisGates（翻译到 {U, CZ} 本征门集）
-│   ├── optimize.py                  GateCompressor（单比特门合并/消元）
+│   ├── optimize.py                  GateCompressor（对易重排 + 单比特合并 + 两比特对消）
 │   ├── schedule.py                  DynamicalDecoupling（XY4 / CPMG DD 序列）
 │   └── dag.py                       DAG 转换与可视化
 │
-├── algorithms/  (~3,450 行)         量子算法
+├── algorithms/  (~4,180 行)         量子算法
 │   ├── vqe.py                       VQERunner — Ising/Heisenberg/XXZ/XY/自定义 Hamiltonian
 │   │                                parameter-shift / autograd 梯度, Adam 优化, Clifford fitting
 │   ├── qaoa.py                      QAOARunner — MaxCut / 自定义 Z/ZZ 代价项
@@ -110,7 +111,7 @@ quantum_hw/                          入口 __init__.py（导出顶层 API）
 │   └── circuit_compression.py       MPS/MPO 混合后缀压缩（降低线路深度）
 │                                    + build_compression_transform（可复用压缩变换工厂）
 │
-├── core/        (~420 行)           通用工具
+├── core/        (~661 行)           通用工具
 │   ├── circuits.py                  预置线路（GHZ / Cluster / QFT / Ising 演化）
 │   ├── observables.py               Pauli 字符串解析、期望值计算、测量基转换
 │   ├── readout.py                   Readout 误差缓解（逆混淆矩阵）
@@ -120,13 +121,13 @@ quantum_hw/                          入口 __init__.py（导出顶层 API）
 │   ├── utils.py                     概率/采样辅助函数
 │   └── plotting.py                  概率分布、可观测量对比、能量收敛曲线（matplotlib）
 │
-├── calibration/ (~580 行)           校准
+├── calibration/ (~1,010 行)          校准
 │   ├── readout.py                   ReadoutCalibrationManager（带缓存的 readout 校准）
 │   ├── rb.py                        NativeTwoQubitRBManager（原生两比特 RB）
 │   ├── tomography.py                NativeTwoQubitTomographyManager（过程层析）
 │   └── _cache.py / _coupler_utils   缓存 TTL / coupler 过滤
 │
-├── sim/         (~1,470 行)         模拟器
+├── sim/         (~1,768 行)         模拟器
 │   ├── statevector.py               全态矢量模拟（torch，支持 autograd）
 │   ├── mps.py                       MPS 张量网络模拟器（可微，ComplexSVD 自定义 autograd）
 │   ├── mpo.py                       MPO 量子过程模拟器
@@ -134,16 +135,6 @@ quantum_hw/                          入口 __init__.py（导出顶层 API）
 │   ├── interface.py                 统一模拟入口 simulate_counts / expectation_pauli /
 │   │                                sample_probabilities / energy_and_expectations
 │   └── common.py                    参数解析、设备选择工具
-│
-└── vendor/      (~1,320 行)         内置第三方代码
-    └── cqlib/                       QASM↔QCIS 转换器（天衍/国盾平台指令集）
-        ├── exceptions.py            异常定义
-        └── utils/                   转换核心
-            ├── const.py             指令名称常量
-            ├── laboratory_utils.py  平台特定工具函数
-            ├── simplify.py          QCIS 指令简化
-            ├── qcis_to_qasm.py      QCIS → OpenQASM 逆向转换
-            └── qasm_to_qcis/        OpenQASM → QCIS 转换（规则映射 + 数据表）
 ```
 
 ---
@@ -227,16 +218,16 @@ quantum_hw/                          入口 __init__.py（导出顶层 API）
 
 ### 3.4 编译 / 转译层（`compile/`）
 
-**核心类：`Transpiler`**（`transpiler.py`，121 行）
+**核心类：`Transpiler`**（`transpiler.py`，141 行）
 
 编译流水线按以下顺序执行：
 
 ```
 1. 三比特门分解        CCX/CCZ → U+CZ 原生门
-2. 布局（Layout）      逻辑比特 → 物理比特映射（保真度优先子图枚举）
-3. SABRE 路由          插入 SWAP 门以满足连通性约束（basic/lookahead/decay 启发式）
+2. 布局（Layout）      线路感知布局选择（保真度 + 路由代价联合排序）
+3. SABRE 路由          噪声感知 SWAP 插入（多试验模式 + 保真度加权距离）
 4. 基础门翻译          所有门 → {U, CZ} 本征门集
-5. 门压缩              合并/消元相邻单比特门（减少深度）
+5. 门压缩              对易重排 + 单比特合并 + 两比特对消 + DAG 压缩
 6. 动力学去耦（DD）    在 CZ 空闲时隙插入 DD 序列（XY4 / CPMG）
 ```
 
@@ -244,14 +235,14 @@ quantum_hw/                          入口 __init__.py（导出顶层 API）
 
 | 文件 | 功能 |
 |---|---|
-| `decompose.py`（432 行） | 三比特/两比特门分解（含 Toffoli、各种二比特→CZ 分解） |
-| `layout.py`（372 行） | 保真度优先的物理比特分配（子图枚举） |
-| `routing.py`（379 行） | SABRE 启发式 SWAP 插入 |
-| `translate.py`（154 行） | 翻译到 {U, CZ} 本征门集 |
-| `optimize.py`（312 行） | 单比特门合并/消元（GateCompressor） |
-| `schedule.py`（168 行） | 动力学去耦序列（DynamicalDecoupling，XY4/CPMG） |
-| `dag.py`（153 行） | DAG（有向无环图）转换与可视化 |
-| `basepasses.py`（34 行） | `TranspilerPass` ABC |
+| `decompose.py`（482 行） | 三比特/两比特门分解（含 Toffoli、各种二比特→CZ 分解） |
+| `layout.py`（516 行） | 线路感知的物理比特分配（子图枚举 + 保真度路由代价联合排序） |
+| `routing.py`（456 行） | SABRE 启发式 SWAP 插入（噪声感知 + 多试验模式） |
+| `translate.py`（162 行） | 翻译到 {U, CZ} 本征门集 |
+| `optimize.py`（598 行） | 对易重排、单比特合并、两比特对消、DAG 压缩（GateCompressor） |
+| `schedule.py`（179 行） | 动力学去耦序列（DynamicalDecoupling，XY4/CPMG） |
+| `dag.py`（176 行） | DAG（有向无环图）转换与可视化 |
+| `basepasses.py`（42 行） | `TranspilerPass` ABC |
 
 ---
 
@@ -390,35 +381,19 @@ quantum_hw/                          入口 __init__.py（导出顶层 API）
 
 ---
 
-### 3.9 内置第三方代码（`vendor/`）
-
-`vendor/cqlib/` 实现 **OpenQASM ↔ QCIS** 双向转换，服务于天衍和国盾平台的专有指令集：
-
-| 子模块 | 功能 |
-|---|---|
-| `exceptions.py`（58 行） | 异常类定义 |
-| `utils/qasm_to_qcis/`（763 行） | OpenQASM → QCIS 转换（规则映射 + 数据表） |
-| `utils/qcis_to_qasm.py`（176 行） | QCIS → OpenQASM 逆向转换 |
-| `utils/simplify.py`（164 行） | QCIS 指令简化 |
-| `utils/laboratory_utils.py`（345 行） | 平台特定工具函数 |
-| `utils/const.py`（177 行） | 指令名称常量 |
-
----
-
 ### 3.10 模块代码量分布
 
 | 子包 | 行数 | 占比 |
 |---|---|---|
-| `algorithms/` | 3,451 | 21.7% |
-| `circuit/` | 2,853 | 18.0% |
-| `compile/` | 1,935 | 12.2% |
-| `api/`（含 `quantum_platform/`） | 1,773 | 11.2% |
-| `sim/` | 1,471 | 9.3% |
-| `vendor/` | 1,323 | 8.3% |
-| `calibration/` | 581 | 3.7% |
-| `core/` | 420 | 2.6% |
-| 根 `__init__.py` | 63 | 0.4% |
-| **合计** | **15,870** | **100%** |
+| `algorithms/` | 4,180 | 24.5% |
+| `circuit/` | 4,022 | 23.6% |
+| `compile/` | 2,757 | 16.2% |
+| `api/`（含 `quantum_platform/`） | 2,577 | 15.1% |
+| `sim/` | 1,768 | 10.4% |
+| `calibration/` | 1,010 | 5.9% |
+| `core/` | 661 | 3.9% |
+| 根 `__init__.py` | 65 | 0.4% |
+| **合计** | **17,040** | **100%** |
 
 ---
 
@@ -577,7 +552,7 @@ QML  → demo_qml → demo_qml_iris → demo_qnn_bas → demo_qnn_unsupervised
 
 ## 九、测试覆盖
 
-测试文件位于 `tests/`（20 个文件），主要覆盖：
+测试文件位于 `tests/`（21 个文件），主要覆盖：
 
 | 测试组 | 文件 |
 |---|---|
@@ -605,7 +580,10 @@ QML  → demo_qml → demo_qml_iris → demo_qnn_bas → demo_qnn_unsupervised
 
 ### 编译器增强
 
-- **多策略 routing**：引入 stochastic routing / 噪声感知 routing（优先使用高保真 coupler）。
+- **噪声感知路由**：已实现 noise-aware routing（`-log(f)` 保真度加权距离）和多试验模式（`n_trials`）。✅
+- **线路感知布局**：已实现 circuit-aware layout 选择（交互图 + 路由代价联合排序）。✅
+- **两比特对消除**：已实现 `cancel_two_qubit_pairs`（自逆门对 + 对易判断消除）。✅
+- **对易重排序**：已实现 `commutation_reorder`（利用对易关系聚集同比特单比特门以增强合并）。✅
 - **本征门集扩展**：支持 iSWAP / √iSWAP 本征门（部分硬件原生支持），减少不必要的门分解。
 - **电路等价性验证**：提供编译前后的酉矩阵比较工具（已有 `sim/mpo.py` 基础）。
 

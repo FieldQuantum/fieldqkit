@@ -41,7 +41,7 @@
 各文档中的关键方法参数说明如下：
 
 - **QuantumHardwareClient**
-  - `run_auto(...)` 的 17 个参数及返回 RunResult 字段 —— see [QuantumHardwareClient.md](./QuantumHardwareClient.md#%E5%8F%82%E6%95%B0)
+  - `run_auto(...)` 的 16 个参数（不含 self）及返回 RunResult 字段 —— see [QuantumHardwareClient.md](./QuantumHardwareClient.md#%E5%8F%82%E6%95%B0)
   - `build_circuit(kind, **kwargs)` 的 4 种线路及其参数 —— see [QuantumHardwareClient.md](./QuantumHardwareClient.md#%E5%85%B3%E9%94%AE%E6%96%B9%E6%B3%95) 下的展开说明
 
 - **hardware_discovery**

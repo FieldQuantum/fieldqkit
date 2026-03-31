@@ -21,7 +21,7 @@ def __init__(self, chip: str | dict)
 
 | 参数 | 类型 | 说明 |
 |---|---|---|
-| `chip` | `str \| dict` | **字符串**：支持 Quafu、TianYan、GuoDun、`Simulator` 的芯片名（如 `"Baihua"`）。**字典**：直接传入标准化 `chip_info` 配置。 |
+| `chip` | `str \| dict` | **字符串**：支持以下芯片名——Quafu 侧：`Baihua`、`Dongling`、`Haituo`、`Yunmeng`、`Miaofeng`、`Yudu`、`Hongluo`；cqlib 侧：`tianyan176`、`tianyan176-2`、`tianyan24`、`tianyan504`、`tianyan287`、`gd_qc1`、`chmy176`、`gd_sim1`；模拟器：`Simulator`。**字典**：直接传入标准化 `chip_info` 配置（需含 `qubits_info`、`couplers_info`、`global_info` 等字段）。 |
 
 **返回值：** `Backend` 对象，包含拓扑图和校准信息。
 
@@ -91,7 +91,7 @@ print(f"边数据: {list(G.edges(data=True))[:3]}")
 def edge_filtered_graph(self, thres: float = 0.6) -> networkx.Graph
 ```
 
-**用途：** 返回只包含保真度 ≥ 阈值的边的子图。
+**用途：** 返回只包含保真度 ≥ 阈值的边**和节点**的子图。节点和边均按 `fidelity` 属性过滤。
 
 **参数：**
 
@@ -265,14 +265,17 @@ class BackendAdapter(ABC):
 
 - 作用：构造本地模拟器 profile。
 
-### `build_hardware_profile(provider, hardware_name, backend, queue_length, raw_info) -> HardwareProfile`
+### `build_hardware_profile(*, provider, hardware_name, backend, queue_length, raw_info) -> HardwareProfile`
 
 - 作用：从 `Backend.chip_info` 生成统一 profile 数据结构。
+- 注意：所有参数均为 keyword-only。
+- 内部使用 `MIN_CONNECTED_COUPLER_FIDELITY = 0.9` 常量过滤低保真耦合器。
 
-### `list_available_hardware(provider) -> List[Dict[str, Any]]`
+### `list_available_hardware(provider) -> List[Dict[str, Any]]`（模块级函数）
 
 - 作用：按 provider 创建平台对象并返回统一硬件列表。
 - 支持：`quafu/tianyan/guodun`。
+- 注意：这是 `quantum_hw.api.backend` 模块级函数，与 `BackendAdapter.list_available_hardware()` 实例方法不同。
 
 ## 常见报错
 

@@ -308,5 +308,6 @@ print("gates:", len(qc.gates))
 ## 相关页面
 
 - [OpenQASM 解析](./qasm.md)
+- [QASM-to-QCIS 转换器](./qasm_to_qcis.md)
 - [helpers 与渲染](./helpers_render.md)
 - [matrix 与 utils](./matrix_utils.md)

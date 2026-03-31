@@ -66,7 +66,7 @@ print(result.probabilities)
 
 ```
 quantum_hw/                          入口 __init__.py（导出顶层 API）
-├── api/         (~2,200 行)         硬件 API 层
+├── api/         (~2,600 行)         硬件 API 层
 │   ├── client.py                    QuantumHardwareClient — 唯一用户入口
 │   ├── backend.py                   Backend / HardwareProfile / BackendAdapter (ABC)
 │   ├── task.py                      OpenQasmSubmitRequest / TaskAdapter (ABC) / ProviderTaskHandle
@@ -77,25 +77,25 @@ quantum_hw/                          入口 __init__.py（导出顶层 API）
 │       ├── guodun.py                国盾（cqlib 协议）
 │       └── cqlib.py                 cqlib 公共 HTTP 客户端 + QASM↔QCIS 转换
 │
-├── circuit/     (~3,200 行)         线路表示
+├── circuit/     (~4,000 行)         线路表示
 │   ├── quantumcircuit.py            QuantumCircuit 类（门操作、参数化、deepcopy）
 │   ├── qasm2.py / qasm3.py          OpenQASM 2/3 解析器
 │   ├── matrix.py                    门矩阵定义（numpy）
 │   ├── render.py                    线路文本可视化
 │   └── utils.py                     辅助工具
 │
-├── compile/     (~2,100 行)         编译转译
+├── compile/     (~2,800 行)         编译转译
 │   ├── transpiler.py                Transpiler — pass 管理器
 │   ├── basepasses.py                TranspilerPass (ABC)
 │   ├── decompose.py                 门分解（CX/SWAP/iSWAP/ECR/CCX… → U+CZ）
-│   ├── layout.py                    Layout（逻辑↔物理比特映射）
-│   ├── routing.py                   SabreRouting（SWAP 插入）
+│   ├── layout.py                    Layout（线路感知布局选择，保真度+路由代价联合排序）
+│   ├── routing.py                   SabreRouting（SWAP 插入，噪声感知 + 多试验模式）
 │   ├── translate.py                 TranslateToBasisGates（翻译到 {U, CZ} 本征门集）
-│   ├── optimize.py                  GateCompressor（单比特门合并）
+│   ├── optimize.py                  GateCompressor（对易重排 + 单比特合并 + 两比特对消）
 │   ├── schedule.py                  DynamicalDecoupling（CZ 间隙填充 DD 序列）
 │   └── dag.py                       DAG 转换与可视化
 │
-├── algorithms/  (~2,200 行)         量子算法
+├── algorithms/  (~4,200 行)         量子算法
 │   ├── vqe.py                       VQERunner — Ising/Heisenberg/XXZ/XY/自定义 Hamiltonian
 │   │                                parameter-shift / autograd 梯度, Adam 优化, Clifford fitting
 │   ├── qaoa.py                      QAOARunner — MaxCut / 自定义 Z/ZZ 代价项
@@ -109,7 +109,7 @@ quantum_hw/                          入口 __init__.py（导出顶层 API）
 │   └── circuit_compression.py       MPS/MPO 混合后缀压缩（降低线路深度）
 │                                    + build_compression_transform（可复用压缩变换工厂）
 │
-├── core/        (~500 行)           通用工具
+├── core/        (~660 行)           通用工具
 │   ├── circuits.py                  预置线路（GHZ / Cluster / QFT / Ising 演化）
 │   ├── observables.py               Pauli 字符串解析、期望值计算、测量基转换
 │   ├── readout.py                   Readout 误差缓解（逆混淆矩阵）
@@ -118,13 +118,13 @@ quantum_hw/                          入口 __init__.py（导出顶层 API）
 │   │                                QMLResult / QBMResult
 │   └── plotting.py                  概率分布和可观测量对比图
 │
-├── calibration/ (~900 行)           校准
+├── calibration/ (~1,010 行)         校准
 │   ├── readout.py                   ReadoutCalibrationManager（带缓存的 readout 校准）
 │   ├── rb.py                        NativeTwoQubitRBManager（原生两比特 RB）
 │   ├── tomography.py                NativeTwoQubitTomographyManager（过程层析）
 │   └── _cache.py / _coupler_utils   缓存 TTL / coupler 过滤
 │
-├── sim/         (~1,400 行)         模拟器
+├── sim/         (~1,800 行)         模拟器
 │   ├── statevector.py               全态矢量模拟（torch，支持 autograd）
 │   ├── mps.py                       MPS 张量网络模拟器（可微）
 │   ├── mpo.py                       MPO 量子过程模拟器
@@ -133,8 +133,6 @@ quantum_hw/                          入口 __init__.py（导出顶层 API）
 │   │                                sample_probabilities
 │   └── common.py                    参数解析工具
 │
-└── vendor/      (~1,700 行)         内置第三方代码
-    └── cqlib/                       QASM↔QCIS 转换器（天衍/国盾平台指令集）
 ```
 
 ## 核心调用链路
@@ -197,6 +195,8 @@ QuantumHardwareClient.run_auto(provider="quafu", circuit=..., observables=...)
 ## 文档 (Docs)
 
 Docs 总览见 [docs/README.md](docs/README.md)。
+
+编译模块文档见 [docs/compile/README.md](docs/compile/README.md)。
 
 完整 API 文档见 [docs/api/](docs/api/) —— 包含 QuantumHardwareClient、硬件发现、后端操作、任务管理、Provider 实现等详细说明。
 

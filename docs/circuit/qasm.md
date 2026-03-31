@@ -2,55 +2,131 @@
 
 ## 概览
 
-- 模块：`quantum_hw.circuit.qasm2`、`quantum_hw.circuit.qasm3`
-- 作用：将 OpenQASM 2/3 程序解析为统一的 gate tuple IR
-- 调用入口：`QuantumCircuit.from_openqasm2`、`QuantumCircuit.from_openqasm3`
+- **模块**：`quantum_hw.circuit.qasm2`、`quantum_hw.circuit.qasm3`
+- **源文件**：`qasm2.py`（~307 行）、`qasm3.py`（~353 行）
+- **作用**：将 OpenQASM 2/3 程序解析为统一的 gate tuple IR
+- **调用入口**：`QuantumCircuit.from_openqasm2`、`QuantumCircuit.from_openqasm3`
 
-## qasm2 主要接口
+> QASM → QCIS 的转换见 [QASM-to-QCIS 转换器](./qasm_to_qcis.md)。
 
-### `parse_openqasm2_to_gates(openqasm2_str)`
+---
 
-- 输入：完整 OpenQASM2 字符串
-- 输出：`(new, qubits, cbits, gates, params_value)`
-- 能力：
-  - `qreg/creg` 声明解析
-  - 内置门与参数门解析
-  - `measure` / `barrier` / `reset`
-  - `if (...)` 条件前缀附着
-  - 自定义 `gate` / `opaque` 内联展开
+## qasm2 模块
 
-### `parse_openqasm2_regs(regs)`
+### 导出接口
 
-- 将多寄存器定义平铺为全局索引映射
+```python
+__all__ = [
+    "parse_expression",
+    "parse_openqasm2_regs",
+    "parse_openqasm2_custom_gates",
+    "parse_openqasm2_to_gates",
+]
+```
 
-### `parse_openqasm2_custom_gates(gates)`
+### `parse_openqasm2_to_gates(openqasm2_str: str)`
 
-- 解析并缓存自定义门定义
+主入口。将完整 OpenQASM 2.0 字符串解析为 gate tuple IR。
 
-### `parse_expression(expr)`
+| 参数 | 类型 | 说明 |
+|------|------|------|
+| `openqasm2_str` | `str` | 完整 OpenQASM 2.0 程序 |
 
-- 解析参数表达式，支持 `pi` 与常见数学函数
+**返回**：`(new, qubits, cbits, gates, params_value)`
 
-## qasm3 主要接口
+| 返回值 | 类型 | 说明 |
+|--------|------|------|
+| `new` | `list` | 解析后的语句行列表 |
+| `qubits` | `list[int]` | 使用的 qubit 索引（去重排序） |
+| `cbits` | `list[int]` | 使用的 cbit 索引（去重排序） |
+| `gates` | `list[tuple]` | gate tuple IR 序列 |
+| `params_value` | `dict` | 参数名到值映射 |
 
-### `parse_openqasm3_to_gates(openqasm3_str)`
+**解析能力**：
 
-- 将 OpenQASM3 程序解析为与 qasm2 一致的 IR 结构
+- `qreg`/`creg` 声明解析与全局索引映射
+- 所有内置门（离散门、参数门、三比特门）
+- `measure` / `barrier` / `reset`
+- `if (c == val)` 条件前缀附着
+- 自定义 `gate` / `opaque` 定义的内联展开
 
-### `convert_qasm_pi_to_decimal(qasm)`
+### `parse_openqasm2_regs(openqasm2_str: str)`
 
-- 统一 `pi` 表达式形式，便于后续求值
+解析 `qreg` 和 `creg` 声明，将多寄存器定义提取并从源码中移除。
+
+**返回**：`(qregs, cregs, new_qasm)`
+
+| 返回值 | 类型 | 说明 |
+|--------|------|------|
+| `qregs` | `list[tuple[str, int]]` | 量子寄存器名与大小 |
+| `cregs` | `list[tuple[str, int]]` | 经典寄存器名与大小 |
+| `new_qasm` | `str` | 移除寄存器声明后的 QASM |
+
+### `parse_openqasm2_custom_gates(openqasm2_str: str)`
+
+解析并缓存自定义门定义（`gate ... { ... }`），在主解析中内联展开。
+
+### 辅助函数
+
+#### `_record_qubits(qubit_used: list, *qubits: int) -> None`
+
+将 qubit 索引追加到已使用列表。
+
+#### `generate_reg_map(regs)`
+
+将多个寄存器按顺序平铺为全局索引映射字典。例如 `[('q', 3), ('r', 2)]` → `{('q', 0): 0, ('q', 1): 1, ('q', 2): 2, ('r', 0): 3, ('r', 1): 4}`。
+
+#### `sparse_gate_params_qregs(line: str)`
+
+将一行门指令拆解为 `(gate_name, params_str, qregs_str)` 三元组。
+
+#### `get_positions_list(gate, qregs_str, qreg_map, creg_map)`
+
+根据门名和寄存器引用字符串，查找全局 qubit/cbit 索引列表。
+
+---
+
+## qasm3 模块
+
+### 导出接口
+
+```python
+__all__ = ["parse_openqasm3_to_gates"]
+```
+
+### `parse_openqasm3_to_gates(openqasm3_str: str) -> tuple[list, set, set]`
+
+将 OpenQASM 3.0 程序解析为与 qasm2 一致的 IR 结构。
+
+| 参数 | 类型 | 说明 |
+|------|------|------|
+| `openqasm3_str` | `str` | 完整 OpenQASM 3.0 程序 |
+
+**依赖**：需要 `openqasm3` Python 库。缺失时抛出 `ImportError`。
+
+**实现方式**：
+- 使用 `openqasm3.parse()` 构建 AST
+- 遍历 AST 语句，递归处理门操作、寄存器声明、自定义门定义
+- 内部定义嵌套函数处理各语句类型（`QuantumGate`、`QuantumMeasurement`、`QuantumBarrier` 等）
+- 支持自定义 `gate` 定义的递归展开
+- 兼容 `openqasm3` 库不同版本的 AST 字段名
+
+---
 
 ## 与 QuantumCircuit 的关系
 
-- `from_openqasm2`：校验头部后调用 `parse_openqasm2_to_gates`
-- `from_openqasm3`：校验头部后调用 `parse_openqasm3_to_gates`
-- 两者都会回填 `nqubits/ncbits/qubits/gates/params_value`
+| QuantumCircuit 方法 | 调用链 |
+|---------------------|--------|
+| `from_openqasm2(qasm)` | 校验 `OPENQASM 2.0` 头 → `parse_openqasm2_to_gates` → 回填属性 |
+| `from_openqasm3(qasm)` | 校验 `OPENQASM 3.0` 头 → `parse_openqasm3_to_gates` → 回填属性 |
+| `to_openqasm2` (property) | 将 gate tuple IR 导出为 QASM 2.0 字符串 |
+| `to_openqasm3` (property) | 将 gate tuple IR 导出为 QASM 3.0 字符串 |
 
 ## 行为说明
 
 - 解析过程默认静默，不输出调试信息
 - 输出门序列采用统一 tuple IR，便于导出、绘图和编译复用
+- 参数表达式求值使用 `parse_expression`（来自 `quantumcircuit_helpers`，安全 AST 求值）
 
 ## 示例
 
@@ -59,7 +135,7 @@ from quantum_hw.circuit.qasm2 import parse_openqasm2_to_gates
 
 qasm = """
 OPENQASM 2.0;
-include \"qelib1.inc\";
+include "qelib1.inc";
 qreg q[2];
 creg c[2];
 rx(pi/4) q[0];
@@ -75,3 +151,4 @@ print(gates)
 
 - [QuantumCircuit](./quantumcircuit.md)
 - [Helpers 与渲染](./helpers_render.md)
+- [QASM-to-QCIS 转换器](./qasm_to_qcis.md)

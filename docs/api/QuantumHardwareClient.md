@@ -156,6 +156,27 @@ qc_ising = client.build_circuit("ising", num_qubits=4, j=0.5, h=1.0, t=0.5, step
 qc_qft = client.build_circuit("qft", num_qubits=8, with_swaps=True)
 ```
 
+### `_transpile_with_backend(...) -> QuantumCircuit`
+
+- 作用：调用编译流水线对线路进行转译。
+- 签名：
+
+```python
+def _transpile_with_backend(
+    self, qc, backend, target_qubits=None, use_dd=True,
+    use_three_qubit_decompose=True, use_sabre_routing=True,
+    use_translate_to_basis=True, use_gate_compressor=True,
+    noise_aware=True, routing_n_trials=8,
+) -> QuantumCircuit
+```
+
+| 参数 | 类型 | 默认值 | 说明 |
+|---|---|---:|---|
+| `noise_aware` | `bool` | `True` | 路由时使用保真度加权距离矩阵。 |
+| `routing_n_trials` | `int` | `8` | SABRE 多随机初始映射试验数。 |
+| `use_gate_compressor` | `bool` | `True` | 是否启用门压缩（含两比特门对消除）。 |
+| `use_dd` | `bool` | `True` | 是否启用动力学去耦。 |
+
 ### `_run_with_backend(...) -> RunResult`
 
 - 作用：在已解析 backend 条件下执行统一流程。
