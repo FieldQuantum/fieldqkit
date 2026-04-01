@@ -95,9 +95,7 @@ result = runner.run_model(
     name="maxcut_demo",
     num_qubits=4,
     edges=[(0,1), (1,2), (2,3), (0,3)],
-    provider="simulator",
-    model="maxcut",
-    max_iters=30,
+    prefer_chips="Simulator",
 )
 
 print(f"Best cost: {result.best_cost:.4f}")

@@ -7,10 +7,13 @@ from typing import Dict, List, Optional
 
 
 Counts = Dict[str, int]
+"""Measurement outcome counts: maps bitstrings like ``'010'`` to their observed frequency."""
 
 
 @dataclass
 class RunResult:
+	"""Result container returned by ``QuantumHardwareClient.run_auto`` and ``_run_with_backend``."""
+
 	task_ids: Optional[List[str]]
 	samples: List[List[List[int]]]
 	samples_zne: Optional[List[List[List[int]]]]
@@ -22,12 +25,16 @@ class RunResult:
 
 @dataclass
 class CalibrationResult:
+	"""Readout calibration result containing per-qubit confusion matrices."""
+
 	target_qubits: List[int]
 	per_qubit_confusion: Dict[int, List[List[float]]]
 
 
 @dataclass
 class ShadowResult:
+	"""Result container for classical shadow tomography."""
+
 	task_ids: Optional[List[str]] = None
 	samples: Optional[List[List[int]]] = None
 	basis_patterns: Optional[List[List[str]]] = None
@@ -41,6 +48,8 @@ class ShadowResult:
 
 @dataclass
 class VQEResult:
+	"""Result container for variational quantum eigensolver runs."""
+
 	best_energy: float
 	best_params: List[float]
 	energy_history: List[float]
@@ -52,6 +61,8 @@ class VQEResult:
 
 @dataclass
 class QAOAResult:
+	"""Result container for QAOA optimization runs."""
+
 	best_cost: float
 	best_params: List[float]
 	cost_history: List[float]
@@ -63,6 +74,8 @@ class QAOAResult:
 
 @dataclass
 class QMLResult:
+	"""Result container for quantum machine learning (classification / unsupervised) runs."""
+
 	task: str
 	best_loss: float
 	best_params: List[float]
@@ -75,6 +88,8 @@ class QMLResult:
 
 @dataclass
 class QBMResult:
+	"""Result container for quantum Boltzmann machine training."""
+
 	best_loss: float
 	best_params: List[float]
 	loss_history: List[float]

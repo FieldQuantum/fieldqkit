@@ -10,7 +10,18 @@ from .utils import expectation_from_probabilities, get_local_probabilities_from_
 
 
 def build_local_confusion_matrix(per_qubit_confusion: Dict[int, np.ndarray], target_qubits: Sequence[int]) -> np.ndarray:
-	"""Tensor product local per-qubit confusion matrices."""
+	"""Tensor product local per-qubit confusion matrices.
+
+	Args:
+		per_qubit_confusion (*Dict[int, np.ndarray]*): Per qubit confusion (``Dict[int, np.ndarray]``).
+		target_qubits (*Sequence[int]*): Qubit indices whose per-qubit confusion matrices will be tensored together.
+
+	Returns:
+		NumPy array with the computed result.
+
+	Raises:
+		ValueError: target_qubits is empty
+	"""
 	if not target_qubits:
 		raise ValueError("target_qubits is empty")
 	mats = [per_qubit_confusion[q] for q in target_qubits]
@@ -21,7 +32,20 @@ def build_local_confusion_matrix(per_qubit_confusion: Dict[int, np.ndarray], tar
 
 
 def mitigate_readout(probabilities: np.ndarray, confusion_matrix: np.ndarray) -> np.ndarray:
-	"""Apply readout mitigation using a pseudo-inverse."""
+	"""Apply readout mitigation using a pseudo-inverse.
+
+	The result is clipped to ``[0, 1]`` and renormalized to sum to 1.
+
+	Args:
+		probabilities (*np.ndarray*): Probabilities (``np.ndarray``).
+		confusion_matrix (*np.ndarray*): Readout confusion matrix.
+
+	Returns:
+		NumPy array with the computed result.
+
+	Raises:
+		ValueError: confusion_matrix must be square
+	"""
 	if confusion_matrix.shape[0] != confusion_matrix.shape[1]:
 		raise ValueError("confusion_matrix must be square")
 	pinv = np.linalg.pinv(confusion_matrix)
@@ -37,7 +61,17 @@ def expectation_from_samples_unbiased(local_samples: np.ndarray, local_confusion
 	"""Unbiased readout-mitigated parity estimator from local samples.
 
 	This estimator avoids building a full $2^k$ marginal when support size $k$ is large,
-	at the cost of higher variance.
+at the cost of higher variance.
+
+	Args:
+		local_samples (*np.ndarray*): Local samples (``np.ndarray``).
+		local_confusion_matrices (*Sequence[np.ndarray]*): Local confusion matrices (``Sequence[np.ndarray]``).
+
+	Returns:
+		Computed float result.
+
+	Raises:
+		ValueError: local_samples must be a 2D array with shape (nshots, k)
 	"""
 	if local_samples.ndim != 2:
 		raise ValueError("local_samples must be a 2D array with shape (nshots, k)")
@@ -79,7 +113,18 @@ def mitigate_observable_from_samples(
 	target_qubits_group: Sequence[int],
 	marginal_max_support: int = 10,
 ) -> float:
-	"""Compute readout-mitigated observable value from samples with adaptive strategy."""
+	"""Compute readout-mitigated observable value from samples with adaptive strategy.
+
+	Args:
+		samples (*np.ndarray*): Measurement samples.
+		support (*Sequence[int]*): Logical qubit indices (relative to measurement group) of non-identity Pauli terms.
+		per_qubit (*Dict[int, np.ndarray]*): Per-qubit 2×2 confusion matrices.
+		target_qubits_group (*Sequence[int]*): Physical qubit indices corresponding to the measurement group.
+		marginal_max_support (*int*): Maximum support size for exact marginal mitigation; larger supports use the unbiased estimator. Defaults to ``10``.
+
+	Returns:
+		Computed float result.
+	"""
 	if not support:
 		return 1.0
 	support_phys = [target_qubits_group[i] for i in support]

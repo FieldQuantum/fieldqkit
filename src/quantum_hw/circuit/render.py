@@ -8,6 +8,11 @@ except Exception:  # pragma: no cover - fallback for non-notebook envs
 
 
 def _render_lines(lines: list[str]) -> None:
+    """Render lines.
+
+    Args:
+        lines (*list[str]*): Lines (``list[str]``).
+    """
     fline = "\n" + "\n".join(lines)
     if display is None or HTML is None:
         print(fline)
@@ -18,10 +23,22 @@ def _render_lines(lines: list[str]) -> None:
 
 
 def draw_circuit(lines: list[str]) -> None:
+    """Draw circuit.
+
+    Args:
+        lines (*list[str]*): Lines (``list[str]``).
+    """
     _render_lines(lines)
 
 
 def draw_circuit_simply(lines: list[str], lines_use: list[int], nqubits: int) -> None:
+    """Draw circuit simply.
+
+    Args:
+        lines (*list[str]*): Lines (``list[str]``).
+        lines_use (*list[int]*): Lines use (``list[int]``).
+        nqubits (*int*): Number of qubits.
+    """
     lines_use_set = set(lines_use)
     selected = []
     for idx in range(2 * nqubits):

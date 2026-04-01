@@ -1,23 +1,9 @@
-# Copyright (c) 2024 XX Xiao
-#
-# Permission is hereby granted, free of charge, to any person obtaining a copy
-# of this software and associated documentation files(the "Software"), to deal
-# in the Software without restriction, including without limitation the rights
-# to use, copy, modify, merge, publish, distribute, sublicense, and / or sell
-# copies of the Software, and to permit persons to whom the Software is
-# furnished to do so, subject to the following conditions:
-#
-# The above copyright notice and this permission notice shall be included in
-# all copies or substantial portions of the Software.
-#
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+r"""Translate single- and two-qubit gates in the quantum circuit into basis gates.
 
-r"""Translate single- and two-qubit gates in the quantum circuit into basis gates."""
+SPDX-License-Identifier: MIT
+Original source: quarkstudio, Copyright (c) YL Feng.
+See THIRD_PARTY_NOTICES for full license text.
+"""
 
 from typing import Literal
 import numpy as np
@@ -54,11 +40,28 @@ class TranslateToBasisGates(TranspilerPass):
         convert_single_qubit_gate_to_u: bool = True,
         two_qubit_gate_basis: Literal["cz", "cx", "iswap", "ecr"] = "cz",
     ):
+        """Initialize the basis gate translator.
+
+        Args:
+            convert_single_qubit_gate_to_u (*bool*): Whether to convert single-qubit gates to U gates. Defaults to ``True``.
+            two_qubit_gate_basis (*Literal['cz', 'cx', 'iswap', 'ecr']*): Two qubit gate basis (``Literal['cz', 'cx', 'iswap', 'ecr']``). Defaults to ``'cz'``.
+        """
         super().__init__()
         self.convert_single_qubit_gate_to_u = convert_single_qubit_gate_to_u
         self.two_qubit_gate_basis = two_qubit_gate_basis
 
     def run(self, qc: QuantumCircuit) -> QuantumCircuit:
+        """Translate all gates in the circuit to the target basis gate set.
+
+        Args:
+            qc (*QuantumCircuit*): Quantum circuit.
+
+        Returns:
+            Constructed ``QuantumCircuit``.
+
+        Raises:
+            TypeError: f'Input {gate} gate is not support to basic gates now.
+        """
         new_qc = qc.deepcopy()
 
         new = []

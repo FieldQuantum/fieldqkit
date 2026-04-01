@@ -16,9 +16,9 @@ MPO 过程模拟不在该分发层中自动路由，需要显式调用 quantum_h
 
 ## 分发规则
 
-- 常量：MPS_THRESHOLD_QUBITS = 12
+- 常量：MPS_THRESHOLD_QUBITS = 16
 - 规则：
-  - num_qubits > 12: 使用 MPS 后端
+  - num_qubits > 16: 使用 MPS 后端
   - 否则: 使用 statevector 后端
 
 ## 公开函数

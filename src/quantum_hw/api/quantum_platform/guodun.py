@@ -28,10 +28,27 @@ class GuoDunPlatform(RemotePlatformClient):
     DOWN_WAVEFORM_DIAGRAM = "/experiment/sdk/getWaveformDiagram"
 
     def list_available_hardware(self) -> List[Dict[str, Any]]:
+        """List available hardware.
+
+        Returns:
+            List of hardware description dictionaries.
+        """
         records = records_from_platform_list_query(self)
         return normalize_hardware_rows(provider="guodun", records=records)
 
     def re_execute_task(self, query_id: Optional[str] = None, lab_id: Optional[str] = None):
+        """Re execute task.
+
+        Args:
+            query_id (*Optional[str]*): Query id (``Optional[str]``). Defaults to ``None``.
+            lab_id (*Optional[str]*): Lab id (``Optional[str]``). Defaults to ``None``.
+
+        Returns:
+            Result.
+
+        Raises:
+            ValueError: Please provide lab_id or query_id.
+        """
         if not lab_id and not query_id:
             raise ValueError("Please provide lab_id or query_id.")
         try:
@@ -47,6 +64,18 @@ class GuoDunPlatform(RemotePlatformClient):
         return result.get("data")
 
     def stop_running_experiments(self, lab_id: Optional[str] = None, query_id: Optional[str] = None):
+        """Stop running experiments.
+
+        Args:
+            lab_id (*Optional[str]*): Lab id (``Optional[str]``). Defaults to ``None``.
+            query_id (*Optional[str]*): Query id (``Optional[str]``). Defaults to ``None``.
+
+        Returns:
+            Result.
+
+        Raises:
+            ValueError: Please provide lab_id or query_id.
+        """
         if not lab_id and not query_id:
             raise ValueError("Please provide lab_id or query_id.")
         try:
@@ -62,6 +91,18 @@ class GuoDunPlatform(RemotePlatformClient):
         return result.get("data")
 
     def create_waveform_data(self, circuit, circuit_name: Optional[str] = None) -> int:
+        """Create waveform data.
+
+        Args:
+            circuit: Quantum circuit to execute.
+            circuit_name (*Optional[str]*): Circuit name (``Optional[str]``). Defaults to ``None``.
+
+        Returns:
+            Computed integer result.
+
+        Raises:
+            ValueError: Please provide circuit.
+        """
         if not circuit:
             raise ValueError("Please provide circuit.")
         if not self.machine_name:
@@ -71,6 +112,14 @@ class GuoDunPlatform(RemotePlatformClient):
         return res.get("data").get("id")
 
     def query_waveform_data(self, query_id: int) -> str:
+        """Query waveform data.
+
+        Args:
+            query_id (*int*): Query id (``int``).
+
+        Returns:
+            Formatted string.
+        """
         params = {"id": query_id}
         res = self._send_request(self.DOWN_WAVEFORM_DIAGRAM, method="GET", params=params)
         return res.get("data").get("visibleUrl")
@@ -81,6 +130,15 @@ class GuoDunBackendAdapter(BackendAdapter):
     default_hardware_name = "gd_qc1"
 
     def __init__(self, *, machine_name: Optional[str] = None, login_key: Optional[str] = None) -> None:
+        """Initialize GuoDun backend adapter with optional machine and login credentials.
+
+        Args:
+            machine_name (*Optional[str]*): Identifier of the target quantum machine. Defaults to ``None``.
+            login_key (*Optional[str]*): Login key for authentication. Defaults to ``None``.
+
+        Raises:
+            ValueError: guodun login key cannot be empty
+        """
         self._login_key = login_key or get_guodun_login_key()
         if not self._login_key:
             raise ValueError("guodun login key cannot be empty")
@@ -92,11 +150,29 @@ class GuoDunTaskAdapter(TaskAdapter):
     provider = "guodun"
 
     def __init__(self, *, client: Any, login_key: Optional[str] = None) -> None:
+        """Initialize GuoDun task adapter with quantum hardware client and credentials.
+
+        Args:
+            client (*Any*): ``QuantumHardwareClient`` instance.
+            login_key (*Optional[str]*): Login key for authentication. Defaults to ``None``.
+        """
         self._client = client
         self._login_key = login_key or get_guodun_login_key()
         self._handle_cache: Dict[str, Dict[str, Any]] = {}
 
     def submit_openqasm(self, submit_request: OpenQasmSubmitRequest, backend: ResolvedBackend) -> ProviderTaskHandle:
+        """Submit an OpenQASM circuit to the GuoDun backend and return a task handle.
+
+        Args:
+            submit_request (*OpenQasmSubmitRequest*): Submission request descriptor.
+            backend (*ResolvedBackend*): Hardware backend descriptor.
+
+        Returns:
+            ``ProviderTaskHandle``: Handle for tracking the submitted task.
+
+        Raises:
+            RuntimeError: platform_obj is missing in backend metadata
+        """
         from ...circuit.qasm_to_qcis import QasmToQcis
 
         platform_obj = backend.metadata.get("platform_obj")
@@ -105,6 +181,15 @@ class GuoDunTaskAdapter(TaskAdapter):
         options = dict(submit_request.submit_options or {})
 
         def _as_int(value: Any, default: int) -> int:
+            """As int.
+
+            Args:
+                value (*Any*): Value to set.
+                default (*int*): Default (``int``).
+
+            Returns:
+                Computed integer result.
+            """
             try:
                 return int(value)
             except Exception:
@@ -122,6 +207,14 @@ class GuoDunTaskAdapter(TaskAdapter):
         return handle
 
     def query_status(self, handle: ProviderTaskHandle) -> str:
+        """Query status.
+
+        Args:
+            handle (*ProviderTaskHandle*): Task handle from a prior submission.
+
+        Returns:
+            Formatted string.
+        """
         payload = dict(self._handle_cache.get(handle.task_id, {}))
         payload.update(handle.payload)
         if payload.get("result_items") is not None:
@@ -133,6 +226,17 @@ class GuoDunTaskAdapter(TaskAdapter):
         return "Finished" if result_items else "Failed"
 
     def fetch_result(self, handle: ProviderTaskHandle) -> Dict[str, Any]:
+        """Fetch result.
+
+        Args:
+            handle (*ProviderTaskHandle*): Task handle from a prior submission.
+
+        Returns:
+            Result dictionary.
+
+        Raises:
+            RuntimeError: f'task {handle.task_id} ended with status Failed
+        """
         payload = dict(self._handle_cache.get(handle.task_id, {}))
         payload.update(handle.payload)
         if payload.get("result_items") is None and self.query_status(handle) != "Finished":
@@ -140,6 +244,11 @@ class GuoDunTaskAdapter(TaskAdapter):
         return {"count": extract_counts_from_result_items(payload.get("result_items", []), num_qubits=int(payload.get("num_qubits", 0) or 0))}
 
     def cancel_task(self, handle: ProviderTaskHandle) -> None:
+        """Cancel task.
+
+        Args:
+            handle (*ProviderTaskHandle*): Task handle from a prior submission.
+        """
         payload = dict(self._handle_cache.get(handle.task_id, {}))
         payload.update(handle.payload)
         platform_obj = payload["platform_obj"]

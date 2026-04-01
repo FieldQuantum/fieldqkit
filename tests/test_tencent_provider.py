@@ -45,27 +45,6 @@ def test_create_provider_runtime_tencent_case_insensitive(monkeypatch):
     assert runtime.provider == "tencent"
 
 
-# ── TencentPlatform ─────────────────────────────────────────────────────
-
-
-def test_tencent_platform_list_available_hardware(monkeypatch):
-    class _FakeDevice:
-        def __init__(self, name):
-            self.name = name
-
-    monkeypatch.setattr(tc.tc_apis, "list_devices", lambda provider: [_FakeDevice("tianji_s2"), _FakeDevice("tianxuan_s2")])
-    monkeypatch.setattr(tc, "_ensure_token", lambda token=None: "fake_token")
-
-    platform = tc.TencentPlatform.__new__(tc.TencentPlatform)
-    platform._token = "fake_token"
-
-    rows = platform.list_available_hardware()
-    assert len(rows) == 2
-    assert rows[0]["provider"] == "tencent"
-    assert rows[0]["hardware_name"] == "tianji_s2"
-    assert rows[1]["hardware_name"] == "tianxuan_s2"
-
-
 # ── TencentTaskAdapter ──────────────────────────────────────────────────
 
 

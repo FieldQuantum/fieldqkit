@@ -3,18 +3,28 @@ requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "quantum-hw-interface"
+name = "quantum-hw"
 version = "0.1.0"
 description = "User-facing interface for controlling quantum hardware"
 readme = "README.md"
 requires-python = ">=3.9"
 license = {text = "MIT"}
-authors = [{name = "Your Name"}]
+authors = [{name = "FieldQuantum"}]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Science/Research",
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: Scientific/Engineering :: Physics",
+  "Operating System :: OS Independent",
+]
 dependencies = [
   "numpy>=1.24",
-  "torch>=2.1",
   "scipy>=1.10",
-  "ipython>=8.0",
   "networkx>=3.0",
   "openqasm3[parser]>=0.5",
   "requests>=2.31",
@@ -22,12 +32,15 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+sim = [
+  "torch>=2.1",
+]
+full = [
+  "torch>=2.1",
+  "ipython>=8.0",
+]
 test = [
   "pytest>=7.4",
-]
-test-quark = [
-  "quarkcircuit",
-  "quarkstudio",
 ]
 
 [tool.setuptools]

@@ -64,7 +64,7 @@
 3. 使用 `apply_value(...)` 绑定参数。
 4. 根据需求导出 QASM、绘图或提交执行。
 
-说明：当前实现中，部分门方法是“原地修改但不显式返回 `self`”，因此需避免链式调用
+说明：所有门方法均返回 `self`，支持链式调用，例如 `qc.h(0).cx(0, 1).measure_all()`。
 
 ## QASM 导入导出
 
@@ -78,7 +78,7 @@
 - 校验 `OPENQASM 3.0` 头。
 - 调用 `parse_openqasm3_to_gates` 解析。
 
-### `to_openqasm2` / `to_openqasm3`（property）
+### `to_openqasm2` / `to_openqasm3`
 
 - 导出 OpenQASM 2/3 程序字符串。
 - 参数门会先解析到数值再输出。

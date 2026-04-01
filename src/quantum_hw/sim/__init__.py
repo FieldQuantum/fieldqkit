@@ -1,6 +1,19 @@
-"""Simulation utilities facade."""
+"""Simulation utilities facade.
+
+This subpackage requires PyTorch.  Install with::
+
+    pip install quantum-hw[sim]
+"""
 
 from __future__ import annotations
+
+try:
+    import torch as _torch  # noqa: F401
+except ModuleNotFoundError as _exc:
+    raise ModuleNotFoundError(
+        "quantum_hw.sim requires PyTorch. "
+        "Install it with:  pip install quantum-hw[sim]"
+    ) from _exc
 
 from .common import auto_sim_device
 from .interface import sample_probabilities

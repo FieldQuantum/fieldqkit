@@ -12,20 +12,36 @@ DEBUG_TENCENT_API_TOKEN = "cAS2u.w4vMT4Vy18lgdyxqP36tMv6b07xXdroaG18CQ5rr3AhSKZM
 
 
 def get_quafu_api_token() -> str:
-    """Return Quafu API token from env first, then debug fallback."""
+    """Return Quafu API token from env first, then debug fallback.
+
+    Returns:
+        API token string.
+    """
     return os.getenv("QUAFU_API_TOKEN", DEBUG_QUAFU_API_TOKEN)
 
 
 def get_tianyan_login_key() -> str:
-    """Return TianYan login key from env first, then debug fallback."""
+    """Return TianYan login key from env first, then debug fallback.
+
+    Returns:
+        Login key string.
+    """
     return os.getenv("TIANYAN_LOGIN_KEY", DEBUG_TIANYAN_LOGIN_KEY)
 
 
 def get_guodun_login_key() -> str:
-    """Return GuoDun login key from env first, then debug fallback."""
+    """Return GuoDun login key from env first, then debug fallback.
+
+    Returns:
+        Login key string.
+    """
     return os.getenv("GUODUN_LOGIN_KEY", DEBUG_GUODUN_LOGIN_KEY)
 
 
 def get_tencent_api_token() -> str:
-    """Return Tencent API token from env first, then debug fallback."""
+    """Return Tencent API token from env first, then debug fallback.
+
+    Returns:
+        API token string.
+    """
     return os.getenv("TENCENT_API_TOKEN", DEBUG_TENCENT_API_TOKEN)

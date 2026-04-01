@@ -7,8 +7,9 @@ from __future__ import annotations
 from typing import Dict, List, Optional, Sequence, Tuple
 
 import torch
-torch.backends.opt_einsum.enabled = True
-torch.backends.opt_einsum.strategy = "auto"
+if hasattr(torch.backends, "opt_einsum"):
+    torch.backends.opt_einsum.enabled = True
+    torch.backends.opt_einsum.strategy = "auto"
 
 from ..circuit import QuantumCircuit
 from ..circuit.quantumcircuit_helpers import (
@@ -32,14 +33,43 @@ MAX_BOND_DIM: int | None = 256
 
 
 class ComplexSVD(torch.autograd.Function):
+    """Custom autograd function for differentiable SVD of complex-valued tensors.
+
+    Provides numerically stable forward and backward passes for ``torch.linalg.svd``
+    on complex matrices, enabling gradient-based optimization through MPS bond truncation.
+    """
+
     @staticmethod
     def forward(ctx, input_tensor):
+        """Compute SVD and save tensors for backward pass.
+
+        Args:
+            ctx: Autograd context for saving tensors.
+            input_tensor: Complex-valued input matrix.
+
+        Returns:
+            Tuple of (U, S, Vh) singular value decomposition.
+        """
         u, s, vh = torch.linalg.svd(input_tensor, full_matrices=False)
         ctx.save_for_backward(input_tensor, u, s, vh)
         return u, s, vh
 
     @staticmethod
     def backward(ctx, grad_u, grad_s, grad_vh):
+        """Compute gradient of the SVD with respect to the input matrix.
+
+        Uses the method from Wan & Zhang (2019) for complex-valued SVD differentiation
+        with safe handling of degenerate singular values.
+
+        Args:
+            ctx: Autograd context with saved tensors.
+            grad_u: Gradient w.r.t. U factor.
+            grad_s: Gradient w.r.t. singular values.
+            grad_vh: Gradient w.r.t. Vh factor.
+
+        Returns:
+            Gradient w.r.t. the input matrix.
+        """
         input_tensor, u, s, vh = ctx.saved_tensors
         m, n = input_tensor.shape
         k = s.shape[-1]
@@ -74,10 +104,31 @@ class ComplexSVD(torch.autograd.Function):
 
 
 def complex_svd(x: torch.Tensor):
+    """Differentiable SVD for complex tensors via ``ComplexSVD`` custom autograd.
+
+    Args:
+        x (*torch.Tensor*): Complex-valued input matrix.
+
+    Returns:
+        Tuple of (U, S, Vh).
+    """
     return ComplexSVD.apply(x)
 
 
 def _mps_zero_state(num_qubits: int, *, dtype: torch.dtype, device: torch.device) -> List[torch.Tensor]:
+    """Initialize an MPS in the computational |0...0⟩ product state.
+
+    Each site tensor has shape ``(1, 2, 1)`` with amplitude 1 on the |0⟩ component,
+    representing a bond-dimension-1 product state.
+
+    Args:
+        num_qubits (*int*): Number of qubits.
+        dtype (*torch.dtype*): Torch data type.
+        device (*torch.device*): Torch device (``'cpu'`` or ``'cuda'``).
+
+    Returns:
+        List of ``num_qubits`` site tensors, each of shape ``(1, 2, 1)``.
+    """
     if num_qubits <= 0:
         return []
     out: List[torch.Tensor] = []
@@ -89,16 +140,44 @@ def _mps_zero_state(num_qubits: int, *, dtype: torch.dtype, device: torch.device
 
 
 def _identity2(*, dtype: torch.dtype, device: torch.device) -> torch.Tensor:
+    """Return the 2×2 identity matrix as a torch tensor.
+
+    Args:
+        dtype (*torch.dtype*): Torch data type.
+        device (*torch.device*): Torch device (``'cpu'`` or ``'cuda'``).
+
+    Returns:
+        Identity matrix of shape ``(2, 2)``.
+    """
     return torch.eye(2, dtype=dtype, device=device)
 
 
 def _projector(bit: int, *, dtype: torch.dtype, device: torch.device) -> torch.Tensor:
+    """Return the single-qubit projector |bit⟩⟨bit| as a 2×2 matrix.
+
+    Args:
+        bit (*int*): Computational basis index (0 or 1) to project onto.
+        dtype (*torch.dtype*): Torch data type.
+        device (*torch.device*): Torch device (``'cpu'`` or ``'cuda'``).
+
+    Returns:
+        Projector matrix of shape ``(2, 2)`` with a single 1 at ``[bit, bit]``.
+    """
     p = torch.zeros((2, 2), dtype=dtype, device=device)
     p[bit, bit] = 1.0
     return p
 
 
 def _apply_one_qubit_gate(mps: List[torch.Tensor], qubit: int, gate: torch.Tensor) -> None:
+    """Apply a single-qubit gate to an MPS by contracting it into the site tensor.
+
+    Replaces ``mps[qubit]`` in-place via ``einsum('lpr,sp->lsr', A, gate)``.
+
+    Args:
+        mps (*List[torch.Tensor]*): MPS site tensor list, each of shape ``(bond_l, 2, bond_r)``.
+        qubit (*int*): Target qubit index.
+        gate (*torch.Tensor*): Unitary gate matrix of shape ``(2, 2)``.
+    """
     mps[qubit] = torch.einsum("lpr,sp->lsr", mps[qubit], gate)
 
 
@@ -109,6 +188,24 @@ def _split_two_site_theta(
     max_bond_dim: int | None,
     direction: str = 'left',
 ) -> None:
+    """Contract two adjacent MPS sites and re-split via truncated SVD.
+
+    Merges ``mps[left]`` and ``mps[left+1]`` into a two-site tensor, performs SVD
+    with optional bond-dimension truncation, and writes the factors back. When
+    ``direction='left'`` the singular values are absorbed into the right tensor;
+    when ``'right'`` they are absorbed into the left tensor.
+
+    Args:
+        mps (*List[torch.Tensor]*): MPS site tensor list, each of shape ``(bond_l, 2, bond_r)``.
+        left (*int*): Index of the left site in the pair to split.
+        max_bond_dim (*int | None*): Maximum bond dimension to keep after truncation.
+            ``None`` means no truncation.
+        direction (*str*): Where to absorb singular values: ``'left'`` (into right tensor)
+            or ``'right'`` (into left tensor). Defaults to ``'left'``.
+
+    Raises:
+        ValueError: If *direction* is not ``'left'`` or ``'right'``.
+    """
     a = mps[left]
     b = mps[left + 1]
 
@@ -141,6 +238,19 @@ def _identity_bridge_mpo_tensor(
     dtype: torch.dtype,
     device: torch.device,
 ) -> torch.Tensor:
+    """Build an identity MPO tensor for bridging non-adjacent gate qubits.
+
+    Returns a tensor of shape ``(bond_dim, 2, bond_dim, 2)`` that acts as the
+    identity on the physical leg while passing the virtual bond through unchanged.
+
+    Args:
+        bond_dim (*int*): Virtual bond dimension of adjacent MPO tensors.
+        dtype (*torch.dtype*): Torch data type.
+        device (*torch.device*): Torch device (``'cpu'`` or ``'cuda'``).
+
+    Returns:
+        Identity bridge tensor of shape ``(bond_dim, 2, bond_dim, 2)``.
+    """
     # Shape [Dl, pout, Dr, pin], with W[a,p,a,p] = 1.
     t = torch.zeros((bond_dim, 2, bond_dim, 2), dtype=dtype, device=device)
     idx = torch.arange(bond_dim, device=device)
@@ -154,6 +264,20 @@ def _two_qubit_unitary_to_mpo(
     *,
     max_bond_dim: int | None,
 ) -> Tuple[torch.Tensor, torch.Tensor]:
+    """Decompose a two-qubit unitary into a two-site MPO via SVD.
+
+    Reshapes the 4×4 gate into ``(out0, in0) × (out1, in1)`` and performs a
+    (possibly truncated) SVD to obtain left and right MPO tensors with shapes
+    ``(1, 2, chi, 2)`` and ``(chi, 2, 1, 2)`` respectively.
+
+    Args:
+        gate_2q (*torch.Tensor*): Two-qubit unitary matrix of shape ``(4, 4)``.
+        max_bond_dim (*int | None*): Maximum bond dimension to keep. ``None`` keeps all.
+
+    Returns:
+        Tuple ``(left, right)`` of MPO site tensors with shape
+        ``[Dl, pout, Dr, pin]``.
+    """
     # gate_2q rows/cols are ordered as |out0 out1><in0 in1|.
     g = gate_2q.reshape(2, 2, 2, 2).permute(0, 2, 1, 3).reshape(4, 4)
     u, s, vh = complex_svd(g)
@@ -173,6 +297,20 @@ def _unitary_to_mpo(
     *,
     max_bond_dim: int | None,
 ) -> List[torch.Tensor]:
+    """Decompose a multi-qubit unitary into an MPO chain via sequential SVD.
+
+    Splits the ``2^n × 2^n`` unitary into ``num_sites`` local tensors each of
+    shape ``[Dl, pout, Dr, pin]`` by peeling off one site at a time from the left
+    using truncated SVD.
+
+    Args:
+        unitary (*torch.Tensor*): Unitary matrix of shape ``(2**num_sites, 2**num_sites)``.
+        num_sites (*int*): Number of qubit sites the gate acts on.
+        max_bond_dim (*int | None*): Maximum bond dimension to keep. ``None`` keeps all.
+
+    Returns:
+        List of ``num_sites`` MPO tensors with shape ``[Dl, pout, Dr, pin]``.
+    """
     if num_sites <= 0:
         return []
     if num_sites == 1:
@@ -206,6 +344,24 @@ def _expand_sparse_gate_mpo_to_span(
     dtype: torch.dtype,
     device: torch.device,
 ) -> Tuple[List[torch.Tensor], int, int]:
+    """Expand a sparse gate MPO on non-contiguous qubits into a contiguous span.
+
+    Inserts identity bridge tensors at qubit positions between the acted qubits
+    so the resulting MPO covers the full range ``[qmin, qmax]`` contiguously.
+
+    Args:
+        acted_mpo (*Sequence[torch.Tensor]*): MPO tensors for the acted qubits only.
+        acted_qubits_sorted (*Sequence[int]*): Sorted list of qubit indices the gate acts on.
+        dtype (*torch.dtype*): Torch data type.
+        device (*torch.device*): Torch device (``'cpu'`` or ``'cuda'``).
+
+    Returns:
+        Tuple of ``(full_mpo_span, qmin, qmax)`` where *full_mpo_span* covers
+        all sites from ``qmin`` to ``qmax`` inclusive.
+
+    Raises:
+        ValueError: If *acted_qubits_sorted* is empty.
+    """
     if not acted_qubits_sorted:
         raise ValueError("acted_qubits_sorted cannot be empty")
     qmin = int(acted_qubits_sorted[0])
@@ -246,6 +402,17 @@ def _apply_mpo_to_segment(
     *,
     start: int,
 ) -> None:
+    """Apply a contiguous MPO span to the corresponding MPS segment in-place.
+
+    For each site, contracts the MPO tensor ``W[a, p_out, b, p_in]`` with the
+    MPS tensor ``A[l, p_in, r]``, merging virtual bond dimensions to produce
+    ``B[(l*a), p_out, (r*b)]``.
+
+    Args:
+        mps (*List[torch.Tensor]*): MPS site tensor list (modified in-place).
+        mpo_span (*Sequence[torch.Tensor]*): Contiguous MPO tensors to apply.
+        start (*int*): Starting qubit index in the MPS for the first MPO tensor.
+    """
     # Apply local MPO tensor W[a,p_out,b,p_in] to A[l,p_in,r] -> B[(l,a),p_out,(r,b)].
     for i, w in enumerate(mpo_span):
         site = start + i
@@ -263,6 +430,22 @@ def _canonicalize_segment(
     direction: str,
     max_bond_dim: int | None = None,
 ) -> None:
+    """Sweep-canonicalize an MPS segment with optional bond truncation.
+
+    Performs sequential two-site SVD splits across ``[start, end)`` to bring
+    the segment into left- or right-canonical form. When ``direction='left'``,
+    sweeps left-to-right; when ``'right'``, sweeps right-to-left.
+
+    Args:
+        mps (*List[torch.Tensor]*): MPS site tensor list (modified in-place).
+        start (*int*): First site index of the segment (inclusive).
+        end (*int*): Last site index of the segment (exclusive for the sweep).
+        direction (*str*): Sweep direction: ``'left'`` or ``'right'``.
+        max_bond_dim (*int | None*): Maximum bond dimension per split. Defaults to ``None``.
+
+    Raises:
+        ValueError: If *direction* is not ``'left'`` or ``'right'``.
+    """
     if end <= start:
         return
 
@@ -282,6 +465,16 @@ def _max_bond_in_span(
     start: int,
     end: int,
 ) -> int:
+    """Return the maximum right-bond dimension among MPS tensors in ``[start, end)``.
+
+    Args:
+        mps (*Sequence[torch.Tensor]*): MPS or MPO site tensor list.
+        start (*int*): First site index (inclusive).
+        end (*int*): Last site index (exclusive).
+
+    Returns:
+        Maximum bond dimension found in the span, or 1 if the span is empty.
+    """
     if end <= start:
         return 1
     return max(int(mps[bond].shape[2]) for bond in range(start, end))
@@ -294,7 +487,17 @@ def _move_canonical_center_to_span_left(
     start: int,
     end: int,
 ) -> int:
-    """Relocate canonical center to the left edge of a dirty span."""
+    """Relocate canonical center to the left edge of a dirty span.
+
+    Args:
+        mps (*List[torch.Tensor]*): MPS site tensor list (modified in-place).
+        center (*int*): Current canonical center position.
+        start (*int*): Left edge of the target span.
+        end (*int*): Right edge of the target span.
+
+    Returns:
+        New canonical center position (always *start*).
+    """
     if end <= start:
         return int(start)
 
@@ -323,6 +526,26 @@ def _apply_k_qubit_gate_with_mpo(
     *,
     max_bond_dim: int | None,
 ) -> Tuple[int, int] | None:
+    """Apply a k-qubit gate to the MPS by decomposing it into an MPO and contracting.
+
+    For single-qubit gates, directly updates the site tensor. For multi-qubit
+    gates, decomposes the unitary into an MPO (filling identity bridges for
+    non-contiguous qubits) and contracts it into the MPS segment.
+
+    Args:
+        mps (*List[torch.Tensor]*): MPS site tensor list (modified in-place).
+        qubits (*Sequence[int]*): Target qubit indices for the gate.
+        gate_matrix (*torch.Tensor*): Unitary gate matrix of shape ``(2**k, 2**k)``.
+        max_bond_dim (*int | None*): Maximum bond dimension for MPO decomposition.
+
+    Returns:
+        Tuple ``(qmin, qmax)`` of the affected qubit span, or ``None`` for
+        single-qubit gates.
+
+    Raises:
+        ValueError: If gate qubits are not distinct.
+    """
+
     acted = sorted(int(q) for q in qubits)
     if len(set(acted)) != len(acted):
         raise ValueError("gate qubits must be distinct")
@@ -353,6 +576,18 @@ def _apply_k_qubit_gate_with_mpo(
 
 
 def _expectation_with_local_ops(mps: Sequence[torch.Tensor], ops: Sequence[torch.Tensor]) -> torch.Tensor:
+    """Compute ⟨ψ|O₁⊗O₂⊗…⊗Oₙ|ψ⟩ for an MPS state and per-site operators.
+
+    Contracts the MPS with its conjugate, inserting local operators ``ops[i]``
+    on each physical leg, sweeping left to right via transfer matrices.
+
+    Args:
+        mps (*Sequence[torch.Tensor]*): MPS site tensor list.
+        ops (*Sequence[torch.Tensor]*): Per-site 2×2 operator matrices (one per qubit).
+
+    Returns:
+        Scalar tensor containing the expectation value.
+    """
     env = torch.ones((1, 1), dtype=mps[0].dtype, device=mps[0].device)
     for t, op in zip(mps, ops):
         env = torch.einsum("ab,api,bqj,pq->ij", env, torch.conj(t), t, op)
@@ -360,6 +595,16 @@ def _expectation_with_local_ops(mps: Sequence[torch.Tensor], ops: Sequence[torch
 
 
 def _norm2_mps(mps: Sequence[torch.Tensor]) -> torch.Tensor:
+    """Compute the squared norm ⟨ψ|ψ⟩ of an MPS state.
+
+    Uses identity operators on every site to evaluate the full overlap.
+
+    Args:
+        mps (*Sequence[torch.Tensor]*): MPS site tensor list.
+
+    Returns:
+        Real scalar tensor with the squared norm.
+    """
     dtype = mps[0].dtype
     device = mps[0].device
     ops = [_identity2(dtype=dtype, device=device) for _ in range(len(mps))]
@@ -367,6 +612,15 @@ def _norm2_mps(mps: Sequence[torch.Tensor]) -> torch.Tensor:
 
 
 def _apply_reset_mps(mps: List[torch.Tensor], qubit: int) -> None:
+    """Apply a reset operation on a single qubit of the MPS, projecting it to |0⟩.
+
+    Zeros the |1⟩ component of the target site tensor and renormalizes
+    the MPS to preserve unit norm.
+
+    Args:
+        mps (*List[torch.Tensor]*): MPS site tensor list (modified in-place).
+        qubit (*int*): Target qubit index to reset.
+    """
     t = mps[qubit].clone()
     t[:, 1, :] = 0.0
     mps[qubit] = t
@@ -378,6 +632,17 @@ def _apply_reset_mps(mps: List[torch.Tensor], qubit: int) -> None:
 
 
 def _compute_right_envs(mps: Sequence[torch.Tensor]) -> List[torch.Tensor]:
+    """Precompute right environment (partial overlap) tensors for MPS sampling.
+
+    Sweeps from right to left, contracting each site tensor with its conjugate
+    to build the partial norms ``right[i]`` = ⟨ψ_{i..n-1}|ψ_{i..n-1}⟩ boundary.
+
+    Args:
+        mps (*Sequence[torch.Tensor]*): MPS site tensor list.
+
+    Returns:
+        List of ``n+1`` right-environment matrices, where ``right[n]`` is ``[[1]]``.
+    """
     n = len(mps)
     right: List[torch.Tensor] = [None] * (n + 1)  # type: ignore[list-item]
     right[n] = torch.ones((1, 1), dtype=mps[0].dtype, device=mps[0].device)
@@ -393,6 +658,20 @@ def _sample_bits_from_mps(
     *,
     seed: int | None,
 ) -> List[List[int]]:
+    """Draw computational-basis measurement samples from an MPS state.
+
+    Uses a sequential site-by-site sampling strategy: at each qubit, computes
+    the marginal probability for |0⟩ and |1⟩ from left/right environments,
+    samples a bit, and updates the left environment conditioned on the outcome.
+
+    Args:
+        mps (*Sequence[torch.Tensor]*): MPS site tensor list.
+        shots (*int*): Number of independent measurement samples to draw.
+        seed (*int | None*): Random seed for reproducibility.
+
+    Returns:
+        List of ``shots`` bitstrings, each a list of ``n`` integers (0 or 1).
+    """
     n = len(mps)
     if n == 0:
         return [[] for _ in range(shots)]
@@ -474,6 +753,25 @@ def simulate_mps(
     max_bond_dim: int | None = None,
     device: torch.device | str | None = None,
 ) -> List[torch.Tensor]:
+    """Simulate a quantum circuit using the Matrix Product State (MPS) method.
+
+    Initializes an MPS in the |0...0⟩ state and applies each gate in circuit
+    order. Multi-qubit gates are decomposed into MPO form and contracted into
+    the MPS; bond dimensions are compressed on-the-fly when they exceed
+    *max_bond_dim*.
+
+    Args:
+        qc (*QuantumCircuit*): Quantum circuit to simulate.
+        param_values (*Dict[str, object] | None*): Symbolic parameter name-to-value map. Defaults to ``None``.
+        max_bond_dim (*int | None*): Maximum MPS bond dimension for truncation. ``None`` keeps all. Defaults to ``None``.
+        device (*torch.device | str | None*): Torch device (``'cpu'`` or ``'cuda'``). Defaults to ``None``.
+
+    Returns:
+        List of MPS site tensors, each of shape ``(bond_l, 2, bond_r)``.
+
+    Raises:
+        ValueError: If a gate in the circuit is not supported by the simulator.
+    """
     num_qubits = int(qc.nqubits)
     if num_qubits <= 0:
         return []
@@ -486,6 +784,12 @@ def simulate_mps(
     canon_center: int = 0
 
     def _mark_dirty(start: int, end: int) -> None:
+        """Expand the dirty (uncompressed) qubit span to include ``[start, end]``.
+
+        Args:
+            start (*int*): Left-most qubit index of the newly dirtied region.
+            end (*int*): Right-most qubit index of the newly dirtied region.
+        """
         nonlocal dirty_start, dirty_end
         if dirty_start is None:
             dirty_start = int(start)
@@ -495,6 +799,12 @@ def simulate_mps(
         dirty_end = max(dirty_end, int(end))
 
     def _maybe_compress_dirty_span() -> None:
+        """Compress the dirty MPS segment if its bond dimension exceeds the limit.
+
+        Moves the canonical center to the left edge of the dirty span, then
+        performs a truncating left-to-right canonicalization sweep if any bond
+        exceeds *max_bond_dim*. Resets the dirty span afterward.
+        """
         nonlocal dirty_start, dirty_end, canon_center
         if dirty_start is None or dirty_end is None:
             return
@@ -593,7 +903,18 @@ def simulate_counts(
     param_values: Dict[str, object] | None = None,
     device: torch.device | str | None = None,
 ) -> Dict[str, int]:
-    """Simulate counts with MPS backend, matching statevector bitstring order."""
+    """Simulate counts with MPS backend, matching statevector bitstring order.
+
+    Args:
+        qc (*QuantumCircuit*): Quantum circuit.
+        shots (*int*): Number of measurement shots.
+        seed (*Optional[int]*): Random seed for reproducibility. Defaults to ``None``.
+        param_values (*Dict[str, object] | None*): Param values (``Dict[str, object] | None``). Defaults to ``None``.
+        device (*torch.device | str | None*): Torch device (``'cpu'`` or ``'cuda'``). Defaults to ``None``.
+
+    Returns:
+        Result dictionary.
+    """
     mps = simulate_mps(qc, param_values=param_values, device=device)
     samples = _sample_bits_from_mps(mps, int(shots), seed=seed)
 
@@ -610,7 +931,19 @@ def expectation_pauli(
     *,
     num_qubits: int,
 ):
-    """Return <psi|P|psi> for a Pauli string, consistent with statevector API."""
+    """Return <psi|P|psi> for a Pauli string, consistent with statevector API.
+
+    Args:
+        state: MPS site tensor list (``List[torch.Tensor]``).
+        pauli (*str*): Pauli (``str``).
+        num_qubits (*int*): Number of qubits.
+
+    Returns:
+        Result.
+
+    Raises:
+        TypeError: MPS expectation_pauli expects a non-empty MPS tensor list...
+    """
     if not isinstance(state, list) or len(state) == 0:
         raise TypeError("MPS expectation_pauli expects a non-empty MPS tensor list when fallback is disabled")
 
@@ -634,7 +967,21 @@ def energy_and_expectations(
     hamiltonian,
     device: torch.device | str | None = None,
 ):
-    """Evaluate Hamiltonian energy from symbolic circuit using MPS contraction."""
+    """Evaluate Hamiltonian energy from symbolic circuit using MPS contraction.
+
+    Args:
+        symbolic_qc (*QuantumCircuit*): Symbolic qc (``QuantumCircuit``).
+        params: Parameter values.
+        param_names: Names of variational parameters.
+        hamiltonian: Target Hamiltonian.
+        device (*torch.device | str | None*): Torch device (``'cpu'`` or ``'cuda'``). Defaults to ``None``.
+
+    Returns:
+        Result.
+
+    Raises:
+        TypeError: params must be a torch.Tensor
+    """
     if not isinstance(params, torch.Tensor):
         raise TypeError("params must be a torch.Tensor")
 

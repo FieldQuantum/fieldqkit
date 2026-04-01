@@ -11,7 +11,14 @@ from .matrix import gate_matrix_dict
 
 
 def auto_sim_device(device: torch.device | str | None = None) -> torch.device:
-    """Resolve simulation device: explicit > CUDA > CPU."""
+    """Resolve simulation device: explicit > CUDA > CPU.
+
+    Args:
+        device (*torch.device | str | None*): Torch device (``'cpu'`` or ``'cuda'``). Defaults to ``None``.
+
+    Returns:
+        ``torch.device`` result.
+    """
     if device is not None:
         return torch.device(device)
     if torch.cuda.is_available():
@@ -24,7 +31,20 @@ def resolve_param(
     param,
     param_values: Dict[str, object] | None = None,
 ):
-    """Resolve scalar/symbolic parameter value for simulation."""
+    """Resolve scalar/symbolic parameter value for simulation.
+
+    Args:
+        qc (*QuantumCircuit*): Quantum circuit.
+        param: Param.
+        param_values (*Dict[str, object] | None*): Param values (``Dict[str, object] | None``). Defaults to ``None``.
+
+    Returns:
+        Result.
+
+    Raises:
+        TypeError: f'unsupported parameter type: {type(param)}
+        ValueError: f'missing parameter value for {name}
+    """
     if isinstance(param, (float, int)):
         return float(param)
     if isinstance(param, str):
@@ -36,6 +56,20 @@ def resolve_param(
                 return float(value)
 
         def _symbol_resolver(name: str):
+            """Look up a symbolic parameter name and return its numeric value.
+
+            Checks ``pi``, then *param_values*, then ``qc.params_value`` in
+            that order.
+
+            Args:
+                name (*str*): Symbolic parameter name to resolve.
+
+            Returns:
+                Numeric value for the symbol.
+
+            Raises:
+                ValueError: If *name* cannot be found in any value source.
+            """
             if name == "pi":
                 return float(torch.pi)
             if param_values is not None and name in param_values:
@@ -55,7 +89,17 @@ def materialize_gate_matrix(
     dtype: torch.dtype,
     device: torch.device,
 ):
-    """Return gate matrix tensor for fixed/parameterized gates."""
+    """Return gate matrix tensor for fixed/parameterized gates.
+
+    Args:
+        gate (*str*): Gate specification or name.
+        params: Parameter values.
+        dtype (*torch.dtype*): Torch data type.
+        device (*torch.device*): Torch device (``'cpu'`` or ``'cuda'``).
+
+    Returns:
+        Result.
+    """
     mat_or_fn = gate_matrix_dict[gate]
     if callable(mat_or_fn):
         return mat_or_fn(*params, dtype=dtype, device=device)
@@ -63,7 +107,19 @@ def materialize_gate_matrix(
 
 
 def single_pauli(op: str, *, dtype, device):
-    """Return a single-qubit Pauli matrix tensor."""
+    """Return a single-qubit Pauli matrix tensor.
+
+    Args:
+        op (*str*): Op (``str``).
+        dtype: Torch data type.
+        device: Torch device (``'cpu'`` or ``'cuda'``).
+
+    Returns:
+        Result.
+
+    Raises:
+        ValueError: f'unsupported Pauli: {op}
+    """
     if op == "X":
         return torch.tensor([[0.0, 1.0], [1.0, 0.0]], dtype=dtype, device=device)
     if op == "Y":
@@ -74,7 +130,18 @@ def single_pauli(op: str, *, dtype, device):
 
 
 def build_param_values_from_tensor(*, params, param_names: Sequence[str]) -> Dict[str, object]:
-    """Convert a parameter tensor/vector into the symbolic name->value map."""
+    """Convert a parameter tensor/vector into the symbolic name->value map.
+
+    Args:
+        params: Parameter values.
+        param_names (*Sequence[str]*): Names of variational parameters.
+
+    Returns:
+        Result dictionary.
+
+    Raises:
+        ValueError: f'params length must be {expected}
+    """
     expected = len(param_names)
     if params.numel() != expected:
         raise ValueError(f"params length must be {expected}")

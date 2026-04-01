@@ -104,11 +104,45 @@ compress_circuit_with_hybrid_objective(
 - 目标模式：
 	- `objective_mode="mps"`：仅计算状态 infidelity。
 	- `objective_mode="mpo"`：仅计算过程 infidelity。
-- 优化器：Adam，两阶段（主优化 + 保守 refine）。
+- 初始化策略：内部创建 3 组候选初始参数（1 组来自 `warm_start_params`，2 组随机），按 MPS infidelity 选取最优种子。
+- 优化器：Adam，两阶段：
+	1. 主优化：全 lr，`optimizer_steps` 步。
+	2. Refine（仅当 `best_loss > init_loss * 0.995` 时触发）：lr × 0.2，`max(4, ceil(optimizer_steps * 0.5))` 步。
 - 返回：
 	- `compressed_qc`：压缩后线路。
 	- `best_params`：可用于下一次 warm start 的参数。
 	- `summary`：包含 `objective_mode/objective_infidelity/init_loss/best_loss/loss_delta/loss_history`。
+
+### `build_compression_transform`
+
+```python
+build_compression_transform(
+		client,
+		*,
+		num_qubits: int,
+		layers: int,
+		backend,
+		target_qubits: Optional[Sequence[int]] = None,
+		use_dd: bool = True,
+		enable_block_planner: bool = False,
+		planner_bond_cap: int = 128,
+		planner_trunc_tol: float = 1e-8,
+		planner_max_layers_per_block: int = 6,
+		compression_block_layers: Optional[int] = None,
+		compression_optimizer_steps: int = 20,
+		compression_optimizer_lr: float = 0.05,
+		compression_verbose: bool = False,
+		compression_plot_loss: bool = False,
+		tag: str = "compress",
+		convert_single_qubit_gate_to_u: bool = True,
+) -> dict
+```
+
+- 作用：构建可复用的压缩回调函数，兼容 `run_variational_loop` 的 `circuit_transform` 参数。
+- 返回 dict 包含：
+	- `transform`：`(qc, param_index) -> qc` 回调。
+	- `compressed_transpiled_template`：预编译的压缩模板。
+	- `target_qubits_in_use`：解析后的物理比特映射。
 
 ## 使用示例
 

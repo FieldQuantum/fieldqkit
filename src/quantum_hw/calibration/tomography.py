@@ -44,6 +44,32 @@ class NativeTwoQubitTomographyManager:
 		"+i": (1.0 / np.sqrt(2), 1.0j / np.sqrt(2)),
 		"-i": (1.0 / np.sqrt(2), -1.0j / np.sqrt(2)),
 	}
+	_GATE_UNITARIES = {
+		"cz": np.array([
+			[1, 0, 0, 0],
+			[0, 1, 0, 0],
+			[0, 0, 1, 0],
+			[0, 0, 0, -1],
+		], dtype=complex),
+		"cx": np.array([
+			[1, 0, 0, 0],
+			[0, 1, 0, 0],
+			[0, 0, 0, 1],
+			[0, 0, 1, 0],
+		], dtype=complex),
+		"iswap": np.array([
+			[1, 0, 0, 0],
+			[0, 0, 1j, 0],
+			[0, 1j, 0, 0],
+			[0, 0, 0, 1],
+		], dtype=complex),
+		"ecr": (1.0 / np.sqrt(2)) * np.array([
+			[0, 0, 1, 1j],
+			[0, 0, 1j, 1],
+			[1, -1j, 0, 0],
+			[-1j, 1, 0, 0],
+		], dtype=complex),
+	}
 	_PAULI_LABELS = ("I", "X", "Y", "Z")
 	_PAULI_SINGLE = (
 		np.array([[1.0, 0.0], [0.0, 1.0]], dtype=complex),
@@ -62,6 +88,16 @@ class NativeTwoQubitTomographyManager:
 		compact_for_sim: Callable[[QuantumCircuit], object],
 		simulate_counts: Callable[[QuantumCircuit, int], Dict[str, int]],
 	) -> None:
+		"""Initialize a tomography manager with task submission and simulation callbacks.
+
+		Args:
+			cache_dir (*Path*): Directory for cache files.
+			submit_openqasm_async (*Callable[[str, str, int, Optional[str]], object]*): Callback to submit an OpenQASM circuit asynchronously and return a task handle.
+			wait_task (*Callable[[object], str]*): Callback to block until a task completes and return its status.
+			get_task_result (*Callable[[object], Dict[str, object]]*): Callback to retrieve measurement results from a completed task.
+			compact_for_sim (*Callable[[QuantumCircuit], object]*): Callback to prepare a circuit for local simulation.
+			simulate_counts (*Callable[[QuantumCircuit, int], Dict[str, int]]*): Callback to simulate a circuit locally and return bitstring counts.
+		"""
 		self._cache_dir = cache_dir
 		self._cache_dir.mkdir(parents=True, exist_ok=True)
 		self._submit_openqasm_async = submit_openqasm_async
@@ -85,7 +121,23 @@ class NativeTwoQubitTomographyManager:
 		"""Run two-qubit process tomography and return error channels.
 
 		Returns:
+        dict: keyed by "q1-q2" with Choi matrix for the error channel.
+
+		Args:
+			couplers (*Optional[Sequence[Tuple[int, int]]]*): List of qubit coupler pairs. Defaults to ``None``.
+			shots (*int*): Number of measurement shots. Defaults to ``1024``.
+			chip_name (*Optional[str]*): Name of the target chip. Defaults to ``None``.
+			backend (*Optional[Backend]*): Hardware backend descriptor. Defaults to ``None``.
+			qasm_version (*str*): OpenQASM version (``'2.0'`` or ``'3.0'``). Defaults to ``'2.0'``.
+			readout_mitigation (*bool*): Whether to apply readout error mitigation. Defaults to ``True``.
+			readout_shots (*Optional[int]*): Number of shots for readout calibration. Defaults to ``None``.
+			print_true (*bool*): Whether to print progress information. Defaults to ``False``.
+
+		Returns:
 			dict: keyed by "q1-q2" with Choi matrix for the error channel.
+
+		Raises:
+			RuntimeError: backend is not set; use run_auto or provide backend
 		"""
 		if backend is None:
 			raise RuntimeError("backend is not set; use run_auto or provide backend")
@@ -210,6 +262,12 @@ class NativeTwoQubitTomographyManager:
 		return results
 
 	def _input_states(self) -> List[Tuple[str, str, np.ndarray]]:
+		"""Generate all two-qubit input state preparations for process tomography.
+
+		Returns:
+			List of ``(label_a, label_b, rho)`` tuples where *rho* is the 4×4
+			density matrix for the tensor-product input state.
+		"""
 		out: List[Tuple[str, str, np.ndarray]] = []
 		for a in self._STATE_LABELS:
 			for b in self._STATE_LABELS:
@@ -218,9 +276,25 @@ class NativeTwoQubitTomographyManager:
 		return out
 
 	def _measurement_bases(self) -> List[Tuple[str, str]]:
+		"""Generate all two-qubit measurement basis combinations for tomography.
+
+		Returns:
+			List of ``(axis_a, axis_b)`` label pairs over ``_MEASUREMENT_AXES``.
+		"""
 		return [(a, b) for a in self._MEASUREMENT_AXES for b in self._MEASUREMENT_AXES]
 
 	def _state_density(self, label: str) -> np.ndarray:
+		"""State density.
+
+		Args:
+			label (*str*): Descriptive label.
+
+		Returns:
+			NumPy array with the computed result.
+
+		Raises:
+			ValueError: f'unsupported state label: {label}
+		"""
 		entries = self._STATE_VECTORS.get(label)
 		if entries is None:
 			raise ValueError(f"unsupported state label: {label}")
@@ -228,6 +302,16 @@ class NativeTwoQubitTomographyManager:
 		return np.outer(vec, vec.conj())
 
 	def _apply_state_prep(self, qc: QuantumCircuit, label: str, qubit: int) -> None:
+		"""Apply state prep.
+
+		Args:
+			qc (*QuantumCircuit*): Quantum circuit.
+			label (*str*): Descriptive label.
+			qubit (*int*): Target qubit index.
+
+		Raises:
+			ValueError: f'unsupported state label: {label}
+		"""
 		ops = self._STATE_PREP_OPS.get(label)
 		if ops is None:
 			raise ValueError(f"unsupported state label: {label}")
@@ -235,9 +319,27 @@ class NativeTwoQubitTomographyManager:
 			getattr(qc, op)(qubit)
 
 	def _apply_measurement_basis(self, qc: QuantumCircuit, basis: str, qubit: int) -> None:
+		"""Apply measurement basis.
+
+		Args:
+			qc (*QuantumCircuit*): Quantum circuit.
+			basis (*str*): Basis (``str``).
+			qubit (*int*): Target qubit index.
+		"""
 		apply_measurement_basis_rotations(qc, [basis], target_qubits=[qubit])
 
 	def _apply_two_qubit_gate(self, qc: QuantumCircuit, gate: str, q1: int, q2: int) -> None:
+		"""Apply two qubit gate.
+
+		Args:
+			qc (*QuantumCircuit*): Quantum circuit.
+			gate (*str*): Gate specification or name.
+			q1 (*int*): Q1 (``int``).
+			q2 (*int*): Q2 (``int``).
+
+		Raises:
+			ValueError: f'unsupported two-qubit gate: {gate}
+		"""
 		canonical_gate = "cx" if gate in {"cnot", "cx"} else gate
 		method_name = self._TWO_QUBIT_GATE_METHODS.get(canonical_gate)
 		if method_name is None:
@@ -249,6 +351,14 @@ class NativeTwoQubitTomographyManager:
 		meas_probs: Dict[Tuple[str, str], np.ndarray],
 	) -> Dict[Tuple[str, str], float]:
 		# Expectation values of Pauli operators from basis measurements.
+		"""Expectations from measurements.
+
+		Args:
+			meas_probs (*Dict[Tuple[str, str], np.ndarray]*): Meas probs (``Dict[Tuple[str, str], np.ndarray]``).
+
+		Returns:
+			Result dictionary.
+		"""
 		expectations: Dict[Tuple[str, str], float] = {("I", "I"): 1.0}
 		for (basis_a, basis_b), probs in meas_probs.items():
 			ex1, ex2, ex12 = self._expectations_from_probs(probs)
@@ -258,6 +368,17 @@ class NativeTwoQubitTomographyManager:
 		return expectations
 
 	def _expectations_from_probs(self, probs: np.ndarray) -> Tuple[float, float, float]:
+		"""Expectations from probs.
+
+		Args:
+			probs (*np.ndarray*): Probability distribution.
+
+		Returns:
+			Result tuple.
+
+		Raises:
+			ValueError: probabilities must have length 4 for two-qubit expectations
+		"""
 		if probs.shape[0] != 4:
 			raise ValueError("probabilities must have length 4 for two-qubit expectations")
 		ex1 = 0.0
@@ -275,6 +396,14 @@ class NativeTwoQubitTomographyManager:
 		return ex1, ex2, ex12
 
 	def _expectations_to_pauli_vector(self, expectations: Dict[Tuple[str, str], float]) -> np.ndarray:
+		"""Expectations to pauli vector.
+
+		Args:
+			expectations (*Dict[Tuple[str, str], float]*): Expectations (``Dict[Tuple[str, str], float]``).
+
+		Returns:
+			NumPy array with the computed result.
+		"""
 		vec = np.zeros(16, dtype=float)
 		for i, a in enumerate(self._PAULI_LABELS):
 			for j, b in enumerate(self._PAULI_LABELS):
@@ -285,6 +414,14 @@ class NativeTwoQubitTomographyManager:
 		return vec
 
 	def _rho_to_pauli_vector(self, rho: np.ndarray) -> np.ndarray:
+		"""Rho to pauli vector.
+
+		Args:
+			rho (*np.ndarray*): Rho (``np.ndarray``).
+
+		Returns:
+			NumPy array with the computed result.
+		"""
 		basis = self._pauli_basis()
 		vec = np.zeros(16, dtype=float)
 		for idx, p in enumerate(basis):
@@ -292,9 +429,36 @@ class NativeTwoQubitTomographyManager:
 		return vec
 
 	def _fit_ptm(self, out_mat: np.ndarray, in_mat: np.ndarray) -> np.ndarray:
+		"""Fit the Pauli transfer matrix via pseudo-inverse: ``R = out_mat @ pinv(in_mat)``.
+
+		Args:
+			out_mat (*np.ndarray*): Output expectation matrix of shape ``(16, N)``.
+			in_mat (*np.ndarray*): Input state Pauli expansion matrix of shape ``(16, N)``.
+
+		Returns:
+			16×16 Pauli transfer matrix as ``np.ndarray``.
+		"""
 		return out_mat @ np.linalg.pinv(in_mat)
 
-	def _ptm_from_unitary(self, unitary: np.ndarray) -> np.ndarray:
+	def _ptm_from_unitary(self, unitary) -> np.ndarray:
+		"""Compute the Pauli transfer matrix from a unitary matrix or gate name.
+
+		Args:
+			unitary: A ``np.ndarray`` unitary matrix, or a gate name string
+				(``'cz'``, ``'cx'``, ``'iswap'``, ``'ecr'``) that will be
+				resolved to its standard unitary matrix.
+
+		Returns:
+			16×16 real Pauli transfer matrix as ``np.ndarray``.
+
+		Raises:
+			ValueError: If a string gate name is not recognised.
+		"""
+		if isinstance(unitary, str):
+			mat = self._GATE_UNITARIES.get(unitary)
+			if mat is None:
+				raise ValueError(f"unknown gate name for PTM computation: {unitary}")
+			unitary = mat
 		basis = self._pauli_basis()
 		ptm = np.zeros((16, 16), dtype=float)
 		for i, p_i in enumerate(basis):
@@ -304,6 +468,17 @@ class NativeTwoQubitTomographyManager:
 		return ptm
 
 	def _ptm_to_choi(self, ptm: np.ndarray) -> np.ndarray:
+		"""Convert a 16×16 Pauli transfer matrix to its Choi representation.
+
+		Computes ``C = (1/4) ∑_{ij} R_{ij} (P_i ⊗ P_j^T)`` using the two-qubit
+		Pauli basis.
+
+		Args:
+			ptm (*np.ndarray*): 16×16 Pauli transfer matrix.
+
+		Returns:
+			16×16 complex Choi matrix as ``np.ndarray``.
+		"""
 		basis = self._pauli_basis()
 		choi = np.zeros((16, 16), dtype=complex)
 		for i, p_i in enumerate(basis):
@@ -312,17 +487,44 @@ class NativeTwoQubitTomographyManager:
 		return choi / 4.0
 
 	def _pauli_basis(self) -> List[np.ndarray]:
+		"""Pauli basis.
+
+		Returns:
+			Result list.
+		"""
 		return [np.kron(a, b) for a in self._PAULI_SINGLE for b in self._PAULI_SINGLE]
 
 	def _tomo_cache_path(self, *, chip_name: Optional[str]) -> Path:
+		"""Tomo cache path.
+
+		Args:
+			chip_name (*Optional[str]*): Name of the target chip.
+
+		Returns:
+			``Path`` result.
+		"""
 		return cache_file(self._cache_dir, stem="tomo_two_qubit", chip_name=chip_name)
 
 	def _load_tomo_cache_raw(self, *, chip_name: Optional[str]) -> Dict[str, object]:
+		"""Load tomo cache raw.
+
+		Args:
+			chip_name (*Optional[str]*): Name of the target chip.
+
+		Returns:
+			Result dictionary.
+		"""
 		path = self._tomo_cache_path(chip_name=chip_name)
 		timestamps, per_coupler = load_timestamped_payload(path, payload_key="per_coupler")
 		return {"timestamps": timestamps, "per_coupler": per_coupler}
 
 	def _save_tomo_cache(self, results: Dict[str, Dict[str, object]], *, chip_name: Optional[str]) -> None:
+		"""Save tomo cache.
+
+		Args:
+			results (*Dict[str, Dict[str, object]]*): Collection of result objects.
+			chip_name (*Optional[str]*): Name of the target chip.
+		"""
 		path = self._tomo_cache_path(chip_name=chip_name)
 		raw = self._load_tomo_cache_raw(chip_name=chip_name)
 		timestamps = raw.get("timestamps", {})
@@ -339,12 +541,28 @@ class NativeTwoQubitTomographyManager:
 		)
 
 	def _encode_choi_payload(self, choi: np.ndarray) -> Dict[str, object]:
+		"""Encode choi payload.
+
+		Args:
+			choi (*np.ndarray*): Choi (``np.ndarray``).
+
+		Returns:
+			Result dictionary.
+		"""
 		return {
 			"real": choi.real.tolist(),
 			"imag": choi.imag.tolist(),
 		}
 
 	def _decode_choi_payload(self, payload: Dict[str, object]) -> Dict[str, object]:
+		"""Decode choi payload.
+
+		Args:
+			payload (*Dict[str, object]*): Data payload.
+
+		Returns:
+			Result dictionary.
+		"""
 		real = np.array(payload.get("real", []), dtype=float)
 		imag = np.array(payload.get("imag", []), dtype=float)
 		choi = real + 1j * imag

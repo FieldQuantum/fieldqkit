@@ -32,6 +32,11 @@ class TianYanPlatform(RemotePlatformClient):
     STOP_RUNNING_EXP_PATH = ""
 
     def list_available_hardware(self) -> List[Dict[str, Any]]:
+        """List available hardware.
+
+        Returns:
+            List of hardware description dictionaries.
+        """
         records = records_from_platform_list_query(self)
         return normalize_hardware_rows(provider="tianyan", records=records)
 
@@ -41,6 +46,15 @@ class TianYanBackendAdapter(BackendAdapter):
     default_hardware_name = "tianyan176"
 
     def __init__(self, *, machine_name: Optional[str] = None, login_key: Optional[str] = None) -> None:
+        """Initialize TianYan backend adapter with optional machine and login credentials.
+
+        Args:
+            machine_name (*Optional[str]*): Identifier of the target quantum machine. Defaults to ``None``.
+            login_key (*Optional[str]*): Login key for authentication. Defaults to ``None``.
+
+        Raises:
+            ValueError: tianyan login key cannot be empty
+        """
         self._login_key = login_key or get_tianyan_login_key()
         if not self._login_key:
             raise ValueError("tianyan login key cannot be empty")
@@ -52,11 +66,29 @@ class TianYanTaskAdapter(TaskAdapter):
     provider = "tianyan"
 
     def __init__(self, *, client: Any, login_key: Optional[str] = None) -> None:
+        """Initialize TianYan task adapter with quantum hardware client.
+
+        Args:
+            client (*Any*): ``QuantumHardwareClient`` instance.
+            login_key (*Optional[str]*): Login key for authentication. Defaults to ``None``.
+        """
         self._client = client
         self._login_key = login_key or get_tianyan_login_key()
         self._handle_cache: Dict[str, Dict[str, Any]] = {}
 
     def submit_openqasm(self, submit_request: OpenQasmSubmitRequest, backend: ResolvedBackend) -> ProviderTaskHandle:
+        """Submit an OpenQASM circuit to the TianYan backend and return a task handle.
+
+        Args:
+            submit_request (*OpenQasmSubmitRequest*): Submission request descriptor.
+            backend (*ResolvedBackend*): Hardware backend descriptor.
+
+        Returns:
+            ``ProviderTaskHandle``: Handle for tracking the submitted task.
+
+        Raises:
+            RuntimeError: platform_obj is missing in backend metadata
+        """
         from ...circuit.qasm_to_qcis import QasmToQcis
 
         platform_obj = backend.metadata.get("platform_obj")
@@ -65,6 +97,15 @@ class TianYanTaskAdapter(TaskAdapter):
         options = dict(submit_request.submit_options or {})
 
         def _as_int(value: Any, default: int) -> int:
+            """As int.
+
+            Args:
+                value (*Any*): Value to set.
+                default (*int*): Default (``int``).
+
+            Returns:
+                Computed integer result.
+            """
             try:
                 return int(value)
             except Exception:
@@ -82,6 +123,14 @@ class TianYanTaskAdapter(TaskAdapter):
         return handle
 
     def query_status(self, handle: ProviderTaskHandle) -> str:
+        """Query status.
+
+        Args:
+            handle (*ProviderTaskHandle*): Task handle from a prior submission.
+
+        Returns:
+            Formatted string.
+        """
         payload = dict(self._handle_cache.get(handle.task_id, {}))
         payload.update(handle.payload)
         if payload.get("result_items") is not None:
@@ -93,6 +142,17 @@ class TianYanTaskAdapter(TaskAdapter):
         return "Finished" if result_items else "Failed"
 
     def fetch_result(self, handle: ProviderTaskHandle) -> Dict[str, Any]:
+        """Fetch result.
+
+        Args:
+            handle (*ProviderTaskHandle*): Task handle from a prior submission.
+
+        Returns:
+            Result dictionary.
+
+        Raises:
+            RuntimeError: f'task {handle.task_id} ended with status Failed
+        """
         payload = dict(self._handle_cache.get(handle.task_id, {}))
         payload.update(handle.payload)
         if payload.get("result_items") is None and self.query_status(handle) != "Finished":
@@ -100,6 +160,11 @@ class TianYanTaskAdapter(TaskAdapter):
         return {"count": extract_counts_from_result_items(payload.get("result_items", []), num_qubits=int(payload.get("num_qubits", 0) or 0))}
 
     def cancel_task(self, handle: ProviderTaskHandle) -> None:
+        """Cancel task.
+
+        Args:
+            handle (*ProviderTaskHandle*): Task handle from a prior submission.
+        """
         payload = dict(self._handle_cache.get(handle.task_id, {}))
         payload.update(handle.payload)
         platform_obj = payload["platform_obj"]

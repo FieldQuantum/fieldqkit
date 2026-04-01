@@ -29,13 +29,46 @@ class TaskAdapter(ABC):
     provider: str
 
     def submit_openqasm(self, submit_request: OpenQasmSubmitRequest, backend: ResolvedBackend) -> ProviderTaskHandle:
+        """Submit an OpenQASM program and return a task handle.
+
+        Args:
+            submit_request (*OpenQasmSubmitRequest*): Submission request descriptor.
+            backend (*ResolvedBackend*): Hardware backend descriptor.
+
+        Raises:
+            NotImplementedError: f'{self.provider} submit_openqasm is not implemented
+        """
         raise NotImplementedError(f"{self.provider} submit_openqasm is not implemented")
 
     def query_status(self, handle: ProviderTaskHandle) -> str:
+        """Query the execution status of a submitted task.
+
+        Args:
+            handle (*ProviderTaskHandle*): Task handle from a prior submission.
+
+        Raises:
+            NotImplementedError: f'{self.provider} query_status is not implemented
+        """
         raise NotImplementedError(f"{self.provider} query_status is not implemented")
 
     def fetch_result(self, handle: ProviderTaskHandle) -> Dict[str, Any]:
+        """Fetch the result of a completed task.
+
+        Args:
+            handle (*ProviderTaskHandle*): Task handle from a prior submission.
+
+        Raises:
+            NotImplementedError: f'{self.provider} fetch_result is not implemented
+        """
         raise NotImplementedError(f"{self.provider} fetch_result is not implemented")
 
     def cancel_task(self, handle: ProviderTaskHandle) -> None:
+        """Cancel a running task.
+
+        Args:
+            handle (*ProviderTaskHandle*): Task handle from a prior submission.
+
+        Raises:
+            NotImplementedError: f'{self.provider} cancel_task is not implemented
+        """
         raise NotImplementedError(f"{self.provider} cancel_task is not implemented")

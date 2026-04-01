@@ -24,6 +24,14 @@ _RETRY_TIMEOUT = 12  # seconds per request
 
 
 def _auth_headers(token: str) -> Dict[str, str]:
+    """Auth headers.
+
+    Args:
+        token (*str*): API authentication token.
+
+    Returns:
+        Result dictionary.
+    """
     return {
         "Authorization": f"Bearer {token}",
         "user-agent": "Mozilla/5.0",
@@ -31,7 +39,20 @@ def _auth_headers(token: str) -> Dict[str, str]:
 
 
 def _post_json(endpoint: str, *, token: str, json: Any = None) -> Dict[str, Any]:
-    """POST to Tencent cloud API with retry, return parsed JSON."""
+    """POST to Tencent cloud API with retry, return parsed JSON.
+
+    Args:
+        endpoint (*str*): Endpoint (``str``).
+        token (*str*): API authentication token.
+        json (*Any*): Json (``Any``). Defaults to ``None``.
+
+    Returns:
+        Result dictionary.
+
+    Raises:
+        RuntimeError: f'Tencent API request to {endpoint} failed after {_MAX_RE...
+        ValueError: unexpected non-dict response from server
+    """
     url = _BASE_URL + endpoint
     last_exc: Optional[Exception] = None
     for attempt in range(_MAX_RETRIES):
@@ -66,11 +87,27 @@ def _post_json(endpoint: str, *, token: str, json: Any = None) -> Dict[str, Any]
 # ---------------------------------------------------------------------------
 
 def _get_tencent_token() -> str:
+    """Get Tencent API token from credentials.
+
+    Returns:
+        API token string.
+    """
     from ..platform_credentials import get_tencent_api_token
     return get_tencent_api_token()
 
 
 def _ensure_token(token: Optional[str] = None) -> str:
+    """Ensure token.
+
+    Args:
+        token (*Optional[str]*): API authentication token. Defaults to ``None``.
+
+    Returns:
+        Formatted string.
+
+    Raises:
+        ValueError: tencent API token cannot be empty
+    """
     tok = token or _get_tencent_token()
     if not tok:
         raise ValueError("tencent API token cannot be empty")
@@ -89,13 +126,31 @@ TENCENT_CHIPS = {
 
 
 def _list_devices(token: str) -> List[str]:
-    """Return device id strings from Tencent cloud."""
+    """Return device id strings from Tencent cloud.
+
+    Args:
+        token (*str*): API authentication token.
+
+    Returns:
+        Result list.
+    """
     r = _post_json("device/find", token=token)
     return [d["id"] for d in r.get("devices", [])]
 
 
 def _get_device_properties(device_name: str, token: str) -> Dict[str, Any]:
-    """Fetch raw device properties (bits, links, etc.)."""
+    """Fetch raw device properties (bits, links, etc.).
+
+    Args:
+        device_name (*str*): Device name (``str``).
+        token (*str*): API authentication token.
+
+    Returns:
+        Result dictionary.
+
+    Raises:
+        ValueError: f'No device with the name: {device_name}
+    """
     r = _post_json("device/detail", token=token, json={"id": device_name})
     if "device" not in r:
         raise ValueError(f"No device with the name: {device_name}")
@@ -111,7 +166,15 @@ def _get_device_properties(device_name: str, token: str) -> Dict[str, Any]:
 
 
 def _load_tencent_chip_info(chip_name: str, token: Optional[str] = None) -> Optional[dict]:
-    """Load chip info from Tencent Cloud and normalize to unified format."""
+    """Load chip info from Tencent Cloud and normalize to unified format.
+
+    Args:
+        chip_name (*str*): Name of the target chip.
+        token (*Optional[str]*): API authentication token. Defaults to ``None``.
+
+    Returns:
+        Result dictionary.
+    """
     tok = _ensure_token(token)
     props = _get_device_properties(chip_name, tok)
 
@@ -164,7 +227,14 @@ def _load_tencent_chip_info(chip_name: str, token: Optional[str] = None) -> Opti
 # ---------------------------------------------------------------------------
 
 def _strip_barrier(qasm: str) -> str:
-    """Remove barrier instructions that tencent QOS cannot parse."""
+    """Remove barrier instructions that tencent QOS cannot parse.
+
+    Args:
+        qasm (*str*): Qasm (``str``).
+
+    Returns:
+        Formatted string.
+    """
     return "\n".join(
         line for line in qasm.split("\n")
         if not line.strip().startswith("barrier")
@@ -179,7 +249,21 @@ def _submit_task(
     shots: int = 1024,
     qos_option: int = 2,
 ) -> str:
-    """Submit an OpenQASM task, return the task id."""
+    """Submit an OpenQASM task, return the task id.
+
+    Args:
+        token (*str*): API authentication token.
+        device_name (*str*): Device name (``str``).
+        source (*str*): OpenQASM source string.
+        shots (*int*): Number of measurement shots. Defaults to ``1024``.
+        qos_option (*int*): Qos option (``int``). Defaults to ``2``.
+
+    Returns:
+        Formatted string.
+
+    Raises:
+        RuntimeError: task submission failed – no task id returned
+    """
     device_str = f"{device_name}?o={qos_option}"
     payload = {
         "device": device_str,
@@ -201,7 +285,15 @@ def _submit_task(
 
 
 def _get_task_detail(task_id: str, token: str) -> Dict[str, Any]:
-    """Fetch raw task detail dict (state, result, etc.)."""
+    """Fetch raw task detail dict (state, result, etc.).
+
+    Args:
+        task_id (*str*): Task identifier.
+        token (*str*): API authentication token.
+
+    Returns:
+        Result dictionary.
+    """
     r = _post_json("task/detail", token=token, json={"id": task_id})
     task_data = r.get("task", {})
     # Normalize results
@@ -212,11 +304,31 @@ def _get_task_detail(task_id: str, token: str) -> Dict[str, Any]:
 
 
 def _query_task_state(task_id: str, token: str) -> str:
+    """Query task state.
+
+    Args:
+        task_id (*str*): Task identifier.
+        token (*str*): API authentication token.
+
+    Returns:
+        Formatted string.
+    """
     return _get_task_detail(task_id, token).get("state", "pending")
 
 
 def _fetch_task_results_blocking(task_id: str, token: str) -> Dict[str, int]:
-    """Poll until task completes, then return counts dict."""
+    """Poll until task completes, then return counts dict.
+
+    Args:
+        task_id (*str*): Task identifier.
+        token (*str*): API authentication token.
+
+    Returns:
+        Result dictionary.
+
+    Raises:
+        RuntimeError: f"Tencent task {task_id} failed: {detail.get('err', '')}
+    """
     tries = 0
     while True:
         detail = _get_task_detail(task_id, token)
@@ -237,9 +349,19 @@ class TencentPlatform:
     """Direct REST wrapper for the unified adapter pattern."""
 
     def __init__(self, token: Optional[str] = None) -> None:
+        """Initialize Tencent platform with API token for circuit submission.
+
+        Args:
+            token (*Optional[str]*): API authentication token. Defaults to ``None``.
+        """
         self._token = _ensure_token(token)
 
     def list_available_hardware(self) -> List[Dict[str, Any]]:
+        """List available hardware.
+
+        Returns:
+            List of hardware description dictionaries.
+        """
         device_ids = _list_devices(self._token)
         return [
             {
@@ -259,6 +381,16 @@ class TencentPlatform:
         device_name: str,
         shots: int = 1024,
     ) -> str:
+        """Submit task.
+
+        Args:
+            source (*str*): OpenQASM source string.
+            device_name (*str*): Device name (``str``).
+            shots (*int*): Number of measurement shots. Defaults to ``1024``.
+
+        Returns:
+            Formatted string.
+        """
         # QOS o=2: gate decomposition only (no routing/mapping).
         # Client-side transpilation already handles routing.
         return _submit_task(
@@ -270,9 +402,27 @@ class TencentPlatform:
         )
 
     def query_task_state(self, task_id: str, device_name: str) -> str:
+        """Query task state.
+
+        Args:
+            task_id (*str*): Task identifier.
+            device_name (*str*): Device name (``str``).
+
+        Returns:
+            Formatted string.
+        """
         return _query_task_state(task_id, self._token)
 
     def fetch_task_result(self, task_id: str, device_name: str) -> Dict[str, int]:
+        """Fetch task result.
+
+        Args:
+            task_id (*str*): Task identifier.
+            device_name (*str*): Device name (``str``).
+
+        Returns:
+            Result dictionary.
+        """
         return _fetch_task_results_blocking(task_id, self._token)
 
 
@@ -281,6 +431,12 @@ class TencentBackendAdapter(BackendAdapter):
     default_hardware_name = "tianji_s2"
 
     def __init__(self, *, machine_name: Optional[str] = None, token: Optional[str] = None) -> None:
+        """Initialize Tencent backend adapter with optional machine and authentication token.
+
+        Args:
+            machine_name (*Optional[str]*): Identifier of the target quantum machine. Defaults to ``None``.
+            token (*Optional[str]*): API authentication token. Defaults to ``None``.
+        """
         self._token = token or _get_tencent_token()
         self._machine_name = machine_name
         self._platform = TencentPlatform(token=self._token)
@@ -290,11 +446,26 @@ class TencentTaskAdapter(TaskAdapter):
     provider = "tencent"
 
     def __init__(self, *, client: Any, token: Optional[str] = None) -> None:
+        """Initialize Tencent task adapter with quantum hardware client.
+
+        Args:
+            client (*Any*): ``QuantumHardwareClient`` instance.
+            token (*Optional[str]*): API authentication token. Defaults to ``None``.
+        """
         self._client = client
         self._token = token or _get_tencent_token()
         _ensure_token(self._token)
 
     def submit_openqasm(self, submit_request: OpenQasmSubmitRequest, backend: ResolvedBackend) -> ProviderTaskHandle:
+        """Submit an OpenQASM circuit to the Tencent backend and return a task handle.
+
+        Args:
+            submit_request (*OpenQasmSubmitRequest*): Submission request descriptor.
+            backend (*ResolvedBackend*): Hardware backend descriptor.
+
+        Returns:
+            ``ProviderTaskHandle``: Handle for tracking the submitted task.
+        """
         platform_obj: TencentPlatform = backend.metadata.get("platform_obj")
         if platform_obj is None:
             platform_obj = TencentPlatform(token=self._token)
@@ -317,6 +488,14 @@ class TencentTaskAdapter(TaskAdapter):
         )
 
     def query_status(self, handle: ProviderTaskHandle) -> str:
+        """Query status.
+
+        Args:
+            handle (*ProviderTaskHandle*): Task handle from a prior submission.
+
+        Returns:
+            Formatted string.
+        """
         platform_obj: TencentPlatform = handle.payload.get("platform_obj")
         device_name = handle.payload.get("device_name", "tianji_s2")
         if platform_obj is None:
@@ -333,6 +512,14 @@ class TencentTaskAdapter(TaskAdapter):
         return state_map.get(state, "Running")
 
     def fetch_result(self, handle: ProviderTaskHandle) -> Dict[str, Any]:
+        """Fetch result.
+
+        Args:
+            handle (*ProviderTaskHandle*): Task handle from a prior submission.
+
+        Returns:
+            Result dictionary.
+        """
         platform_obj: TencentPlatform = handle.payload.get("platform_obj")
         device_name = handle.payload.get("device_name", "tianji_s2")
         if platform_obj is None:
@@ -342,5 +529,10 @@ class TencentTaskAdapter(TaskAdapter):
         return {"count": counts}
 
     def cancel_task(self, handle: ProviderTaskHandle) -> None:
+        """Cancel task.
+
+        Args:
+            handle (*ProviderTaskHandle*): Task handle from a prior submission.
+        """
         # Tencent cloud API does not expose a cancel endpoint in tensorcircuit
         logger.warning("Tencent provider does not support task cancellation")

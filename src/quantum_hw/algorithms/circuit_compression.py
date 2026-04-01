@@ -25,6 +25,8 @@ from ..sim.mps import simulate_mps
 
 @dataclass
 class SuffixCompressionBlock:
+    """A contiguous block of circuit layers that can be compressed via MPS truncation."""
+
     start_layer: int
     end_layer: int
     max_bond: int
@@ -34,6 +36,8 @@ class SuffixCompressionBlock:
 
 @dataclass
 class HybridCompressionPlan:
+    """Plan splitting a circuit into an exact prefix and MPS-compressed suffix blocks."""
+
     split_layer: int
     total_layers: int
     prefix_max_bond: int
@@ -42,6 +46,14 @@ class HybridCompressionPlan:
 
 
 def _gate_qubits(gate_info) -> Tuple[int, ...]:
+    """Return the qubits involved in a gate.
+
+    Args:
+        gate_info: Gate info.
+
+    Returns:
+        Result tuple.
+    """
     gate = gate_info[0]
 
     if gate in one_qubit_gates_available:
@@ -66,6 +78,14 @@ def _gate_qubits(gate_info) -> Tuple[int, ...]:
 
 
 def _circuit_to_moments(qc: QuantumCircuit) -> List[List[tuple]]:
+    """Convert a quantum circuit to a list of moments (first-fit greedy).
+
+    Args:
+        qc (*QuantumCircuit*): Quantum circuit.
+
+    Returns:
+        Result list.
+    """
     moments: List[List[tuple]] = []
     used_qubits: List[set[int]] = []
     for gate_info in qc.gates:
@@ -96,6 +116,17 @@ def _build_circuit_from_moments(
     start: int,
     end: int,
 ) -> QuantumCircuit:
+    """Build circuit from moments.
+
+    Args:
+        num_qubits (*int*): Number of qubits.
+        moments (*Sequence[Sequence[tuple]]*): Moments (``Sequence[Sequence[tuple]]``).
+        start (*int*): Start (``int``).
+        end (*int*): End (``int``).
+
+    Returns:
+        Constructed ``QuantumCircuit``.
+    """
     qc = QuantumCircuit(num_qubits)
     gates: List[tuple] = []
     for i in range(int(start), int(end) + 1):
@@ -110,7 +141,16 @@ def build_layer_span_circuit(
     start_layer: int,
     end_layer: int,
 ) -> QuantumCircuit:
-    """Extract a contiguous layer span (inclusive) as a standalone circuit."""
+    """Extract a contiguous layer span (inclusive) as a standalone circuit.
+
+    Args:
+        qc_bound (*QuantumCircuit*): Qc bound (``QuantumCircuit``).
+        start_layer (*int*): Start layer (``int``).
+        end_layer (*int*): End layer (``int``).
+
+    Returns:
+        Constructed ``QuantumCircuit``.
+    """
     num_qubits = int(qc_bound.nqubits)
     moments = _circuit_to_moments(qc_bound)
     total_layers = len(moments)
@@ -136,12 +176,32 @@ def build_layer_span_circuit(
 
 
 def _mps_max_bond(mps: Sequence[torch.Tensor]) -> int:
+    """Return the maximum bond dimension in an MPS.
+
+    Args:
+        mps (*Sequence[torch.Tensor]*): MPS (``Sequence[torch.Tensor]``).
+
+    Returns:
+        Computed integer result.
+    """
     if not mps:
         return 1
     return max(int(t.shape[2]) for t in mps)
 
 
 def _mps_inner(a: Sequence[torch.Tensor], b: Sequence[torch.Tensor]) -> torch.Tensor:
+    """Return the inner product of two MPS.
+
+    Args:
+        a (*Sequence[torch.Tensor]*): MPS_A (``Sequence[torch.Tensor]``).
+        b (*Sequence[torch.Tensor]*): MPS_B (``Sequence[torch.Tensor]``).
+
+    Returns:
+        Torch tensor with the computed result.
+
+    Raises:
+        ValueError: MPS lengths must match
+    """
     if len(a) != len(b):
         raise ValueError("MPS lengths must match")
     if not a:
@@ -153,6 +213,15 @@ def _mps_inner(a: Sequence[torch.Tensor], b: Sequence[torch.Tensor]) -> torch.Te
 
 
 def _mps_relative_trunc_error(reference: Sequence[torch.Tensor], approx: Sequence[torch.Tensor]) -> float:
+    """Return the relative truncation error between two MPS.
+
+    Args:
+        reference (*Sequence[torch.Tensor]*): Reference MPS (``Sequence[torch.Tensor]``).
+        approx (*Sequence[torch.Tensor]*): Approximate MPS (``Sequence[torch.Tensor]``).
+
+    Returns:
+        Computed float result.
+    """
     num = torch.abs(_mps_inner(reference, approx)) ** 2
     den = torch.real(_mps_inner(reference, reference) * _mps_inner(approx, approx))
     den_val = float(den.detach().cpu().item())
@@ -164,6 +233,15 @@ def _mps_relative_trunc_error(reference: Sequence[torch.Tensor], approx: Sequenc
 
 
 def _mps_infidelity_tensor(reference: Sequence[torch.Tensor], approx: Sequence[torch.Tensor]) -> torch.Tensor:
+    """Return the infidelity tensor between two MPS.
+
+    Args:
+        reference (*Sequence[torch.Tensor]*): Reference MPS (``Sequence[torch.Tensor]``).
+        approx (*Sequence[torch.Tensor]*): Approximate MPS (``Sequence[torch.Tensor]``).
+
+    Returns:
+        Torch tensor with the computed result.
+    """
     num = torch.abs(_mps_inner(reference, approx)) ** 2
     den = torch.real(_mps_inner(reference, reference) * _mps_inner(approx, approx))
     den = torch.clamp(den, min=1e-15)
@@ -173,6 +251,18 @@ def _mps_infidelity_tensor(reference: Sequence[torch.Tensor], approx: Sequence[t
 
 
 def _mpo_inner(a: Sequence[torch.Tensor], b: Sequence[torch.Tensor]) -> torch.Tensor:
+    """Return the inner product of two MPO.
+
+    Args:
+        a (*Sequence[torch.Tensor]*): MPO_A (``Sequence[torch.Tensor]``).
+        b (*Sequence[torch.Tensor]*): MPO_B (``Sequence[torch.Tensor]``).
+
+    Returns:
+        Torch tensor with the computed result.
+
+    Raises:
+        ValueError: MPO lengths must match
+    """
     if len(a) != len(b):
         raise ValueError("MPO lengths must match")
     if not a:
@@ -184,6 +274,15 @@ def _mpo_inner(a: Sequence[torch.Tensor], b: Sequence[torch.Tensor]) -> torch.Te
 
 
 def _mpo_relative_trunc_error(reference: Sequence[torch.Tensor], approx: Sequence[torch.Tensor]) -> float:
+    """Return the relative truncation error between two MPO.
+
+    Args:
+        reference (*Sequence[torch.Tensor]*): Reference MPO (``Sequence[torch.Tensor]``).
+        approx (*Sequence[torch.Tensor]*): Approximate MPO (``Sequence[torch.Tensor]``).
+
+    Returns:
+        Computed float result.
+    """
     num = torch.abs(_mpo_inner(reference, approx)) ** 2
     den = torch.real(_mpo_inner(reference, reference) * _mpo_inner(approx, approx))
     den_val = float(den.detach().cpu().item())
@@ -195,6 +294,15 @@ def _mpo_relative_trunc_error(reference: Sequence[torch.Tensor], approx: Sequenc
 
 
 def _mpo_infidelity_tensor(reference: Sequence[torch.Tensor], approx: Sequence[torch.Tensor]) -> torch.Tensor:
+    """Return the infidelity tensor between two MPO.
+
+    Args:
+        reference (*Sequence[torch.Tensor]*): Reference MPO (``Sequence[torch.Tensor]``).
+        approx (*Sequence[torch.Tensor]*): Approximate MPO (``Sequence[torch.Tensor]``).
+
+    Returns:
+        Torch tensor with the computed result.
+    """
     num = torch.abs(_mpo_inner(reference, approx)) ** 2
     den = torch.real(_mpo_inner(reference, reference) * _mpo_inner(approx, approx))
     den = torch.clamp(den, min=1e-15)
@@ -211,7 +319,23 @@ def plan_hybrid_suffix_blocks(
     max_layers_per_block: int = 6,
     device: torch.device | str | None = None,
 ) -> HybridCompressionPlan:
-    """Build a coarse-grained suffix plan from bond and truncation-error thresholds."""
+    """Build a coarse-grained suffix plan from bond and truncation-error thresholds.
+
+    Args:
+        qc_bound (*QuantumCircuit*): Qc bound (``QuantumCircuit``).
+        bond_cap (*int*): Bond cap (``int``). Defaults to ``128``.
+        trunc_tol (*float*): Truncation tolerance (``float``). Defaults to ``1e-08``.
+        max_layers_per_block (*int*): Max layers per block (``int``). Defaults to ``6``.
+        device (*torch.device | str | None*): Torch device (``'cpu'`` or ``'cuda'``). Defaults to ``None``.
+
+    Returns:
+        ``HybridCompressionPlan`` result.
+
+    Raises:
+        ValueError: bond_cap must be positive
+        ValueError: trunc_tol must be non-negative
+        ValueError: max_layers_per_block must be positive
+    """
     if bond_cap <= 0:
         raise ValueError("bond_cap must be positive")
     if trunc_tol < 0.0:
@@ -318,7 +442,37 @@ def compress_circuit_with_hybrid_objective(
     warm_start_params: Optional[np.ndarray],
     device: torch.device | str | None = None,
 ) -> Tuple[QuantumCircuit, np.ndarray, Dict[str, object]]:
-    """Fit a shallow hardware-efficient circuit to a bound circuit using MPS/MPO objectives."""
+    """Fit a shallow hardware-efficient circuit to a bound circuit using MPS/MPO objectives.
+
+    Initialization: creates 3 candidate seeds (1 from *warm_start_params* if
+    provided, 2 random) and selects the best by MPS infidelity.
+
+    Optimization is two-stage:
+      1. Main: Adam with full *optimizer_lr* for *optimizer_steps* iterations.
+      2. Refine (only if ``best_loss > init_loss * 0.995``): lr × 0.2 for
+         ``max(4, ceil(optimizer_steps * 0.5))`` additional steps.
+
+    Args:
+        qc_bound (*QuantumCircuit*): Target bound circuit to approximate.
+        num_qubits (*int*): Number of qubits.
+        approx_layers (*int*): Number of layers in the approximating HEA circuit.
+        optimizer_steps (*int*): Number of Adam optimization steps (main stage).
+        optimizer_lr (*float*): Learning rate for the Adam optimizer.
+        objective_mode (*Literal['mps', 'mpo']*): ``'mps'`` for state infidelity, ``'mpo'`` for process infidelity. Defaults to ``'mps'``.
+        bond_cap (*int*): Maximum bond dimension for MPS/MPO truncation.
+        warm_start_params (*Optional[np.ndarray]*): Optional initial parameters; used as one of the seed candidates.
+        device (*torch.device | str | None*): Torch device. Defaults to ``None`` (CPU).
+
+    Returns:
+        Tuple of ``(QuantumCircuit, np.ndarray, dict)`` — the compressed circuit,
+        optimized parameters, and a metadata dictionary.
+
+    Raises:
+        ValueError: approx_layers must be positive
+        ValueError: optimizer_steps must be positive
+        ValueError: optimizer_lr must be positive
+        ValueError: objective_mode must be 'mps' or 'mpo'
+    """
     if approx_layers <= 0:
         raise ValueError("approx_layers must be positive")
     if optimizer_steps <= 0:
@@ -365,6 +519,14 @@ def compress_circuit_with_hybrid_objective(
         )
 
     def _objective_from_full_params(full_params_t: torch.Tensor) -> torch.Tensor:
+        """Compute the infidelity of the hardware-efficient ansatz with given full params against the target MPS/MPO.
+
+        Args:
+            full_params_t (*torch.Tensor*): Full params t (``torch.Tensor``).
+
+        Returns:
+            Torch tensor with the computed result.
+        """
         param_values = {name: full_params_t[i] for i, name in enumerate(he_param_names)}
         if mode == "mps":
             assert target_mps is not None
@@ -494,7 +656,14 @@ def compress_circuit_with_hybrid_objective(
 # ---------------------------------------------------------------------------
 
 def _planner_stage_ids(plan: Optional[HybridCompressionPlan]) -> List[int]:
-    """Return stage IDs for hybrid block planner (prefix = -1, then block indices)."""
+    """Return stage IDs for hybrid block planner (prefix = -1, then block indices).
+
+    Args:
+        plan (*Optional[HybridCompressionPlan]*): Plan (``Optional[HybridCompressionPlan]``).
+
+    Returns:
+        Result list.
+    """
     if plan is None or plan.total_layers <= 0 or not plan.blocks:
         return [-1]
     return [-1] + [int(i) for i in range(len(plan.blocks))]
@@ -506,7 +675,17 @@ def _stage_target_circuit(
     stage_id: int,
     num_qubits: int,
 ) -> QuantumCircuit:
-    """Extract the sub-circuit for a given planner stage."""
+    """Extract the sub-circuit for a given planner stage.
+
+    Args:
+        qc_bound (*QuantumCircuit*): Qc bound (``QuantumCircuit``).
+        plan (*Optional[HybridCompressionPlan]*): Plan (``Optional[HybridCompressionPlan]``).
+        stage_id (*int*): Stage id (``int``).
+        num_qubits (*int*): Number of qubits.
+
+    Returns:
+        Constructed ``QuantumCircuit``.
+    """
     if plan is None or plan.total_layers <= 0 or not plan.blocks:
         return qc_bound.deepcopy()
 
@@ -530,7 +709,18 @@ def _compose_stage_circuits(
     stage_circuits: Sequence[QuantumCircuit],
     num_qubits: int,
 ) -> QuantumCircuit:
-    """Compose multiple stage sub-circuits into one circuit."""
+    """Compose multiple stage sub-circuits into one circuit.
+
+    Args:
+        stage_circuits (*Sequence[QuantumCircuit]*): Stage circuits (``Sequence[QuantumCircuit]``).
+        num_qubits (*int*): Number of qubits.
+
+    Returns:
+        Constructed ``QuantumCircuit``.
+
+    Raises:
+        ValueError: all stage circuits must have the same nqubits
+    """
     if not stage_circuits:
         return QuantumCircuit(int(num_qubits))
 
@@ -593,11 +783,15 @@ def build_compression_transform(
         compression_verbose: Print compression diagnostics.
         compression_plot_loss: Plot compression loss curves.
         tag: Log prefix for verbose output.
+        convert_single_qubit_gate_to_u: Whether to convert single-qubit gates to U during transpilation.
 
     Returns:
         Dict with keys:
 
-        - ``transform``: callable ``(qc, param_index) -> qc``
+        - ``transform``: callable ``(qc, param_index) -> qc``.
+          **Note:** this callable is stateful — it maintains mutable closure
+          variables (warm-start params, base params, last block plan) across
+          successive calls to enable warm-starting between iterations.
         - ``compressed_transpiled_template``: transpiled compressed template
         - ``target_qubits_in_use``: resolved physical qubit mapping
     """
@@ -631,6 +825,15 @@ def build_compression_transform(
     last_plan: List = [None]
 
     def _transform(qc_bound: QuantumCircuit, changed_param_index: Optional[int] = None) -> QuantumCircuit:
+        """Compression transform function to be called at each iteration.
+
+        Args:
+            qc_bound (*QuantumCircuit*): Qc bound (``QuantumCircuit``).
+            changed_param_index (*Optional[int]*): Changed param index (``Optional[int]``). Defaults to ``None``.
+
+        Returns:
+            Constructed ``QuantumCircuit``.
+        """
         plan = None
         if enable_block_planner:
             if changed_param_index is None or last_plan[0] is None:

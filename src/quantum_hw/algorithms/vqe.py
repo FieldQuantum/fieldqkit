@@ -1,4 +1,4 @@
-﻿"""VQE Hamiltonian builders and optimization routines."""
+"""VQE Hamiltonian builders and optimization routines."""
 
 from __future__ import annotations
 
@@ -17,7 +17,6 @@ from ..core.types import VQEResult
 from .ansatz_templates import build_hardware_efficient_ansatz_symbolic
 from .ansatz_templates import build_ucc_ansatz_symbolic, build_ucc_ansatz
 from .ansatz_templates import build_ucc_num_params
-from .circuit_compression import build_compression_transform as _build_compression_transform
 from .optimizer_utils import (
     Hamiltonian,
     CliffordFitMap,
@@ -191,6 +190,14 @@ def _extract_names_from_expr(expr: str) -> List[str]:
     out: List[str] = []
 
     def _walk(node):
+        """Walk.
+
+        Args:
+            node: Node.
+
+        Raises:
+            ValueError: f'unsupported symbolic parameter expression: {expr}
+        """
         if isinstance(node, ast.Expression):
             _walk(node.body)
             return
@@ -252,7 +259,7 @@ def _resolve_ansatz_layout(
 
     Supported kinds:
 
-    - ``"hardwareefficient"``: RY/RZ + CZ entangling layers.
+    - ``"hardwareefficient"``: RX/RY + CZ entangling layers.
     - ``"ucc"``: Unitary Coupled Cluster.
     - ``"custom"``: User-supplied ``QuantumCircuit`` with symbolic params.
 
@@ -381,11 +388,24 @@ def run_vqe_with_backend(
         clifford_fitting_num_samples: Calibration circuit count.
         clifford_fitting_num_non_clifford_gates: Haar-random gates per
             calibration circuit.
-        enable_block_planner / enable_circuit_compression: Compression
-            pipeline flags.
-        compression_*: Compression hyper-parameters.
+        enable_block_planner: Enable suffix block planner for compression.
+        planner_bond_cap: Bond-dimension cap used by planner/compression.
+        planner_trunc_tol: Truncation tolerance used by planner/compression.
+        planner_max_layers_per_block: Planner max layers per suffix block.
+        enable_circuit_compression: Enable per-iteration circuit compression.
+            When combined with ``enable_block_planner``, the prefix uses
+            ``objective_mode='mps'`` and each suffix block uses ``'mpo'``.
+            Requires ``compression_block_layers`` to be set.
+        compression_block_layers: Compression block depth (positive integer).
+            **Required** when ``enable_circuit_compression=True``.
+        compression_optimizer_steps: Optimization steps per compression run.
+        compression_optimizer_lr: Learning rate for compression optimizer.
+        compression_verbose: Print compression diagnostics.
+        compression_plot_loss: Plot compression optimization loss.
         qasm_version: OpenQASM serialisation version.
         use_dd: Enable dynamical decoupling.
+        convert_single_qubit_gate_to_u: Whether to convert single-qubit gates
+            to ``U`` during transpilation.
 
     Returns:
         ``VQEResult`` with best energy, parameters, and full history.
@@ -463,6 +483,7 @@ def run_vqe_with_backend(
             )
         else:
             gradient_param_template = symbolic_qc
+            from .circuit_compression import build_compression_transform as _build_compression_transform
             comp_ctx = _build_compression_transform(
                 client,
                 num_qubits=num_qubits,

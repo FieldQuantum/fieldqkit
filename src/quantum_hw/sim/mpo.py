@@ -30,6 +30,19 @@ from .mps import (
 
 
 def _identity_mpo(num_qubits: int, *, dtype: torch.dtype, device: torch.device) -> List[torch.Tensor]:
+    """Create an identity MPO (trivial process) for the given number of qubits.
+
+    Each site tensor is a reshaped 2×2 identity with shape ``(1, 2, 1, 2)``,
+    representing ``[Dl, pout, Dr, pin]``.
+
+    Args:
+        num_qubits (*int*): Number of qubits.
+        dtype (*torch.dtype*): Torch data type.
+        device (*torch.device*): Torch device (``'cpu'`` or ``'cuda'``).
+
+    Returns:
+        List of ``num_qubits`` identity MPO tensors.
+    """
     if num_qubits <= 0:
         return []
     i2 = torch.eye(2, dtype=dtype, device=device).reshape(1, 2, 1, 2)
@@ -37,6 +50,17 @@ def _identity_mpo(num_qubits: int, *, dtype: torch.dtype, device: torch.device) 
 
 
 def _apply_one_qubit_gate_to_mpo_tensor(t: torch.Tensor, gate: torch.Tensor) -> torch.Tensor:
+    """Left-multiply a single-qubit gate onto the output leg of an MPO tensor.
+
+    Computes ``T'[l,s,r,q] = gate[s,p] · T[l,p,r,q]`` via einsum.
+
+    Args:
+        t (*torch.Tensor*): MPO site tensor of shape ``(Dl, pout, Dr, pin)``.
+        gate (*torch.Tensor*): Single-qubit gate matrix of shape ``(2, 2)``.
+
+    Returns:
+        Updated MPO site tensor of shape ``(Dl, pout, Dr, pin)``.
+    """
     # Left-multiply local output leg: T[l,p,r,q] <- gate[s,p] @ T[l,p,r,q]
     return torch.einsum("lprq,sp->lsrq", t, gate)
 
@@ -47,6 +71,16 @@ def _apply_gate_mpo_to_process_segment(
     *,
     start: int,
 ) -> None:
+    """Compose a gate MPO into the process MPO on a contiguous segment.
+
+    For each site, contracts gate tensor ``W[a,s,b,p]`` with process tensor
+    ``T[l,p,r,q]`` and merges virtual bonds to yield ``T'[(l·a), s, (r·b), q]``.
+
+    Args:
+        mpo (*List[torch.Tensor]*): Process MPO tensor list (modified in-place).
+        gate_mpo_span (*Sequence[torch.Tensor]*): Gate MPO tensors covering the segment.
+        start (*int*): Starting qubit index in the process MPO.
+    """
     # Compose gate MPO W[a,s,b,p] with process MPO T[l,p,r,q], yielding
     # T'[(l,a),s,(r,b),q].
     for i, w in enumerate(gate_mpo_span):
@@ -64,6 +98,23 @@ def _split_two_site_theta_mpo(
     max_bond_dim: int | None,
     direction: str,
 ) -> None:
+    """Contract two adjacent MPO sites and re-split via truncated SVD.
+
+    Merges ``mpo[left]`` and ``mpo[left+1]`` (each with shape ``[Dl, pout, Dr, pin]``)
+    into a two-site tensor, performs SVD with optional bond truncation, and
+    writes the factors back. Singular values are absorbed left or right depending
+    on *direction*.
+
+    Args:
+        mpo (*List[torch.Tensor]*): Process MPO tensor list (modified in-place).
+        left (*int*): Index of the left site in the pair.
+        max_bond_dim (*int | None*): Maximum bond dimension after truncation.
+        direction (*str*): ``'left'`` absorbs singular values into the right tensor;
+            ``'right'`` absorbs them into the left tensor.
+
+    Raises:
+        ValueError: If *direction* is not ``'left'`` or ``'right'``.
+    """
     a = mpo[left]
     b = mpo[left + 1]
 
@@ -99,6 +150,21 @@ def _canonicalize_mpo_segment(
     direction: str,
     max_bond_dim: int | None = None,
 ) -> None:
+    """Sweep-canonicalize an MPO segment with optional bond truncation.
+
+    Performs sequential two-site SVD splits across ``[start, end)`` to bring
+    the process MPO segment into left- or right-canonical form.
+
+    Args:
+        mpo (*List[torch.Tensor]*): Process MPO tensor list (modified in-place).
+        start (*int*): First site index (inclusive).
+        end (*int*): Last site index (exclusive for the sweep).
+        direction (*str*): ``'left'`` sweeps left-to-right; ``'right'`` sweeps right-to-left.
+        max_bond_dim (*int | None*): Maximum bond dimension per split. Defaults to ``None``.
+
+    Raises:
+        ValueError: If *direction* is not ``'left'`` or ``'right'``.
+    """
     if end <= start:
         return
 
@@ -122,6 +188,21 @@ def _move_mpo_canonical_center_to_span_left(
     start: int,
     end: int,
 ) -> int:
+    """Relocate the MPO canonical center to the left edge of a target span.
+
+    Performs canonicalization sweeps as needed so that the orthogonality center
+    ends up at site *start*, regardless of its current position relative to the
+    ``[start, end]`` range.
+
+    Args:
+        mpo (*List[torch.Tensor]*): Process MPO tensor list (modified in-place).
+        center (*int*): Current canonical center position.
+        start (*int*): Left edge of the target span.
+        end (*int*): Right edge of the target span.
+
+    Returns:
+        New canonical center position (always *start*).
+    """
     if end <= start:
         return int(start)
 
@@ -147,6 +228,24 @@ def _apply_k_qubit_gate_to_process_with_mpo(
     qubits: Sequence[int],
     gate_matrix: torch.Tensor,
 ) -> Tuple[int, int] | None:
+    """Apply a k-qubit gate to the process MPO by composing its MPO decomposition.
+
+    For single-qubit gates, left-multiplies onto the site tensor directly.
+    For multi-qubit gates, decomposes the unitary into an MPO, expands to a
+    contiguous span with identity bridges, and composes it into the process.
+
+    Args:
+        mpo (*List[torch.Tensor]*): Process MPO tensor list (modified in-place).
+        qubits (*Sequence[int]*): Target qubit indices for the gate.
+        gate_matrix (*torch.Tensor*): Unitary gate matrix of shape ``(2**k, 2**k)``.
+
+    Returns:
+        Tuple ``(qmin, qmax)`` of the affected qubit span, or ``None`` for
+        single-qubit gates.
+
+    Raises:
+        ValueError: If gate qubits are not distinct.
+    """
     acted = sorted(int(q) for q in qubits)
     if len(set(acted)) != len(acted):
         raise ValueError("gate qubits must be distinct")
@@ -184,6 +283,18 @@ def simulate_mpo_process(
     """Simulate circuit process and return an MPO list.
 
     The returned tensors use shape [Dl, pout, Dr, pin] at each site.
+
+    Args:
+        qc (*QuantumCircuit*): Quantum circuit.
+        param_values (*Dict[str, object] | None*): Param values (``Dict[str, object] | None``). Defaults to ``None``.
+        max_bond_dim (*int | None*): Max bond dim (``int | None``). Defaults to ``None``.
+        device (*torch.device | str | None*): Torch device (``'cpu'`` or ``'cuda'``). Defaults to ``None``.
+
+    Returns:
+        Result list.
+
+    Raises:
+        ValueError: f'unsupported gate for simulator: {gate}
     """
     num_qubits = int(qc.nqubits)
     if num_qubits <= 0:
@@ -198,6 +309,12 @@ def simulate_mpo_process(
     canon_center: int = 0
 
     def _mark_dirty(start: int, end: int) -> None:
+        """Expand the dirty (uncompressed) qubit span to include ``[start, end]``.
+
+        Args:
+            start (*int*): Left-most qubit index of the newly dirtied region.
+            end (*int*): Right-most qubit index of the newly dirtied region.
+        """
         nonlocal dirty_start, dirty_end
         if dirty_start is None:
             dirty_start = int(start)
@@ -207,6 +324,12 @@ def simulate_mpo_process(
         dirty_end = max(dirty_end, int(end))
 
     def _maybe_compress_dirty_span() -> None:
+        """Compress the dirty MPO segment if its bond dimension exceeds the limit.
+
+        Moves the canonical center to the left edge of the dirty span, then
+        performs a truncating left-to-right canonicalization sweep if any bond
+        exceeds *max_bond_dim*. Resets the dirty span afterward.
+        """
         nonlocal dirty_start, dirty_end, canon_center
         if dirty_start is None or dirty_end is None:
             return

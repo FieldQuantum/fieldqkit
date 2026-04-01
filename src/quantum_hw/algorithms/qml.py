@@ -46,7 +46,17 @@ from .qml_encoding import (
 # ---------------------------------------------------------------------------
 
 def _build_ansatz_symbolic(num_qubits: int, layers: int):
-    """Build a hardware-efficient ansatz and return (circuit, param_names)."""
+    """Build a hardware-efficient ansatz and return (circuit, param_names).
+
+    Args:
+        num_qubits (*int*): Number of qubits.
+        layers (*int*): Number of ansatz layers.
+
+    Returns:
+        Tuple of ``(circuit, param_names)`` where *circuit* is the
+        symbolic ``QuantumCircuit`` and *param_names* is a list of
+        parameter name strings.
+    """
     num_params = 2 * num_qubits * (layers + 1)
     param_names = [f"θ_{i}" for i in range(num_params)]
     qc = build_hardware_efficient_ansatz_symbolic(num_qubits, param_names, layers=layers)
@@ -54,7 +64,15 @@ def _build_ansatz_symbolic(num_qubits: int, layers: int):
 
 
 def _compose_circuits(front: QuantumCircuit, back: QuantumCircuit) -> QuantumCircuit:
-    """Concatenate two circuits on the same register."""
+    """Concatenate two circuits on the same register.
+
+    Args:
+        front (*QuantumCircuit*): Front (``QuantumCircuit``).
+        back (*QuantumCircuit*): Back (``QuantumCircuit``).
+
+    Returns:
+        Constructed ``QuantumCircuit``.
+    """
     qc = front.deepcopy()
     for gate in back.gates:
         qc.gates.append(gate)
@@ -69,7 +87,15 @@ def _compose_circuits(front: QuantumCircuit, back: QuantumCircuit) -> QuantumCir
 # ---------------------------------------------------------------------------
 
 def _z_pauli_string(q: int, num_qubits: int) -> str:
-    """Return a Pauli string with Z on qubit *q* and I elsewhere."""
+    """Return a Pauli string with Z on qubit *q* and I elsewhere.
+
+    Args:
+        q (*int*): Q (``int``).
+        num_qubits (*int*): Number of qubits.
+
+    Returns:
+        Formatted string.
+    """
     return "I" * q + "Z" + "I" * (num_qubits - q - 1)
 
 
@@ -79,6 +105,11 @@ def _classifier_loss_and_dl_dz(
     num_classes: int,
 ) -> Tuple[float, np.ndarray]:
     """Compute classification loss and analytical dL/d⟨Z⟩.
+
+    Args:
+        z_values (*Sequence[float]*): Per-qubit ⟨Z⟩ expectation values.
+        label (*int*): True class label.
+        num_classes (*int*): Number of classes (2 for binary cross-entropy, >2 for softmax).
 
     Returns:
         ``(loss, dl_dz)`` where *dl_dz* has one entry per measurement qubit.
@@ -108,7 +139,17 @@ def _batch_loss_and_grads(
     labels: Sequence[int],
     num_classes: int,
 ) -> Tuple[float, List[np.ndarray]]:
-    """Average loss and per-sample dL/d⟨Z⟩ over a batch."""
+    """Average loss and per-sample dL/d⟨Z⟩ over a batch.
+
+    Args:
+        z_values_list (*Sequence[Sequence[float]]*): Per-sample ⟨Z⟩ values.
+        labels (*Sequence[int]*): Target labels.
+        num_classes (*int*): Number of classes.
+
+    Returns:
+        Tuple of ``(avg_loss, dl_dz_list)`` where *dl_dz_list* has one
+        gradient array per sample.
+    """
     total = 0.0
     dl_dz_list: List[np.ndarray] = []
     for z_vals, lab in zip(z_values_list, labels):
@@ -122,7 +163,15 @@ def _predictions_from_z(
     z_values_list: Sequence[Sequence[float]],
     num_classes: int,
 ) -> List[int]:
-    """Convert ⟨Z⟩ values to class predictions."""
+    """Convert ⟨Z⟩ values to class predictions.
+
+    Args:
+        z_values_list (*Sequence[Sequence[float]]*): Per-sample ⟨Z⟩ expectation values.
+        num_classes (*int*): Number of classes (2 for binary, >2 for multi-class).
+
+    Returns:
+        List of predicted class labels, one per sample.
+    """
     preds: List[int] = []
     for z_vals in z_values_list:
         if num_classes == 2:
@@ -134,7 +183,21 @@ def _predictions_from_z(
 
 def _get_z_autograd(build_state, expectation_pauli, template, param_names,
                     features_list, theta, z_observables, num_qubits):
-    """Get ⟨Z⟩ values for all samples via autograd simulator (no grad)."""
+    """Get ⟨Z⟩ values for all samples via autograd simulator (no grad).
+
+    Args:
+        build_state: Callable that builds a statevector from a circuit.
+        expectation_pauli: Callable for Pauli expectation values.
+        template: Symbolic ``QuantumCircuit`` template.
+        param_names: Names of variational parameters.
+        features_list: List of feature vectors, one per sample.
+        theta: Current variational parameter values.
+        z_observables: Pauli-Z strings to measure.
+        num_qubits: Number of qubits.
+
+    Returns:
+        ``List[List[float]]`` of shape ``(n_samples, n_observables)``.
+    """
     import torch
     results: List[List[float]] = []
     params_t = torch.tensor(theta, dtype=torch.float64)
@@ -153,7 +216,22 @@ def _get_z_autograd(build_state, expectation_pauli, template, param_names,
 
 def _get_z_backend(client, template, param_names, features_list, theta,
                    z_observables, z_hamiltonian, backend_kwargs, name_prefix):
-    """Get ⟨Z⟩ values for all samples via hardware backend."""
+    """Get ⟨Z⟩ values for all samples via hardware backend.
+
+    Args:
+        client: ``QuantumHardwareClient`` instance.
+        template: Transpiled symbolic ``QuantumCircuit`` template.
+        param_names: Names of variational parameters.
+        features_list: List of feature vectors, one per sample.
+        theta: Current variational parameter values.
+        z_observables: Pauli-Z strings to measure.
+        z_hamiltonian: Hamiltonian terms for backend observable evaluation.
+        backend_kwargs: Extra keyword arguments forwarded to the backend.
+        name_prefix: Task name prefix for hardware submissions.
+
+    Returns:
+        ``List[List[float]]`` of shape ``(n_samples, n_observables)``.
+    """
     results: List[List[float]] = []
     for si, feat in enumerate(features_list):
         all_vals = np.concatenate([feat, theta])
@@ -207,8 +285,8 @@ def run_pqc_classifier(
             training loss, and test accuracy is reported.
         encoding: Encoding strategy — ``"angle"`` / ``"iqp"``, or a callable
             ``(num_qubits, num_features) -> (QuantumCircuit, param_names)``.
-        encoding_kwargs: Extra keyword arguments forwarded to the encoding
-            builder (e.g. ``{"gate": "rx"}``).
+        encoding_kwargs: Extra keyword arguments for encoding
+            (for example ``{"gate": "rx"}``).
         num_classes: Number of classes (default 2).
         measurement_qubits: Indices of qubits to measure.
         layers: Number of ansatz layers.
@@ -217,9 +295,17 @@ def run_pqc_classifier(
         seed: Optional random seed.
         callback: ``(iter, loss)`` callback.
         gradient_method: ``"autograd"`` or ``"parameter-shift"``.
-        client / backend / chip_name / shots / shift / zne /
-        readout_mitigation / target_qubits / qasm_version:
-            Hardware parameters (parameter-shift path only).
+        client: ``QuantumHardwareClient`` instance (parameter-shift only).
+        backend: Target backend (parameter-shift only).
+        chip_name: Target chip identifier (parameter-shift only).
+        shots: Measurement shots (parameter-shift only).
+        shift: Parameter-shift magnitude (parameter-shift only).
+        zne: Enable zero-noise extrapolation (parameter-shift only).
+        readout_mitigation: Enable readout mitigation (parameter-shift only).
+        target_qubits: Physical qubit mapping (parameter-shift only).
+        qasm_version: OpenQASM serialisation version (parameter-shift only).
+        convert_single_qubit_gate_to_u: Whether to convert single-qubit gates
+            to ``U`` during transpilation.
 
     Returns:
         ``QMLResult`` with loss history and accuracy.
@@ -513,9 +599,26 @@ def run_pqc_classifier(
 def _mmd_rbf(samples_p: np.ndarray, samples_q: np.ndarray, sigma: float) -> float:
     """Compute MMD² with RBF kernel between two sets of binary vectors.
 
-    samples_p, samples_q: (N, d) arrays with entries in {0, 1}.
+    Uses Hamming distance as the distance metric for the Gaussian kernel.
+
+    Args:
+        samples_p (*np.ndarray*): Binary sample array of shape ``(N, d)``.
+        samples_q (*np.ndarray*): Binary sample array of shape ``(M, d)``.
+        sigma (*float*): RBF kernel bandwidth.
+
+    Returns:
+        MMD² value as a float.
     """
     def _gram_mean(a: np.ndarray, b: np.ndarray) -> float:
+        """Gram mean.
+
+        Args:
+            a (*np.ndarray*): A (``np.ndarray``).
+            b (*np.ndarray*): B (``np.ndarray``).
+
+        Returns:
+            Computed float result.
+        """
         # Hamming distances → RBF kernel
         diff = a[:, None, :] ^ b[None, :, :]  # (Na, Nb, d)
         dist_sq = diff.sum(axis=-1).astype(np.float64)  # (Na, Nb)
@@ -525,10 +628,15 @@ def _mmd_rbf(samples_p: np.ndarray, samples_q: np.ndarray, sigma: float) -> floa
 
 
 def _deduplicate_samples(samples: np.ndarray):
-    """Return (unique_samples, weights) from a sample array.
+    """Deduplicate sample rows and compute normalized weights.
 
-    unique_samples: (K, n_qubits) with unique rows.
-    weights: (K,) float64 normalised to sum=1.
+    Args:
+        samples (*np.ndarray*): Binary measurement samples of shape ``(N, n_qubits)``.
+
+    Returns:
+        Tuple of ``(unique_samples, weights)`` where *unique_samples* has
+        shape ``(K, n_qubits)`` and *weights* is a float64 array of length K
+        summing to 1.
     """
     # Use structured view for np.unique on rows
     n = samples.shape[0]
@@ -543,7 +651,17 @@ def _simulate_samples(
     param_values: dict,
     seed: int | None,
 ) -> np.ndarray:
-    """Simulate and return (shots, n_qubits) big-endian sample array."""
+    """Simulate and return measurement samples in big-endian bit order.
+
+    Args:
+        qc (*QuantumCircuit*): Quantum circuit.
+        shots (*int*): Number of measurement shots.
+        param_values (*dict*): Parameter name → value mapping.
+        seed (*int | None*): Random seed for reproducibility.
+
+    Returns:
+        Integer array of shape ``(shots, n_qubits)`` with entries 0/1.
+    """
     from ..sim.statevector import simulate_counts as _sim_counts_sv
     from ..core.utils import get_samples as _get_samples
     counts = _sim_counts_sv(qc, shots, param_values=param_values, seed=seed)
@@ -601,6 +719,17 @@ def run_qnn_unsupervised(
         seed: Optional random seed.
         callback: ``(iter, loss)`` callback.
         gradient_method: ``"autograd"`` or ``"parameter-shift"``.
+        client: ``QuantumHardwareClient`` instance (parameter-shift only).
+        backend: Target backend (parameter-shift only).
+        chip_name: Target chip identifier (parameter-shift only).
+        shots: Measurement shots (parameter-shift only).
+        shift: Parameter-shift magnitude (parameter-shift only).
+        zne: Enable zero-noise extrapolation (parameter-shift only).
+        readout_mitigation: Enable readout mitigation (parameter-shift only).
+        target_qubits: Physical qubit mapping (parameter-shift only).
+        qasm_version: OpenQASM serialisation version (parameter-shift only).
+        convert_single_qubit_gate_to_u: Whether to convert single-qubit gates
+            to ``U`` during transpilation.
         mmd_sigma: RBF kernel bandwidth for MMD (parameter-shift only).
         gen_shots: Number of shots for sample generation at the end.
 
@@ -665,7 +794,16 @@ def run_qnn_unsupervised(
         print(f"[qnn-unsupervised] transpiled ONCE, target_qubits={target_qubits_in_use}")
 
         def _run_and_get_samples(qc_bound, name, n_shots=None):
-            """Submit bound circuit and return (N, n_qubits) sample array."""
+            """Submit bound circuit and return (N, n_qubits) sample array.
+
+            Args:
+                qc_bound: Qc bound.
+                name: Descriptive name / identifier.
+                n_shots: N shots. Defaults to ``None``.
+
+            Returns:
+                Result.
+            """
             kw = backend_kwargs if n_shots is None else {**backend_kwargs, "shots": n_shots}
             res = client._run_with_backend(
                 qc_bound, name, observables=[], transpile=False, **kw,

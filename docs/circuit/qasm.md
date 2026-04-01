@@ -32,15 +32,13 @@ __all__ = [
 |------|------|------|
 | `openqasm2_str` | `str` | 完整 OpenQASM 2.0 程序 |
 
-**返回**：`(new, qubits, cbits, gates, params_value)`
+**返回**：`(new, qubit_used, cbit_used)`
 
 | 返回值 | 类型 | 说明 |
 |--------|------|------|
-| `new` | `list` | 解析后的语句行列表 |
-| `qubits` | `list[int]` | 使用的 qubit 索引（去重排序） |
-| `cbits` | `list[int]` | 使用的 cbit 索引（去重排序） |
-| `gates` | `list[tuple]` | gate tuple IR 序列 |
-| `params_value` | `dict` | 参数名到值映射 |
+| `new` | `list` | 解析后的语句行列表uff08gate tuple IR） |
+| `qubit_used` | `set[int]` | 使用的 qubit 索引集合 |
+| `cbit_used` | `set[int]` | 使用的 cbit 索引集合 |
 
 **解析能力**：
 
@@ -143,8 +141,8 @@ cx q[0],q[1];
 measure q[0] -> c[0];
 """
 
-new, qubits, cbits, gates, params_value = parse_openqasm2_to_gates(qasm)
-print(gates)
+new, qubit_used, cbit_used = parse_openqasm2_to_gates(qasm)
+print(new)
 ```
 
 ## 相关页面

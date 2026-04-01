@@ -8,13 +8,29 @@ import numpy as np
 
 
 def get_probabilities(result: Dict[str, int], num_qubits: int) -> np.ndarray:
-	"""Normalize counts into probabilities via sample expansion."""
+	"""Normalize counts into probabilities via sample expansion.
+
+	Args:
+		result (*Dict[str, int]*): Raw result dictionary.
+		num_qubits (*int*): Number of qubits.
+
+	Returns:
+		Probability vector of length ``2**num_qubits``.
+	"""
 	samples = get_samples(result, num_qubits)
 	return get_probabilities_from_samples(samples, num_qubits)
 
 
 def get_samples(result: Dict[str, int], num_qubits: int) -> np.ndarray:
-	"""Expand counts into a sample array aligned with get_probabilities bit order."""
+	"""Expand counts into a sample array aligned with get_probabilities bit order.
+
+	Args:
+		result (*Dict[str, int]*): Counts dictionary mapping bitstrings to their occurrence count.
+		num_qubits (*int*): Number of qubits.
+
+	Returns:
+		2-D array of shape ``(total_shots, num_qubits)`` with 0/1 entries.
+	"""
 	samples = []
 	for key, count in result.items():
 		bits = [int(b) for b in key]
@@ -24,7 +40,18 @@ def get_samples(result: Dict[str, int], num_qubits: int) -> np.ndarray:
 
 
 def get_probabilities_from_samples(samples: np.ndarray, num_qubits: int) -> np.ndarray:
-	"""Compute global basis probabilities from sample rows."""
+	"""Compute global basis probabilities from sample rows.
+
+	Args:
+		samples (*np.ndarray*): Measurement samples.
+		num_qubits (*int*): Number of qubits.
+
+	Returns:
+		Probability vector of length ``2**num_qubits``.
+
+	Raises:
+		ValueError: samples must be a 2D array with shape (nshots, num_qubits)
+	"""
 	if samples.size == 0:
 		return np.zeros(2**num_qubits, dtype=float)
 	if samples.ndim != 2 or samples.shape[1] != num_qubits:
@@ -39,14 +66,30 @@ def get_probabilities_from_samples(samples: np.ndarray, num_qubits: int) -> np.n
 
 
 def marginal_samples(samples: np.ndarray, support: Sequence[int]) -> np.ndarray:
-	"""Extract marginal samples on a subset of qubits."""
+	"""Extract marginal samples on a subset of qubits.
+
+	Args:
+		samples (*np.ndarray*): Measurement samples.
+		support (*Sequence[int]*): Support (``Sequence[int]``).
+
+	Returns:
+		NumPy array with the computed result.
+	"""
 	if not support:
 		return np.zeros((samples.shape[0], 0), dtype=int)
 	return samples[:, support]
 
 
 def get_local_probabilities_from_samples(samples: np.ndarray, support: Sequence[int]) -> np.ndarray:
-	"""Compute local probabilities on a subset of qubits from samples."""
+	"""Compute local probabilities on a subset of qubits from samples.
+
+	Args:
+		samples (*np.ndarray*): Measurement samples.
+		support (*Sequence[int]*): Support (``Sequence[int]``).
+
+	Returns:
+		NumPy array with the computed result.
+	"""
 	support = list(support)
 	if not support:
 		return np.array([1.0])
@@ -55,7 +98,15 @@ def get_local_probabilities_from_samples(samples: np.ndarray, support: Sequence[
 
 
 def expectation_from_probabilities(probabilities: np.ndarray, support: Sequence[int]) -> float:
-	"""Compute Z-basis expectation value from probabilities."""
+	"""Compute Z-basis expectation value from probabilities.
+
+	Args:
+		probabilities (*np.ndarray*): Full probability vector.
+		support (*Sequence[int]*): Qubit dimension indices over which to compute Z-parity expectation.
+
+	Returns:
+		Z-parity expectation value in ``[-1, 1]``.
+	"""
 	if not support:
 		return 1.0
 	num = len(support)

@@ -23,7 +23,7 @@
 
 - 作用：将计数字典展开成逐 shot 的二维样本数组。
 - 输出形状：`(nshots, num_qubits)`。
-- 位序：内部会反转 bitstring（`key[::-1]`）后映射到样本列，和本项目概率计算位序保持一致。
+- 位序：直接按 bitstring 原序映射到样本列，和本项目概率计算位序保持一致。
 
 ### `get_probabilities_from_samples(samples: np.ndarray, num_qubits: int) -> np.ndarray`
 

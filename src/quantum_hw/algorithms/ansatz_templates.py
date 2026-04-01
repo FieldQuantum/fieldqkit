@@ -13,6 +13,19 @@ def build_hardware_efficient_ansatz(
     *,
     layers: int = 1,
 ) -> QuantumCircuit:
+    """Build hardware efficient ansatz.
+
+    Args:
+        num_qubits (*int*): Number of qubits.
+        params (*Sequence[float]*): Parameter values.
+        layers (*int*): Number of ansatz layers. Defaults to ``1``.
+
+    Returns:
+        Constructed ``QuantumCircuit``.
+
+    Raises:
+        ValueError: f'params length must be {expected} (2 * num_qubits * (layers + 1))'
+    """
     expected = 2 * num_qubits * (layers + 1)
     if len(params) != expected:
         raise ValueError(f"params length must be {expected} (2 * num_qubits * (layers + 1))")
@@ -43,6 +56,19 @@ def build_hardware_efficient_ansatz_symbolic(
     *,
     layers: int = 1,
 ) -> QuantumCircuit:
+    """Build hardware efficient ansatz symbolic.
+
+    Args:
+        num_qubits (*int*): Number of qubits.
+        param_names (*Sequence[str]*): Names of variational parameters.
+        layers (*int*): Number of ansatz layers. Defaults to ``1``.
+
+    Returns:
+        Constructed ``QuantumCircuit``.
+
+    Raises:
+        ValueError: f'param_names length must be {expected} (2 * num_qubits * (layers + 1))'
+    """
     expected = 2 * num_qubits * (layers + 1)
     if len(param_names) != expected:
         raise ValueError(f"param_names length must be {expected} (2 * num_qubits * (layers + 1))")
@@ -68,6 +94,19 @@ def build_hardware_efficient_ansatz_symbolic(
 
 
 def build_ucc_num_params(num_qubits: int, layers: int) -> int:
+    """Return the number of variational parameters for a UCC ansatz.
+
+    Args:
+        num_qubits (*int*): Number of qubits.
+        layers (*int*): Number of ansatz layers.
+
+    Returns:
+        Total parameter count.
+
+    Raises:
+        ValueError: num_qubits must be positive
+        ValueError: layers must be positive
+    """
     if num_qubits <= 0:
         raise ValueError("num_qubits must be positive")
     if layers <= 0:
@@ -81,6 +120,19 @@ def build_ucc_ansatz(
     *,
     layers: int = 1,
 ) -> QuantumCircuit:
+    """Build ucc ansatz.
+
+    Args:
+        num_qubits (*int*): Number of qubits.
+        params (*Sequence[float]*): Parameter values.
+        layers (*int*): Number of ansatz layers. Defaults to ``1``.
+
+    Returns:
+        Constructed ``QuantumCircuit``.
+
+    Raises:
+        ValueError: f'params length must be {expected} for ucc ansatz'
+    """
     expected = build_ucc_num_params(num_qubits, layers)
     if len(params) != expected:
         raise ValueError(f"params length must be {expected} for ucc ansatz")
@@ -105,6 +157,19 @@ def build_ucc_ansatz_symbolic(
     *,
     layers: int = 1,
 ) -> QuantumCircuit:
+    """Build ucc ansatz symbolic.
+
+    Args:
+        num_qubits (*int*): Number of qubits.
+        param_names (*Sequence[str]*): Names of variational parameters.
+        layers (*int*): Number of ansatz layers. Defaults to ``1``.
+
+    Returns:
+        Constructed ``QuantumCircuit``.
+
+    Raises:
+        ValueError: f'param_names length must be {expected} for ucc ansatz'
+    """
     expected = build_ucc_num_params(num_qubits, layers)
     if len(param_names) != expected:
         raise ValueError(f"param_names length must be {expected} for ucc ansatz")

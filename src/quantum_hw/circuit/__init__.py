@@ -1,4 +1,4 @@
-"""Local quantum circuit primitives (forked from quark.circuit)."""
+"""Local quantum circuit primitives."""
 
 from .quantumcircuit import QuantumCircuit, generate_ghz_state
 from .quantumcircuit_helpers import (

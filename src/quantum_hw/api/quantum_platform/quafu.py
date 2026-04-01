@@ -15,6 +15,14 @@ from ..task import OpenQasmSubmitRequest, ProviderTaskHandle, TaskAdapter
 
 
 def _normalize_coordinate(value: Any) -> Optional[List[float]]:
+    """Normalize coordinate.
+
+    Args:
+        value (*Any*): Value to set.
+
+    Returns:
+        Result list.
+    """
     if isinstance(value, (list, tuple)) and len(value) == 2:
         try:
             return [float(value[0]), float(value[1])]
@@ -32,16 +40,38 @@ def _normalize_coordinate(value: Any) -> Optional[List[float]]:
 
 
 def _flip_bitstring(bs: str) -> str:
-    """Reverse a bitstring to convert big-endian ↔ little-endian."""
+    """Reverse a bitstring to convert big-endian ↔ little-endian.
+
+    Args:
+        bs (*str*): Bs (``str``).
+
+    Returns:
+        Formatted string.
+    """
     return bs[::-1]
 
 
 def _flip_counts(counts: Dict[str, int]) -> Dict[str, int]:
-    """Flip all bitstrings in a count dict from little-endian to big-endian."""
+    """Flip all bitstrings in a count dict from little-endian to big-endian.
+
+    Args:
+        counts (*Dict[str, int]*): Measurement count dictionary.
+
+    Returns:
+        Result dictionary.
+    """
     return {_flip_bitstring(k): v for k, v in counts.items()}
 
 
 def load_quafu_chip_info(chip_name: str):
+    """Load quafu chip info.
+
+    Args:
+        chip_name (*str*): Name of the target chip.
+
+    Returns:
+        Loaded data.
+    """
     session = requests.Session()
     url = "https://quafu-sqc.baqis.ac.cn"
     info = session.get(f"{url}/task/backendtest/{chip_name}1")
@@ -102,6 +132,17 @@ def load_quafu_chip_info(chip_name: str):
 
 
 def get_available_chip_status(platform_obj) -> Dict[str, int]:
+    """Get available chip status.
+
+    Args:
+        platform_obj: Platform obj.
+
+    Returns:
+        Result dictionary.
+
+    Raises:
+        RuntimeError: platform_obj.status() must return a dict of chip -> queue...
+    """
     status = platform_obj.status()
     if not isinstance(status, dict):
         raise RuntimeError("platform_obj.status() must return a dict of chip -> queue length")
@@ -113,17 +154,44 @@ class QuafuPlatform:
     session = requests.Session()
 
     def __new__(cls, *args, **kwargs):
+        """Return singleton instance of the Quafu platform.
+
+        Args:
+            *args: *args.
+            **kwargs: **kwargs.
+
+        Returns:
+            Result.
+        """
         if not hasattr(cls, "instance"):
             cls.instance = super().__new__(cls)
         return cls.instance
 
     def __init__(self) -> None:
+        """Initialize Quafu platform with API token and session.
+
+        Raises:
+            ValueError: quafu token cannot be empty
+        """
         self.token = get_quafu_api_token()
         if not self.token:
             raise ValueError("quafu token cannot be empty")
         self.tasks = {}
 
     def request(self, url: str, data: dict = {}, method: str = "get"):
+        """Send an HTTP request to the Quafu API.
+
+        Args:
+            url (*str*): Full API endpoint URL.
+            data (*dict*): Request payload dictionary. Defaults to ``{}``.
+            method (*str*): HTTP method (``'get'`` or ``'post'``). Defaults to ``'get'``.
+
+        Returns:
+            Result.
+
+        Raises:
+            ValueError: f'unsupported method: {method}
+        """
         if method == "get":
             res = self.session.get(url, headers={"token": self.token})
         elif method == "post":
@@ -133,6 +201,11 @@ class QuafuPlatform:
         return json.loads(res.content.decode())
 
     def verify(self):
+        """Verify the current API session.
+
+        Returns:
+            Verification response from the server.
+        """
         return self.request(f"{self.URL}/task/verify")
 
     def query(
@@ -147,12 +220,48 @@ class QuafuPlatform:
         sort: Literal["taskId", "taskName", "chipName", "status", "submitTime"] = "submitTime",
         order: Literal["asc", "desc"] = "desc",
     ):
+        """Query submitted tasks with filtering, pagination, and sorting options.
+
+        Args:
+            tid (*int*): Tid (``int``). Defaults to ``2``.
+            chips (*str*): Chips (``str``). Defaults to ``'Baihua'``.
+            status (*str*): Status (``str``). Defaults to ``'Finished,Failed'``.
+            start (*str*): Start (``str``). Defaults to ``'2024-04-01'``.
+            end (*str*): End (``str``). Defaults to ``time.strftime('%Y-%m-%d')``.
+            offset (*int*): Offset (``int``). Defaults to ``0``.
+            limit (*int*): Limit (``int``). Defaults to ``10``.
+            sort (*Literal['taskId', 'taskName', 'chipName', 'status', 'submitTime']*): Sort (``Literal['taskId', 'taskName', 'chipName', 'status', 'submitTime']``). Defaults to ``'submitTime'``.
+            order (*Literal['asc', 'desc']*): Order (``Literal['asc', 'desc']``). Defaults to ``'desc'``.
+
+        Returns:
+            Result.
+        """
         return self.request(f"{self.URL}/task/query/?tid={tid}&chips={chips}&status={status}&start={start}&end={end}&offset={offset}&limit={limit}&sort={sort}&order={order}")
 
     def delete(self, tid: int):
+        """Delete a submitted task by its ID.
+
+        Args:
+            tid (*int*): Tid (``int``).
+
+        Returns:
+            Result.
+        """
         return self.request(f"{self.URL}/task/delete/{tid}")
 
     def result(self, tid: int, timeout: float = 0.0):
+        """Retrieve task result with optional timeout and automatic polling.
+
+        Args:
+            tid (*int*): Tid (``int``).
+            timeout (*float*): Timeout (``float``). Defaults to ``0.0``.
+
+        Returns:
+            Result.
+
+        Raises:
+            TimeoutError: f'Task {tid} result timeout after {timeout} seconds
+        """
         if timeout:
             st = time.time()
             while True:
@@ -167,14 +276,39 @@ class QuafuPlatform:
         return self.request(f"{self.URL}/task/result/{tid}")
 
     def status(self, tid: int = 0):
+        """Query the status of a submitted task.
+
+        Args:
+            tid (*int*): Tid (``int``). Defaults to ``0``.
+
+        Returns:
+            Result.
+        """
         time.sleep(0.2)
         return self.request(f"{self.URL}/task/status/{tid}")
 
     def cancel(self, tid: int):
+        """Cancel a running task by its ID.
+
+        Args:
+            tid (*int*): Tid (``int``).
+
+        Returns:
+            Result.
+        """
         time.sleep(0.2)
         return self.request(f"{self.URL}/task/cancel/{tid}")
 
     def run(self, task: dict, repeat: int = 1):
+        """Submit a quantum circuit task to the Quafu backend and return its task ID.
+
+        Args:
+            task (*dict*): Task (``dict``).
+            repeat (*int*): Number of measurement repetitions. Defaults to ``1``.
+
+        Returns:
+            Result.
+        """
         time.sleep(0.2)
         name = task.get("name", "MyQuantumJob")
         chip = task["chip"]
@@ -194,6 +328,11 @@ class QuafuPlatform:
         return tid
 
     def list_available_hardware(self) -> List[Dict[str, Any]]:
+        """List available hardware.
+
+        Returns:
+            List of hardware description dictionaries.
+        """
         queue_map = get_available_chip_status(self)
         rows: List[Dict[str, Any]] = []
         for hardware_name in sorted(queue_map.keys()):
@@ -215,6 +354,12 @@ class QuafuBackendAdapter(BackendAdapter):
     default_hardware_name = "Baihua"
 
     def __init__(self, *, machine_name: Optional[str] = None, platform_obj: Optional[QuafuPlatform] = None) -> None:
+        """Initialize Quafu backend adapter with optional machine and platform instance.
+
+        Args:
+            machine_name (*Optional[str]*): Identifier of the target quantum machine. Defaults to ``None``.
+            platform_obj (*Optional[QuafuPlatform]*): Existing platform instance to reuse. Defaults to ``None``.
+        """
         self._machine_name = machine_name
         self._platform = platform_obj or QuafuPlatform()
 
@@ -223,9 +368,26 @@ class QuafuTaskAdapter(TaskAdapter):
     provider = "quafu"
 
     def __init__(self, *, client: Any) -> None:
+        """Initialize Quafu task adapter with quantum hardware client.
+
+        Args:
+            client (*Any*): ``QuantumHardwareClient`` instance.
+        """
         self._client = client
 
     def submit_openqasm(self, submit_request: OpenQasmSubmitRequest, backend: ResolvedBackend) -> ProviderTaskHandle:
+        """Submit an OpenQASM circuit to the Quafu backend and return a task handle.
+
+        Args:
+            submit_request (*OpenQasmSubmitRequest*): Submission request descriptor.
+            backend (*ResolvedBackend*): Hardware backend descriptor.
+
+        Returns:
+            ``ProviderTaskHandle`` result.
+
+        Raises:
+            RuntimeError: platform_obj is missing in backend metadata
+        """
         platform_obj = backend.metadata.get("platform_obj")
         if platform_obj is None:
             raise RuntimeError("platform_obj is missing in backend metadata")
@@ -244,6 +406,17 @@ class QuafuTaskAdapter(TaskAdapter):
         )
 
     def query_status(self, handle: ProviderTaskHandle) -> str:
+        """Query status.
+
+        Args:
+            handle (*ProviderTaskHandle*): Task handle from a prior submission.
+
+        Returns:
+            Formatted string.
+
+        Raises:
+            RuntimeError: platform_obj is missing in task handle payload
+        """
         task_id = handle.task_id
         platform_obj = handle.payload.get("platform_obj")
         if platform_obj is None:
@@ -251,6 +424,17 @@ class QuafuTaskAdapter(TaskAdapter):
         return platform_obj.status(task_id)
 
     def fetch_result(self, handle: ProviderTaskHandle) -> Dict[str, Any]:
+        """Fetch result.
+
+        Args:
+            handle (*ProviderTaskHandle*): Task handle from a prior submission.
+
+        Returns:
+            Result dictionary.
+
+        Raises:
+            RuntimeError: platform_obj is missing in task handle payload
+        """
         task_id = handle.task_id
         platform_obj = handle.payload.get("platform_obj")
         if platform_obj is None:
@@ -262,6 +446,14 @@ class QuafuTaskAdapter(TaskAdapter):
         return res
 
     def cancel_task(self, handle: ProviderTaskHandle) -> None:
+        """Cancel task.
+
+        Args:
+            handle (*ProviderTaskHandle*): Task handle from a prior submission.
+
+        Raises:
+            RuntimeError: platform_obj is missing in task handle payload
+        """
         task_id = handle.task_id
         platform_obj = handle.payload.get("platform_obj")
         if platform_obj is None:

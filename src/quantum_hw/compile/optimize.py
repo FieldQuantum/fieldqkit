@@ -1,25 +1,9 @@
-# Copyright (c) 2024 XX Xiao
-#
-# Permission is hereby granted, free of charge, to any person obtaining a copy
-# of this software and associated documentation files(the "Software"), to deal
-# in the Software without restriction, including without limitation the rights
-# to use, copy, modify, merge, publish, distribute, sublicense, and / or sell
-# copies of the Software, and to permit persons to whom the Software is
-# furnished to do so, subject to the following conditions:
-#
-# The above copyright notice and this permission notice shall be included in
-# all copies or substantial portions of the Software.
-#
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-
-r""" 
-This module contains the `GateCompressor` class, which is designed to optimize quantum circuits by 
+"""This module contains the `GateCompressor` class, which is designed to optimize quantum circuits by
 merging or compressing adjacent gates.
+
+SPDX-License-Identifier: MIT
+Original source: quarkstudio, Copyright (c) YL Feng.
+See THIRD_PARTY_NOTICES for full license text.
 """
 
 import numpy as np
@@ -47,6 +31,8 @@ class GateCompressor(TranspilerPass):
     """A transpiler pass that merges or compresses adjacent gates in a quantum circuit."""
 
     def __init__(self):
+        """Initialize the gate compressor with the set of compressible gates and internal counters.
+        """
         super().__init__()
         self.compressible_gates = [
             "id",
@@ -81,7 +67,14 @@ class GateCompressor(TranspilerPass):
 
     @staticmethod
     def _get_gate_qubits(gate_info):
-        """Return the qubit indices for a gate as a list."""
+        """Return the qubit indices for a gate as a list.
+
+        Args:
+            gate_info: Gate info.
+
+        Returns:
+            Result.
+        """
         gate = gate_info[0]
         if gate in one_qubit_gates_available or gate in one_qubit_parameter_gates_available:
             return [gate_info[-1]]
@@ -93,7 +86,14 @@ class GateCompressor(TranspilerPass):
 
     @staticmethod
     def _get_any_gate_matrix(gate_info):
-        """Return the unitary matrix for any gate, or None if symbolic."""
+        """Return the unitary matrix for any gate, or None if symbolic.
+
+        Args:
+            gate_info: Gate info.
+
+        Returns:
+            Result.
+        """
         gate = gate_info[0]
         if gate in one_qubit_gates_available:
             return gate_matrix_dict.get(gate)
@@ -115,7 +115,16 @@ class GateCompressor(TranspilerPass):
 
     @staticmethod
     def _expand_matrix(gate_mat, positions, n_total):
-        """Expand *gate_mat* acting on *positions* to the full *n_total*-qubit space."""
+        """Expand *gate_mat* acting on *positions* to the full *n_total*-qubit space.
+
+        Args:
+            gate_mat: Gate mat.
+            positions: Positions.
+            n_total: N total.
+
+        Returns:
+            Result.
+        """
         dim = 2 ** n_total
         gate_n = len(positions)
         result = np.zeros((dim, dim), dtype=complex)
@@ -140,7 +149,15 @@ class GateCompressor(TranspilerPass):
 
     @classmethod
     def _check_commutation(cls, gate_info1, gate_info2):
-        """Return True if *gate_info1* and *gate_info2* commute."""
+        """Return True if *gate_info1* and *gate_info2* commute.
+
+        Args:
+            gate_info1: Gate info1.
+            gate_info2: Gate info2.
+
+        Returns:
+            Result.
+        """
         g1, g2 = gate_info1[0], gate_info2[0]
         # Functional gates never commute with anything.
         if g1 in _NON_REORDERABLE or g2 in _NON_REORDERABLE:
@@ -181,8 +198,14 @@ class GateCompressor(TranspilerPass):
     _SELF_INVERSE_2Q = frozenset({'cx', 'cnot', 'cy', 'cz', 'swap'})
 
     def commutation_reorder(self, qc: QuantumCircuit) -> QuantumCircuit:
-        """Bubble single-qubit gates past commuting gates to form longer
-        single-qubit runs on the same qubit, enabling more merges."""
+        """Bubble single-qubit gates past commuting gates to form longer single-qubit runs on the same qubit, enabling more merges.
+
+        Args:
+            qc (*QuantumCircuit*): Quantum circuit.
+
+        Returns:
+            Constructed ``QuantumCircuit``.
+        """
         gates = list(qc.gates)
         for i in range(1, len(gates)):
             if gates[i][0] not in self._single_qubit_gates:
@@ -209,12 +232,17 @@ class GateCompressor(TranspilerPass):
     # ---- two-qubit pair cancellation ----
 
     def cancel_two_qubit_pairs(self, qc: QuantumCircuit) -> QuantumCircuit:
-        """Cancel pairs of identical self-inverse two-qubit gates when all
-        intermediate gates commute with them.
+        """Cancel pairs of identical self-inverse two-qubit gates when all intermediate gates commute with them.
 
         For example, CZ(a,b) ... CZ(a,b) can be removed if every gate
         between them acts on qubits disjoint from {a, b} (or otherwise
         commutes with CZ).
+
+        Args:
+            qc (*QuantumCircuit*): Quantum circuit.
+
+        Returns:
+            Constructed ``QuantumCircuit``.
         """
         gates = list(qc.gates)
         cancelled: set[int] = set()
@@ -269,7 +297,14 @@ class GateCompressor(TranspilerPass):
 
     @staticmethod
     def _gate_matrix(gate_info):
-        """Return the 2×2 unitary for a single-qubit gate, or None if symbolic."""
+        """Return the 2×2 unitary for a single-qubit gate, or None if symbolic.
+
+        Args:
+            gate_info: Gate info.
+
+        Returns:
+            Result.
+        """
         gate = gate_info[0]
         if gate in one_qubit_gates_available:
             return gate_matrix_dict[gate]
@@ -282,11 +317,25 @@ class GateCompressor(TranspilerPass):
 
     @staticmethod
     def _gate_qubit(gate_info):
-        """Return the qubit index for a single-qubit gate."""
+        """Return the qubit index for a single-qubit gate.
+
+        Args:
+            gate_info: Gate info.
+
+        Returns:
+            Result.
+        """
         return gate_info[-1]
 
     def merge_single_qubit_runs(self, qc: QuantumCircuit) -> QuantumCircuit:
-        """Merge consecutive single-qubit gates on the same qubit into one u gate."""
+        """Merge consecutive single-qubit gates on the same qubit into one u gate.
+
+        Args:
+            qc (*QuantumCircuit*): Quantum circuit.
+
+        Returns:
+            Constructed ``QuantumCircuit``.
+        """
         new_qc = qc.deepcopy()
         gates = list(qc.gates)
         result = []
@@ -333,6 +382,14 @@ class GateCompressor(TranspilerPass):
         return new_qc
 
     def remove_identity_gates(self, qc: QuantumCircuit):
+        """Remove gates that evaluate to the identity matrix.
+
+        Args:
+            qc (*QuantumCircuit*): Quantum circuit.
+
+        Returns:
+            ``QuantumCircuit`` with identity gates removed.
+        """
         new_qc = qc.deepcopy()
         new = []
         for gate_info in qc.gates:
@@ -355,6 +412,15 @@ class GateCompressor(TranspilerPass):
         return new_qc
 
     def is_adjacent_gates(self, node1: str, node2: str):
+        """Check whether two DAG nodes are identical compressible gates on the same qubits connected by a direct edge.
+
+        Args:
+            node1 (*str*): Node1 (``str``).
+            node2 (*str*): Node2 (``str``).
+
+        Returns:
+            ``True`` if the condition holds.
+        """
         gate1 = node1.split("_")[0]
         gate2 = node2.split("_")[0]
         qubits1 = self.dag.nodes[node1]["qubits"]
@@ -369,12 +435,26 @@ class GateCompressor(TranspilerPass):
         return False
 
     def has_adjacent_gates(self):
+        """Return True if the DAG contains any pair of adjacent compressible gates that can be merged.
+
+        Returns:
+            ``True`` if the condition holds, ``False`` otherwise.
+        """
         for edge in self.dag.edges():
             if self.is_adjacent_gates(edge[0], edge[1]):
                 return True
         return False
 
     def compress_adjacent_single_qubit_gates(self, node1: str, node2: str):
+        """Remove two adjacent identical single-qubit gates from the DAG, reconnecting surrounding edges.
+
+        Args:
+            node1 (*str*): First DAG node identifier.
+            node2 (*str*): Second DAG node identifier (successor of *node1*).
+
+        Returns:
+            Tuple of ``(nodes_remove, nodes_added, edges_added)``.
+        """
         nodes_remove = [node1, node2]
         nodes_added = []
         edges_added = []
@@ -386,7 +466,7 @@ class GateCompressor(TranspilerPass):
         node2_successors = list(self.dag.successors(node2))
         if len(node2_successors) == 0:
             node2_suc = None
-        elif len(node1_predecessors) == 1:
+        elif len(node2_successors) == 1:
             node2_suc = node2_successors[0]
         if node1_pre is not None and node2_suc is not None:
             if self.dag.has_edge(node1_pre, node2_suc):
@@ -398,6 +478,15 @@ class GateCompressor(TranspilerPass):
         return nodes_remove, nodes_added, edges_added
 
     def compress_adjacent_single_parameter_qubit_gates(self, node1: str, node2: str):
+        """Merge two adjacent parametric single-qubit gates by composing their parameters, eliding if identity.
+
+        Args:
+            node1 (*str*): First DAG node identifier.
+            node2 (*str*): Second DAG node identifier (successor of *node1*).
+
+        Returns:
+            Tuple of ``(nodes_remove, nodes_added, edges_added)``.
+        """
         nodes_remove = [node1, node2]
         nodes_added = []
         edges_added = []
@@ -409,7 +498,7 @@ class GateCompressor(TranspilerPass):
         node2_successors = list(self.dag.successors(node2))
         if len(node2_successors) == 0:
             node2_suc = None
-        elif len(node1_predecessors) == 1:
+        elif len(node2_successors) == 1:
             node2_suc = node2_successors[0]
         gate = node1.split("_")[0]
         params1 = self.dag.nodes[node1]["params"]
@@ -445,6 +534,15 @@ class GateCompressor(TranspilerPass):
         return nodes_remove, nodes_added, edges_added
 
     def compress_adjacent_two_qubit_gates(self, node1: str, node2: str):
+        """Cancel two adjacent identical two-qubit gates (self-inverse) and reconnect surrounding DAG edges.
+
+        Args:
+            node1 (*str*): Node1 (``str``).
+            node2 (*str*): Node2 (``str``).
+
+        Returns:
+            Result.
+        """
         nodes_remove = [node1, node2]
         nodes_added = []
         edges_added = []
@@ -476,6 +574,15 @@ class GateCompressor(TranspilerPass):
         return nodes_remove, nodes_added, edges_added
 
     def compress_adjacent_two_qubit_parameter_gates(self, node1: str, node2: str):
+        """Merge two adjacent parametric two-qubit gates by summing their parameters, eliding if identity.
+
+        Args:
+            node1 (*str*): Node1 (``str``).
+            node2 (*str*): Node2 (``str``).
+
+        Returns:
+            Result.
+        """
         nodes_remove = [node1, node2]
         nodes_added = []
         edges_added = []
@@ -525,6 +632,15 @@ class GateCompressor(TranspilerPass):
         return nodes_remove, nodes_added, edges_added
 
     def compress_adjacent_three_qubit_gates(self, node1, node2):
+        """Cancel two adjacent identical three-qubit gates (self-inverse) and reconnect surrounding DAG edges.
+
+        Args:
+            node1: Node1.
+            node2: Node2.
+
+        Returns:
+            Result.
+        """
         nodes_remove = [node1, node2]
         nodes_added = []
         edges_added = []
@@ -556,6 +672,15 @@ class GateCompressor(TranspilerPass):
         return nodes_remove, nodes_added, edges_added
 
     def run_compress_once(self, node1: str, node2: str):
+        """Dispatch a single adjacent-gate compression to the handler matching the gate type.
+
+        Args:
+            node1 (*str*): Node1 (``str``).
+            node2 (*str*): Node2 (``str``).
+
+        Returns:
+            Execution result.
+        """
         gate = node1.split("_")[0]
         if gate in one_qubit_gates_available.keys():
             return self.compress_adjacent_single_qubit_gates(node1, node2)
@@ -571,10 +696,23 @@ class GateCompressor(TranspilerPass):
 
     @property
     def idx(self):
+        """Return and increment the internal node counter.
+
+        Returns:
+            int: Next unique node index.
+        """
         self._idx += 1
         return self._idx
 
     def run(self, qc: QuantumCircuit):
+        """Run the full gate-compression pipeline: identity removal, commutation reordering, merging, and iterative DAG-based compression.
+
+        Args:
+            qc (*QuantumCircuit*): Quantum circuit.
+
+        Returns:
+            Result.
+        """
         qubits = qc.qubits
         qc1 = self.remove_identity_gates(qc)
         qc1 = self.commutation_reorder(qc1)

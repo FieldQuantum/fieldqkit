@@ -30,7 +30,7 @@ class ProviderRuntime:
 
 | 参数 | 类型 | 必填 | 说明 |
 |---|---|:---:|---|
-| `provider` | `str` | 是 | 支持 `quafu/tianyan/guodun`。 |
+| `provider` | `str` | 是 | 支持 `quafu/tianyan/guodun/tencent`。 |
 | `client` | `Any` | 是 | 当前 `QuantumHardwareClient` 实例（供 task adapter 绑定上下文）。 |
 
 ### 返回值
@@ -40,10 +40,11 @@ class ProviderRuntime:
 - `quafu`：`QuafuBackendAdapter` + `QuafuTaskAdapter`
 - `tianyan`：`TianYanBackendAdapter` + `TianYanTaskAdapter`
 - `guodun`：`GuoDunBackendAdapter` + `GuoDunTaskAdapter`
+- `tencent`：`TencentBackendAdapter` + `TencentTaskAdapter`
 
 ### 异常
 
-- `ValueError("provider must be one of: 'quafu', 'tianyan', or 'guodun'")`
+- `ValueError("provider must be one of: 'quafu', 'tianyan', 'guodun', or 'tencent'")`
 
 ## 示例
 

@@ -5,7 +5,7 @@ import fnmatch
 directory = os.path.dirname(__file__)
 # directory = r"D:\Programs\Miniconda\envs\quantum\Lib\site-packages\tensorcircuit"
 # Set the string to search for
-search_string = r'tensorcircuit'  # example string, replace with your desired string
+search_string = r'cache_topology_figure'  # example string, replace with your desired string
 
 # Loop over all the .py files in the directory
 for root, dirnames, filenames in os.walk(directory):

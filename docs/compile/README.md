@@ -66,13 +66,14 @@
 
 ## 无后端退化行为
 
-当 `Transpiler` 未绑定 `Backend` 时，跳过 Layout、Routing 和 DD：
+当 `Transpiler` 未绑定 `Backend` 时，跳过 Layout 和 DD，使用线性拓扑与 CX 基：
 
 | 步骤 | 有后端 | 无后端 |
 |---|---|---|
 | ThreeQubitGateDecompose | ✅ | ✅ |
-| Layout + SabreRouting | ✅ | ❌ 跳过 |
-| TranslateToBasisGates | ✅ | ✅（CZ 基、U 门） |
+| Layout | ✅ | ❌ 跳过（使用线性拓扑） |
+| SabreRouting | ✅ | ✅（线性拓扑） |
+| TranslateToBasisGates | ✅ | ✅（CX 基、保留原生单比特门） |
 | GateCompressor | ✅ | ✅ |
 | DynamicalDecoupling | ✅ | ❌ 跳过 |
 

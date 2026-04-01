@@ -14,6 +14,15 @@ MIN_CONNECTED_COUPLER_FIDELITY = 0.9
 
 
 def _as_float_or_default(value: Any, default: float) -> float:
+    """Convert *value* to float, returning *default* on failure.
+
+    Args:
+        value (*Any*): Value to set.
+        default (*float*): Default (``float``).
+
+    Returns:
+        Computed float result.
+    """
     try:
         return float(value)
     except Exception:
@@ -21,6 +30,15 @@ def _as_float_or_default(value: Any, default: float) -> float:
 
 
 def is_connected_coupler(coupler_info: Any, *, min_fidelity: float = MIN_CONNECTED_COUPLER_FIDELITY) -> bool:
+    """Return True if *coupler_info* has fidelity >= *min_fidelity*.
+
+    Args:
+        coupler_info (*Any*): Coupler info (``Any``).
+        min_fidelity (*float*): Min fidelity (``float``). Defaults to ``MIN_CONNECTED_COUPLER_FIDELITY``.
+
+    Returns:
+        ``True`` if the condition is satisfied.
+    """
     if not isinstance(coupler_info, dict):
         return False
     fidelity = _as_float_or_default(coupler_info.get("fidelity", 1.0), 1.0)
@@ -28,6 +46,14 @@ def is_connected_coupler(coupler_info: Any, *, min_fidelity: float = MIN_CONNECT
 
 
 def _fallback_priority_qubits(qubits_info: Any) -> List[List[int]]:
+    """Build a priority qubit list sorted by descending fidelity.
+
+    Args:
+        qubits_info (*Any*): Qubits info (``Any``).
+
+    Returns:
+        Result list.
+    """
     if not isinstance(qubits_info, dict):
         return []
     scored: List[Tuple[float, int]] = []
@@ -47,6 +73,14 @@ def _fallback_priority_qubits(qubits_info: Any) -> List[List[int]]:
 
 
 def _build_simulator_chip_info(nqubits: int = 16) -> dict:
+    """Build a synthetic chip_info dict for the local simulator.
+
+    Args:
+        nqubits (*int*): Number of qubits. Defaults to ``16``.
+
+    Returns:
+        Result dictionary.
+    """
     qubits_info = {
         f"Q{i}": {"fidelity": 1.0}
         for i in range(nqubits)
@@ -80,6 +114,14 @@ class Backend:
     """Graph-based hardware backend abstraction."""
 
     def __init__(self, chip: Union[str, dict]):
+        """Initialize Backend from a chip name or chip info dict.
+
+        Args:
+            chip (*Union[str, dict]*): Chip (``Union[str, dict]``).
+
+        Raises:
+            ValueError: f'Wrong chip name! {chip}
+        """
         if isinstance(chip, dict):
             self.chip_name = chip.get("chip_name", " ")
             self.chip_info = chip
@@ -116,19 +158,54 @@ class Backend:
 
     @property
     def graph(self):
+        """Return the hardware coupling graph (``networkx.Graph``).
+
+        Returns:
+            ``networkx.Graph`` instance.
+        """
         return self.get_graph()
 
     def edge_filtered_graph(self, thres: float = 0.6):
+        """Return a subgraph keeping only edges/nodes with fidelity >= *thres*.
+
+        Args:
+            thres (*float*): Thres (``float``). Defaults to ``0.6``.
+
+        Returns:
+            Result.
+        """
         def edge_filter(u, v):
+            """Edge filter.
+
+            Args:
+                u: U.
+                v: V.
+
+            Returns:
+                Result.
+            """
             return self.graph[u][v].get("fidelity") >= thres
 
         def node_filter(n):
+            """Node filter.
+
+            Args:
+                n: N.
+
+            Returns:
+                Result.
+            """
             return self.graph.nodes[n].get("fidelity") >= thres
 
         subgraph_view = nx.subgraph_view(self.graph, filter_node=node_filter, filter_edge=edge_filter)
         return nx.Graph(subgraph_view)
 
     def _collect_qubits_with_attributes(self):
+        """Collect qubit index / attribute pairs from chip_info.
+
+        Returns:
+            List of ``(qubit_index, attributes_dict)`` tuples.
+        """
         qubits_with_attributes = []
         for key in self.chip_info['qubits_info'].keys():
             qubit = int(key.split('Q')[1])
@@ -136,6 +213,11 @@ class Backend:
         return qubits_with_attributes
 
     def _collect_couplers_with_attributes(self):
+        """Collect connected coupler triples from chip_info.
+
+        Returns:
+            List of ``(q1, q2, attributes_dict)`` tuples.
+        """
         couplers_with_attributes = []
         for key in self.chip_info['couplers_info'].keys():
             coupler_info = self.chip_info['couplers_info'][key]
@@ -151,12 +233,23 @@ class Backend:
         return couplers_with_attributes
 
     def get_graph(self):
+        """Build and return a new ``networkx.Graph`` from qubits and couplers.
+
+        Returns:
+            ``networkx.Graph`` with qubit nodes and coupler edges.
+        """
         graph = nx.Graph()
         graph.add_nodes_from(self.qubits_with_attributes)
         graph.add_edges_from(self.couplers_with_attributes)
         return graph
 
     def draw(self, save_svg_fname: str | None = None, edge_fidelity_thres: float = 0.9):
+        """Draw the hardware topology graph and optionally save as SVG.
+
+        Args:
+            save_svg_fname (*str | None*): Save svg fname (``str | None``). Defaults to ``None``.
+            edge_fidelity_thres (*float*): Edge fidelity thres (``float``). Defaults to ``0.9``.
+        """
         import matplotlib.pyplot as plt
 
         graph_show = self.edge_filtered_graph(thres=edge_fidelity_thres)
@@ -210,6 +303,11 @@ class Backend:
         plt.close()
 
     def cache_topology_figure(self, edge_fidelity_thres: float = 0.9) -> None:
+        """Draw and cache the topology figure as SVG in the .cache directory.
+
+        Args:
+            edge_fidelity_thres (*float*): Edge fidelity thres (``float``). Defaults to ``0.9``.
+        """
         cache_dir = Path(__file__).resolve().parent / ".cache"
         cache_dir.mkdir(parents=True, exist_ok=True)
         fig_path = cache_dir / f"{self.chip_name}_chip"
@@ -217,7 +315,14 @@ class Backend:
 
 
 def normalize_hardware_preferences(prefer_hardware: Optional[Sequence[str] | str]) -> List[str]:
-    """Normalize preferred hardware names into a compact list."""
+    """Normalize preferred hardware names into a compact list.
+
+    Args:
+        prefer_hardware (*Optional[Sequence[str] | str]*): Prefer hardware (``Optional[Sequence[str] | str]``).
+
+    Returns:
+        Result list.
+    """
     if isinstance(prefer_hardware, str):
         items = [prefer_hardware]
     elif isinstance(prefer_hardware, Sequence):
@@ -228,18 +333,29 @@ def normalize_hardware_preferences(prefer_hardware: Optional[Sequence[str] | str
 
 
 def is_simulator_preferred(prefer_hardware: Optional[Sequence[str] | str]) -> bool:
-    """Return True when hardware preference explicitly asks for simulator."""
+    """Return True when hardware preference explicitly asks for simulator.
+
+    Args:
+        prefer_hardware (*Optional[Sequence[str] | str]*): Prefer hardware (``Optional[Sequence[str] | str]``).
+
+    Returns:
+        ``True`` if the condition is satisfied.
+    """
     return any(item.lower() == "simulator" for item in normalize_hardware_preferences(prefer_hardware))
 
 
 @dataclass(frozen=True)
 class HardwareTopology:
+    """Physical qubit connectivity of a quantum chip."""
+
     qubits: List[int]
     couplers: List[Tuple[int, int]]
 
 
 @dataclass(frozen=True)
 class HardwareCalibration:
+    """Calibration fidelity data and queue status for a quantum chip."""
+
     qubit_fidelity: Dict[int, float]
     coupler_fidelity: Dict[str, float]
     queue_length: Optional[int] = None
@@ -247,6 +363,8 @@ class HardwareCalibration:
 
 @dataclass(frozen=True)
 class HardwareProfile:
+    """Unified hardware description combining topology, calibration, and provider metadata."""
+
     provider: str
     hardware_name: str
     nqubits_available: int
@@ -257,7 +375,15 @@ class HardwareProfile:
 
 
 def build_simulator_profile(*, provider: str, num_qubits: int) -> HardwareProfile:
-    """Build a synthetic hardware profile for the local simulator."""
+    """Build a synthetic hardware profile for the local simulator.
+
+    Args:
+        provider (*str*): Platform provider name (``"quafu"``, ``"tianyan"``, ``"guodun"``, ``"tencent"``).
+        num_qubits (*int*): Number of qubits.
+
+    Returns:
+        ``HardwareProfile`` result.
+    """
     nqubits = max(int(num_qubits), 1)
     target = list(range(nqubits))
     return HardwareProfile(
@@ -281,11 +407,20 @@ class ResolvedBackend:
 
 
 class BackendAdapter(ABC):
+    """Abstract adapter bridging provider-specific platforms to the unified backend interface."""
+
     provider: str
     default_hardware_name: Optional[str] = None
 
     def list_available_hardware(self) -> List[Dict[str, Any]]:
-        """Return normalized hardware rows from the adapter's bound platform."""
+        """Return normalized hardware rows from the adapter's bound platform.
+
+        Returns:
+            List of hardware description dictionaries.
+
+        Raises:
+            RuntimeError: f'{self.__class__.__name__} requires a bound platform wit...
+        """
         platform_obj = getattr(self, "_platform", None)
         if platform_obj is None or not hasattr(platform_obj, "list_available_hardware"):
             raise RuntimeError(f"{self.__class__.__name__} requires a bound platform with list_available_hardware()")
@@ -297,7 +432,15 @@ class BackendAdapter(ABC):
         num_qubits: int,
         prefer_hardware: Optional[Sequence[str] | str] = None,
     ) -> List[HardwareProfile]:
-        """Discover candidate hardware profiles from unified provider listing."""
+        """Discover candidate hardware profiles from unified provider listing.
+
+        Args:
+            num_qubits (*int*): Number of qubits.
+            prefer_hardware (*Optional[Sequence[str] | str]*): Prefer hardware (``Optional[Sequence[str] | str]``). Defaults to ``None``.
+
+        Returns:
+            Result list.
+        """
         if is_simulator_preferred(prefer_hardware):
             return [build_simulator_profile(provider=self.provider, num_qubits=num_qubits)]
 
@@ -338,7 +481,18 @@ class BackendAdapter(ABC):
         num_qubits: int,
         prefer_hardware: Optional[Sequence[str] | str] = None,
     ) -> ResolvedBackend:
-        """Resolve a concrete backend target for one provider."""
+        """Resolve a concrete backend target for one provider.
+
+        Args:
+            num_qubits (*int*): Number of qubits.
+            prefer_hardware (*Optional[Sequence[str] | str]*): Prefer hardware (``Optional[Sequence[str] | str]``). Defaults to ``None``.
+
+        Returns:
+            Resolved ``ResolvedBackend`` instance containing provider, backend, and profile.
+
+        Raises:
+            RuntimeError: no available chips satisfy num_qubits requirement
+        """
         candidates = self.discover_hardware(num_qubits=num_qubits, prefer_hardware=prefer_hardware)
         if not candidates:
             raise RuntimeError("no available chips satisfy num_qubits requirement")
@@ -351,8 +505,6 @@ class BackendAdapter(ABC):
             platform_obj.set_machine(chosen.hardware_name)
 
         backend_obj = Backend(chosen.hardware_name)
-        if (not is_simulator) and hasattr(backend_obj, "cache_topology_figure"):
-            backend_obj.cache_topology_figure()
 
         profile = build_hardware_profile(
             provider=self.provider,
@@ -371,6 +523,11 @@ class BackendAdapter(ABC):
         )
 
     def _fallback_hardware_name(self) -> Optional[str]:
+        """Return fallback hardware name from instance or class default.
+
+        Returns:
+            ``Optional[str]``: Hardware name or ``None``.
+        """
         machine_name = getattr(self, "_machine_name", None)
         if machine_name:
             return str(machine_name)
@@ -380,6 +537,14 @@ class BackendAdapter(ABC):
 
 
 def as_int_or_none(value: Any) -> Optional[int]:
+    """Convert *value* to int, returning None on failure.
+
+    Args:
+        value (*Any*): Value to set.
+
+    Returns:
+        ``Optional[int]`` result.
+    """
     try:
         return int(value)
     except Exception:
@@ -394,6 +559,18 @@ def build_hardware_profile(
     queue_length: Optional[int],
     raw_info: Dict[str, Any],
 ) -> HardwareProfile:
+    """Build a ``HardwareProfile`` from a ``Backend`` instance.
+
+    Args:
+        provider (*str*): Platform provider name (``"quafu"``, ``"tianyan"``, ``"guodun"``, ``"tencent"``).
+        hardware_name (*str*): Hardware name (``str``).
+        backend (*Backend*): Hardware backend descriptor.
+        queue_length (*Optional[int]*): Queue length (``Optional[int]``).
+        raw_info (*Dict[str, Any]*): Raw info (``Dict[str, Any]``).
+
+    Returns:
+        ``HardwareProfile`` result.
+    """
     chip_info = getattr(backend, "chip_info", {}) if isinstance(backend, Backend) else {}
     qubits_info = chip_info.get("qubits_info", {}) if isinstance(chip_info, dict) else {}
     couplers_info = chip_info.get("couplers_info", {}) if isinstance(chip_info, dict) else {}
@@ -462,6 +639,17 @@ def build_hardware_profile(
 
 
 def list_available_hardware(provider: str) -> List[Dict[str, Any]]:
+    """List available hardware for the given provider.
+
+    Args:
+        provider (*str*): Platform provider name (``"quafu"``, ``"tianyan"``, ``"guodun"``, ``"tencent"``).
+
+    Returns:
+        List of normalized hardware description dictionaries.
+
+    Raises:
+        ValueError: provider must be one of: 'quafu', 'tianyan', 'guodun', or...
+    """
     provider_name = str(provider).lower()
 
     if provider_name == "quafu":

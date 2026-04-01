@@ -1,11 +1,35 @@
 """Algorithm entry points for VQE, QAOA, and shadow tomography."""
 
-from .circuit_compression import (
-    HybridCompressionPlan,
-    SuffixCompressionBlock,
-    compress_circuit_with_hybrid_objective,
-    plan_hybrid_suffix_blocks,
-)
+from __future__ import annotations
+
+# circuit_compression requires torch + sim; lazy-load to keep the base
+# package importable without torch.
+_COMPRESSION_NAMES = {
+    "HybridCompressionPlan",
+    "SuffixCompressionBlock",
+    "compress_circuit_with_hybrid_objective",
+    "plan_hybrid_suffix_blocks",
+}
+
+
+def __getattr__(name: str):
+    """Getattr.
+
+    Args:
+        name (*str*): Descriptive name / identifier.
+
+    Returns:
+        Result.
+
+    Raises:
+        AttributeError: f'module {__name__!r} has no attribute {name!r}
+    """
+    if name in _COMPRESSION_NAMES:
+        from . import circuit_compression as _cc
+        return getattr(_cc, name)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
 from .qml import (
     run_pqc_classifier,
     run_qnn_unsupervised,

@@ -137,7 +137,7 @@ def cancel_task(self, handle: ProviderTaskHandle) -> None
 
 **用途：** 取消未完成的任务。
 
-> **注意：** 当前所有 provider 的 `cancel_task` 实现均为 `raise NotImplementedError`，暂不可用。
+> **注意：** Quafu 的 `cancel_task` 实现为 `raise NotImplementedError`，暂不可用；天衍/国盾通过 `stop_running_experiments()` 支持取消；腾讯仅输出警告日志，不实际取消。
 
 **参数：**
 

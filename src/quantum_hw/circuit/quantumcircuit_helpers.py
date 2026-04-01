@@ -1,23 +1,9 @@
-# Copyright (c) 2024 XX Xiao
+"""Helper utilities for circuit parsing, DAG conversion, and rendering.
 
-# Permission is hereby granted, free of charge, to any person obtaining a copy
-# of this software and associated documentation files(the "Software"), to deal
-# in the Software without restriction, including without limitation the rights
-# to use, copy, modify, merge, publish, distribute, sublicense, and / or sell
-# copies of the Software, and to permit persons to whom the Software is
-# furnished to do so, subject to the following conditions:
-
-# The above copyright notice and this permission notice shall be included in
-# all copies or substantial portions of the Software.
-
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-
-r"""Helper utilities for circuit parsing, DAG conversion, and rendering."""
+SPDX-License-Identifier: MIT
+Original source: quarkcircuit, Copyright (c) YL Feng.
+See THIRD_PARTY_NOTICES for full license text.
+"""
 import copy
 import re
 
@@ -37,6 +23,17 @@ two_qubit_parameter_gates_available = {'rxx':'Rxx', 'ryy':'Ryy', 'rzz':'Rzz','cp
 functional_gates_available = {'barrier':'░', 'measure':'M', 'reset':'|0>','delay':'Delay'}
 
 def convert_gate_info_to_dag_info(nqubits:int,qubits:list,gates:list,show_qubits:bool=True) -> tuple[list,list]:
+    """Convert gate info to dag info.
+
+    Args:
+        nqubits (*int*): Number of qubits.
+        qubits (*list*): Target qubit indices.
+        gates (*list*): Gates (``list``).
+        show_qubits (*bool*): Show qubits (``bool``). Defaults to ``True``.
+
+    Returns:
+        Result list.
+    """
     #print('check',nqubits,qubits)
     qubit_dic = [None for _ in range(nqubits)]
     node_list = []
@@ -202,7 +199,15 @@ def is_multiple_of_pi(n, tolerance: float = 1e-9) -> str:
 
 
 def _format_param_token(token, params_value: dict) -> str:
-    r"""Normalize parameter values for circuit drawing labels."""
+    """Normalize parameter values for circuit drawing labels.
+
+    Args:
+        token: A parameter token (number or symbolic expression).
+        params_value (*dict*): Mapping of parameter names to values.
+
+    Returns:
+        Formatted string.
+    """
     if isinstance(token, (float, int, np.floating, np.integer)):
         return is_multiple_of_pi(float(token))
     if isinstance(token, str):
@@ -212,15 +217,33 @@ def _format_param_token(token, params_value: dict) -> str:
         if isinstance(param, str):
             return param
     return str(token)
-    
-#def parse_expression(expr):
-#    return float(eval(expr, {"pi": np.pi, "np": np,'π':np.pi}))
 
 def _safe_eval_expression(expr: str) -> float:
-    """Safely evaluate a numeric expression that may contain pi."""
+    """Safely evaluate a numeric expression that may contain pi.
+
+    Args:
+        expr (*str*): Expr (``str``).
+
+    Returns:
+        Computed float result.
+
+    Raises:
+        ValueError: Unsupported expression.
+    """
     import ast
 
     def _eval(node):
+        """Eval.
+
+        Args:
+            node: Node.
+
+        Returns:
+            Result.
+
+        Raises:
+            ValueError: Unsupported expression.
+        """
         if isinstance(node, ast.Expression):
             return _eval(node.body)
         if isinstance(node, ast.Constant):
@@ -257,6 +280,14 @@ def _safe_eval_expression(expr: str) -> float:
 
 
 def parse_expression(expr: str) -> float:
+    """Parse expression.
+
+    Args:
+        expr (*str*): Expr (``str``).
+
+    Returns:
+        Computed float result.
+    """
     expr = expr.strip().replace('π', 'pi')
     expr = expr.replace('np.pi', 'pi')
     pattern = r'^([+-]?\d*\.?\d*)?\s*pi(?:\s*/\s*([+-]?\d*\.?\d+))?$'
@@ -278,13 +309,22 @@ def parse_expression(expr: str) -> float:
 
 
 def initialize_lines(nqubits:int,ncbits:int,gates:list) -> tuple[list, list]:
-    r"""
-    Initialize a blank circuit.
+    """Initialize a blank circuit.
+
+    Returns:
+    tuple[list,list]: A tuple containing:
+        - A list of fake gates element.
+        - A list of fake gates element list.
+
+    Args:
+        nqubits (*int*): Number of qubits.
+        ncbits (*int*): Ncbits (``int``).
+        gates (*list*): Gates (``list``).
 
     Returns:
         tuple[list,list]: A tuple containing:
-            - A list of fake gates element.
-            - A list of fake gates element list.
+        - A list of fake gates element.
+        - A list of fake gates element list.
     """
     nlines = 2 * nqubits + 1 + len(str(ncbits))
     gates_element = list('─ ' * nqubits) + ['═'] + [' '] * len(str(ncbits))
@@ -315,7 +355,16 @@ def initialize_lines(nqubits:int,ncbits:int,gates:list) -> tuple[list, list]:
     return gates_element,gates_layerd
 
 def generate_gates_layerd(nqubits:int,ncbits:int,gates:list,params_value:dict) -> list:
-    r"""Assign gates to their respective layers loosely.
+    """Assign gates to their respective layers loosely.
+
+    Returns:
+    list: A list of gates element list.
+
+    Args:
+        nqubits (*int*): Number of qubits.
+        ncbits (*int*): Ncbits (``int``).
+        gates (*list*): Gates (``list``).
+        params_value (*dict*): Params value (``dict``).
 
     Returns:
         list: A list of gates element list.
@@ -511,9 +560,18 @@ def generate_gates_layerd(nqubits:int,ncbits:int,gates:list,params_value:dict) -
     return gates_layerd[:cut],lines_use
         
 def format_gates_layerd(nqubits:int,ncbits:int,gates:list,params_value:dict) -> list:
-    r"""Unify the width of each layer's gate strings
+    """Unify the width of each layer's gate strings.
 
-     Returns:
+    Returns:
+   list: A new list of gates element list.
+
+    Args:
+        nqubits (*int*): Number of qubits.
+        ncbits (*int*): Ncbits (``int``).
+        gates (*list*): Gates (``list``).
+        params_value (*dict*): Params value (``dict``).
+
+    Returns:
         list: A new list of gates element list.
     """
     gates_layerd,lines_use = generate_gates_layerd(nqubits,ncbits,gates,params_value)
@@ -548,10 +606,17 @@ def format_gates_layerd(nqubits:int,ncbits:int,gates:list,params_value:dict) -> 
     
 def add_gates_to_lines(nqubits:int,ncbits:int,gates:list,params_value:dict, width: int = 4) -> list:
     r"""Add gates to lines.
+
     Args:
+        nqubits (int): Number of qubits.
+        ncbits (int): Number of classical bits.
+        gates (list): Circuit gate tuples.
+        params_value (dict): Parameter name/value map for rendering.
         width (int, optional): The width between gates. Defaults to 4.
+
     Returns:
-        list: A list of lines.
+        list: ``(lines, lines_use)`` where *lines* is the rendered text lines
+        and *lines_use* are active row indices.
     """
     gates_layerd_format,lines_use = format_gates_layerd(nqubits,ncbits,gates,params_value)
     nl = len(gates_layerd_format[0])

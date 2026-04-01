@@ -1,23 +1,9 @@
-# Copyright (c) 2024 XX Xiao
+"""The matrices corresponding to single-qubit, two-qubit and three-qubit gates.
 
-# Permission is hereby granted, free of charge, to any person obtaining a copy
-# of this software and associated documentation files(the "Software"), to deal
-# in the Software without restriction, including without limitation the rights
-# to use, copy, modify, merge, publish, distribute, sublicense, and / or sell
-# copies of the Software, and to permit persons to whom the Software is
-# furnished to do so, subject to the following conditions:
-
-# The above copyright notice and this permission notice shall be included in
-# all copies or substantial portions of the Software.
-
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-
-r"""The matrices corresponding to single-qubit, two-qubit and three-qubit gates."""
+SPDX-License-Identifier: MIT
+Original source: quarkcircuit, Copyright (c) YL Feng.
+See THIRD_PARTY_NOTICES for full license text.
+"""
 
 import numpy as np
 
@@ -25,30 +11,28 @@ ket0 = np.array([[1.0], [0.0]], dtype = complex) # |0>
 ket1 = np.array([[0.0], [1.0]], dtype = complex) # |1>
 
 def ketn0(nqubits: int) -> np.ndarray:
-#    r"""
-#    Generate the tensor product of n |0> states.
-#
-#    Args:
-#        nqubits (int): The number of qubits.
-#
-#    Returns:
-#        np.ndarray: A state vector representing the tensor product of n |0⟩ states.
-#    """
+    r"""Generate the tensor product of n |0⟩ states.
+
+    Args:
+        nqubits (int): The number of qubits.
+
+    Returns:
+        np.ndarray: A state vector representing the tensor product of n |0⟩ states.
+    """
     state = ket0
     for _ in range(nqubits - 1):
         state = np.kron(state, ket0)
     return state
 
 def ketn1(nqubits: int) -> np.ndarray:
-#    r"""
-#    Generate the tensor product of n |1> states.
-#
-#    Args:
-#        nqubits (int): The number of qubits.
-#
-#    Returns:
-#        np.ndarray: A state vector representing the tensor product of n |1⟩ states.
-#    """
+    r"""Generate the tensor product of n |1⟩ states.
+
+    Args:
+        nqubits (int): The number of qubits.
+
+    Returns:
+        np.ndarray: A state vector representing the tensor product of n |1⟩ states.
+    """
     state = ket1
     for _ in range(nqubits - 1):
         state = np.kron(state, ket1)
@@ -204,6 +188,15 @@ swapc_mat = np.array(
 )
 
 def r_mat(theta,phi):
+    """Generate the matrix for the R gate.
+
+    Args:
+        theta: Rotation angle in radians.
+        phi: Phase angle in radians.
+
+    Returns:
+        2×2 complex-valued unitary matrix.
+    """
     return np.array(
         [
             [np.cos(theta/2), -1j*np.exp(-1j*phi)*np.sin(theta/2)],
@@ -213,14 +206,14 @@ def r_mat(theta,phi):
     )
 
 def rx_mat(theta: float) -> np.ndarray:
-#    r"""Generate the rotation matrix for the Rx gate.
-#
-#    Args:
-#        theta (float): The rotation angle in radians.
-#
-#    Returns:
-#        np.ndarray: A 2 x 2 complex-valued unitary matrix representing the Rx gate.
-#    """
+    r"""Generate the rotation matrix for the RX gate.
+
+    Args:
+        theta (float): The rotation angle in radians.
+
+    Returns:
+        np.ndarray: A 2×2 complex-valued unitary matrix representing the RX gate.
+    """
     return np.array(
         [
             [np.cos(0.5 * theta), -1.0j * np.sin(0.5 * theta)],
@@ -230,14 +223,14 @@ def rx_mat(theta: float) -> np.ndarray:
     )
 
 def ry_mat(theta: float) -> np.ndarray:
-#    r"""Generate the rotation matrix for the Ry gate.
-#
-#    Args:
-#        theta (float): The rotation angle in radians.
-#
-#    Returns:
-#        np.ndarray: A 2 x 2 complex-valued unitary matrix representing the Ry gate.
-#    """
+    r"""Generate the rotation matrix for the RY gate.
+
+    Args:
+        theta (float): The rotation angle in radians.
+
+    Returns:
+        np.ndarray: A 2×2 complex-valued unitary matrix representing the RY gate.
+    """
     return np.array(
         [
             [np.cos(0.5 * theta), -np.sin(0.5 * theta)],
@@ -247,14 +240,14 @@ def ry_mat(theta: float) -> np.ndarray:
     )
 
 def rz_mat(theta: float) -> np.ndarray:
-#    r"""Generate the rotation matrix for the Rz gate.
-#
-#    Args:
-#        theta (float): The rotation angle in radians.
-#
-#    Returns:
-#        np.ndarray: A 2 x 2 complex-valued unitary matrix representing the Rz gate.
-#    """
+    r"""Generate the rotation matrix for the RZ gate.
+
+    Args:
+        theta (float): The rotation angle in radians.
+
+    Returns:
+        np.ndarray: A 2×2 complex-valued unitary matrix representing the RZ gate.
+    """
     return np.array(
         [
             [np.exp(-0.5j * theta), 0.0], 
@@ -262,14 +255,14 @@ def rz_mat(theta: float) -> np.ndarray:
     )
 
 def p_mat(theta: float) -> np.ndarray:
-#    r"""Generate the matrix for the phase gate.
-#
-#    Args:
-#        theta (float): The phase shift angle in radians.
-#
-#    Returns:
-#        np.ndarray: A 2 x 2 complex-valued unitary matrix representing the phase gate.
-#    """
+    r"""Generate the matrix for the phase gate.
+
+    Args:
+        theta (float): The phase shift angle in radians.
+
+    Returns:
+        np.ndarray: A 2×2 complex-valued unitary matrix representing the phase gate.
+    """
     return np.array(
         [
             [1.0, 0.0], 
@@ -278,16 +271,16 @@ def p_mat(theta: float) -> np.ndarray:
     )
 
 def u_mat(theta: float, phi: float, lamda: float) -> np.ndarray:
-#    r"""Generate the matrix for the U3 gate.
-#
-#    Args:
-#        theta (float): The rotation angle of the gate.
-#        phi (float): The rotation angle of the gate.
-#        lamda (float): The rotation angle of the gate.
-#
-#    Returns:
-#        np.ndarray: A 2 x 2 complex-valued unitary matrix representing the U3 gate.
-#    """
+    r"""Generate the matrix for the U3 gate.
+
+    Args:
+        theta (float): The theta rotation angle.
+        phi (float): The phi rotation angle.
+        lamda (float): The lambda rotation angle.
+
+    Returns:
+        np.ndarray: A 2×2 complex-valued unitary matrix representing the U3 gate.
+    """
     return np.array(
         [
             [np.cos(theta/2), -np.exp(1.0j*lamda)*np.sin(theta/2)],
@@ -296,12 +289,37 @@ def u_mat(theta: float, phi: float, lamda: float) -> np.ndarray:
     )
 
 def u1_mat(lamda:float):
+    """U1 mat.
+
+    Args:
+        lamda (*float*): Lamda (``float``).
+
+    Returns:
+        Result.
+    """
     return u_mat(0., 0., lamda)
 
 def u2_mat(phi:float, lamda:float):
+    """U2 mat.
+
+    Args:
+        phi (*float*): Phase angle in radians.
+        lamda (*float*): Lamda (``float``).
+
+    Returns:
+        Result.
+    """
     return u_mat(np.pi/2, phi, lamda)
 
 def rxx_mat(theta: float) -> np.ndarray:
+    """Rxx mat.
+
+    Args:
+        theta (*float*): Rotation angle in radians.
+
+    Returns:
+        NumPy array with the computed result.
+    """
     return np.array(
         [
             [np.cos(theta/2), 0, 0, -1j*np.sin(theta/2)],
@@ -312,6 +330,14 @@ def rxx_mat(theta: float) -> np.ndarray:
     )
 
 def ryy_mat(theta: float) -> np.ndarray:
+    """Ryy mat.
+
+    Args:
+        theta (*float*): Rotation angle in radians.
+
+    Returns:
+        NumPy array with the computed result.
+    """
     return np.array(
         [
             [np.cos(theta/2), 0, 0, 1j*np.sin(theta/2)],
@@ -322,6 +348,14 @@ def ryy_mat(theta: float) -> np.ndarray:
     )
 
 def rzz_mat(theta: float) -> np.ndarray:
+    """Rzz mat.
+
+    Args:
+        theta (*float*): Rotation angle in radians.
+
+    Returns:
+        NumPy array with the computed result.
+    """
     return np.array(
         [
             [np.exp(-1j*theta/2), 0, 0, 0],
@@ -332,6 +366,14 @@ def rzz_mat(theta: float) -> np.ndarray:
     )
 
 def cp_mat(theta: float) -> np.ndarray:
+    """Cp mat.
+
+    Args:
+        theta (*float*): Rotation angle in radians.
+
+    Returns:
+        NumPy array with the computed result.
+    """
     return np.array(
         [
             [1, 0, 0, 0],

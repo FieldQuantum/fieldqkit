@@ -13,7 +13,7 @@
 
 ```python
 class Transpiler:
-    def __init__(self, chip_backend: Backend | None = None)
+    def __init__(self, chip_backend: Backend | None = None, *, convert_single_qubit_gate_to_u: bool | None = None)
 ```
 
 **参数：**
@@ -21,6 +21,7 @@ class Transpiler:
 | 参数 | 类型 | 说明 |
 |---|---|---|
 | `chip_backend` | `Backend \| None` | 硬件后端对象；提供芯片拓扑和校准信息。`None` 时退化为简单线性拓扑（仅供模拟器使用）。 |
+| `convert_single_qubit_gate_to_u` | `bool \| None` | 是否将单比特门转换为 U 门；`None` 时自动推断（真机 `True`，无 backend `False`）。显式传 `False` 可保留原始门名（如 Tencent 平台需要）。 |
 
 **属性（初始化后可访问）：**
 

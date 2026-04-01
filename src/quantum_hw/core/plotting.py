@@ -6,7 +6,14 @@ import matplotlib.pyplot as plt
 
 
 def _flatten_probabilities(probabilities):
-	"""Flatten probability lists from grouped runs into a single vector."""
+	"""Extract the first probability vector from grouped run output.
+
+	Args:
+		probabilities: Probabilities (possibly nested list from grouped runs).
+
+	Returns:
+		Flat probability list or ``None``.
+	"""
 	if probabilities is None:
 		return None
 	if isinstance(probabilities, list) and probabilities and isinstance(probabilities[0], list):
@@ -15,7 +22,17 @@ def _flatten_probabilities(probabilities):
 
 
 def _select_key_basis(raw_probs, mit_probs, num_qubits: int, max_states: int = 16):
-	"""Select representative basis states for visualization."""
+	"""Select representative basis states for visualization.
+
+	Args:
+		raw_probs: Raw probs.
+		mit_probs: Mit probs.
+		num_qubits (*int*): Number of qubits.
+		max_states (*int*): Max states (``int``). Defaults to ``16``.
+
+	Returns:
+		List of selected basis state indices for plotting.
+	"""
 	total = len(raw_probs)
 	if total <= max_states:
 		return list(range(total))
@@ -28,7 +45,15 @@ def _select_key_basis(raw_probs, mit_probs, num_qubits: int, max_states: int = 1
 
 
 def _as_float(value, default: float = 0.0) -> float:
-	"""Convert scalar-like value to float with a safe default."""
+	"""Convert scalar-like value to float with a safe default.
+
+	Args:
+		value: Value to convert to float.
+		default (*float*): Default (``float``). Defaults to ``0.0``.
+
+	Returns:
+		Computed float result.
+	"""
 	if value is None:
 		return default
 	if isinstance(value, (list, tuple)):
@@ -39,7 +64,16 @@ def _as_float(value, default: float = 0.0) -> float:
 
 
 def _ordered_observable_keys(raw, mitigated, observables=None):
-	"""Resolve observable keys in a stable plotting order."""
+	"""Resolve observable keys in a stable plotting order.
+
+	Args:
+		raw: Raw.
+		mitigated: Mitigated.
+		observables: Observable operators to measure. Defaults to ``None``.
+
+	Returns:
+		Ordered list of observable key strings.
+	"""
 	raw_keys = set((raw or {}).keys()) if isinstance(raw, dict) else set()
 	mit_keys = set((mitigated or {}).keys()) if isinstance(mitigated, dict) else set()
 	all_keys = raw_keys | mit_keys
@@ -64,7 +98,14 @@ def _ordered_observable_keys(raw, mitigated, observables=None):
 
 
 def plot_probabilities_compare(raw, mitigated, num_qubits: int, max_labels: int = 16) -> None:
-	"""Plot raw vs mitigated probabilities for selected basis states."""
+	"""Plot raw vs mitigated probabilities for selected basis states.
+
+	Args:
+		raw: Raw.
+		mitigated: Mitigated.
+		num_qubits (*int*): Number of qubits.
+		max_labels (*int*): Max labels (``int``). Defaults to ``16``.
+	"""
 	raw_probs = _flatten_probabilities(raw)
 	mit_probs = _flatten_probabilities(mitigated)
 	if raw_probs is None and mit_probs is None:
@@ -91,7 +132,13 @@ def plot_probabilities_compare(raw, mitigated, num_qubits: int, max_labels: int 
 
 
 def plot_observables_compare(raw, mitigated, observables=None) -> None:
-	"""Plot comparison of observable expectations (scalar or dict)."""
+	"""Plot comparison of observable expectations (scalar or dict).
+
+	Args:
+		raw: Raw.
+		mitigated: Mitigated.
+		observables: Observable operators to measure. Defaults to ``None``.
+	"""
 	if raw is None and mitigated is None:
 		return
 	if isinstance(mitigated, dict) or isinstance(raw, dict):

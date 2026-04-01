@@ -31,6 +31,7 @@ run_pqc_classifier(
     encoding: Union[str, Callable] = "angle",
     encoding_kwargs: Optional[dict] = None,
     num_classes: int = 2,
+    measurement_qubits: Optional[Sequence[int]] = None,
     layers: int = 2,
     max_iters: int = 100,
     learning_rate: float = 0.01,
@@ -47,6 +48,7 @@ run_pqc_classifier(
     readout_mitigation: bool = False,
     target_qubits: Optional[Sequence[int]] = None,
     qasm_version: str = "2.0",
+    convert_single_qubit_gate_to_u: bool = True,
 ) -> QMLResult
 ```
 
@@ -60,6 +62,7 @@ run_pqc_classifier(
 | `encoding` | `str \| Callable` | `"angle"` | 编码方式：`"angle"` / `"iqp"` 或自定义 callable `(n_qubits, n_features) -> (QuantumCircuit, param_names)`。 |
 | `encoding_kwargs` | `Optional[dict]` | `None` | 传给编码函数的额外参数。 |
 | `num_classes` | `int` | `2` | 类别数。 |
+| `measurement_qubits` | `Optional[Sequence[int]]` | `None` | 测量的量子比特索引；二分类默认 `[0]`，多分类默认 `range(min(num_classes, num_qubits))`。 |
 | `layers` | `int` | `2` | Ansatz 层数。 |
 | `max_iters` | `int` | `100` | 最大迭代轮数。 |
 | `learning_rate` | `float` | `0.01` | Adam 学习率。 |
@@ -75,6 +78,7 @@ run_pqc_classifier(
 | `readout_mitigation` | `bool` | `False` | 是否启用 readout 缓解。 |
 | `target_qubits` | `Optional[Sequence[int]]` | `None` | 物理比特映射。 |
 | `qasm_version` | `str` | `"2.0"` | OpenQASM 版本。 |
+| `convert_single_qubit_gate_to_u` | `bool` | `True` | 转译时是否将单比特门转为 U 门。 |
 
 ### 返回值
 
@@ -127,6 +131,7 @@ run_qnn_unsupervised(
     readout_mitigation: bool = False,
     target_qubits: Optional[Sequence[int]] = None,
     qasm_version: str = "2.0",
+    convert_single_qubit_gate_to_u: bool = True,
     # --- MMD params ---
     mmd_sigma: float = 1.0,
     # --- generation ---
@@ -148,9 +153,18 @@ run_qnn_unsupervised(
 | `seed` | `Optional[int]` | `None` | 随机种子。 |
 | `callback` | `Optional[Callable]` | `None` | 每轮回调 `(iter, loss)`。 |
 | `gradient_method` | `str` | `"autograd"` | `"autograd"`（NLL 损失）或 `"parameter-shift"`（MMD 损失）。 |
+| `client` | - | `None` | parameter-shift 路径需要；`QuantumHardwareClient` 实例。 |
+| `backend` | - | `None` | parameter-shift 路径需要；硬件后端。 |
+| `chip_name` | `str` | `""` | 芯片名（parameter-shift 路径）。 |
+| `shots` | `int` | `4096` | 每次评估 shots。 |
+| `shift` | `float` | `π/2` | 参数移位角。 |
+| `zne` | `bool` | `False` | 是否启用 ZNE。 |
+| `readout_mitigation` | `bool` | `False` | 是否启用 readout 缓解。 |
+| `target_qubits` | `Optional[Sequence[int]]` | `None` | 物理比特映射。 |
+| `qasm_version` | `str` | `"2.0"` | OpenQASM 版本。 |
+| `convert_single_qubit_gate_to_u` | `bool` | `True` | 转译时是否将单比特门转为 U 门。 |
 | `mmd_sigma` | `float` | `1.0` | RBF 核带宽（仅 parameter-shift 路径）。 |
 | `gen_shots` | `int` | `1024` | 训练完成后生成样本数。 |
-| 其余硬件参数 | - | - | 同 `run_pqc_classifier`。 |
 
 ### 返回值
 

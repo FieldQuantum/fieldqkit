@@ -21,7 +21,7 @@ def __init__(self, chip: str | dict)
 
 | 参数 | 类型 | 说明 |
 |---|---|---|
-| `chip` | `str \| dict` | **字符串**：支持以下芯片名——Quafu 侧：`Baihua`、`Dongling`、`Haituo`、`Yunmeng`、`Miaofeng`、`Yudu`、`Hongluo`；cqlib 侧：`tianyan176`、`tianyan176-2`、`tianyan24`、`tianyan504`、`tianyan287`、`gd_qc1`、`chmy176`、`gd_sim1`；模拟器：`Simulator`。**字典**：直接传入标准化 `chip_info` 配置（需含 `qubits_info`、`couplers_info`、`global_info` 等字段）。 |
+| `chip` | `str \| dict` | **字符串**：支持以下芯片名——Quafu 侧：`Baihua`、`Dongling`、`Haituo`、`Yunmeng`、`Miaofeng`、`Yudu`、`Hongluo`；cqlib 侧：`tianyan176`、`tianyan176-2`、`tianyan24`、`tianyan504`、`tianyan287`、`gd_qc1`、`chmy176`、`gd_sim1`；Tencent 侧：`tianji_s2`、`tianji_m2`、`tianxuan_s2`；模拟器：`Simulator`。**字典**：直接传入标准化 `chip_info` 配置（需含 `qubits_info`、`couplers_info`、`global_info` 等字段）。 |
 
 **返回值：** `Backend` 对象，包含拓扑图和校准信息。
 
@@ -274,13 +274,13 @@ class BackendAdapter(ABC):
 ### `list_available_hardware(provider) -> List[Dict[str, Any]]`（模块级函数）
 
 - 作用：按 provider 创建平台对象并返回统一硬件列表。
-- 支持：`quafu/tianyan/guodun`。
+- 支持：`quafu/tianyan/guodun/tencent`。
 - 注意：这是 `quantum_hw.api.backend` 模块级函数，与 `BackendAdapter.list_available_hardware()` 实例方法不同。
 
 ## 常见报错
 
 - `ValueError("Wrong chip name! ...")`
-- `ValueError("provider must be one of: 'quafu', 'tianyan', or 'guodun'")`
+- `ValueError("provider must be one of: 'quafu', 'tianyan', 'guodun', or 'tencent'")`
 - `RuntimeError("no available chips satisfy num_qubits requirement")`
 
 ## 示例

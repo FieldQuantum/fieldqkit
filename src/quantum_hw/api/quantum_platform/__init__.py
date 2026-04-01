@@ -21,6 +21,18 @@ class ProviderRuntime:
 
 
 def create_provider_runtime(*, provider: str, client: Any) -> ProviderRuntime:
+    """Create a ``ProviderRuntime`` for the given provider name.
+
+    Args:
+        provider (*str*): Platform provider name (``"quafu"``, ``"tianyan"``, ``"guodun"``, ``"tencent"``).
+        client (*Any*): ``QuantumHardwareClient`` instance.
+
+    Returns:
+        ``ProviderRuntime`` result.
+
+    Raises:
+        ValueError: provider must be one of: 'quafu', 'tianyan', 'guodun', or...
+    """
     provider_name = str(provider).lower()
     if provider_name == "quafu":
         return ProviderRuntime(

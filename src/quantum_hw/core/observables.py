@@ -16,7 +16,18 @@ _BASIS_ROTATION_OPS = {
 
 
 def _parse_pauli_string(pauli: str, num_qubits: int | None = None) -> List[Tuple[int, str]]:
-	"""Parse Pauli strings in either compact or indexed form."""
+	"""Parse Pauli strings in either compact or indexed form.
+
+	Args:
+		pauli (*str*): Pauli (``str``).
+		num_qubits (*int | None*): Number of qubits. Defaults to ``None``.
+
+	Returns:
+		List of ``(qubit_index, pauli_operator)`` tuples for non-identity terms.
+
+	Raises:
+		ValueError: pauli string is empty
+	"""
 	pauli = pauli.strip()
 	if not pauli:
 		raise ValueError("pauli string is empty")
@@ -47,13 +58,29 @@ def _parse_pauli_string(pauli: str, num_qubits: int | None = None) -> List[Tuple
 
 
 def pauli_support(pauli: str, num_qubits: int | None = None) -> List[int]:
-	"""Return the sorted support indices of non-identity Pauli terms."""
+	"""Return the sorted support indices of non-identity Pauli terms.
+
+	Args:
+		pauli (*str*): Pauli (``str``).
+		num_qubits (*int | None*): Number of qubits. Defaults to ``None``.
+
+	Returns:
+		Sorted list of qubit indices with non-identity Pauli terms.
+	"""
 	terms = _parse_pauli_string(pauli, num_qubits=num_qubits)
 	return sorted({idx for idx, _ in terms})
 
 
 def shift_pauli_string(pauli: str, offset: int) -> str:
-	"""Shift all qubit indices in a Pauli string by an offset."""
+	"""Shift all qubit indices in a Pauli string by an offset.
+
+	Args:
+		pauli (*str*): Pauli (``str``).
+		offset (*int*): Offset (``int``).
+
+	Returns:
+		Pauli string in indexed form with shifted qubit indices.
+	"""
 	terms = _parse_pauli_string(pauli)
 	if not terms:
 		return ""
@@ -61,7 +88,12 @@ def shift_pauli_string(pauli: str, offset: int) -> str:
 
 
 def append_pauli_measurement(qc, pauli: str) -> None:
-	"""Append basis rotations and final measurements for a Pauli string."""
+	"""Append basis rotations and final measurements for a Pauli string.
+
+	Args:
+		qc: Quantum circuit.
+		pauli (*str*): Pauli (``str``).
+	"""
 	num_qubits = qc.num_qubits if hasattr(qc, "num_qubits") else None
 	basis_pattern = pauli_basis_pattern(pauli, num_qubits=num_qubits)
 	apply_measurement_basis_rotations(qc, basis_pattern)
@@ -70,7 +102,15 @@ def append_pauli_measurement(qc, pauli: str) -> None:
 
 
 def pauli_basis_pattern(pauli: str, num_qubits: int) -> List[str]:
-	"""Return basis pattern (I/X/Y/Z) per qubit for a Pauli string."""
+	"""Return basis pattern (I/X/Y/Z) per qubit for a Pauli string.
+
+	Args:
+		pauli (*str*): Pauli (``str``).
+		num_qubits (*int*): Number of qubits.
+
+	Returns:
+		List of ``'I'``/``'X'``/``'Y'``/``'Z'`` strings, one per qubit.
+	"""
 	pattern = ["I"] * num_qubits
 	terms = _parse_pauli_string(pauli, num_qubits=num_qubits)
 	for idx, op in terms:
@@ -78,7 +118,16 @@ def pauli_basis_pattern(pauli: str, num_qubits: int) -> List[str]:
 	return pattern
 
 def apply_measurement_basis_rotations(qc, basis_pattern: Sequence[str], target_qubits: Sequence[int] = None) -> None:
-	"""Apply only basis rotations for a full I/X/Y/Z pattern."""
+	"""Apply only basis rotations for a full I/X/Y/Z pattern.
+
+	Args:
+		qc: Quantum circuit.
+		basis_pattern (*Sequence[str]*): Basis pattern (``Sequence[str]``).
+		target_qubits (*Sequence[int]*): Qubit indices for partial measurement. Defaults to ``None``.
+
+	Raises:
+		ValueError: f'unsupported basis op: {op}
+	"""
 	if target_qubits is None:
 		target_qubits = qc.qubits if hasattr(qc, "qubits") else list(range(len(basis_pattern)))
 	for idx, op in zip(target_qubits, basis_pattern):
@@ -90,7 +139,13 @@ def apply_measurement_basis_rotations(qc, basis_pattern: Sequence[str], target_q
 
 
 def append_measurement_basis(qc, basis_pattern: Sequence[str], target_qubits: Sequence[int] = None) -> None:
-	"""Apply basis rotations for a full pattern and append measurements."""
+	"""Apply basis rotations for a full pattern and append measurements.
+
+	Args:
+		qc: Quantum circuit.
+		basis_pattern (*Sequence[str]*): Basis pattern (``Sequence[str]``).
+		target_qubits (*Sequence[int]*): Qubit indices for partial measurement. Defaults to ``None``.
+	"""
 	if target_qubits is None:
 		target_qubits = qc.qubits if hasattr(qc, "qubits") else list(range(len(basis_pattern)))
 	apply_measurement_basis_rotations(qc, basis_pattern, target_qubits=target_qubits)
@@ -100,7 +155,15 @@ def append_measurement_basis(qc, basis_pattern: Sequence[str], target_qubits: Se
 
 
 def _compatible_with_basis(pattern: Sequence[str], basis: Sequence[str]) -> bool:
-	"""Check whether two basis patterns are compatible for grouping."""
+	"""Check whether two basis patterns are compatible for grouping.
+
+	Args:
+		pattern (*Sequence[str]*): Pattern (``Sequence[str]``).
+		basis (*Sequence[str]*): Basis (``Sequence[str]``).
+
+	Returns:
+		``True`` if the condition is satisfied.
+	"""
 	for p, b in zip(pattern, basis):
 		if p != "I" and b != "I" and p != b:
 			return False
@@ -108,7 +171,15 @@ def _compatible_with_basis(pattern: Sequence[str], basis: Sequence[str]) -> bool
 
 
 def _merge_basis(pattern: Sequence[str], basis: Sequence[str]) -> List[str]:
-	"""Merge two compatible basis patterns into a single pattern."""
+	"""Merge two compatible basis patterns into a single pattern.
+
+	Args:
+		pattern (*Sequence[str]*): Pattern (``Sequence[str]``).
+		basis (*Sequence[str]*): Basis (``Sequence[str]``).
+
+	Returns:
+		Result list.
+	"""
 	merged = list(basis)
 	for i, p in enumerate(pattern):
 		if merged[i] == "I" and p != "I":
@@ -118,7 +189,16 @@ def _merge_basis(pattern: Sequence[str], basis: Sequence[str]) -> List[str]:
 
 def group_observables(observables: Sequence[str], num_qubits: int) -> List[Dict[str, object]]:
 	"""Group observables that can share a single measurement basis.
-	TODO: implement more optimal grouping algorithms (c.f., quantum overlapping tomography) if needed."""
+
+	TODO: implement more optimal grouping algorithms (c.f., quantum overlapping tomography) if needed.
+
+	Args:
+		observables (*Sequence[str]*): Observable operators to measure.
+		num_qubits (*int*): Number of qubits.
+
+	Returns:
+		List of group dicts, each with keys ``"basis"`` and ``"observables"``.
+	"""
 	groups: List[Dict[str, object]] = []
 	for obs in observables:
 		pattern = pauli_basis_pattern(obs, num_qubits=num_qubits)
@@ -137,7 +217,18 @@ def group_observables(observables: Sequence[str], num_qubits: int) -> List[Dict[
 
 
 def pauli_expectation(samples: np.ndarray, pauli: str) -> float:
-	"""Compute expectation value from measurement samples in a Pauli basis."""
+	"""Compute expectation value from measurement samples in a Pauli basis.
+
+	Args:
+		samples (*np.ndarray*): Measurement samples.
+		pauli (*str*): Pauli (``str``).
+
+	Returns:
+		Computed float result.
+
+	Raises:
+		ValueError: samples must be 2D
+	"""
 	if samples.ndim != 2:
 		raise ValueError("samples must be 2D")
 	num_qubits = samples.shape[1]

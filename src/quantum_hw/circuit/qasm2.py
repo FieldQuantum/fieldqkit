@@ -22,10 +22,24 @@ __all__ = [
 
 
 def _record_qubits(qubit_used: list, *qubits: int) -> None:
+    """Record qubits.
+
+    Args:
+        qubit_used (*list*): Qubit used (``list``).
+        *qubits (*int*): *qubits (``int``).
+    """
     qubit_used.extend(qubits)
 
 
 def parse_openqasm2_regs(openqasm2_str: str):
+    """Parse openqasm2 regs.
+
+    Args:
+        openqasm2_str (*str*): Openqasm2 str (``str``).
+
+    Returns:
+        Parsed result.
+    """
     qreg_pattern = r"qreg\s+(\w+)\[(\d+)\];"
     creg_pattern = r"creg\s+(\w+)\[(\d+)\];"
     qregs = []
@@ -45,8 +59,29 @@ def parse_openqasm2_regs(openqasm2_str: str):
 
 
 def parse_openqasm2_custom_gates(openqasm2_str: str):
-    """Parse custom gate definitions and remove their blocks, keeping calls intact."""
+    """Parse custom gate definitions and remove their blocks, keeping calls intact.
+
+    Args:
+        openqasm2_str (*str*): Openqasm2 str (``str``).
+
+    Returns:
+        Parsed result.
+
+    Raises:
+        ValueError: f'parse error {name} !
+    """
     def parse_instruction(line: str):
+        """Parse instruction.
+
+        Args:
+            line (*str*): Line (``str``).
+
+        Returns:
+            Parsed result.
+
+        Raises:
+            ValueError: f'parse error {name} !
+        """
         line = line.strip().rstrip(";")
         pattern = r"^(\w+)\s*(?:\(([^)]*)\))?\s*(.*)$"
         m = re.match(pattern, line)
@@ -97,6 +132,14 @@ def parse_openqasm2_custom_gates(openqasm2_str: str):
 
 
 def generate_reg_map(regs):
+    """Generate reg map.
+
+    Args:
+        regs: Regs.
+
+    Returns:
+        Result.
+    """
     num = sum(v for _, v in regs)
     all_reg = [i for i in range(num)]
 
@@ -109,6 +152,15 @@ def generate_reg_map(regs):
 
 
 def sparse_gate_params_qregs(line):
+    """Parse a QASM gate line into gate name, parameter string, and qubit register string.
+
+    Args:
+        line: A single QASM instruction line.
+
+    Returns:
+        Tuple of ``(gate, params_str, qregs_str)``, or ``(None, None, None)``
+        if the line cannot be parsed.
+    """
     pattern_measure = re.compile(
         r"""
         ^\s*
@@ -153,6 +205,20 @@ def sparse_gate_params_qregs(line):
 
 
 def get_positions_list(gate, qregs_str, qreg_map, creg_map):
+    """Get positions list.
+
+    Args:
+        gate: Gate specification or name.
+        qregs_str: Qregs str.
+        qreg_map: Qreg map.
+        creg_map: Creg map.
+
+    Returns:
+        Retrieved data.
+
+    Raises:
+        ValueError: measurement gate: position parse error
+    """
     try:
         qregs = qregs_str.split(",")
     except Exception:
@@ -193,8 +259,16 @@ def get_positions_list(gate, qregs_str, qreg_map, creg_map):
 
 
 def parse_openqasm2_to_gates(openqasm2_str):
-    r"""
-    Parse gate information from an input OpenQASM 2.0 string, and update gates, supporting multiple registers.
+    """Parse gate information from an input OpenQASM 2.0 string, and update gates, supporting multiple registers.
+
+    Args:
+        openqasm2_str: Openqasm2 str.
+
+    Returns:
+        Parsed result.
+
+    Raises:
+        ValueError: f'{gate} takes 2 quantum arguments, but got {len(position...
     """
     qregs_used, cregs_used, openqasm2_str = parse_openqasm2_regs(openqasm2_str)
     qreg_map = generate_reg_map(qregs_used)
@@ -327,7 +401,7 @@ def parse_openqasm2_to_gates(openqasm2_str):
         else:
             raise (
                 ValueError(
-                    f"Sorry, an unrecognized OpenQASM 2.0 syntax {gate} was detected by quarkcircuit. Please contact the developer for assistance."
+                    f"Sorry, an unrecognized OpenQASM 2.0 syntax {gate} was detected. Please contact the developer for assistance."
                 )
             )
 

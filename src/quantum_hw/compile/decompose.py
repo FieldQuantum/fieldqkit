@@ -1,23 +1,9 @@
-# Copyright (c) 2024 XX Xiao
-#
-# Permission is hereby granted, free of charge, to any person obtaining a copy
-# of this software and associated documentation files(the "Software"), to deal
-# in the Software without restriction, including without limitation the rights
-# to use, copy, modify, merge, publish, distribute, sublicense, and / or sell
-# copies of the Software, and to permit persons to whom the Software is
-# furnished to do so, subject to the following conditions:
-#
-# The above copyright notice and this permission notice shall be included in
-# all copies or substantial portions of the Software.
-#
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+"""Some common decomposition methods for two-qubit and three-qubit gates.
 
-r"""Some common decomposition methods for two-qubit and three-qubit gates."""
+SPDX-License-Identifier: MIT
+Original source: quarkstudio, Copyright (c) YL Feng.
+See THIRD_PARTY_NOTICES for full license text.
+"""
 
 import numpy as np
 from typing import Literal
@@ -29,6 +15,15 @@ from .basepasses import TranspilerPass
 
 
 def u_dot_u(u_info1: tuple, u_info2: tuple) -> tuple:
+    """Compose two single-qubit U gates by multiplying their matrices and re-decomposing.
+
+    Args:
+        u_info1 (tuple): First U gate info tuple ('u', theta, phi, lambda, qubit).
+        u_info2 (tuple): Second U gate info tuple ('u', theta, phi, lambda, qubit).
+
+    Returns:
+        tuple: The composed U gate info tuple.
+    """
     assert u_info1[-1] == u_info2[-1]
     u_mat1 = u_mat(*u_info1[1:-1])
     u_mat2 = u_mat(*u_info2[1:-1])
@@ -39,42 +34,149 @@ def u_dot_u(u_info1: tuple, u_info2: tuple) -> tuple:
 
 
 def x2u(qubit: int) -> tuple:
+    """Convert a Pauli-X gate to its equivalent U(θ, φ, λ) representation.
+
+    Args:
+        qubit (int): Target qubit index.
+
+    Returns:
+        tuple: U gate info tuple.
+    """
     return ("u", np.pi, np.pi / 2, -np.pi / 2, qubit)
 
 def y2u(qubit: int) -> tuple:
+    """Convert a Pauli-Y gate to its equivalent U(θ, φ, λ) representation.
+
+    Args:
+        qubit (int): Target qubit index.
+
+    Returns:
+        tuple: U gate info tuple.
+    """
     return ("u", np.pi, 0.0, 0, qubit)
 
 def z2u(qubit: int) -> tuple:
+    """Convert a Pauli-Z gate to its equivalent U(θ, φ, λ) representation.
+
+    Args:
+        qubit (int): Target qubit index.
+
+    Returns:
+        tuple: U gate info tuple.
+    """
     return ("u", 0.0, 0.0, np.pi, qubit)
 
 def h2u(qubit: int) -> tuple:
+    """Convert a Hadamard gate to its equivalent U(θ, φ, λ) representation.
+
+    Args:
+        qubit (int): Target qubit index.
+
+    Returns:
+        tuple: U gate info tuple.
+    """
     return ("u", np.pi / 2, 0.0, np.pi, qubit)
 
 def s2u(qubit: int) -> tuple:
+    """Convert an S gate to its equivalent U(θ, φ, λ) representation.
+
+    Args:
+        qubit (int): Target qubit index.
+
+    Returns:
+        tuple: U gate info tuple.
+    """
     return ("u", 0.0, np.pi / 4, np.pi / 4, qubit)
 
 def sdg2u(qubit: int) -> tuple:
+    """Convert an S-dagger gate to its equivalent U(θ, φ, λ) representation.
+
+    Args:
+        qubit (int): Target qubit index.
+
+    Returns:
+        tuple: U gate info tuple.
+    """
     return ("u", 0.0, -np.pi / 4, -np.pi / 4, qubit)
 
 def t2u(qubit: int) -> tuple:
+    """Convert a T gate to its equivalent U(θ, φ, λ) representation.
+
+    Args:
+        qubit (int): Target qubit index.
+
+    Returns:
+        tuple: U gate info tuple.
+    """
     return ("u", 0.0, np.pi / 8, np.pi / 8, qubit)
 
 def tdg2u(qubit: int) -> tuple:
+    """Convert a T-dagger gate to its equivalent U(θ, φ, λ) representation.
+
+    Args:
+        qubit (int): Target qubit index.
+
+    Returns:
+        tuple: U gate info tuple.
+    """
     return ("u", 0.0, -np.pi / 8, -np.pi / 8, qubit)
 
 def sx2u(qubit: int) -> tuple:
+    """Convert an SX (√X) gate to its equivalent U(θ, φ, λ) representation.
+
+    Args:
+        qubit (int): Target qubit index.
+
+    Returns:
+        tuple: U gate info tuple.
+    """
     return ("u", np.pi / 2, -np.pi / 2, np.pi / 2, qubit)
 
 def sxdg2u(qubit: int) -> tuple:
+    """Convert an SX-dagger (√X†) gate to its equivalent U(θ, φ, λ) representation.
+
+    Args:
+        qubit (int): Target qubit index.
+
+    Returns:
+        tuple: U gate info tuple.
+    """
     return ("u", np.pi / 2, np.pi / 2, -np.pi / 2, qubit)
 
 def rx2u(theta: float, qubit: int) -> tuple:
+    """Convert an RX(θ) rotation gate to its equivalent U(θ, φ, λ) representation.
+
+    Args:
+        theta (float): Rotation angle in radians.
+        qubit (int): Target qubit index.
+
+    Returns:
+        tuple: U gate info tuple.
+    """
     return ("u", theta, -np.pi / 2, np.pi / 2, qubit)
 
 def ry2u(theta: float, qubit: int) -> tuple:
+    """Convert an RY(θ) rotation gate to its equivalent U(θ, φ, λ) representation.
+
+    Args:
+        theta (float): Rotation angle in radians.
+        qubit (int): Target qubit index.
+
+    Returns:
+        tuple: U gate info tuple.
+    """
     return ("u", theta, 0.0, 0.0, qubit)
 
 def rz2u(theta: float, qubit: int) -> tuple:
+    """Convert an RZ(θ) rotation gate to its equivalent U(θ, φ, λ) representation.
+
+    Args:
+        theta (float): Rotation angle in radians.
+        qubit (int): Target qubit index.
+
+    Returns:
+        tuple: U gate info tuple.
+    """
     return ("u", 0.0, 0.0, theta, qubit)
 
 
@@ -84,6 +186,17 @@ def cz_decompose(
     convert_single_qubit_gate_to_u: bool,
     two_qubit_gate_basis: Literal["cz", "cx", "iswap", "ecr"],
 ) -> list:
+    """Decompose a CZ gate into the specified two-qubit basis gate set.
+
+    Args:
+        control_qubit (int): Control qubit index.
+        target_qubit (int): Target qubit index.
+        convert_single_qubit_gate_to_u (bool): Whether to convert single-qubit gates to U gates.
+        two_qubit_gate_basis (Literal['cz', 'cx', 'iswap', 'ecr']): Target two-qubit basis gate.
+
+    Returns:
+        list: Decomposed gate info tuples.
+    """
     if two_qubit_gate_basis == "cz":
         gates = [("cz", control_qubit, target_qubit)]
     elif two_qubit_gate_basis == "cx":
@@ -151,6 +264,17 @@ def cx_decompose(
     convert_single_qubit_gate_to_u: bool,
     two_qubit_gate_basis: Literal["cz", "cx", "iswap", "ecr"],
 ) -> list:
+    """Decompose a CX (CNOT) gate into the specified two-qubit basis gate set.
+
+    Args:
+        control_qubit (int): Control qubit index.
+        target_qubit (int): Target qubit index.
+        convert_single_qubit_gate_to_u (bool): Whether to convert single-qubit gates to U gates.
+        two_qubit_gate_basis (Literal['cz', 'cx', 'iswap', 'ecr']): Target two-qubit basis gate.
+
+    Returns:
+        list: Decomposed gate info tuples.
+    """
     if two_qubit_gate_basis in ["cz", "iswap", "ecr"]:
         if convert_single_qubit_gate_to_u:
             gates = [
@@ -175,6 +299,17 @@ def cy_decompose(
     convert_single_qubit_gate_to_u: bool,
     two_qubit_gate_basis: Literal["cz", "cx", "iswap", "ecr"],
 ) -> list:
+    """Decompose a CY gate into CX and S/S-dagger gates in the specified basis.
+
+    Args:
+        control_qubit (int): Control qubit index.
+        target_qubit (int): Target qubit index.
+        convert_single_qubit_gate_to_u (bool): Whether to convert single-qubit gates to U gates.
+        two_qubit_gate_basis (Literal['cz', 'cx', 'iswap', 'ecr']): Target two-qubit basis gate.
+
+    Returns:
+        list: Decomposed gate info tuples.
+    """
     if convert_single_qubit_gate_to_u:
         gates = [
             sdg2u(target_qubit),
@@ -195,6 +330,17 @@ def swap_decompose(
     convert_single_qubit_gate_to_u: bool,
     two_qubit_gate_basis: Literal["cz", "cx", "iswap", "ecr"],
 ) -> list:
+    """Decompose a SWAP gate into the specified two-qubit basis gate set.
+
+    Args:
+        qubit1 (int): First qubit index.
+        qubit2 (int): Second qubit index.
+        convert_single_qubit_gate_to_u (bool): Whether to convert single-qubit gates to U gates.
+        two_qubit_gate_basis (Literal['cz', 'cx', 'iswap', 'ecr']): Target two-qubit basis gate.
+
+    Returns:
+        list: Decomposed gate info tuples.
+    """
     if two_qubit_gate_basis in ["cz", "cx", "ecr"]:
         gates = (
             cx_decompose(qubit1, qubit2, convert_single_qubit_gate_to_u, two_qubit_gate_basis)
@@ -229,6 +375,17 @@ def iswap_decompose(
     convert_single_qubit_gate_to_u: bool,
     two_qubit_gate_basis: Literal["cz", "cx", "iswap", "ecr"],
 ) -> list:
+    """Decompose an iSWAP gate into the specified two-qubit basis gate set.
+
+    Args:
+        qubit1 (int): First qubit index.
+        qubit2 (int): Second qubit index.
+        convert_single_qubit_gate_to_u (bool): Whether to convert single-qubit gates to U gates.
+        two_qubit_gate_basis (Literal['cz', 'cx', 'iswap', 'ecr']): Target two-qubit basis gate.
+
+    Returns:
+        list: Decomposed gate info tuples.
+    """
     if two_qubit_gate_basis == "iswap":
         gates = [("iswap", qubit1, qubit2)]
     elif two_qubit_gate_basis in ["cz", "cx", "ecr"]:
@@ -260,6 +417,17 @@ def ecr_decompose(
     convert_single_qubit_gate_to_u: bool,
     two_qubit_gate_basis: Literal["cz", "cx", "iswap", "ecr"],
 ) -> list:
+    """Decompose an ECR (echoed cross-resonance) gate into the specified two-qubit basis gate set.
+
+    Args:
+        qubit1 (int): First qubit index.
+        qubit2 (int): Second qubit index.
+        convert_single_qubit_gate_to_u (bool): Whether to convert single-qubit gates to U gates.
+        two_qubit_gate_basis (Literal['cz', 'cx', 'iswap', 'ecr']): Target two-qubit basis gate.
+
+    Returns:
+        list: Decomposed gate info tuples.
+    """
     if two_qubit_gate_basis == "ecr":
         gates = [("ecr", qubit1, qubit2)]
     elif two_qubit_gate_basis in ["cz", "cx", "iswap"]:
@@ -287,6 +455,18 @@ def rxx_decompose(
     convert_single_qubit_gate_to_u: bool,
     two_qubit_gate_basis: Literal["cz", "cx", "iswap", "ecr"],
 ) -> list:
+    """Decompose an RXX(θ) parametric gate into the specified two-qubit basis gate set.
+
+    Args:
+        theta (float): Rotation angle in radians.
+        qubit1 (int): First qubit index.
+        qubit2 (int): Second qubit index.
+        convert_single_qubit_gate_to_u (bool): Whether to convert single-qubit gates to U gates.
+        two_qubit_gate_basis (Literal['cz', 'cx', 'iswap', 'ecr']): Target two-qubit basis gate.
+
+    Returns:
+        list: Decomposed gate info tuples.
+    """
     if convert_single_qubit_gate_to_u:
         gates = [
             h2u(qubit1),
@@ -317,6 +497,18 @@ def ryy_decompose(
     convert_single_qubit_gate_to_u: bool,
     two_qubit_gate_basis: Literal["cz", "cx", "iswap", "ecr"],
 ) -> list:
+    """Decompose an RYY(θ) parametric gate into the specified two-qubit basis gate set.
+
+    Args:
+        theta (float): Rotation angle in radians.
+        qubit1 (int): First qubit index.
+        qubit2 (int): Second qubit index.
+        convert_single_qubit_gate_to_u (bool): Whether to convert single-qubit gates to U gates.
+        two_qubit_gate_basis (Literal['cz', 'cx', 'iswap', 'ecr']): Target two-qubit basis gate.
+
+    Returns:
+        list: Decomposed gate info tuples.
+    """
     if convert_single_qubit_gate_to_u:
         gates = [
             rx2u(np.pi / 2, qubit1),
@@ -347,6 +539,18 @@ def rzz_decompose(
     convert_single_qubit_gate_to_u: bool,
     two_qubit_gate_basis: Literal["cz", "cx", "iswap", "ecr"],
 ) -> list:
+    """Decompose an RZZ(θ) parametric gate into the specified two-qubit basis gate set.
+
+    Args:
+        theta (float): Rotation angle in radians.
+        qubit1 (int): First qubit index.
+        qubit2 (int): Second qubit index.
+        convert_single_qubit_gate_to_u (bool): Whether to convert single-qubit gates to U gates.
+        two_qubit_gate_basis (Literal['cz', 'cx', 'iswap', 'ecr']): Target two-qubit basis gate.
+
+    Returns:
+        list: Decomposed gate info tuples.
+    """
     if convert_single_qubit_gate_to_u:
         gates = cx_decompose(qubit1, qubit2, convert_single_qubit_gate_to_u, two_qubit_gate_basis) + [
             rz2u(theta, qubit2),
@@ -365,6 +569,18 @@ def cp_decompose(
     convert_single_qubit_gate_to_u: bool,
     two_qubit_gate_basis: Literal["cz", "cx", "iswap", "ecr"],
 ) -> list:
+    """Decompose a controlled-phase CP(θ) gate into the specified two-qubit basis gate set.
+
+    Args:
+        theta (float): Rotation angle in radians.
+        control_qubit (int): Control qubit index.
+        target_qubit (int): Target qubit index.
+        convert_single_qubit_gate_to_u (bool): Whether to convert single-qubit gates to U gates.
+        two_qubit_gate_basis (Literal['cz', 'cx', 'iswap', 'ecr']): Target two-qubit basis gate.
+
+    Returns:
+        list: Decomposed gate info tuples.
+    """
     if convert_single_qubit_gate_to_u:
         gates = [
             rz2u(theta / 2, control_qubit),
@@ -383,6 +599,16 @@ def cp_decompose(
 
 
 def ccx_decompose(control_qubit1: int, control_qubit2: int, target_qubit: int):
+    """Decompose a Toffoli (CCX) gate into single- and two-qubit gates.
+
+    Args:
+        control_qubit1 (int): First control qubit index.
+        control_qubit2 (int): Second control qubit index.
+        target_qubit (int): Target qubit index.
+
+    Returns:
+        list: Decomposed gate info tuples.
+    """
     gates = [
         ("h", target_qubit),
         ("cx", control_qubit2, target_qubit),
@@ -404,6 +630,16 @@ def ccx_decompose(control_qubit1: int, control_qubit2: int, target_qubit: int):
 
 
 def cswap_decompose(control_qubit1: int, control_qubit2: int, target_qubit: int):
+    """Decompose a Fredkin (CSWAP) gate into single- and two-qubit gates.
+
+    Args:
+        control_qubit1 (int): Control qubit index.
+        control_qubit2 (int): First target qubit index.
+        target_qubit (int): Second target qubit index.
+
+    Returns:
+        list: Decomposed gate info tuples.
+    """
     gates = [
         ("cx", target_qubit, control_qubit2),
         ("h", target_qubit),
@@ -427,6 +663,16 @@ def cswap_decompose(control_qubit1: int, control_qubit2: int, target_qubit: int)
 
 
 def ccz_decompose(control_qubit1: int, control_qubit2: int, target_qubit: int):
+    """Decompose a CCZ gate into single- and two-qubit gates.
+
+    Args:
+        control_qubit1 (int): First control qubit index.
+        control_qubit2 (int): Second control qubit index.
+        target_qubit (int): Target qubit index.
+
+    Returns:
+        list: Decomposed gate info tuples.
+    """
     gates = [
         ("cx", control_qubit2, target_qubit),
         ("tdg", target_qubit),
@@ -448,6 +694,16 @@ def ccz_decompose(control_qubit1: int, control_qubit2: int, target_qubit: int):
 
 
 def ccx_decompose_mute_phase(control_qubit1: int, control_qubit2: int, target_qubit: int):
+    """Decompose a Toffoli (CCX) gate using a relative-phase-tolerant decomposition with reduced gate count.
+
+    Args:
+        control_qubit1 (int): First control qubit index.
+        control_qubit2 (int): Second control qubit index.
+        target_qubit (int): Target qubit index.
+
+    Returns:
+        list: Decomposed gate info tuples.
+    """
     gates = [
         ("u", np.pi / 4, 0, 0, target_qubit),
         ("cx", control_qubit2, target_qubit),
@@ -464,9 +720,19 @@ class ThreeQubitGateDecompose(TranspilerPass):
     """A transpiler pass that decomposes three-qubit gates into combinations of single- and two-qubit gates."""
 
     def __init__(self):
+        """Init.
+        """
         super().__init__()
 
     def run(self, qc: QuantumCircuit):
+        """Decompose three-qubit gates (ccx, ccz, cswap) into one- and two-qubit gates.
+
+        Args:
+            qc (*QuantumCircuit*): Quantum circuit.
+
+        Returns:
+            ``QuantumCircuit`` with three-qubit gates decomposed.
+        """
         new = []
         for gate_info in qc.gates:
             if gate_info[0] == "ccx":

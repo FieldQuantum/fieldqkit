@@ -1,23 +1,9 @@
-# Copyright (c) 2024 XX Xiao
-#
-# Permission is hereby granted, free of charge, to any person obtaining a copy
-# of this software and associated documentation files(the "Software"), to deal
-# in the Software without restriction, including without limitation the rights
-# to use, copy, modify, merge, publish, distribute, sublicense, and / or sell
-# copies of the Software, and to permit persons to whom the Software is
-# furnished to do so, subject to the following conditions:
-#
-# The above copyright notice and this permission notice shall be included in
-# all copies or substantial portions of the Software.
-#
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+"""A toolkit for applying dynamical decoupling (DD) sequences to quantum circuits.
 
-"""A toolkit for applying dynamical decoupling (DD) sequences to quantum circuits."""
+SPDX-License-Identifier: MIT
+Original source: quarkstudio, Copyright (c) YL Feng.
+See THIRD_PARTY_NOTICES for full license text.
+"""
 
 import copy
 import networkx as nx
@@ -33,16 +19,37 @@ from ..circuit.quantumcircuit_helpers import (
 
 
 class DynamicalDecoupling(TranspilerPass):
+    """Transpiler pass that inserts DD sequences into idle windows of all two-qubit gate slots."""
+
     def __init__(self, t1g, t2g):
+        """Initialize the dynamical decoupling pass with single- and two-qubit gate durations.
+
+        Args:
+            t1g: Single-qubit gate duration (seconds).
+            t2g: Two-qubit gate duration (seconds).
+        """
         self.t1g = t1g
         self.t2g = t2g
         self._count = 86751
 
     def counter(self):
+        """Increment and return the internal unique-ID counter.
+
+        Returns:
+            int: Next unique ID.
+        """
         self._count += 1
         return self._count
 
     def _get_max_idle_time(self, nodes):
+        """Determine the maximum idle-time unit for a DAG generation based on the heaviest gate type present.
+
+        Args:
+            nodes: Nodes.
+
+        Returns:
+            Result.
+        """
         gates = [node.split("_")[0] for node in nodes]
         one_qubit_gates = list(one_qubit_gates_available.keys()) + list(one_qubit_parameter_gates_available.keys())
         two_qubit_gates = list(two_qubit_gates_available.keys()) + list(two_qubit_parameter_gates_available.keys())
@@ -55,14 +62,37 @@ class DynamicalDecoupling(TranspilerPass):
         return max_idle_time
 
     def _update_idle_time(self, node, max_idle_time):
+        """Subtract the gate's duration from the remaining idle time for a qubit.
+
+        Args:
+            node: Node.
+            max_idle_time: Max idle time.
+
+        Returns:
+            Result.
+        """
         gate = node.split("_")[0]
         if gate in one_qubit_gates_available.keys() or gate in one_qubit_parameter_gates_available.keys():
             return max_idle_time - self.t1g
         if gate in two_qubit_gates_available.keys():
             return max_idle_time - self.t2g
-        return 0
+        return 0.0
 
     def run(self, qc, sequence: Literal["XY4", "CPMG"] = "XY4", align_right: bool = True, insert_before_barrier: bool = False):
+        """Insert dynamical decoupling sequences (XY4 or CPMG) into idle windows of the circuit.
+
+        Args:
+            qc: Quantum circuit.
+            sequence (*Literal['XY4', 'CPMG']*): Sequence (``Literal['XY4', 'CPMG']``). Defaults to ``'XY4'``.
+            align_right (*bool*): Align right (``bool``). Defaults to ``True``.
+            insert_before_barrier (*bool*): Insert before barrier (``bool``). Defaults to ``False``.
+
+        Returns:
+            ``QuantumCircuit`` with DD sequences inserted into idle windows.
+
+        Raises:
+            ValueError: f'Sequence {sequence} is not support now!
+        """
         if sequence == "XY4":
             sequence_length = 4
         elif sequence == "CPMG":

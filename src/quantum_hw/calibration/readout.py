@@ -16,7 +16,15 @@ from ._cache import cache_file, cache_is_fresh, load_timestamped_payload, save_t
 
 
 def build_confusion_matrix(res_list: Sequence[Dict[str, int]], num_qubits: int) -> np.ndarray:
-	"""Build a confusion matrix from calibration results."""
+	"""Build a confusion matrix from calibration results.
+
+	Args:
+		res_list (*Sequence[Dict[str, int]]*): Res list (``Sequence[Dict[str, int]]``).
+		num_qubits (*int*): Number of qubits.
+
+	Returns:
+		NumPy array with the computed result.
+	"""
 	dim = 2**num_qubits
 	mat = np.zeros((dim, dim), dtype=float)
 	for i, res in enumerate(res_list):
@@ -38,6 +46,16 @@ class ReadoutCalibrationManager:
 		compact_for_sim: Callable[[QuantumCircuit], object],
 		simulate_counts: Callable[[QuantumCircuit, int], Dict[str, int]],
 	) -> None:
+		"""Initialize readout calibration manager with backend submission and caching support.
+
+		Args:
+			cache_dir (*Path*): Directory for cache files.
+			submit_openqasm_async (*Callable[[str, str, int, Optional[str]], object]*): Callback to submit an OpenQASM circuit asynchronously and return a task handle.
+			wait_task (*Callable[[object], str]*): Callback to block until a task completes and return its status.
+			get_task_result (*Callable[[object], Dict[str, object]]*): Callback to retrieve measurement results from a completed task.
+			compact_for_sim (*Callable[[QuantumCircuit], object]*): Callback to prepare a circuit for local simulation.
+			simulate_counts (*Callable[[QuantumCircuit, int], Dict[str, int]]*): Callback to simulate a circuit locally and return bitstring counts.
+		"""
 		self._cache_dir = cache_dir
 		self._cache_dir.mkdir(parents=True, exist_ok=True)
 		self._submit_openqasm_async = submit_openqasm_async
@@ -56,7 +74,22 @@ class ReadoutCalibrationManager:
 		qasm_version: str = "2.0",
 		print_true: bool = False,
 	) -> CalibrationResult:
-		"""Calibrate readout error for selected qubits with caching."""
+		"""Calibrate readout error for selected qubits with caching.
+
+		Args:
+			target_qubits (*Optional[Sequence[int]]*): Qubit indices for partial measurement.
+			shots (*Optional[int]*): Number of measurement shots. Defaults to ``None``.
+			chip_name (*Optional[str]*): Name of the target chip. Defaults to ``None``.
+			backend (*Optional[Backend]*): Hardware backend descriptor. Defaults to ``None``.
+			qasm_version (*str*): OpenQASM version (``'2.0'`` or ``'3.0'``). Defaults to ``'2.0'``.
+			print_true (*bool*): Whether to print progress information. Defaults to ``False``.
+
+		Returns:
+			``CalibrationResult`` result.
+
+		Raises:
+			RuntimeError: backend is not set; use run_auto or provide backend
+		"""
 		if backend is None:
 			raise RuntimeError("backend is not set; use run_auto or provide backend")
 		target_qubits = self._resolve_target_qubits(target_qubits, backend)
@@ -143,7 +176,18 @@ class ReadoutCalibrationManager:
 		target_qubits: Optional[Sequence[int]],
 		backend: Backend,
 	) -> List[int]:
-		"""Resolve target qubits from backend metadata when not provided."""
+		"""Resolve target qubits from backend metadata when not provided.
+
+		Args:
+			target_qubits (*Optional[Sequence[int]]*): Qubit indices for partial measurement.
+			backend (*Backend*): Hardware backend descriptor.
+
+		Returns:
+			Result list.
+
+		Raises:
+			RuntimeError: target_qubits is not set and backend.qubits_with_attribut...
+		"""
 		if target_qubits is not None:
 			return list(target_qubits)
 
@@ -156,11 +200,25 @@ class ReadoutCalibrationManager:
 		raise RuntimeError("target_qubits is not set and backend.qubits_with_attributes is missing")
 
 	def _readout_cache_path(self, *, chip_name: Optional[str]) -> Path:
-		"""Resolve the on-disk cache path for readout calibration."""
+		"""Resolve the on-disk cache path for readout calibration.
+
+		Args:
+			chip_name (*Optional[str]*): Name of the target chip.
+
+		Returns:
+			``Path`` result.
+		"""
 		return cache_file(self._cache_dir, stem="readout", chip_name=chip_name)
 
 	def _load_readout_cache_raw(self, *, chip_name: Optional[str]) -> Dict[str, object]:
-		"""Load cached readout data from disk (raw dictionary)."""
+		"""Load cached readout data from disk (raw dictionary).
+
+		Args:
+			chip_name (*Optional[str]*): Name of the target chip.
+
+		Returns:
+			Result dictionary.
+		"""
 		path = self._readout_cache_path(chip_name=chip_name)
 		timestamps, per_qubit = load_timestamped_payload(path, payload_key="per_qubit_confusion")
 		return {"timestamps": timestamps, "per_qubit_confusion": per_qubit}
@@ -193,7 +251,12 @@ class ReadoutCalibrationManager:
 	# 	)
 
 	def _save_readout_cache(self, result: CalibrationResult, *, chip_name: Optional[str]) -> None:
-		"""Persist readout calibration data to cache."""
+		"""Persist readout calibration data to cache.
+
+		Args:
+			result (*CalibrationResult*): Calibration result containing per-qubit confusion matrices.
+			chip_name (*Optional[str]*): Name of the target chip.
+		"""
 		path = self._readout_cache_path(chip_name=chip_name)
 		raw = self._load_readout_cache_raw(chip_name=chip_name)
 		timestamps = raw.get("timestamps", {})
@@ -210,7 +273,14 @@ class ReadoutCalibrationManager:
 		)
 
 	def _readout_calibration_circuits(self, q: int) -> List[Tuple[str, QuantumCircuit]]:
-		"""Build minimal calibration circuits for a single qubit."""
+		"""Build minimal calibration circuits for a single qubit.
+
+		Args:
+			q (*int*): Target qubit index.
+
+		Returns:
+			List of ``(bitstring_label, circuit)`` pairs for each basis state.
+		"""
 		circuits: List[Tuple[str, QuantumCircuit]] = []
 		for i in range(2):
 			bits = format(i, "01b")

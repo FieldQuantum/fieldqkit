@@ -18,18 +18,44 @@ _BASIS_CHOICES = ("X", "Y", "Z")
 
 
 def _basis_to_code(basis: Sequence[str]) -> np.ndarray:
+    """Convert a sequence of Pauli basis labels to integer codes.
+
+    Args:
+        basis (*Sequence[str]*): Sequence of basis labels (``'X'``, ``'Y'``, or ``'Z'``).
+
+    Returns:
+        Integer array where X→0, Y→1, Z→2.
+    """
     mapping = {"X": 0, "Y": 1, "Z": 2}
     return np.array([mapping[b] for b in basis], dtype=int)
 
 
 def _observable_to_codes(observable: str, num_qubits: int) -> np.ndarray:
+    """Convert a Pauli observable string to per-qubit integer codes.
+
+    Args:
+        observable (*str*): Pauli observable string (e.g. ``'XZI'``).
+        num_qubits (*int*): Number of qubits.
+
+    Returns:
+        Integer array where X→0, Y→1, Z→2, I→-1.
+    """
     mapping = {"X": 0, "Y": 1, "Z": 2, "I": -1}
     pattern = pauli_basis_pattern(observable, num_qubits=num_qubits)
     return np.array([mapping[p] for p in pattern], dtype=int)
 
 
 def _median_of_means(values: np.ndarray, groups: int) -> Tuple[float, float]:
-    """Median-of-means estimator for heavy-tailed noise robustness."""
+    """Median-of-means estimator for heavy-tailed noise robustness.
+
+    Args:
+        values (*np.ndarray*): Values (``np.ndarray``).
+        groups (*int*): Groups (``int``).
+
+    Returns:
+        Tuple of ``(median, stderr)`` — the median-of-means estimate
+        and its standard error.
+    """
     if groups <= 1:
         mean = float(values.mean())
         stderr = float(values.std(ddof=1) / np.sqrt(values.size)) if values.size > 1 else 0.0
@@ -56,7 +82,24 @@ def estimate_observables(
     estimator: str = "mean",
     mom_groups: Optional[int] = None,
 ) -> Tuple[Dict[str, float], Dict[str, float]]:
-    """Estimate Pauli observables from classical shadow data."""
+    """Estimate Pauli observables from classical shadow data.
+
+    Args:
+        samples (*np.ndarray*): Measurement samples.
+        basis_patterns (*Sequence[Sequence[str]]*): Basis patterns (``Sequence[Sequence[str]]``).
+        observables (*Sequence[str]*): Observable operators to measure.
+        num_qubits (*int*): Number of qubits.
+        estimator (*str*): Estimator (``str``). Defaults to ``'mean'``.
+        mom_groups (*Optional[int]*): Mom groups (``Optional[int]``). Defaults to ``None``.
+
+    Returns:
+        Tuple of ``(estimates, stderrs)`` where each is a
+        ``Dict[str, float]`` mapping observable strings to their
+        estimated expectation values and standard errors respectively.
+
+    Raises:
+        ValueError: samples must be a 2D array
+    """
     if samples.ndim != 2:
         raise ValueError("samples must be a 2D array")
     if len(basis_patterns) != samples.shape[0]:
@@ -119,7 +162,35 @@ def run_shadow_with_backend(
     submit_options: Optional[Dict] = None,
     convert_single_qubit_gate_to_u: bool = True,
 ) -> ShadowResult:
-    """Run classical shadow tomography on a specific backend."""
+    """Run classical shadow tomography on a specific backend.
+
+    Args:
+        client: ``QuantumHardwareClient`` instance.
+        qc (*QuantumCircuit*): Quantum circuit.
+        name (*str*): Descriptive name / identifier.
+        num_qubits (*int*): Number of qubits.
+        backend: Hardware backend descriptor.
+        chip_name (*str*): Name of the target chip.
+        shots (*int*): Number of measurement shots.
+        shots_per_basis (*int*): Shots per basis (``int``). Defaults to ``1``.
+        observables (*Optional[Sequence[str]]*): Observable operators to measure. Defaults to ``None``.
+        estimator (*str*): Estimator (``str``). Defaults to ``'mean'``.
+        mom_groups (*Optional[int]*): Mom groups (``Optional[int]``). Defaults to ``None``.
+        target_qubits (*Optional[Sequence[int]]*): Qubit indices for partial measurement. Defaults to ``None``.
+        zne (*bool*): Whether to apply zero-noise extrapolation. Defaults to ``False``.
+        seed (*Optional[int]*): Random seed for reproducibility. Defaults to ``None``.
+        qasm_version (*str*): OpenQASM version (``'2.0'`` or ``'3.0'``). Defaults to ``'2.0'``.
+        use_dd (*bool*): Use dd (``bool``). Defaults to ``True``.
+        submit_options (*Optional[Dict]*): Submit options (``Optional[Dict]``). Defaults to ``None``.
+        convert_single_qubit_gate_to_u (*bool*): Whether to convert single-qubit gates to U gates. Defaults to ``True``.
+
+    Returns:
+        ``ShadowResult`` result.
+
+    Raises:
+        ValueError: estimator must be 'mean' or 'mom
+        RuntimeError: shadow samples length mismatch with basis_patterns
+    """
     if observables is None:
         observables = []
     observables = list(observables)
@@ -138,6 +209,14 @@ def run_shadow_with_backend(
     batch_name = f"{name}_shadow"
 
     def _basis_pattern_to_pauli(pattern: Sequence[str]) -> str:
+        """Basis pattern to pauli.
+
+        Args:
+            pattern (*Sequence[str]*): Pattern (``Sequence[str]``).
+
+        Returns:
+            Formatted string.
+        """
         return " ".join(f"{op}{i}" for i, op in enumerate(pattern))
 
     all_samples_1: List[List[int]] = []
@@ -254,7 +333,30 @@ class ShadowTomography:
 		max_wait_time: int = 3600,
 		sleep_time: int = 5,
     ) -> ShadowResult:
-        """Select hardware and run classical shadow tomography."""
+        """Select hardware and run classical shadow tomography.
+
+        Args:
+            circuit (*Union[str, QuantumCircuit]*): Quantum circuit to execute.
+            name (*str*): Descriptive name / identifier.
+            num_qubits (*int*): Number of qubits.
+            provider (*str*): Platform provider name (``"quafu"``, ``"tianyan"``, ``"guodun"``, ``"tencent"``). Defaults to ``'quafu'``.
+            shots (*int*): Number of measurement shots. Defaults to ``8192``.
+            shots_per_basis (*int*): Shots per basis (``int``). Defaults to ``1``.
+            observables (*Optional[Sequence[str]]*): Observable operators to measure. Defaults to ``None``.
+            zne (*bool*): Whether to apply zero-noise extrapolation. Defaults to ``False``.
+            estimator (*str*): Estimator (``str``). Defaults to ``'mean'``.
+            mom_groups (*Optional[int]*): Mom groups (``Optional[int]``). Defaults to ``None``.
+            target_qubits (*Optional[Sequence[int]]*): Qubit indices for partial measurement. Defaults to ``None``.
+            prefer_chips (*Optional[Sequence[str] | str]*): Preferred chip names for scheduling. Defaults to ``None``.
+            max_wait_time (*int*): Maximum wait time in seconds. Defaults to ``3600``.
+            sleep_time (*int*): Polling interval in seconds. Defaults to ``5``.
+
+        Returns:
+            ``ShadowResult`` result.
+
+        Raises:
+            RuntimeError: all candidate chips failed to run shadow tomography
+        """
         provider_name = str(provider).lower()
         qasm_version = self.client._default_qasm_version_for_provider(provider_name)
         use_dd = provider_name not in {"tianyan", "guodun", "tencent"}
@@ -284,6 +386,15 @@ class ShadowTomography:
             self.client.chip_backend = resolved.backend
 
             def _as_int(value, default):
+                """As int.
+
+                Args:
+                    value: Value to set.
+                    default: Default.
+
+                Returns:
+                    Result.
+                """
                 try:
                     return int(value)
                 except Exception:

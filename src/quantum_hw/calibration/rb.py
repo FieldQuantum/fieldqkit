@@ -41,6 +41,16 @@ class NativeTwoQubitRBManager:
 		compact_for_sim: Callable[[QuantumCircuit], object],
 		simulate_counts: Callable[[QuantumCircuit, int], Dict[str, int]],
 	) -> None:
+		"""Initialize randomized benchmarking manager with task submission and simulation capabilities.
+
+		Args:
+			cache_dir (*Path*): Directory for cache files.
+			submit_openqasm_async (*Callable[[str, str, int, Optional[str]], object]*): Callback to submit an OpenQASM circuit asynchronously and return a task handle.
+			wait_task (*Callable[[object], str]*): Callback to block until a task completes and return its status.
+			get_task_result (*Callable[[object], Dict[str, object]]*): Callback to retrieve measurement results from a completed task.
+			compact_for_sim (*Callable[[QuantumCircuit], object]*): Callback to prepare a circuit for local simulation.
+			simulate_counts (*Callable[[QuantumCircuit, int], Dict[str, int]]*): Callback to simulate a circuit locally and return bitstring counts.
+		"""
 		self._cache_dir = cache_dir
 		self._cache_dir.mkdir(parents=True, exist_ok=True)
 		self._submit_openqasm_async = submit_openqasm_async
@@ -67,7 +77,26 @@ class NativeTwoQubitRBManager:
 		"""Run native two-qubit RB and return per-coupler results.
 
 		Returns:
+        dict: keyed by "q1-q2" with averaged survival probabilities and fit.
+
+		Args:
+			couplers (*Optional[Sequence[Tuple[int, int]]]*): List of qubit coupler pairs. Defaults to ``None``.
+			lengths (*Optional[Sequence[int]]*): Lengths (``Optional[Sequence[int]]``). Defaults to ``None``.
+			num_sequences (*int*): Num sequences (``int``). Defaults to ``20``.
+			shots (*int*): Number of measurement shots. Defaults to ``1024``.
+			chip_name (*Optional[str]*): Name of the target chip. Defaults to ``None``.
+			backend (*Optional[Backend]*): Hardware backend descriptor. Defaults to ``None``.
+			qasm_version (*str*): OpenQASM version (``'2.0'`` or ``'3.0'``). Defaults to ``'2.0'``.
+			readout_mitigation (*bool*): Whether to apply readout error mitigation. Defaults to ``True``.
+			readout_shots (*Optional[int]*): Number of shots for readout calibration. Defaults to ``None``.
+			seed (*Optional[int]*): Random seed for reproducibility. Defaults to ``None``.
+			print_true (*bool*): Whether to print progress information. Defaults to ``False``.
+
+		Returns:
 			dict: keyed by "q1-q2" with averaged survival probabilities and fit.
+
+		Raises:
+			RuntimeError: backend is not set; use run_auto or provide backend
 		"""
 		if backend is None:
 			raise RuntimeError("backend is not set; use run_auto or provide backend")
@@ -222,7 +251,21 @@ class NativeTwoQubitRBManager:
 		length: int,
 		basis_gate: str,
 		rng: np.random.Generator,
-	) -> Tuple[QuantumCircuit, np.ndarray]:
+	) -> Tuple[QuantumCircuit, int]:
+		"""Build a random Clifford gate sequence with its inverse appended.
+
+		Args:
+			qubits (*List[int]*): Target qubit indices.
+			length (*int*): Length (``int``).
+			basis_gate (*str*): Basis gate (``str``).
+			rng (*np.random.Generator*): Rng (``np.random.Generator``).
+
+		Returns:
+			Result tuple.
+
+		Raises:
+			ValueError: f'unsupported two-qubit basis gate: {basis_gate}
+		"""
 		qc = QuantumCircuit(max(qubits) + 1)
 		# Pauli-only single-qubit twirl for native two-qubit RB.
 		single_gates = ["id", "x", "y", "z"]
@@ -255,6 +298,16 @@ class NativeTwoQubitRBManager:
 		return qc, total_length
 
 	def _apply_single_gate_name(self, qc: QuantumCircuit, gate_name: str, qubit: int) -> None:
+		"""Apply single gate name.
+
+		Args:
+			qc (*QuantumCircuit*): Quantum circuit.
+			gate_name (*str*): Name of the quantum gate.
+			qubit (*int*): Target qubit index.
+
+		Raises:
+			ValueError: f'unsupported single-qubit gate: {gate_name}
+		"""
 		if gate_name == "id":
 			return
 		gate_method = getattr(qc, gate_name, None)
@@ -263,24 +316,76 @@ class NativeTwoQubitRBManager:
 		gate_method(qubit)
 
 	def _apply_single_gate(self, qc: QuantumCircuit, gate: str, qubit: int) -> None:
+		"""Apply single gate.
+
+		Args:
+			qc (*QuantumCircuit*): Quantum circuit.
+			gate (*str*): Gate specification or name.
+			qubit (*int*): Target qubit index.
+		"""
 		self._apply_single_gate_name(qc, gate, qubit)
 
 	def _apply_single_gate_dg(self, qc: QuantumCircuit, gate: str, qubit: int) -> None:
+		"""Apply the dagger (inverse) of a single-qubit gate to the circuit.
+
+		Looks up the inverse gate via ``_SINGLE_GATE_DAGGER`` and appends it.
+
+		Args:
+			qc (*QuantumCircuit*): Quantum circuit.
+			gate (*str*): Gate name whose dagger to apply.
+			qubit (*int*): Target qubit index.
+
+		Raises:
+			ValueError: If *gate* has no known dagger mapping.
+		"""
 		dagger_gate = self._SINGLE_GATE_DAGGER.get(gate)
 		if dagger_gate is None:
 			raise ValueError(f"unsupported single-qubit gate: {gate}")
 		self._apply_single_gate_name(qc, dagger_gate, qubit)
 
 	def _canonical_two_qubit_gate(self, gate: str) -> str:
+		"""Canonicalize a two-qubit gate name (e.g. ``'cnot'`` → ``'cx'``).
+
+		Args:
+			gate (*str*): Gate name to canonicalize.
+
+		Returns:
+			Canonical gate name string.
+		"""
 		return "cx" if gate == "cnot" else gate
 
 	def _apply_two_qubit_gate(self, qc: QuantumCircuit, gate: str, q1: int, q2: int) -> None:
+		"""Apply two qubit gate.
+
+		Args:
+			qc (*QuantumCircuit*): Quantum circuit.
+			gate (*str*): Gate specification or name.
+			q1 (*int*): Q1 (``int``).
+			q2 (*int*): Q2 (``int``).
+
+		Raises:
+			ValueError: f'unsupported two-qubit gate: {gate}
+		"""
 		canonical = self._canonical_two_qubit_gate(gate)
 		if canonical not in {"cz", "cx", "iswap", "ecr"}:
 			raise ValueError(f"unsupported two-qubit gate: {gate}")
 		getattr(qc, canonical)(q1, q2)
 
 	def _apply_two_qubit_gate_dg(self, qc: QuantumCircuit, gate: str, q1: int, q2: int) -> None:
+		"""Apply the inverse (dagger) of a two-qubit gate.
+
+		For self-inverse gates (CZ, CX, ECR) this is the gate itself.
+		For iSWAP the inverse is implemented as iSWAP³ (since iSWAP⁴ = I).
+
+		Args:
+			qc (*QuantumCircuit*): Quantum circuit to append the gate to.
+			gate (*str*): Gate specification or name.
+			q1 (*int*): First qubit index.
+			q2 (*int*): Second qubit index.
+
+		Raises:
+			ValueError: f'unsupported two-qubit gate: {gate}
+		"""
 		canonical = self._canonical_two_qubit_gate(gate)
 		if canonical == "iswap":
 			qc.iswap(q1, q2)
@@ -293,6 +398,20 @@ class NativeTwoQubitRBManager:
 		raise ValueError(f"unsupported two-qubit gate: {gate}")
 
 	def _fit_decay(self, lengths: List[int], survival: List[float]) -> Dict[str, float | None]:
+		"""Fit an exponential decay model y = A * p^x + B to RB survival data.
+
+		Uses linear regression on log(survival - 1/dim) to extract the
+		depolarizing parameter *p*, error per Clifford *epc*, and average
+		fidelity.
+
+		Args:
+			lengths (*List[int]*): Sequence lengths (number of Cliffords).
+			survival (*List[float]*): Measured survival probabilities at each length.
+
+		Returns:
+			Dict with keys ``'p'``, ``'epc'``, ``'fidelity'``, ``'A'``, ``'B'``.
+			Values are ``None`` if the fit is under-determined.
+		"""
 		dim = 4
 		b = 1.0 / dim
 		x = np.asarray(lengths, dtype=float)
@@ -309,14 +428,36 @@ class NativeTwoQubitRBManager:
 		return {"p": p, "epc": epc, "fidelity": f_avg, "A": a, "B": b}
 
 	def _rb_cache_path(self, *, chip_name: Optional[str]) -> Path:
+		"""Rb cache path.
+
+		Args:
+			chip_name (*Optional[str]*): Name of the target chip.
+
+		Returns:
+			``Path`` result.
+		"""
 		return cache_file(self._cache_dir, stem="rb_two_qubit", chip_name=chip_name)
 
 	def _load_rb_cache_raw(self, *, chip_name: Optional[str]) -> Dict[str, object]:
+		"""Load rb cache raw.
+
+		Args:
+			chip_name (*Optional[str]*): Name of the target chip.
+
+		Returns:
+			Result dictionary.
+		"""
 		path = self._rb_cache_path(chip_name=chip_name)
 		timestamps, per_coupler = load_timestamped_payload(path, payload_key="per_coupler")
 		return {"timestamps": timestamps, "per_coupler": per_coupler}
 
 	def _save_rb_cache(self, results: Dict[str, Dict[str, object]], *, chip_name: Optional[str]) -> None:
+		"""Save rb cache.
+
+		Args:
+			results (*Dict[str, Dict[str, object]]*): Collection of result objects.
+			chip_name (*Optional[str]*): Name of the target chip.
+		"""
 		path = self._rb_cache_path(chip_name=chip_name)
 		raw = self._load_rb_cache_raw(chip_name=chip_name)
 		timestamps = raw.get("timestamps", {})

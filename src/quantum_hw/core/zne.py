@@ -6,7 +6,14 @@ from copy import copy
 
 
 def apply_zne_cz_tripling(qct):
-	"""Apply CZ gate tripling for simple ZNE scaling."""
+	"""Apply CZ gate tripling for simple ZNE noise scaling (scale factor 3).
+
+	Args:
+		qct: Circuit object with a ``.gates`` attribute.
+
+	Returns:
+		A copy of the circuit with each CZ gate tripled.
+	"""
 	qct_new = copy(qct)
 	gate_list = qct_new.gates
 	gate_list_new = []
@@ -21,6 +28,17 @@ def apply_zne_cz_tripling(qct):
 
 
 def zne_linear_extrapolate(probs_1, probs_3):
-	"""Linear extrapolation from scale 1 and 3 probabilities."""
+	"""Richardson linear extrapolation from noise scale 1 and 3 to zero noise.
+
+	Works for both probability vectors and scalar expectations.
+	Output probabilities are *not* renormalized.
+
+	Args:
+		probs_1: Probabilities or expectation values at noise scale factor 1.
+		probs_3: Probabilities or expectation values at noise scale factor 3.
+
+	Returns:
+		Linearly extrapolated zero-noise estimate.
+	"""
 	# Assume linear dependence on noise scaling factor: extrapolate to zero noise.
 	return (3 * probs_1 - probs_3) / 2.0

@@ -1,26 +1,12 @@
-# Copyright (c) 2024 XX Xiao
-#
-# Permission is hereby granted, free of charge, to any person obtaining a copy
-# of this software and associated documentation files(the "Software"), to deal
-# in the Software without restriction, including without limitation the rights
-# to use, copy, modify, merge, publish, distribute, sublicense, and / or sell
-# copies of the Software, and to permit persons to whom the Software is
-# furnished to do so, subject to the following conditions:
-#
-# The above copyright notice and this permission notice shall be included in
-# all copies or substantial portions of the Software.
-#
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-
-r""" 
-This module contains the Layout class, which is designed to select suitable layouts 
+"""This module contains the Layout class, which is designed to select suitable layouts
 for quantum circuits on hardware backends.
+
+SPDX-License-Identifier: MIT
+Original source: quarkstudio, Copyright (c) YL Feng.
+See THIRD_PARTY_NOTICES for full license text.
 """
+
+from __future__ import annotations
 
 import os
 import copy
@@ -44,6 +30,11 @@ class Layout:
     """Responsible for selecting suitable qubit layouts from a given chip for a quantum circuit."""
 
     def __init__(self, chip_backend: Backend):
+        """Initialize the layout selector with hardware graph, fidelity thresholds, and parallelism settings.
+
+        Args:
+            chip_backend (Backend): The backend providing hardware connectivity and fidelity data.
+        """
         self.priority_qubits = chip_backend.priority_qubits
         self.graph = chip_backend.edge_filtered_graph(thres=0.6)
         self.ncore = os.cpu_count() // 2
@@ -62,7 +53,13 @@ class Layout:
         """Build a weighted graph of virtual-qubit interactions from the circuit.
 
         Each edge (i, j) has weight = number of two-qubit gates between
-        virtual qubits i and j.  Returns a ``networkx.Graph``.
+virtual qubits i and j.  Returns a ``networkx.Graph``.
+
+        Args:
+            qc (*QuantumCircuit*): Quantum circuit.
+
+        Returns:
+            Result.
         """
         G = nx.Graph()
         G.add_nodes_from(qc.qubits)
@@ -81,9 +78,16 @@ class Layout:
         """Estimate the routing cost of mapping *interaction_graph* onto *subgraph*.
 
         Uses a greedy heuristic: map virtual qubits with the most
-        interactions to the most central physical qubits, then sum
-        ``weight * shortest_path_distance`` for every interacting pair.
-        Lower is better.
+interactions to the most central physical qubits, then sum
+``weight * shortest_path_distance`` for every interacting pair.
+Lower is better.
+
+        Args:
+            interaction_graph: Interaction graph.
+            subgraph: Subgraph.
+
+        Returns:
+            Result.
         """
         ig = interaction_graph
         if ig.number_of_edges() == 0:
@@ -121,9 +125,26 @@ class Layout:
         return total
 
     def _get_node_neighbours(self, node: int):
+        """Return the list of neighboring physical qubits for a node in the hardware graph.
+
+        Args:
+            node (*int*): Node (``int``).
+
+        Returns:
+            Result.
+        """
         return list(self.graph.neighbors(node))
 
     def _get_node_connect_dict(self, node: int, nqubits: int):
+        """Build a forward-reachable neighbor dictionary from a starting node up to *nqubits* hops deep.
+
+        Args:
+            node (*int*): Node (``int``).
+            nqubits (*int*): Number of qubits.
+
+        Returns:
+            Result.
+        """
         current_neighbours = [i for i in self._get_node_neighbours(node) if i > node]
         dd = {node: current_neighbours}
         remove = list(range(node + 1))
@@ -138,7 +159,26 @@ class Layout:
         return dd
 
     def get_one_node_subgraph(self, node: int, nqubits: int):
+        """Enumerate all connected subgraphs of size *nqubits* containing the given start node.
+
+        Args:
+            node (*int*): Node (``int``).
+            nqubits (*int*): Number of qubits.
+
+        Returns:
+            Retrieved data.
+        """
         def post_combinations(mid, dd, cut):
+            """Generate neighbor combinations up to *cut* elements for subgraph expansion.
+
+            Args:
+                mid: Mid.
+                dd: Dd.
+                cut: Cut.
+
+            Returns:
+                Result.
+            """
             rr = set([elem for node in mid if node in dd for elem in dd[node]])
             cc = []
             mm = min(cut, len(dd)) + 1
@@ -174,6 +214,14 @@ class Layout:
         return list(set(collect))
 
     def collect_all_subgraph_in_parallel(self, nqubits):
+        """Enumerate connected subgraphs of size *nqubits* from every node using multiprocessing.
+
+        Args:
+            nqubits: Number of qubits.
+
+        Returns:
+            Result.
+        """
         collect_all = []
         try:
             with Pool(processes=self.ncore) as pool:
@@ -185,6 +233,14 @@ class Layout:
         return collect_all
 
     def get_one_subgraph_info(self, nodes: tuple | list):
+        """Compute edge-fidelity statistics for a subgraph and return its info if mean fidelity exceeds the threshold.
+
+        Args:
+            nodes (*tuple | list*): Nodes (``tuple | list``).
+
+        Returns:
+            Retrieved data.
+        """
         subgraph = self.graph.subgraph(nodes)
         subgraph_degree = dict(subgraph.degree())
         subgraph_fidelity = np.array([self.edge_fidelitys[(min(edge), max(edge))] for edge in subgraph.edges])
@@ -196,6 +252,14 @@ class Layout:
         return None
 
     def collect_all_subgraph_info_in_parallel(self, nqubits: int):
+        """Compute fidelity statistics for all enumerated subgraphs using multiprocessing.
+
+        Args:
+            nqubits (*int*): Number of qubits.
+
+        Returns:
+            Result.
+        """
         all_subgraph = self.collect_all_subgraph_in_parallel(nqubits)
         try:
             with Pool(processes=self.ncore) as pool:
@@ -205,6 +269,14 @@ class Layout:
         return res
 
     def classify_all_subgraph_according_topology(self, nqubits: int):
+        """Classify qualifying subgraphs into linear (chain) and nonlinear topology groups.
+
+        Args:
+            nqubits (*int*): Number of qubits.
+
+        Returns:
+            Result.
+        """
         linear_subgraph_list = []
         nonlinear_subgraph_list = []
         all_subgraph_info = self.collect_all_subgraph_info_in_parallel(nqubits)
@@ -219,6 +291,16 @@ class Layout:
         return linear_subgraph_list, nonlinear_subgraph_list
 
     def sort_subgraph_according_mean_fidelity(self, nqubits: int, num: int = 1, printdetails: bool = True):
+        """Rank subgraph layouts by mean edge fidelity (descending) and return the top *num* candidates.
+
+        Args:
+            nqubits (*int*): Number of qubits.
+            num (*int*): Num (``int``). Defaults to ``1``.
+            printdetails (*bool*): Whether to print detailed progress. Defaults to ``True``.
+
+        Returns:
+            Result.
+        """
         linear_subgraph_list, nonlinear_subgraph_list = self.classify_all_subgraph_according_topology(nqubits)
         linear_subgraph_list_sort = sorted(linear_subgraph_list, key=lambda x: x[1], reverse=True)
         nonlinear_subgraph_list_sort = sorted(nonlinear_subgraph_list, key=lambda x: x[1], reverse=True)
@@ -261,6 +343,16 @@ class Layout:
         return linear_subgraph_list_sort[:num], nonlinear_subgraph_list_sort[:num]
 
     def sort_subgraph_according_var_fidelity(self, nqubits: int, num: int = 1, printdetails: bool = True):
+        """Rank subgraph layouts by fidelity variance (ascending, most uniform first) and return the top *num* candidates.
+
+        Args:
+            nqubits (*int*): Number of qubits.
+            num (*int*): Num (``int``). Defaults to ``1``.
+            printdetails (*bool*): Whether to print detailed progress. Defaults to ``True``.
+
+        Returns:
+            Result.
+        """
         linear_subgraph_list, nonlinear_subgraph_list = self.classify_all_subgraph_according_topology(nqubits)
         linear_subgraph_list_sort = sorted(linear_subgraph_list, key=lambda x: x[2])
         nonlinear_subgraph_list_sort = sorted(nonlinear_subgraph_list, key=lambda x: x[2])
@@ -305,6 +397,11 @@ class Layout:
         return linear_subgraph_list_sort[:num], nonlinear_subgraph_list_sort[:num]
 
     def select_one_qubit_from_backend(self):
+        """Select the highest-fidelity qubit from the backend.
+
+        Returns:
+            List containing the selected qubit index.
+        """
         for nodes in nx.connected_components(self.graph):
             if len(nodes) > 1:
                 subgraph = self.graph.subgraph(nodes)
@@ -312,7 +409,6 @@ class Layout:
         node_fidelity_dic = nx.get_node_attributes(subgraph, "fidelity")
         sorted_dict = dict(sorted(node_fidelity_dic.items(), key=lambda item: item[1], reverse=True))
         qubit = [list(sorted_dict.keys())[0]]
-        # print(f"Physical qubits layout {qubit} is selected based on maximum single-qubit gate fidelity.")
         return qubit
 
     def select_few_qubits_from_backend(
@@ -323,6 +419,21 @@ class Layout:
         printdetails: bool = False,
         interaction_graph=None,
     ):
+        """Select the best physical qubit layout for a small circuit by fidelity ranking and optional routing-cost re-scoring.
+
+        Args:
+            nqubits (*int*): Number of qubits.
+            key (*Literal['fidelity_mean', 'fidelity_var']*): Lookup key. Defaults to ``'fidelity_var'``.
+            topology (*Literal['linear', 'nonlinear']*): Topology (``Literal['linear', 'nonlinear']``). Defaults to ``'linear'``.
+            printdetails (*bool*): Whether to print detailed progress. Defaults to ``False``.
+            interaction_graph: Interaction graph. Defaults to ``None``.
+
+        Returns:
+            Result.
+
+        Raises:
+            ValueError: f'There is no {nqubits} qubits that meets both key = {key...
+        """
         # When circuit-aware, collect more candidates for re-ranking.
         num = 10 if interaction_graph is not None and interaction_graph.number_of_edges() > 0 else 1
         if key == "fidelity_mean":
@@ -366,12 +477,28 @@ class Layout:
         return list(layouts[0][0])
 
     def _get_largest_component(self):
+        """Return the largest connected component of the hardware graph.
+
+        Returns:
+            ``networkx.Graph`` subgraph of the largest component.
+        """
         components = list(nx.connected_components(self.graph))
         len_comp = [len(comp) for comp in components]
         idx = len_comp.index(max(len_comp))
         return self.graph.subgraph(components[idx])
 
     def select_much_qubits_from_backend(self, nqubits):
+        """Select physical qubits for a large circuit via BFS expansion on the largest connected component.
+
+        Args:
+            nqubits: Number of qubits.
+
+        Returns:
+            Result.
+
+        Raises:
+            ValueError: f'The user circuit requires {nqubits} qubits exceeds the ...
+        """
         one_subgraph = self._get_largest_component()
         if len(one_subgraph.nodes()) < nqubits:
             raise ValueError(
@@ -391,10 +518,22 @@ class Layout:
                     queue.append((neighbor, depth + 1))
                     if len(visited) == nqubits:
                         break
-        # print(f"Physical qubits layout {list(visited)} are selected by BFS algorithm.")
         return list(visited)
 
     def select_qubits_by_local_algorithm(self, nqubits, select_criteria, interaction_graph=None):
+        """Select physical qubits using size-adaptive heuristics: single-qubit, small-enumeration, or BFS-based strategies.
+
+        Args:
+            nqubits: Number of qubits.
+            select_criteria: Select criteria.
+            interaction_graph: Interaction graph. Defaults to ``None``.
+
+        Returns:
+            Result.
+
+        Raises:
+            ValueError: Wrong qubits error!
+        """
         if nqubits == 1:
             qubit = self.select_one_qubit_from_backend()
             return qubit
@@ -435,6 +574,21 @@ class Layout:
         select_criteria: dict = {"key": "fidelity_var", "topology": "linear"},
         skip_split_qc: bool = True,
     ):
+        """Select a hardware qubit layout for the circuit, using priority lists, target qubits, or fidelity-based algorithmic search.
+
+        Args:
+            qc (*QuantumCircuit*): Quantum circuit.
+            target_qubits (*list*): Qubit indices for partial measurement. Defaults to ``[]``.
+            use_chip_priority (*bool*): Use chip priority (``bool``). Defaults to ``True``.
+            select_criteria (*dict*): Select criteria (``dict``). Defaults to ``{'key': 'fidelity_var', 'topology': 'linear'}``.
+            skip_split_qc (*bool*): Skip split qc (``bool``). Defaults to ``True``.
+
+        Returns:
+            Result.
+
+        Raises:
+            ValueError: f'The number of qubits {len(target_qubits)} in target_qub...
+        """
         nqubits = len(qc.qubits)
         if skip_split_qc:
             all_qubits = [qc.qubits]
@@ -474,9 +628,6 @@ class Layout:
                 subgraph_fidelity = np.array([self.edge_fidelitys[(min(edge), max(edge))] for edge in subgraph.edges])
                 fidelity_mean = np.mean(subgraph_fidelity)
                 fidelity_var = np.var(subgraph_fidelity)
-                # print(
-                #     f"The average fidelity of the coupler(s) between the selected qubits is {fidelity_mean}, and the variance of the fidelity is {fidelity_var}."
-                # )
             return subgraph
 
         if use_chip_priority:
@@ -495,7 +646,6 @@ class Layout:
                         break
                     continue
                 if not is_priority_provided:
-                    # print("No more priority qubits were found. it will check the select_criteria for search")
                     self.graph.remove_nodes_from([x for sub in new_qubits for x in sub])
                     qubits = self.select_qubits_by_local_algorithm(len(qubits0), select_criteria, interaction_graph)
                     new_qubits.append(qubits)

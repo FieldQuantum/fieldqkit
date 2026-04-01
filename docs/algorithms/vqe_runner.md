@@ -38,7 +38,7 @@ VQERunner(
   planner_max_layers_per_block=6,
   enable_circuit_compression=False,
   compression_block_layers=None,
-  compression_optimizer_steps=20,
+  compression_optimizer_steps=50,
   compression_optimizer_lr=0.05,
   compression_verbose=False,
   compression_plot_loss=False,
@@ -48,6 +48,7 @@ run_model(
     name,
     num_qubits,
   *,
+    provider="quafu",
     model="ising",
     model_params=None,
     hamiltonian=None,
@@ -67,6 +68,7 @@ run_model(
 | `client` | `QuantumHardwareClient` | - | 是 | `VQERunner` 初始化参数。 |
 | `name` | `str` | - | 是 | 任务名前缀。 |
 | `num_qubits` | `int` | - | 是 | 逻辑比特数。 |
+| `provider` | `str` | `"quafu"` | 否 | 运行时 provider 名称。 |
 | `model` | `str` | `"ising"` | 否 | 支持：`ising/heisenberg/xy/xxz/custom`。 |
 | `model_params` | `Optional[Dict[str, float]]` | `None` | 否 | 内置模型参数字典。 |
 | `hamiltonian` | `Optional[Sequence[Tuple[float, str]]]` | `None` | 否 | 自定义哈密顿量（仅 `model="custom"` 时使用）。 |
@@ -87,7 +89,7 @@ run_model(
 | `planner_max_layers_per_block` | `int` | `6` | 否 | 规划时每个后缀块最多层数。 |
 | `enable_circuit_compression` | `bool` | `False` | 否 | 是否启用每次能量/梯度评估前的线路压缩。 |
 | `compression_block_layers` | `Optional[int]` | `None` | 条件必填 | 启用压缩时必填，必须是单个正整数 `k`（压缩 ansatz 层数）。 |
-| `compression_optimizer_steps` | `int` | `20` | 否 | 每次压缩优化步数。 |
+| `compression_optimizer_steps` | `int` | `50` | 否 | 每次压缩优化步数。 |
 | `compression_optimizer_lr` | `float` | `0.05` | 否 | 压缩优化学习率。 |
 | `compression_verbose` | `bool` | `False` | 否 | 是否打印压缩统计。 |
 | `compression_plot_loss` | `bool` | `False` | 否 | 是否绘制压缩 loss 曲线。 |
@@ -141,6 +143,9 @@ run_vqe_with_backend(
   compression_optimizer_lr=0.05,
   compression_verbose=False,
   compression_plot_loss=False,
+  qasm_version="2.0",
+  use_dd=True,
+  convert_single_qubit_gate_to_u=True,
 ) -> VQEResult
 ```
 
@@ -154,12 +159,12 @@ run_vqe_with_backend(
 
 ## 私有方法（进阶拆解）
 
-下面两个方法是 `run_vqe_with_backend(...)` 的核心内部步骤，适合做算法拆解和二次开发时参考。
+下面两个方法位于 `optimizer_utils.py`，是 `run_vqe_with_backend(...)` 的核心内部步骤，适合做算法拆解和二次开发时参考。
 
-### `_evaluate_energy_with_backend`
+### `evaluate_energy_with_backend`
 
 ```python
-_evaluate_energy_with_backend(
+evaluate_energy_with_backend(
   client,
   qc,
   *,
@@ -185,10 +190,10 @@ _evaluate_energy_with_backend(
   - `energy: float`：当前参数对应能量。
   - `expectations: Dict[str, float]`：observable 到期望值映射。
 
-### `_parameter_shift_gradient`
+### `parameter_shift_gradient`
 
 ```python
-_parameter_shift_gradient(
+parameter_shift_gradient(
   client,
   params,
   *,

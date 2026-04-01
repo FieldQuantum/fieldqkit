@@ -9,7 +9,15 @@ from ..circuit import QuantumCircuit
 
 
 def build_ghz(num_qubits: int, measure: bool = False) -> QuantumCircuit:
-	"""Build a GHZ state circuit with optional measurements."""
+	"""Build a GHZ state circuit with optional measurements.
+
+	Args:
+		num_qubits (*int*): Number of qubits.
+		measure (*bool*): Whether to append measurement gates at the end. Defaults to ``False``.
+
+	Returns:
+		Constructed ``QuantumCircuit``.
+	"""
 	qc = QuantumCircuit(num_qubits)
 	# Prepare |+> on q0, then entangle along a chain with CX.
 	qc.h(0)
@@ -22,7 +30,15 @@ def build_ghz(num_qubits: int, measure: bool = False) -> QuantumCircuit:
 
 
 def build_cluster(num_qubits: int, measure: bool = False) -> QuantumCircuit:
-	"""Build a 1D cluster-like circuit with optional measurements."""
+	"""Build a 1D cluster-like circuit (H on all qubits + two CZ layers) with optional measurements.
+
+	Args:
+		num_qubits (*int*): Number of qubits.
+		measure (*bool*): Whether to append measurement gates at the end. Defaults to ``False``.
+
+	Returns:
+		Constructed ``QuantumCircuit``.
+	"""
 	qc = QuantumCircuit(num_qubits)
 	for i in range(num_qubits):
 		qc.h(i)
@@ -37,7 +53,22 @@ def build_cluster(num_qubits: int, measure: bool = False) -> QuantumCircuit:
 
 
 def _apply_controlled_phase(qc: QuantumCircuit, control: int, target: int, angle: float) -> None:
-	"""Apply a controlled phase gate with API fallback."""
+	"""Apply a controlled phase gate with API fallback.
+
+	Tries ``cp`` → ``cu1`` → ``crz`` in order.  Note that ``crz`` is *not*
+	exactly equivalent to ``cp`` (they differ by a global phase); the
+	fallback is provided only for circuits where the global phase does
+	not matter.
+
+	Args:
+		qc (*QuantumCircuit*): Quantum circuit.
+		control (*int*): Control qubit index.
+		target (*int*): Target qubit index.
+		angle (*float*): Rotation angle in radians.
+
+	Raises:
+		AttributeError: QuantumCircuit does not support controlled phase gate
+	"""
 	if hasattr(qc, "cp"):
 		qc.cp(angle, control, target)
 		return
@@ -51,7 +82,16 @@ def _apply_controlled_phase(qc: QuantumCircuit, control: int, target: int, angle
 
 
 def build_qft(num_qubits: int, measure: bool = False, with_swaps: bool = True) -> QuantumCircuit:
-	"""Build a QFT circuit with optional swaps and measurements."""
+	"""Build a QFT circuit with optional swaps and measurements.
+
+	Args:
+		num_qubits (*int*): Number of qubits.
+		measure (*bool*): Whether to append measurement gates at the end. Defaults to ``False``.
+		with_swaps (*bool*): Whether to include final bit-reversal swaps for canonical QFT ordering. Defaults to ``True``.
+
+	Returns:
+		Constructed ``QuantumCircuit``.
+	"""
 	qc = QuantumCircuit(num_qubits)
 	for i in range(num_qubits):
 		# Hadamard on each qubit plus controlled-phase rotations.
@@ -77,7 +117,19 @@ def build_ising_time_evolution(
 	steps: int = 1,
 	measure: bool = False,
 ) -> QuantumCircuit:
-	"""Build a trotterized Ising time-evolution circuit."""
+	"""Build a trotterized Ising time-evolution circuit.
+
+	Args:
+		num_qubits (*int*): Number of qubits.
+		j (*float*): ZZ coupling strength.
+		h (*float*): Transverse field strength.
+		t (*float*): Total evolution time.
+		steps (*int*): Number of Trotter steps. Defaults to ``1``.
+		measure (*bool*): Whether to append measurement gates at the end. Defaults to ``False``.
+
+	Returns:
+		Constructed ``QuantumCircuit``.
+	"""
 	qc = QuantumCircuit(num_qubits)
 	# First-order Trotter: split into ZZ interactions and X rotations.
 	dt = t / steps

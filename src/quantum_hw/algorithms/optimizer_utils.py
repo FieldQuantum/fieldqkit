@@ -145,6 +145,8 @@ def evaluate_energy_with_backend(
         clifford_fit_map: Optional per-observable affine correction map.
         target_qubits: Physical qubit mapping, if any.
         qasm_version: OpenQASM version for circuit serialisation.
+        convert_single_qubit_gate_to_u: Whether to convert single-qubit gates
+            to ``U`` during transpilation.
 
     Returns:
         ``(energy, expectations)`` where *energy* is ⟨H⟩ and *expectations*
@@ -435,13 +437,14 @@ def build_clifford_fit_map(
         shots: Shots per calibration circuit.
         zne: Enable ZNE during calibration.
         readout_mitigation: Enable readout mitigation during calibration.
-        transpiled_template: Pre-compiled circuit template with symbolic
-            parameters (used to locate parameterized gates).
+        transpiled_template: Pre-compiled symbolic circuit template used to
+            locate parameterized gates.
         num_samples: Number of calibration circuits to generate.
         num_non_clifford_gates: Haar-random gates per circuit.
         seed: Optional RNG seed for reproducibility.
         target_qubits: Physical qubit mapping.
         qasm_version: OpenQASM version.
+        convert_single_qubit_gate_to_u: Whether to convert single-qubit gates to U during transpilation.
 
     Returns:
         ``CliffordFitMap`` — ``{observable: (a, b)}`` affine coefficients.
@@ -559,6 +562,7 @@ def parameter_shift_gradient(
         circuit_transform: Optional post-instantiation circuit transform
             (e.g. compression), called as ``transform(qc, param_index)``.
         qasm_version: OpenQASM version.
+        convert_single_qubit_gate_to_u: Whether to convert single-qubit gates to U during transpilation.
 
     Returns:
         Gradient vector with the same shape as *params*.
@@ -701,6 +705,7 @@ def run_variational_loop(
     gradient computation.
 
     Args:
+        client: ``QuantumHardwareClient`` instance.
         tag: Log prefix (e.g. ``"vqe"`` or ``"qaoa"``).
         name: Task-name prefix for submitted jobs.
         num_qubits: Number of logical qubits.
@@ -708,10 +713,17 @@ def run_variational_loop(
         symbolic_qc: Symbolic ansatz circuit (used by autograd path).
         hamiltonian: Cost Hamiltonian terms.
         params: Initial parameter vector.
-        backend / chip_name / shots: Execution config.
-        max_iters / learning_rate / beta1 / beta2 / eps / shift: Adam
-            and gradient config.
-        zne / readout_mitigation: Error mitigation flags.
+        backend: Target backend.
+        chip_name: Target chip identifier.
+        shots: Shots per energy/gradient evaluation.
+        max_iters: Maximum optimization iterations.
+        learning_rate: Adam learning rate.
+        beta1: Adam first-moment decay.
+        beta2: Adam second-moment decay.
+        eps: Adam numerical-stability epsilon.
+        shift: Parameter-shift magnitude.
+        zne: Enable zero-noise extrapolation.
+        readout_mitigation: Enable readout mitigation.
         gradient_method: ``"autograd"`` or ``"parameter-shift"``
             (must be pre-validated by caller).
         seed: Optional torch manual seed (autograd path only).
@@ -728,7 +740,8 @@ def run_variational_loop(
             or an ``int`` for parameter-shift evaluations.
         qasm_version: OpenQASM version.
         extra_info: Additional info for the start log message.
-
+        convert_single_qubit_gate_to_u: Whether to convert single-qubit gates
+            to ``U`` during transpilation.
     Returns:
         Dict with ``best_cost``, ``best_params``, ``cost_history``,
         ``params_history``, ``grad_history``, ``last_expectations``.

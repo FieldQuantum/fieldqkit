@@ -74,7 +74,7 @@
 
 ## 与接口层关系
 
-- 当 qubit 数超过 interface.MPS_THRESHOLD_QUBITS（当前为 12）时，
+- 当 qubit 数超过 interface.MPS_THRESHOLD_QUBITS（当前为 16）时，
   interface 层会把 counts/expectation/energy 路由到本模块。
 
 ## 常见限制与报错

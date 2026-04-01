@@ -38,7 +38,7 @@ BackendAdapter.resolve_backend(
 ```python
 @dataclass
 class HardwareProfile:
-    provider: str                              # 平台名：quafu/tianyan/guodun/simulator
+    provider: str                              # 平台名：quafu/tianyan/guodun/tencent/simulator
     hardware_name: str                         # 芯片名如 "Baihua"、"Simulator"
     nqubits_available: int                     # 该芯片的可用物理比特总数
     two_qubit_gate_basis: str                  # 两比特门基：通常为 "cz"

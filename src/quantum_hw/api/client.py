@@ -39,7 +39,8 @@ READOUT_OBSERVABLE_MARGINAL_MAX_SUPPORT = 10
 # NOTE: API layer client. Keeps hardware selection + algorithm orchestration in one place.
 class QuantumHardwareClient:
 	def __init__(self):
-		"""Create a hardware client."""
+		"""Create a hardware client.
+		"""
 		self.chip_name = None
 		self.chip_backend = None
 		self._active_task_adapter: Optional[TaskAdapter] = None
@@ -48,28 +49,68 @@ class QuantumHardwareClient:
 
 	@staticmethod
 	def _is_openqasm2(source: str) -> bool:
-		"""Return True when the string looks like an OpenQASM2 program."""
+		"""Return True when the string looks like an OpenQASM2 program.
+
+		Args:
+			source (*str*): OpenQASM source string.
+
+		Returns:
+			``True`` if the condition is satisfied.
+		"""
 		return source.strip().upper().startswith("OPENQASM 2.0")
 	
 	@staticmethod
 	def _is_openqasm3(source: str) -> bool:
-		"""Return True when the string looks like an OpenQASM3 program."""
+		"""Return True when the string looks like an OpenQASM3 program.
+
+		Args:
+			source (*str*): OpenQASM source string.
+
+		Returns:
+			``True`` if the condition is satisfied.
+		"""
 		return source.strip().upper().startswith("OPENQASM 3.0")
 
 	@staticmethod
 	def _has_measurements(qc: QuantumCircuit) -> bool:
-		"""Check whether the circuit already contains measurement operations."""
+		"""Check whether the circuit already contains measurement operations.
+
+		Args:
+			qc (*QuantumCircuit*): Quantum circuit.
+
+		Returns:
+			``True`` if the condition is satisfied.
+		"""
 		return any(gate[0] == "measure" for gate in getattr(qc, "gates", []))
 
 	@staticmethod
 	def _infer_circuit_qubits(qc: QuantumCircuit) -> int:
+		"""Infer circuit qubits.
+
+		Args:
+			qc (*QuantumCircuit*): Quantum circuit.
+
+		Returns:
+			Computed integer result.
+		"""
 		qubits = getattr(qc, "qubits", None) or []
 		if qubits:
 			return max(qubits) + 1
 		return int(getattr(qc, "nqubits", 0) or 0)
 
 	def _normalize_input_circuit(self, circuit: Union[str, QuantumCircuit], num_qubits: int) -> QuantumCircuit:
-		"""Convert input into a QuantumCircuit and sanitize measurements."""
+		"""Convert input into a QuantumCircuit and sanitize measurements.
+
+		Args:
+			circuit (*Union[str, QuantumCircuit]*): Quantum circuit to execute.
+			num_qubits (*int*): Number of qubits.
+
+		Returns:
+			Constructed ``QuantumCircuit``.
+
+		Raises:
+			ValueError: num_qubits mismatch with QuantumCircuit
+		"""
 		if isinstance(circuit, QuantumCircuit):
 			qc = circuit.deepcopy()
 		elif self._is_openqasm2(circuit):
@@ -90,7 +131,18 @@ class QuantumHardwareClient:
 		return qc
 
 	def build_circuit(self, kind: str, **kwargs) -> QuantumCircuit:
-		"""Build a predefined circuit by name."""
+		"""Build a predefined circuit by name.
+
+		Args:
+			kind (*str*): Kind (``str``).
+			**kwargs: **kwargs.
+
+		Returns:
+			Constructed ``QuantumCircuit``.
+
+		Raises:
+			ValueError: f'unsupported circuit kind: {kind}
+		"""
 		kind = kind.lower()
 		if kind == "ghz":
 			return build_ghz(**kwargs)
@@ -116,7 +168,24 @@ class QuantumHardwareClient:
 		routing_n_trials: int = 1,
 		convert_single_qubit_gate_to_u: bool | None = None,
 	) -> QuantumCircuit:
-		"""Transpile with a specific backend and optional target qubits."""
+		"""Transpile with a specific backend and optional target qubits.
+
+		Args:
+			qc (*QuantumCircuit*): Quantum circuit.
+			backend (*Backend*): Hardware backend descriptor.
+			target_qubits (*Optional[Sequence[int]]*): Qubit indices for partial measurement. Defaults to ``None``.
+			use_dd (*bool*): Use dd (``bool``). Defaults to ``True``.
+			use_three_qubit_decompose (*bool*): Use three qubit decompose (``bool``). Defaults to ``True``.
+			use_sabre_routing (*bool*): Use sabre routing (``bool``). Defaults to ``True``.
+			use_translate_to_basis (*bool*): Use translate to basis (``bool``). Defaults to ``True``.
+			use_gate_compressor (*bool*): Use gate compressor (``bool``). Defaults to ``True``.
+			noise_aware (*bool | None*): Whether to use noise-aware strategies. Defaults to ``None``.
+			routing_n_trials (*int*): Routing n trials (``int``). Defaults to ``1``.
+			convert_single_qubit_gate_to_u (*bool | None*): Whether to convert single-qubit gates to U gates. Defaults to ``None``.
+
+		Returns:
+			Constructed ``QuantumCircuit``.
+		"""
 
 		return Transpiler(backend, convert_single_qubit_gate_to_u=convert_single_qubit_gate_to_u).run(qc, target_qubits=list(target_qubits) if target_qubits is not None else None, use_dd=use_dd, use_three_qubit_decompose=use_three_qubit_decompose, use_sabre_routing=use_sabre_routing, use_translate_to_basis=use_translate_to_basis, use_gate_compressor=use_gate_compressor, noise_aware=noise_aware, routing_n_trials=routing_n_trials)
 
@@ -128,7 +197,21 @@ class QuantumHardwareClient:
 		chip_name: Optional[str] = None,
 		submit_options: Optional[Dict[str, object]] = None,
 	):
-		"""Submit an asynchronous OpenQASM task and return its task id."""
+		"""Submit an asynchronous OpenQASM task and return its task id.
+
+		Args:
+			name (*str*): Descriptive name / identifier.
+			qasm (*str*): Qasm (``str``).
+			shots (*int*): Number of measurement shots.
+			chip_name (*Optional[str]*): Name of the target chip. Defaults to ``None``.
+			submit_options (*Optional[Dict[str, object]]*): Submit options (``Optional[Dict[str, object]]``). Defaults to ``None``.
+
+		Returns:
+			Result.
+
+		Raises:
+			RuntimeError: active task adapter is required before submitting OpenQASM
+		"""
 		resolved_chip_name = self._resolve_chip_name(chip_name)
 		options = dict(submit_options or {})
 		if "num_qubits" not in options and self._active_num_qubits is not None:
@@ -152,7 +235,17 @@ class QuantumHardwareClient:
 		return handle
 
 	def _resolve_chip_name(self, chip_name: Optional[str] = None) -> str:
-		"""Resolve effective chip name from argument or client state."""
+		"""Resolve effective chip name from argument or client state.
+
+		Args:
+			chip_name (*Optional[str]*): Name of the target chip. Defaults to ``None``.
+
+		Returns:
+			Formatted string.
+
+		Raises:
+			RuntimeError: chip_name is not set; use run_auto or provide chip_name
+		"""
 		if chip_name is not None:
 			return chip_name
 		if self.chip_name is not None:
@@ -160,7 +253,17 @@ class QuantumHardwareClient:
 		raise RuntimeError("chip_name is not set; use run_auto or provide chip_name")
 
 	def _wait_task(self, task_id):
-		"""Wait for a task to finish and return its final status."""
+		"""Wait for a task to finish and return its final status.
+
+		Args:
+			task_id: Task identifier.
+
+		Returns:
+			Result.
+
+		Raises:
+			RuntimeError: active task adapter and ProviderTaskHandle are required w...
+		"""
 		import time
 		adapter = self._active_task_adapter
 		if adapter is None or not isinstance(task_id, ProviderTaskHandle):
@@ -172,13 +275,32 @@ class QuantumHardwareClient:
 			time.sleep(3)
 
 	def _get_task_result(self, task_id):
-		"""Fetch normalized task result for current active adapter."""
+		"""Fetch normalized task result for current active adapter.
+
+		Args:
+			task_id: Task identifier.
+
+		Returns:
+			Result.
+
+		Raises:
+			RuntimeError: active task adapter and ProviderTaskHandle are required w...
+		"""
 		adapter = self._active_task_adapter
 		if adapter is None or not isinstance(task_id, ProviderTaskHandle):
 			raise RuntimeError("active task adapter and ProviderTaskHandle are required when fetching task result")
 		return adapter.fetch_result(task_id)
 
 	def _compact_for_sim(self, qct: QuantumCircuit, target_qubits: Optional[Sequence[int]] = None) -> Tuple[QuantumCircuit, Dict[int, int]]:
+		"""Map sparse physical qubits to a dense 0..n-1 range for simulation.
+
+		Args:
+			qct (*QuantumCircuit*): Transpiled circuit with sparse qubit indices.
+			target_qubits (*Optional[Sequence[int]]*): Qubit indices for partial measurement. Defaults to ``None``.
+
+		Returns:
+			Tuple of (compacted circuit, physical-to-dense index mapping).
+		"""
 		qct_sim = qct.deepcopy()
 		used = target_qubits if target_qubits is not None else qct_sim.qubits_in_use
 		if not used:
@@ -196,7 +318,16 @@ class QuantumHardwareClient:
 		original_qc: QuantumCircuit,
 		num_qubits: int,
 	) -> Optional[List[int]]:
-		"""Recover measurement qubit order from transpiler layout mapping when available."""
+		"""Recover measurement qubit order from transpiler layout mapping when available.
+
+		Args:
+			compiled_qc (*QuantumCircuit*): Compiled qc (``QuantumCircuit``).
+			original_qc (*QuantumCircuit*): Original qc (``QuantumCircuit``).
+			num_qubits (*int*): Number of qubits.
+
+		Returns:
+			Result list.
+		"""
 		layout = getattr(compiled_qc, "logical_to_physical", None)
 		if not isinstance(layout, dict) or not layout:
 			return None
@@ -218,6 +349,14 @@ class QuantumHardwareClient:
 
 	@staticmethod
 	def _default_qasm_version_for_provider(provider: str) -> str:
+		"""Default qasm version for provider.
+
+		Args:
+			provider (*str*): Platform provider name (``"quafu"``, ``"tianyan"``, ``"guodun"``, ``"tencent"``).
+
+		Returns:
+			Formatted string.
+		"""
 		provider_name = str(provider).lower()
 		if provider_name in {"tianyan", "guodun"}:
 			return "3.0"
@@ -246,7 +385,36 @@ class QuantumHardwareClient:
 		submit_options: Optional[Dict[str, object]] = None,
 		convert_single_qubit_gate_to_u: bool = True,
 	) -> RunResult:
-		"""Run a circuit on a specific backend with optional mitigation."""
+		"""Run a circuit on a specific backend with optional mitigation.
+
+		Args:
+			qc (*QuantumCircuit*): Quantum circuit.
+			name (*str*): Descriptive name / identifier.
+			num_qubits (*int*): Number of qubits.
+			backend (*Backend*): Hardware backend descriptor.
+			chip_name (*str*): Name of the target chip.
+			shots (*int*): Number of measurement shots. Defaults to ``1024``.
+			zne (*bool*): Whether to apply zero-noise extrapolation. Defaults to ``False``.
+			readout_mitigation (*bool*): Whether to apply readout error mitigation. Defaults to ``False``.
+			readout_shots (*Optional[int]*): Number of shots for readout calibration. Defaults to ``None``.
+			observables (*Optional[Sequence[str] | str]*): Observable operators to measure. Defaults to ``None``.
+			return_probabilities (*bool*): Whether to return probability distributions. Defaults to ``False``.
+			target_qubits (*Optional[Sequence[int]]*): Qubit indices for partial measurement. Defaults to ``None``.
+			merge_groups (*bool*): Merge groups (``bool``). Defaults to ``True``.
+			qasm_version (*str*): OpenQASM version (``'2.0'`` or ``'3.0'``). Defaults to ``'2.0'``.
+			use_dd (*bool*): Use dd (``bool``). Defaults to ``True``.
+			print_true (*bool*): Whether to print progress information. Defaults to ``False``.
+			transpile (*bool*): Transpile (``bool``). Defaults to ``True``.
+			submit_options (*Optional[Dict[str, object]]*): Submit options (``Optional[Dict[str, object]]``). Defaults to ``None``.
+			convert_single_qubit_gate_to_u (*bool*): Whether to convert single-qubit gates to U gates. Defaults to ``True``.
+
+		Returns:
+			``RunResult`` result.
+
+		Raises:
+			ValueError: f'num_qubits ({num_qubits}) must match len(target_qubits)...
+			RuntimeError: f'task {task_id} ended with status {status}
+		"""
 		if isinstance(observables, str):
 			observables = [observables]
 		if observables is None:
@@ -274,6 +442,14 @@ class QuantumHardwareClient:
 			groups = [{"basis": None, "observables": []}]
 
 		def _translate_to_basis(qct: QuantumCircuit) -> QuantumCircuit:
+			"""Translate to basis.
+
+			Args:
+				qct (*QuantumCircuit*): Qct (``QuantumCircuit``).
+
+			Returns:
+				Constructed ``QuantumCircuit``.
+			"""
 			translator = TranslateToBasisGates(
 				convert_single_qubit_gate_to_u=convert_single_qubit_gate_to_u,
 				two_qubit_gate_basis=backend.two_qubit_gate_basis,
@@ -286,7 +462,17 @@ class QuantumHardwareClient:
 			base_qct: QuantumCircuit,
 			target_qubits_in_use: Optional[Sequence[int]] = None,
 		) -> QuantumCircuit:
-			"""Prepare transpiled circuit with optional basis rotation and ZNE scaling."""
+			"""Prepare transpiled circuit with optional basis rotation and ZNE scaling.
+
+			Args:
+				basis_pattern (*Optional[Sequence[str]]*): Basis pattern (``Optional[Sequence[str]]``).
+				scale_zne (*bool*): Scale zne (``bool``).
+				base_qct (*QuantumCircuit*): Base qct (``QuantumCircuit``).
+				target_qubits_in_use (*Optional[Sequence[int]]*): Target qubits in use (``Optional[Sequence[int]]``). Defaults to ``None``.
+
+			Returns:
+				Constructed ``QuantumCircuit``.
+			"""
 			qct = base_qct.deepcopy()
 			if basis_pattern is not None:
 				append_measurement_basis(qct, basis_pattern, target_qubits=target_qubits_in_use)
@@ -530,10 +716,31 @@ class QuantumHardwareClient:
 		sleep_time: int = 5,
 		print_true: bool = True,
 	) -> RunResult:
-		"""Automatically select hardware, run, and return results."""
+		"""Automatically select hardware, run, and return results.
+
+		Args:
+			circuit (*Union[str, QuantumCircuit]*): Quantum circuit to execute.
+			name (*str*): Descriptive name / identifier.
+			num_qubits (*int*): Number of qubits.
+			provider (*str*): Platform provider name (``"quafu"``, ``"tianyan"``, ``"guodun"``, ``"tencent"``). Defaults to ``'quafu'``.
+			shots (*int*): Number of measurement shots. Defaults to ``8192``.
+			zne (*bool*): Whether to apply zero-noise extrapolation. Defaults to ``False``.
+			readout_mitigation (*bool*): Whether to apply readout error mitigation. Defaults to ``False``.
+			readout_shots (*Optional[int]*): Number of shots for readout calibration. Defaults to ``None``.
+			observables (*Optional[Sequence[str] | str]*): Observable operators to measure. Defaults to ``None``.
+			return_probabilities (*bool*): Whether to return probability distributions. Defaults to ``False``.
+			target_qubits (*Optional[Sequence[int]]*): Qubit indices for partial measurement. Defaults to ``None``.
+			prefer_chips (*Optional[Sequence[str] | str]*): Preferred chip names for scheduling. Defaults to ``None``.
+			transpile_on_client (*bool*): Whether to transpile on the client side. Defaults to ``True``.
+			max_wait_time (*int*): Maximum wait time in seconds. Defaults to ``3600``.
+			sleep_time (*int*): Polling interval in seconds. Defaults to ``5``.
+			print_true (*bool*): Whether to print progress information. Defaults to ``True``.
+
+		Returns:
+			``RunResult`` result.
+		"""
 		# Normalize input circuit and strip measurements if present.
 		qc = self._normalize_input_circuit(circuit, num_qubits)
-		print(qc.gates)
 		provider = str(provider).lower()
 		qasm_version = self._default_qasm_version_for_provider(provider)
 		use_dd = provider not in {"tianyan", "guodun", "tencent"}
@@ -551,6 +758,15 @@ class QuantumHardwareClient:
 		self.chip_backend = resolved_backend.backend
 
 		def _as_int(value, default):
+			"""As int.
+
+			Args:
+				value: Value to set.
+				default: Default.
+
+			Returns:
+				Result.
+			"""
 			try:
 				return int(value)
 			except Exception:

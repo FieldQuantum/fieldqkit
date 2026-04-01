@@ -3,7 +3,7 @@
 ## 概览
 
 - 模块：`quantum_hw.api.platform_credentials`
-- 作用：集中读取三家平台凭据（优先环境变量）。
+- 作用：集中读取四家平台凭据（优先环境变量）。
 
 ## 函数
 
@@ -43,7 +43,7 @@
 ## 推荐实践
 
 - 生产环境应始终通过环境变量注入密钥。
-- 建议在 CI/部署环境中显式检查三项环境变量是否已设置。
+- 建议在 CI/部署环境中显式检查四项环境变量是否已设置。
 
 ## 示例
 
@@ -53,15 +53,18 @@ from quantum_hw.api.platform_credentials import (
     get_quafu_api_token,
     get_tianyan_login_key,
     get_guodun_login_key,
+    get_tencent_api_token,
 )
 
 os.environ["QUAFU_API_TOKEN"] = "<token>"
 os.environ["TIANYAN_LOGIN_KEY"] = "<key>"
 os.environ["GUODUN_LOGIN_KEY"] = "<key>"
+os.environ["TENCENT_API_TOKEN"] = "<token>"
 
 print(bool(get_quafu_api_token()))
 print(bool(get_tianyan_login_key()))
 print(bool(get_guodun_login_key()))
+print(bool(get_tencent_api_token()))
 ```
 
 ## 相关页面

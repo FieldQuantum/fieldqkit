@@ -31,6 +31,7 @@ _run_with_backend(
     print_true: bool = False,
     transpile: bool = True,
     submit_options: Dict[str, object] | None = None,
+    convert_single_qubit_gate_to_u: bool = True,
 ) -> RunResult
 ```
 
@@ -56,6 +57,7 @@ _run_with_backend(
 | `print_true` | `bool` | `False` | 否 | 是否打印日志。 |
 | `transpile` | `bool` | `True` | 否 | 是否先在客户端编译。 |
 | `submit_options` | `Optional[Dict[str, object]]` | `None` | 否 | 任务提交附加选项，透传到 task adapter。 |
+| `convert_single_qubit_gate_to_u` | `bool` | `True` | 否 | 是否将单比特门转换为 U 门；Tencent 平台需设为 `False`。 |
 
 ## 返回值
 

@@ -80,7 +80,7 @@ manager = ReadoutCalibrationManager(
 		cache_dir=Path("src/quantum_hw/api/.cache"),
 		submit_openqasm_async=client._submit_openqasm_async,
 		wait_task=client._wait_task,
-		get_task_result=client.tmgr.result,
+		get_task_result=client._get_task_result,
 		compact_for_sim=client._compact_for_sim,
 		simulate_counts=simulate_counts,
 )

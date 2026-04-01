@@ -40,7 +40,7 @@ run_auto(
 | `circuit` | `str \| QuantumCircuit` | - | 是 | 支持三类输入：预置线路名（如 `"ghz"`）、OpenQASM2/3 字符串、`QuantumCircuit` 对象。 |
 | `name` | `str` | - | 是 | 任务名前缀。 |
 | `num_qubits` | `int` | - | 是 | 本次任务逻辑比特数。 |
-| `provider` | `str` | `"quafu"` | 否 | 平台名，支持 `quafu/tianyan/guodun`（大小写不敏感）。 |
+| `provider` | `str` | `"quafu"` | 否 | 平台名，支持 `quafu/tianyan/guodun/tencent`（大小写不敏感）。 |
 | `shots` | `int` | `8192` | 否 | 每个测量任务采样次数。 |
 | `zne` | `bool` | `False` | 否 | 是否启用零噪声外推（当前通过 CZ tripling + 线性外推实现）。 |
 | `readout_mitigation` | `bool` | `False` | 否 | 是否启用读出误差缓解。 |
@@ -166,16 +166,18 @@ def _transpile_with_backend(
     self, qc, backend, target_qubits=None, use_dd=True,
     use_three_qubit_decompose=True, use_sabre_routing=True,
     use_translate_to_basis=True, use_gate_compressor=True,
-    noise_aware=True, routing_n_trials=8,
+    noise_aware=None, routing_n_trials=1,
+    convert_single_qubit_gate_to_u=None,
 ) -> QuantumCircuit
 ```
 
 | 参数 | 类型 | 默认值 | 说明 |
 |---|---|---:|---|
-| `noise_aware` | `bool` | `True` | 路由时使用保真度加权距离矩阵。 |
-| `routing_n_trials` | `int` | `8` | SABRE 多随机初始映射试验数。 |
+| `noise_aware` | `bool \| None` | `None` | 路由时使用保真度加权距离矩阵。 |
+| `routing_n_trials` | `int` | `1` | SABRE 多随机初始映射试验数。 |
 | `use_gate_compressor` | `bool` | `True` | 是否启用门压缩（含两比特门对消除）。 |
 | `use_dd` | `bool` | `True` | 是否启用动力学去耦。 |
+| `convert_single_qubit_gate_to_u` | `bool \| None` | `None` | 是否将单比特门转换为 U 门；`None` 时由 Transpiler 自动推断。 |
 
 ### `_run_with_backend(...) -> RunResult`
 

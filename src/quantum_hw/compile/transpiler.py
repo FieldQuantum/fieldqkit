@@ -1,23 +1,12 @@
-# Copyright (c) 2024 XX Xiao
-#
-# Permission is hereby granted, free of charge, to any person obtaining a copy
-# of this software and associated documentation files(the "Software"), to deal
-# in the Software without restriction, including without limitation the rights
-# to use, copy, modify, merge, publish, distribute, sublicense, and / or sell
-# copies of the Software, and to permit persons to whom the Software is
-# furnished to do so, subject to the following conditions:
-#
-# The above copyright notice and this permission notice shall be included in
-# all copies or substantial portions of the Software.
-#
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+r"""This module contains the Transpiler class, which is designed to convert quantum circuits
+into formats that are more suitable for execution on hardware backends.
 
-r"""This module contains the Transpiler class, which is designed to convert quantum circuits into formats that are more suitable for execution on hardware backends"""
+SPDX-License-Identifier: MIT
+Original source: quarkstudio, Copyright (c) YL Feng.
+See THIRD_PARTY_NOTICES for full license text.
+"""
+
+from __future__ import annotations
 
 from copy import deepcopy
 
@@ -41,6 +30,12 @@ class Transpiler:
     """
 
     def __init__(self, chip_backend: Backend | None = None, *, convert_single_qubit_gate_to_u: bool | None = None):
+        """Initialize the transpiler with optional backend and gate conversion settings.
+
+        Args:
+            chip_backend (*Backend | None*): Chip backend (``Backend | None``). Defaults to ``None``.
+            convert_single_qubit_gate_to_u (*bool | None*): Whether to convert single-qubit gates to U gates. Defaults to ``None``.
+        """
         self.chip_backend = chip_backend
         self._convert_single_qubit_gate_to_u_override = convert_single_qubit_gate_to_u
 
@@ -59,6 +54,29 @@ class Transpiler:
         noise_aware: bool | None = None,
         routing_n_trials: int = 1,
     ):
+        """Execute the full transpilation pipeline on a quantum circuit.
+
+        Args:
+            qc (*QuantumCircuit*): Quantum circuit.
+            target_qubits (*list | None*): Qubit indices for partial measurement. Defaults to ``None``.
+            niter (*int*): Number of SABRE routing iterations (forward+reverse passes). Defaults to ``5``.
+            use_dd (*bool*): Whether to insert dynamical decoupling sequences into idle windows. Defaults to ``True``.
+            use_three_qubit_decompose (*bool*): Whether to decompose three-qubit gates into one- and two-qubit gates. Defaults to ``True``.
+            use_sabre_routing (*bool*): Whether to run SABRE routing for qubit connectivity mapping. Defaults to ``True``.
+            use_translate_to_basis (*bool*): Whether to translate gates to the backend's native basis gate set. Defaults to ``True``.
+            use_gate_compressor (*bool*): Whether to compress adjacent compatible gates. Defaults to ``True``.
+            routing_initial_mapping (*str*): Initial qubit mapping strategy: ``'trivial'``, ``'random'``, or an explicit list. Defaults to ``'trivial'``.
+            routing_random_choice (*bool*): Whether to randomly select among equally-scored SWAP candidates. Defaults to ``False``.
+            noise_aware (*bool | None*): Whether to use noise-aware strategies. Defaults to ``None``.
+            routing_n_trials (*int*): Number of independent SABRE trials to run, keeping the best result. Defaults to ``1``.
+
+        Returns:
+            *QuantumCircuit*: The transpiled quantum circuit ready for hardware execution.
+
+        Raises:
+            TypeError: Expected a QuantumCircuit, but got a {}.'.format(type(qc))
+            ValueError: If quantum circuit can be divided along the qubits, rando...
+        """
         if isinstance(qc, QuantumCircuit):
             pass
         else:
@@ -98,8 +116,15 @@ class Transpiler:
                 )
 
         # Default noise_aware: True when using a real backend, False otherwise.
+        # For the built-in Simulator all fidelities are 1.0 so noise-aware
+        # routing provides no benefit (and would degenerate).
         if noise_aware is None:
-            noise_aware = self.chip_backend is not None
+            if self.chip_backend is None:
+                noise_aware = False
+            elif getattr(self.chip_backend, 'chip_name', '') in ('Simulator',):
+                noise_aware = False
+            else:
+                noise_aware = True
 
         passes = []
         if use_three_qubit_decompose:

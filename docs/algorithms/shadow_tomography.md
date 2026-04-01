@@ -37,7 +37,7 @@ run(
 | `circuit` | `str \| QuantumCircuit` | - | 是 | 线路输入（内置名称、OpenQASM2/3 字符串或 `QuantumCircuit`）。 |
 | `name` | `str` | - | 是 | 任务名前缀，内部会追加 `_shadow`。 |
 | `num_qubits` | `int` | - | 是 | 逻辑比特数。 |
-| `provider` | `str` | `"quafu"` | 否 | 平台名，支持 `quafu/tianyan/guodun`，或指定 `"Simulator"`。 |
+| `provider` | `str` | `"quafu"` | 否 | 平台名，支持 `quafu/tianyan/guodun/tencent`，或指定 `"Simulator"`。 |
 | `shots` | `int` | `8192` | 否 | 总采样预算。实际会被按 batch 分配。 |
 | `shots_per_basis` | `int` | `1` | 否 | 每个随机测量基的 shots。batch 数量为 `ceil(shots / shots_per_basis)`。 |
 | `observables` | `Optional[Sequence[str] \| str]` | `None` | 否 | 待估计的 Pauli 字符串；可传单个字符串。 |

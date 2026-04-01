@@ -1,26 +1,12 @@
-# Copyright (c) 2024 XX Xiao
+"""This module contains the QuantumCircuit class, which offers an intuitive interface for designing,
+visualizing, and converting quantum circuits in various formats such as OpenQASM 2.0 and 3.0.
 
-# Permission is hereby granted, free of charge, to any person obtaining a copy
-# of this software and associated documentation files(the "Software"), to deal
-# in the Software without restriction, including without limitation the rights
-# to use, copy, modify, merge, publish, distribute, sublicense, and / or sell
-# copies of the Software, and to permit persons to whom the Software is
-# furnished to do so, subject to the following conditions:
-
-# The above copyright notice and this permission notice shall be included in
-# all copies or substantial portions of the Software.
-
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-
-r""" 
-This module contains the QuantumCircuit class, which offers an intuitive interface for designing, visualizing, 
-and converting quantum circuits in various formats such as OpenQASM 2.0 and 3.0.
+SPDX-License-Identifier: MIT
+Original source: quarkcircuit, Copyright (c) YL Feng.
+See THIRD_PARTY_NOTICES for full license text.
 """
+
+from __future__ import annotations
 
 import copy
 import ast
@@ -76,7 +62,7 @@ class QuantumCircuit:
         Initialize a QuantumCircuit object.
 
         The constructor supports three different initialization modes:
-        1. `QuantumCircuit()`: Creates a circuit with `nqubits` and `ncbits` both set to `None`.
+        1. `QuantumCircuit()`: Creates a circuit with `nqubits` and `ncbits` both set to ``0``.
         2. `QuantumCircuit(nqubits)`: Creates a circuit with the specified number of quantum bits (`nqubits`), 
         and classical bits (`ncbits`) set to the same value as `nqubits`.
         3. `QuantumCircuit(nqubits, ncbits)`: Creates a circuit with the specified number of quantum bits (`nqubits`) 
@@ -105,6 +91,11 @@ class QuantumCircuit:
         self.params_value = {}
 
     def deepcopy(self) -> 'QuantumCircuit':
+        """Deepcopy.
+
+        Returns:
+            Constructed ``QuantumCircuit``.
+        """
         new_qc = QuantumCircuit(self.nqubits,self.ncbits)
         new_qc.qubits = copy.deepcopy(self.qubits)
         new_qc.params_value = copy.deepcopy(self.params_value)
@@ -112,6 +103,19 @@ class QuantumCircuit:
         return new_qc
 
     def adjust_index(self, num: int, *, cbit_offset: Optional[int] = None) -> 'QuantumCircuit':
+        """Shift all qubit and classical-bit indices in the circuit.
+
+        Commonly used for circuit concatenation and sub-circuit packing.
+        Each qubit index is offset by *num*; each classical-bit index is
+        offset by *cbit_offset* (defaults to *num* when ``None``).
+
+        Args:
+            num (*int*): Offset added to every qubit index.
+            cbit_offset (*Optional[int]*): Offset added to every cbit index. Defaults to ``None`` (same as *num*).
+
+        Raises:
+            ValueError: f'Unsupported gate type in adjust_index: {gate}
+        """
         if cbit_offset is None:
             cbit_offset = num
         gates = []
@@ -159,6 +163,11 @@ class QuantumCircuit:
 
     @property
     def cbits(self):
+        """Cbits.
+
+        Returns:
+            List of classical bit indices used in the circuit.
+        """
         cbits = []
         for gate_info in self.gates:
             if gate_info[0] == 'measure':
@@ -168,12 +177,28 @@ class QuantumCircuit:
         return sorted(set(cbits))
 
     def _add_qubits(self,*args):
+        """Add qubits.
+
+        Args:
+            *args: *args.
+        """
         # Deduplicate and sort qubits.
         temp_set = set(self.qubits).union(args)
         self.qubits = sorted(temp_set)
         return self
 
     def _resolve_param(self, param):
+        """Resolve param.
+
+        Args:
+            param: Param.
+
+        Returns:
+            Result.
+
+        Raises:
+            TypeError: f'Wrong param type! {param}
+        """
         if isinstance(param, (float, int)):
             return float(param)
         if isinstance(param, str):
@@ -186,20 +211,45 @@ class QuantumCircuit:
         raise TypeError(f"Wrong param type! {param}")
 
     def _resolve_param_list(self, params):
+        """Resolve param list.
+
+        Args:
+            params: Parameter values.
+
+        Returns:
+            Result.
+        """
         return [self._resolve_param(param) for param in params]
 
     def _eval_param_expression(self, expr: str, *, symbol_resolver=None):
         """Safely evaluate a parameter expression.
 
         Args:
-            expr (str): Expression string.
-            symbol_resolver (callable, optional): Resolver for symbol names.
-                When omitted, symbols are resolved from ``self.params_value``.
+            expr (*str*): Parameter expression string (e.g. ``"theta_0"`` or ``"2*pi + alpha"``).
+            symbol_resolver: Optional callable mapping symbol names to numeric
+                values.  When omitted, symbols are resolved from ``self.params_value``.
+
+        Returns:
+            Evaluated numeric result.
+
+        Raises:
+            ValueError: f'unsupported parameter expression: {expr}
         """
         expr = str(expr).strip().replace('π', 'pi').replace('np.pi', 'pi')
 
         if symbol_resolver is None:
             def symbol_resolver(name: str):
+                """Symbol resolver.
+
+                Args:
+                    name (*str*): Descriptive name / identifier.
+
+                Returns:
+                    Result.
+
+                Raises:
+                    ValueError: f'please apply value for parameter {name}
+                """
                 if name == "pi":
                     return float(np.pi)
                 if name not in self.params_value:
@@ -210,6 +260,17 @@ class QuantumCircuit:
                 raise ValueError(f"please apply value for parameter {name}")
 
         def _eval(node):
+            """Eval.
+
+            Args:
+                node: Node.
+
+            Returns:
+                Result.
+
+            Raises:
+                ValueError: f'unsupported parameter expression: {expr}
+            """
             if isinstance(node, ast.Expression):
                 return _eval(node.body)
             if isinstance(node, ast.Constant):
@@ -251,7 +312,18 @@ class QuantumCircuit:
         """Parse a Pauli string in compact or indexed format.
 
         Compact format examples: "XIZY", "ZZII".
-        Indexed format examples: "X1 Y2 Z3 Z4".
+Indexed format examples: "X1 Y2 Z3 Z4".
+
+        Args:
+            pauli (*str*): Pauli (``str``).
+            num_qubits (*Optional[int]*): Number of qubits. Defaults to ``None``.
+
+        Returns:
+            Result.
+
+        Raises:
+            TypeError: pauli must be a string
+            ValueError: pauli string is empty
         """
         if not isinstance(pauli, str):
             raise TypeError("pauli must be a string")
@@ -332,6 +404,7 @@ class QuantumCircuit:
         if qubit < self.nqubits:
             self.gates.append(('id', qubit))
             self._add_qubits(qubit)
+            return self
         else:
             raise ValueError("Qubit index out of range")
 
@@ -348,6 +421,7 @@ class QuantumCircuit:
         if qubit < self.nqubits:
             self.gates.append(('x', qubit))
             self._add_qubits(qubit)
+            return self
         else:
             raise ValueError("Qubit index out of range")
 
@@ -364,6 +438,7 @@ class QuantumCircuit:
         if qubit < self.nqubits:
             self.gates.append(('y', qubit))
             self._add_qubits(qubit)
+            return self
         else:
             raise ValueError("Qubit index out of range")
 
@@ -380,6 +455,7 @@ class QuantumCircuit:
         if qubit < self.nqubits:
             self.gates.append(('z', qubit))
             self._add_qubits(qubit)
+            return self
         else:
             raise ValueError("Qubit index out of range")
 
@@ -396,6 +472,7 @@ class QuantumCircuit:
         if qubit < self.nqubits:
             self.gates.append(('s', qubit))
             self._add_qubits(qubit)
+            return self
         else:
             raise ValueError("Qubit index out of range")
 
@@ -412,6 +489,7 @@ class QuantumCircuit:
         if qubit < self.nqubits:
             self.gates.append(('sdg', qubit))
             self._add_qubits(qubit)
+            return self
         else:
             raise ValueError("Qubit index out of range")
 
@@ -428,6 +506,7 @@ class QuantumCircuit:
         if qubit < self.nqubits:
             self.gates.append(('sx', qubit))
             self._add_qubits(qubit)
+            return self
         else:
             raise ValueError("Qubit index out of range")
         
@@ -444,6 +523,7 @@ class QuantumCircuit:
         if qubit < self.nqubits:
             self.gates.append(('sxdg', qubit))
             self._add_qubits(qubit)
+            return self
         else:
             raise ValueError("Qubit index out of range")
 
@@ -460,6 +540,7 @@ class QuantumCircuit:
         if qubit < self.nqubits:
             self.gates.append(('t', qubit))
             self._add_qubits(qubit)
+            return self
         else:
             raise ValueError("Qubit index out of range")
 
@@ -475,6 +556,7 @@ class QuantumCircuit:
         if qubit < self.nqubits:
             self.gates.append(('tdg', qubit))
             self._add_qubits(qubit)
+            return self
         else:
             raise ValueError("Qubit index out of range")
                
@@ -491,6 +573,7 @@ class QuantumCircuit:
         if qubit < self.nqubits:
             self.gates.append(('h', qubit))
             self._add_qubits(qubit)
+            return self
         else:
             raise ValueError("Qubit index out of range")
 
@@ -509,6 +592,7 @@ class QuantumCircuit:
             if qubit1 != qubit2:
                 self.gates.append(('swap', qubit1,qubit2))
                 self._add_qubits(qubit1,qubit2)
+                return self
             else:
                 raise ValueError(f"Qubit index conflict: qubit1 and qubit2 are both {qubit1}")
         else:
@@ -529,6 +613,7 @@ class QuantumCircuit:
             if qubit1 != qubit2:
                 self.gates.append(('iswap', qubit1,qubit2))
                 self._add_qubits(qubit1,qubit2)
+                return self
             else:
                 raise ValueError(f"Qubit index conflict: qubit1 and qubit2 are both {qubit1}")
         else:
@@ -549,6 +634,7 @@ class QuantumCircuit:
             if qubit1 != qubit2:
                 self.gates.append(('ecr', qubit1,qubit2))
                 self._add_qubits(qubit1,qubit2)
+                return self
             else:
                 raise ValueError(f"Qubit index conflict: qubit1 and qubit2 are both {qubit1}")
         else:
@@ -569,6 +655,7 @@ class QuantumCircuit:
             if control_qubit != target_qubit:
                 self.gates.append(('cx', control_qubit,target_qubit))
                 self._add_qubits(control_qubit,target_qubit)
+                return self
             else:
                 raise ValueError(f"Qubit index conflict: control_qubit and target_qubit are both {control_qubit}")
         else:
@@ -589,6 +676,7 @@ class QuantumCircuit:
             if control_qubit != target_qubit:
                 self.cx(control_qubit, target_qubit)
                 self._add_qubits(control_qubit,target_qubit)
+                return self
             else:
                 raise ValueError(f"Qubit index conflict: control_qubit and target_qubit are both {control_qubit}")
         else:
@@ -609,6 +697,7 @@ class QuantumCircuit:
             if control_qubit != target_qubit:
                 self.gates.append(('cy', control_qubit,target_qubit))
                 self._add_qubits(control_qubit,target_qubit)
+                return self
             else:
                 raise ValueError(f"Qubit index conflict: control_qubit and target_qubit are both {control_qubit}")
         else:
@@ -629,6 +718,7 @@ class QuantumCircuit:
             if control_qubit != target_qubit:
                 self.gates.append(('cz', control_qubit, target_qubit))
                 self._add_qubits(control_qubit,target_qubit)
+                return self
             else:
                 raise ValueError(f"Qubit index conflict: control_qubit and target_qubit are both {control_qubit}")
         else:
@@ -650,6 +740,7 @@ class QuantumCircuit:
             if len(set(qubits0)) == 3:
                 self.gates.append(('ccz',control_qubit1,control_qubit2,target_qubit))
                 self._add_qubits(*qubits0)
+                return self
             else:
                 raise ValueError(f"Qubit index conflict: control_qubit1 {control_qubit1} control_qubit2 {control_qubit2} target_qubit {target_qubit}")
         else:
@@ -671,6 +762,7 @@ class QuantumCircuit:
             if len(set(qubits0)) == 3:
                 self.gates.append(('ccx',control_qubit1,control_qubit2,target_qubit))
                 self._add_qubits(*qubits0)
+                return self
             else:
                 raise ValueError(f"Qubit index conflict: control_qubit1 {control_qubit1} control_qubit2 {control_qubit2} target_qubit {target_qubit}")
         else:
@@ -692,8 +784,9 @@ class QuantumCircuit:
             if len(set(qubits0)) == 3:
                 self.gates.append(('cswap',control_qubit,target_qubit1,target_qubit2))
                 self._add_qubits(*qubits0)
+                return self
             else:
-                raise ValueError(f"Qubit index conflict: control_qubit1 {control_qubit} control_qubit2 {target_qubit1} target_qubit {target_qubit2}")
+                raise ValueError(f"Qubit index conflict: control_qubit {control_qubit} target_qubit1 {target_qubit1} target_qubit2 {target_qubit2}")
         else:
             raise ValueError("Qubit index out of range")
         
@@ -713,6 +806,7 @@ class QuantumCircuit:
             self._add_qubits(qubit)
             if isinstance(theta,str):
                 self.params_value[theta] = theta
+            return self
         else:
             raise ValueError("Qubit index out of range")
         
@@ -729,6 +823,7 @@ class QuantumCircuit:
 
         Args:
             theta (float): The rotation angle of the gate.
+            phi (float): The azimuth angle defining the rotation axis in the XY plane.
             qubit (int): The qubit to apply the gate to.
 
         Raises:
@@ -741,6 +836,7 @@ class QuantumCircuit:
                 self.params_value[theta] = theta
             if isinstance(phi,str):
                 self.params_value[phi] = phi
+            return self
         else:
             raise ValueError("Qubit index out of range")
         
@@ -795,6 +891,7 @@ class QuantumCircuit:
             self._add_qubits(qubit)
             if isinstance(theta,str):
                 self.params_value[theta] = theta
+            return self
         else:
             raise ValueError("Qubit index out of range")
         
@@ -803,7 +900,7 @@ class QuantumCircuit:
         Add a RY gate.
 
         Args:
-            theta (float: The rotation angle of the gate.
+            theta (float): The rotation angle of the gate.
             qubit (int): The qubit to apply the gate to.
 
         Raises:
@@ -814,6 +911,7 @@ class QuantumCircuit:
             self._add_qubits(qubit)
             if isinstance(theta,str):
                 self.params_value[theta] = theta
+            return self
         else:
             raise ValueError("Qubit index out of range")
         
@@ -833,6 +931,7 @@ class QuantumCircuit:
             self._add_qubits(qubit)
             if isinstance(theta,str):
                 self.params_value[theta] = theta
+            return self
         else:
             raise ValueError("Qubit index out of range")
         
@@ -864,6 +963,7 @@ class QuantumCircuit:
                 self._add_qubits(qubit1,qubit2)
                 if isinstance(theta,str):
                     self.params_value[theta] = theta
+                return self
             else:
                 raise ValueError(f"Qubit index conflict: qubit1 and qubit2 are both {qubit1}")
         else:
@@ -897,6 +997,7 @@ class QuantumCircuit:
                 self._add_qubits(qubit1, qubit2)
                 if isinstance(theta, str):
                     self.params_value[theta] = theta
+                return self
             else:
                 raise ValueError(f"Qubit index conflict: qubit1 and qubit2 are both {qubit1}")
         else:
@@ -930,6 +1031,7 @@ class QuantumCircuit:
                 self._add_qubits(qubit1,qubit2)
                 if isinstance(theta,str):
                     self.params_value[theta] = theta
+                return self
             else:
                 raise ValueError(f"Qubit index conflict: qubit1 and qubit2 are both {qubit1}")
         else:
@@ -940,7 +1042,7 @@ class QuantumCircuit:
         Add a Cphase gate.
 
         $$
-        Rzz(\theta) = I \otimes |0\rangle\langle 0| + P \otimes |1\rangle\langle 1| = 
+        CP(\theta) = I \otimes |0\rangle\langle 0| + P \otimes |1\rangle\langle 1| = 
         \begin{bmatrix}
          1  & 0 & 0 & 0 \\
          0 & 1 & 0 & 0 \\
@@ -963,16 +1065,21 @@ class QuantumCircuit:
                 self._add_qubits(control_qubit, target_qubit)
                 if isinstance(theta,str):
                     self.params_value[theta] = theta
+                return self
             else:
                 raise ValueError(f"Qubit index conflict: qubit1 and qubit2 are both {control_qubit}")
         else:
             raise ValueError("Qubit index out of range")
 
     def pauli_evolution(self, theta: float | str, pauli: str) -> 'QuantumCircuit':
-        r"""Append ``exp(-i * theta/2 * P)`` for a Pauli string ``P``.
+        """Append ``exp(-i * theta/2 * P)`` for a Pauli string ``P``.
 
         The Pauli string supports compact format (e.g. ``"IXYZ"``) and
-        indexed format (e.g. ``"X1 Y2 Z3 Z4"``).
+indexed format (e.g. ``"X1 Y2 Z3 Z4"``).
+
+        Args:
+            theta (*float | str*): Rotation angle in radians.
+            pauli (*str*): Pauli (``str``).
         """
         terms = self._parse_pauli_string(pauli, num_qubits=self.nqubits)
         if not terms:
@@ -1022,7 +1129,7 @@ class QuantumCircuit:
             mapping (dict): A dictionary specifying the mapping from current qubit indices to target indices.
     
         Returns:
-            dict: A dictionary with updated qubit index mapping.
+            ``QuantumCircuit``: This circuit with remapped qubit indices.
         """
         if len(self.qubits) != len(mapping):
             raise ValueError("Mapping size must match number of used qubits")
@@ -1060,7 +1167,15 @@ class QuantumCircuit:
 
     @staticmethod
     def _resolve_expr(param, params_dic):
-        """Resolve a symbolic parameter expression when all symbols are bound."""
+        """Resolve a symbolic parameter expression when all symbols are bound.
+
+        Args:
+            param: Param.
+            params_dic: Params dic.
+
+        Returns:
+            Result.
+        """
         if not isinstance(param, str):
             return param
         if param in params_dic:
@@ -1129,6 +1244,7 @@ class QuantumCircuit:
         theta,phi,lamda,phase = u3_decompose(unitary)
         self.gates.append(('u', theta, phi, lamda, qubit))
         self._add_qubits(qubit)
+        return self
 
     def zyz_for_unitary(self, unitary: np.ndarray, qubit:int) -> 'QuantumCircuit':
         r"""
@@ -1147,6 +1263,7 @@ class QuantumCircuit:
         self.gates.append(('ry', theta, qubit))
         self.gates.append(('rz', phi, qubit))
         self._add_qubits(qubit)
+        return self
 
     def kak_for_unitary(self, unitary: np.ndarray, qubit1: int, qubit2: int) -> 'QuantumCircuit':
         r"""
@@ -1174,6 +1291,7 @@ class QuantumCircuit:
         self.u3_for_unitary(rots1[3], qubit1)
         self.u3_for_unitary(rots2[3] @ h_mat, qubit2)
         self._add_qubits(qubit1,qubit2)
+        return self
 
     def reset(self, qubit: int) -> 'QuantumCircuit':
         r"""
@@ -1188,15 +1306,20 @@ class QuantumCircuit:
         if qubit < self.nqubits:
             self.gates.append(('reset', qubit))
             self._add_qubits(qubit)
+            return self
         else:
             raise ValueError("Qubit index out of range")
         
     def delay(self,duration:int|float, *qubits:tuple[int],unit='s') -> 'QuantumCircuit':
-        r"""
-        Adds delay to qubits, the unit is s.
+        """Adds delay to qubits.
+
+        Args:
+            duration (*int | float*): Delay duration (in the unit given by *unit*).
+            *qubits (*tuple[int]*): Qubit indices to delay. If omitted, delays all qubits.
+            unit: Time unit — ``'s'``, ``'ms'``, ``'us'``, or ``'ns'``. Defaults to ``'s'``.
 
         Raises:
-            ValueError: If qubit out of circuit range.
+            ValueError: Qubit index out of range
         """
         # convert 'ns' 'ms' 'us' to 's
         if unit == 'ns':
@@ -1218,8 +1341,10 @@ class QuantumCircuit:
                 raise ValueError("Qubit index out of range")
         
     def barrier(self,*qubits: tuple[int]) -> 'QuantumCircuit':
-        r"""
-        Adds barrier to qubits.
+        """Adds barrier to qubits.
+
+        Args:
+            *qubits (tuple[int]): Qubits to add barrier to.
 
         Raises:
             ValueError: If qubit out of circuit range.
@@ -1238,8 +1363,7 @@ class QuantumCircuit:
                 raise ValueError("Qubit index out of range")
             
     def remove_barrier(self) -> 'QuantumCircuit':
-        r"""
-        Remove all barrier gates from the quantum circuit.
+        """Remove all barrier gates from the quantum circuit.
 
         Returns:
             QuantumCircuit: The updated quantum circuit with all barrier gates removed.
@@ -1253,12 +1377,13 @@ class QuantumCircuit:
         return self
     
     def remove_gate(self,gate_name:str):
-        r"""
-        Remove specified gates from the circuit.
+        """Remove specified gates from the circuit.
+
+        Args:
+            gate_name (str): Name of the quantum gate.
 
         Returns:
             QuantumCircuit: The updated quantum circuit with specified gates removed.
-        
         """
         new = []
         for gate_info in self.gates:
@@ -1269,7 +1394,10 @@ class QuantumCircuit:
         return self
     
     def count_gate(self,gate_name:str) -> int:
-        r"""Count target gates in this QuantumCircuit.
+        """Count target gates in this QuantumCircuit.
+
+        Args:
+            gate_name (str): Name of the quantum gate.
 
         Returns:
             int: The number of gates.
@@ -1312,8 +1440,7 @@ class QuantumCircuit:
             raise(ValueError(''))
 
     def measure_all(self) -> 'QuantumCircuit':
-        r"""
-        Adds measurement to all qubits.
+        """Adds measurement to all qubits.
         """
         qubitlst = [i for i in self.qubits]
         cbitlst = [i for i in range(len(qubitlst))]
@@ -1322,12 +1449,16 @@ class QuantumCircuit:
 
     @property
     def to_latex(self) -> str:
+        """Export the quantum circuit to a LaTeX string.
+
+        Raises:
+            NotImplementedError: to_latex is not implemented yet.
+        """
         raise NotImplementedError("to_latex is not implemented yet")
 
     @property
     def to_openqasm2(self) -> str:
-        r"""
-        Export the quantum circuit to an OpenQASM 2 program in a string.
+        """Export the quantum circuit to an OpenQASM 2 program in a string.
 
         Returns:
             str: An OpenQASM 2 string representing the circuit.
@@ -1336,8 +1467,7 @@ class QuantumCircuit:
 
     @property
     def to_openqasm3(self) -> str:
-        r"""
-        Export the quantum circuit to an OpenQASM 3 program in a string.
+        """Export the quantum circuit to an OpenQASM 3 program in a string.
 
         Returns:
             str: An OpenQASM 3 string representing the circuit.
@@ -1345,12 +1475,31 @@ class QuantumCircuit:
         return self._to_openqasm(version="3.0")
 
     def _to_openqasm(self, version: str) -> str:
+        """To openqasm.
+
+        Args:
+            version (*str*): Version (``str``).
+
+        Returns:
+            Formatted string.
+        """
         lines = self._openqasm_header(version)
         for gate_info in self.gates:
             lines.extend(self._openqasm_gate_lines(gate_info, version))
         return "\n".join(lines)
 
     def _openqasm_header(self, version: str) -> list[str]:
+        """Openqasm header.
+
+        Args:
+            version (*str*): Version (``str``).
+
+        Returns:
+            Result list.
+
+        Raises:
+            ValueError: f'Unsupported OpenQASM version: {version}
+        """
         gates0 = [gate[0] for gate in self.gates]
         lines = []
         if version == "2.0":
@@ -1376,6 +1525,18 @@ class QuantumCircuit:
         return lines
 
     def _openqasm_gate_lines(self, gate_info, version: str) -> list[str]:
+        """Openqasm gate lines.
+
+        Args:
+            gate_info: Gate info.
+            version (*str*): Version (``str``).
+
+        Returns:
+            Result list.
+
+        Raises:
+            ValueError: f'Unsupported gate for OpenQASM {version}: {gate}
+        """
         gate = gate_info[0]
         if gate in one_qubit_gates_available.keys():
             return [f"{gate} q[{gate_info[1]}];"]
@@ -1419,12 +1580,12 @@ class QuantumCircuit:
                     lines.append(f"c[{gate_info[2][idx]}] = measure q[{gate_info[1][idx]}];")
             return lines
         raise ValueError(
-            f"Sorry, Quark could not find the corresponding OpenQASM {version} syntax for now. Please contact the developer for assistance.{gate}"
+            f"Unsupported gate for OpenQASM {version}: {gate}"
         )
 
     @property
     def depth(self) -> int:
-        r"""Count QuantumCircuit depth.
+        """Count QuantumCircuit depth.
 
         Returns:
             int: QuantumCircuit depth.
@@ -1446,7 +1607,7 @@ class QuantumCircuit:
     
     @property
     def ncz(self) -> int:
-        r"""Count all two-qubit gates in this QuantumCircuit.
+        """Count all two-qubit gates in this QuantumCircuit.
 
         Returns:
             int: The number of two-qubit gates.
@@ -1464,7 +1625,7 @@ class QuantumCircuit:
     
     @property
     def qubits_in_use(self) -> list[int]:
-        r"""Get the list of qubits that have gates applied to them.
+        """Get the list of qubits that have gates applied to them.
 
         Returns:
             list[int]: A list of qubit indices that are used in the circuit.

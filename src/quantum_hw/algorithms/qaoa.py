@@ -66,7 +66,14 @@ def build_maxcut_hamiltonian(
 
 
 def _qaoa_num_params(p: int) -> int:
-    """Number of variational parameters for *p* QAOA layers: 2p (gamma + beta)."""
+    """Number of variational parameters for *p* QAOA layers: 2p (gamma + beta).
+
+    Args:
+        p (*int*): Depth parameter for QAOA.
+
+    Returns:
+        Computed integer result.
+    """
     return 2 * p
 
 
@@ -78,13 +85,24 @@ def build_qaoa_ansatz_symbolic(
     """Build a symbolic QAOA ansatz circuit.
 
     Structure per layer *l*:
-      - Cost unitary:  ``RZZ(gamma_l, i, j)`` for every edge ``(i, j)``
-      - Mixer unitary: ``RX(beta_l, q)`` for every qubit ``q``
+  - Cost unitary:  ``RZZ(gamma_l, i, j)`` for every edge ``(i, j)``
+  - Mixer unitary: ``RX(beta_l, q)`` for every qubit ``q``
 
-    The initial state is ``|+>^n`` prepared with Hadamard gates.
+The initial state is ``|+>^n`` prepared with Hadamard gates.
 
-    Returns ``(param_names, circuit)`` where *param_names* lists
-    ``["gamma_0", "beta_0", "gamma_1", "beta_1", ...]``.
+Returns ``(param_names, circuit)`` where *param_names* lists
+``["gamma_0", "beta_0", "gamma_1", "beta_1", ...]``.
+
+    Args:
+        num_qubits (*int*): Number of qubits.
+        edges (*Sequence[Tuple[int, int]]*): Edges (``Sequence[Tuple[int, int]]``).
+        p (*int*): Depth parameter for QAOA.
+
+    Returns:
+        Result list.
+
+    Raises:
+        ValueError: QAOA depth p must be positive
     """
     if p <= 0:
         raise ValueError("QAOA depth p must be positive")
@@ -184,6 +202,8 @@ def run_qaoa_with_backend(
             calibration circuits.
         qasm_version: OpenQASM serialisation version.
         use_dd: Enable dynamical decoupling.
+        convert_single_qubit_gate_to_u: Whether to convert single-qubit gates
+            to ``U`` during transpilation.
 
     Returns:
         ``QAOAResult`` with best cost, parameters, and optimisation history.
@@ -345,14 +365,20 @@ class QAOARunner:
         """Select hardware and run QAOA optimization.
 
         Args:
-            name: Task name prefix.
-            num_qubits: Number of logical qubits.
-            edges: Graph edge list for the QAOA ansatz (RZZ cost layer).
-            provider: Hardware provider (``"quafu"`` / ``"tianyan"`` / ``"guodun"``).
-            target_qubits: Optional physical qubit mapping.
-            init_params: Explicit initial parameters (length must be ``2 * p``).
-            callback: Per-iteration callback ``(iter, cost, params)``.
-            prefer_chips: Candidate chip filter (e.g. ``"Simulator"``).
+            name (*str*): Task name prefix.
+            num_qubits (*int*): Number of logical qubits.
+            edges (*Sequence[Tuple[int, int]]*): Graph edge list for the QAOA ansatz (RZZ cost layer).
+            provider (*str*): Hardware provider (``"quafu"``, ``"tianyan"``, ``"guodun"``, ``"tencent"``). Defaults to ``'quafu'``.
+            target_qubits (*Optional[Sequence[int]]*): Optional physical qubit mapping. Defaults to ``None``.
+            init_params (*Optional[Sequence[float]]*): Explicit initial parameters (length must be ``2 * p``). Defaults to ``None``.
+            callback (*Optional[Callable[[int, float, np.ndarray], None]]*): Per-iteration callback ``(iter, cost, params)``. Defaults to ``None``.
+            prefer_chips (*Optional[Sequence[str] | str]*): Candidate chip filter (e.g. ``"Simulator"``). Defaults to ``None``.
+
+        Returns:
+            ``QAOAResult`` result.
+
+        Raises:
+            RuntimeError: all candidate chips failed to run QAOA
         """
         print(
             "[qaoa] prepare run:",

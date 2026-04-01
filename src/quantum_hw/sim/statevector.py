@@ -1,4 +1,4 @@
-"""Torch-based statevector simulator (standard axis order, counts in little-endian)."""
+"""Torch-based statevector simulator (standard axis order)."""
 
 from __future__ import annotations
 
@@ -32,6 +32,20 @@ def _apply_k_qubit_gate_torch(
     qubits: Sequence[int],
     num_qubits: int,
 ):
+    """Apply a k-qubit gate to a statevector tensor via axis permutation and matrix multiply.
+
+    Reshapes the flat state into an n-qubit tensor, moves target qubit axes to
+    the front, multiplies the ``(2^k, 2^k)`` gate matrix, and restores axis order.
+
+    Args:
+        state: Flat statevector tensor of length ``2**num_qubits``.
+        gate: Unitary gate matrix of shape ``(2**k, 2**k)``.
+        qubits (*Sequence[int]*): Target qubit indices for the gate.
+        num_qubits (*int*): Total number of qubits in the system.
+
+    Returns:
+        Updated flat statevector tensor of length ``2**num_qubits``.
+    """
     k = len(qubits)
     if k == 0:
         return state
@@ -46,6 +60,19 @@ def _apply_k_qubit_gate_torch(
 
 
 def _apply_reset_torch(state, qubit: int, num_qubits: int):
+    """Apply a reset operation on a single qubit, projecting it to |0⟩ and renormalizing.
+
+    Zeros all amplitudes where the target qubit is |1⟩, then renormalizes
+    the resulting state to unit norm.
+
+    Args:
+        state: Flat statevector tensor of length ``2**num_qubits``.
+        qubit (*int*): Target qubit index to reset.
+        num_qubits (*int*): Total number of qubits in the system.
+
+    Returns:
+        Renormalized statevector with the target qubit projected to |0⟩.
+    """
     axis = qubit
     tensor = state.reshape([2] * num_qubits)
     slicer = [slice(None)] * num_qubits
@@ -64,6 +91,22 @@ def simulate_statevector(
     param_values: Dict[str, object] | None = None,
     device: torch.device | str | None = None,
 ):
+    """Simulate a quantum circuit and return the full statevector.
+
+    Starts from the |0...0⟩ state and applies each gate in circuit order using
+    tensor-axis permutation and matrix multiplication.
+
+    Args:
+        qc (*QuantumCircuit*): Quantum circuit to simulate.
+        param_values (*Dict[str, object] | None*): Symbolic parameter name-to-value map. Defaults to ``None``.
+        device (*torch.device | str | None*): Torch device (``'cpu'`` or ``'cuda'``). Defaults to ``None``.
+
+    Returns:
+        Complex statevector tensor of length ``2**nqubits``.
+
+    Raises:
+        ValueError: If a gate in the circuit is not supported by the simulator.
+    """
     num_qubits = int(qc.nqubits)
     sim_device = auto_sim_device(device)
     if num_qubits <= 0:
@@ -126,6 +169,21 @@ def simulate_counts(
     param_values: Dict[str, object] | None = None,
     device: torch.device | str | None = None,
 ) -> Dict[str, int]:
+    """Sample measurement outcomes from a statevector simulation.
+
+    Simulates the circuit to obtain the statevector, computes Born-rule
+    probabilities, and draws *shots* samples via multinomial sampling.
+
+    Args:
+        qc (*QuantumCircuit*): Quantum circuit to simulate.
+        shots (*int*): Number of measurement shots.
+        seed (*int | None*): Random seed for reproducibility. Defaults to ``None``.
+        param_values (*Dict[str, object] | None*): Symbolic parameter name-to-value map. Defaults to ``None``.
+        device (*torch.device | str | None*): Torch device (``'cpu'`` or ``'cuda'``). Defaults to ``None``.
+
+    Returns:
+        Dictionary mapping bitstrings to their observed counts.
+    """
     # Sample from the statevector distribution.
     state = simulate_statevector(qc, param_values=param_values, device=device)
     num_qubits = int(qc.nqubits)
@@ -156,7 +214,17 @@ def build_state_from_symbolic(
     param_names: Sequence[str],
     device: torch.device | str | None = None,
 ):
-    """Build statevector from a symbolic circuit and differentiable param tensor."""
+    """Build statevector from a symbolic circuit and differentiable param tensor.
+
+    Args:
+        symbolic_qc (*QuantumCircuit*): Symbolic qc (``QuantumCircuit``).
+        params: Parameter values.
+        param_names (*Sequence[str]*): Names of variational parameters.
+        device (*torch.device | str | None*): Torch device (``'cpu'`` or ``'cuda'``). Defaults to ``None``.
+
+    Returns:
+        Newly constructed object.
+    """
     param_values = build_param_values_from_tensor(params=params, param_names=param_names)
     return simulate_statevector(symbolic_qc, param_values=param_values, device=device)
 
@@ -167,7 +235,16 @@ def expectation_pauli(
     *,
     num_qubits: int,
 ):
-    """Return <psi|P|psi> for a Pauli string using local operator application."""
+    """Return <psi|P|psi> for a Pauli string using local operator application.
+
+    Args:
+        state: Quantum state vector or tensor.
+        pauli (*str*): Pauli (``str``).
+        num_qubits (*int*): Number of qubits.
+
+    Returns:
+        Result.
+    """
     pattern = pauli_basis_pattern(pauli, num_qubits=num_qubits)
     acted = state
     for idx, op in enumerate(pattern):
@@ -215,8 +292,21 @@ def energy_and_expectations(
     param_names: Sequence[str],
     hamiltonian: List[Tuple[float, str]],
     device: torch.device | str | None = None,
-) -> Tuple[object, dict[str, float]]:
-    """Evaluate Hamiltonian energy from a symbolic circuit template in a differentiable way."""
+) -> Tuple[torch.Tensor, dict[str, float]]:
+    """Evaluate Hamiltonian energy from a symbolic circuit template in a differentiable way.
+
+    Args:
+        symbolic_qc (*QuantumCircuit*): Symbolic qc (``QuantumCircuit``).
+        params: Parameter values.
+        param_names (*Sequence[str]*): Names of variational parameters.
+        hamiltonian (*List[Tuple[float, str]]*): Target Hamiltonian.
+        device (*torch.device | str | None*): Torch device (``'cpu'`` or ``'cuda'``). Defaults to ``None``.
+
+    Returns:
+        Tuple of ``(energy, expectations)`` where *energy* is a differentiable
+        scalar tensor and *expectations* is a ``dict[str, float]`` mapping each
+        Pauli string to its expectation value.
+    """
     num_qubits = int(symbolic_qc.nqubits)
     sim_device = auto_sim_device(device)
     if params.device != sim_device:
