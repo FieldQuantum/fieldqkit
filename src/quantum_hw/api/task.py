@@ -35,8 +35,11 @@ class TaskAdapter(ABC):
             submit_request (*OpenQasmSubmitRequest*): Submission request descriptor.
             backend (*ResolvedBackend*): Hardware backend descriptor.
 
+        Returns:
+            ``ProviderTaskHandle`` for tracking the submitted task.
+
         Raises:
-            NotImplementedError: f'{self.provider} submit_openqasm is not implemented
+            NotImplementedError: f'{self.provider} submit_openqasm is not implemented'
         """
         raise NotImplementedError(f"{self.provider} submit_openqasm is not implemented")
 
@@ -46,8 +49,11 @@ class TaskAdapter(ABC):
         Args:
             handle (*ProviderTaskHandle*): Task handle from a prior submission.
 
+        Returns:
+            Status string (e.g. ``"Finished"``, ``"Running"``, ``"Failed"``).
+
         Raises:
-            NotImplementedError: f'{self.provider} query_status is not implemented
+            NotImplementedError: f'{self.provider} query_status is not implemented'
         """
         raise NotImplementedError(f"{self.provider} query_status is not implemented")
 
@@ -57,8 +63,11 @@ class TaskAdapter(ABC):
         Args:
             handle (*ProviderTaskHandle*): Task handle from a prior submission.
 
+        Returns:
+            Result dictionary containing measurement counts and metadata.
+
         Raises:
-            NotImplementedError: f'{self.provider} fetch_result is not implemented
+            NotImplementedError: f'{self.provider} fetch_result is not implemented'
         """
         raise NotImplementedError(f"{self.provider} fetch_result is not implemented")
 
@@ -69,6 +78,6 @@ class TaskAdapter(ABC):
             handle (*ProviderTaskHandle*): Task handle from a prior submission.
 
         Raises:
-            NotImplementedError: f'{self.provider} cancel_task is not implemented
+            NotImplementedError: f'{self.provider} cancel_task is not implemented'
         """
         raise NotImplementedError(f"{self.provider} cancel_task is not implemented")

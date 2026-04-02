@@ -72,6 +72,7 @@ run_shadow_with_backend(
   qasm_version="2.0",
   use_dd=True,
   submit_options=None,
+  convert_single_qubit_gate_to_u=True,
 ) -> ShadowResult
 ```
 

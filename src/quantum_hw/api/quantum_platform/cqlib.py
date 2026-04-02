@@ -46,10 +46,10 @@ def _assign_parameters(
         values (*List[List]*): Per-circuit lists of numeric values to substitute.
 
     Returns:
-        Result list.
+        List of QCIS circuit strings with parameter placeholders substituted.
 
     Raises:
-        ValueError: f'Circuit has parameters {circuit_parameters}, but no val...
+        ValueError: f'Circuit has parameters {circuit_parameters}, but no val...'
     """
     new_circuit: List[str] = []
     for circuit, parameter, value in zip(circuits, parameters, values):
@@ -183,14 +183,14 @@ def normalize_hardware_rows(*, provider: str, records: List[Dict[str, Any]]) -> 
 
 
 def extract_counts_from_result_items(result_items: Sequence[Dict[str, Any]], *, num_qubits: int) -> Dict[str, int]:
-    """Extract counts from result items.
+    """Merge measurement counts from result-item matrices, padding bit-strings to *num_qubits* width.
 
     Args:
-        result_items (*Sequence[Dict[str, Any]]*): Result items (``Sequence[Dict[str, Any]]``).
+        result_items (*Sequence[Dict[str, Any]]*): List of result-item dicts from the platform response.
         num_qubits (*int*): Number of qubits.
 
     Returns:
-        Result dictionary.
+        Merged measurement counts dictionary.
 
     Raises:
         RuntimeError: failed to extract counts from platform result payload
@@ -232,13 +232,13 @@ def extract_counts_from_result_items(result_items: Sequence[Dict[str, Any]], *, 
 
 
 def format_circuit(circuit: str):
-    """Format circuit.
+    """Strip blank lines and whitespace from a circuit string.
 
     Args:
-        circuit (*str*): Quantum circuit to execute.
+        circuit (*str*): Raw circuit source code.
 
     Returns:
-        Result.
+        Cleaned circuit string with trimmed lines joined by newlines.
     """
     content = []
     for line in circuit.split("\n"):
@@ -252,12 +252,12 @@ def _reconnect_on_failure(func, max_retries=2, retry_delay=1):
     """Retry decorator for RemotePlatformClient methods.
 
     Args:
-        func: Func.
-        max_retries: Max retries. Defaults to ``2``.
-        retry_delay: Retry delay. Defaults to ``1``.
+        func: Function to wrap.
+        max_retries: Maximum number of retry attempts. Defaults to ``2``.
+        retry_delay: Seconds to wait between retries. Defaults to ``1``.
 
     Returns:
-        Result.
+        Wrapped function with automatic retry and re-login logic.
 
     Raises:
         CqlibRequestError: f'function:[{func.__name__}] Max retries exceeded. Attemp...
@@ -265,14 +265,14 @@ def _reconnect_on_failure(func, max_retries=2, retry_delay=1):
     """
     @functools.wraps(func)
     def wrapper(self, *args, **kwargs):
-        """Wrapper.
+        """Execute the wrapped function with retry logic.
 
         Args:
-            *args: *args.
-            **kwargs: **kwargs.
+            *args: Positional arguments forwarded to *func*.
+            **kwargs: Keyword arguments forwarded to *func*.
 
         Returns:
-            Result.
+            Return value of the wrapped function.
 
         Raises:
             CqlibRequestError: f'function:[{func.__name__}] Max retries exceeded. Attemp...
@@ -336,7 +336,7 @@ class RemotePlatformClient:
         if self.auto_login:
             self.login()
 
-    def login(self, timeout=60) -> int:
+    def login(self, timeout=60) -> str:
         """Authenticate with the platform and store the access token.
 
         Args:
@@ -379,11 +379,11 @@ class RemotePlatformClient:
         """Create a new laboratory workspace and return its unique identifier.
 
         Args:
-            name (*str*): Descriptive name / identifier.
-            remark (*str*): Remark (``str``). Defaults to ``''``.
+            name (*str*): Laboratory name.
+            remark (*str*): Optional remark. Defaults to ``''``.
 
         Returns:
-            Formatted string.
+            Laboratory ID string.
         """
         data = {"name": name, "remark": remark}
         result = self._send_request(path=self.CREATE_LAB_PATH, data=data, method="POST")
@@ -400,14 +400,14 @@ class RemotePlatformClient:
         """Save a quantum circuit as an experiment to a specific laboratory.
 
         Args:
-            lab_id (*str*): Lab id (``str``).
-            circuit (*str*): Quantum circuit to execute.
-            name (*Optional[str]*): Descriptive name / identifier. Defaults to ``''``.
-            language (*QuantumLanguage*): Language (``QuantumLanguage``). Defaults to ``QuantumLanguage.QCIS``.
-            **kwargs: **kwargs.
+            lab_id (*str*): Laboratory workspace identifier.
+            circuit (*str*): Quantum circuit source code string.
+            name (*Optional[str]*): Descriptive name for the experiment. Defaults to ``''``.
+            language (*QuantumLanguage*): Circuit language format. Defaults to ``QuantumLanguage.QCIS``.
+            **kwargs: Additional keyword arguments forwarded to the experiment save API.
 
         Returns:
-            Result.
+            Experiment ID string (``exp_id``).
         """
         if language.value == "qcis":
             circuit = circuit.upper()
@@ -441,23 +441,23 @@ class RemotePlatformClient:
         is_verify: Optional[bool] = True,
         **kwargs,
     ):
-        """Submit job.
+        """Submit one or more circuits as an experiment job.
 
         Args:
-            circuit (*Optional[Union[List, str]]*): Quantum circuit to execute. Defaults to ``None``.
-            exp_name (*Optional[str]*): Exp name (``Optional[str]``). Defaults to ``''``.
-            parameters (*Optional[List[List]]*): Parameter values. Defaults to ``None``.
-            values (*Optional[List[List]]*): Values (``Optional[List[List]]``). Defaults to ``None``.
-            num_shots (*Optional[int]*): Num shots (``Optional[int]``). Defaults to ``12000``.
-            lab_id (*Optional[str]*): Lab id (``Optional[str]``). Defaults to ``None``.
-            exp_id (*Optional[str]*): Exp id (``Optional[str]``). Defaults to ``None``.
-            language (*QuantumLanguage*): Language (``QuantumLanguage``). Defaults to ``QuantumLanguage.QCIS``.
-            version (*Optional[str]*): Version (``Optional[str]``). Defaults to ``'1'``.
-            is_verify (*Optional[bool]*): Is verify (``Optional[bool]``). Defaults to ``True``.
-            **kwargs: **kwargs.
+            circuit (*Optional[Union[List, str]]*): Circuit string or list of circuit strings. Defaults to ``None``.
+            exp_name (*Optional[str]*): Experiment name. Defaults to ``''``.
+            parameters (*Optional[List[List]]*): Symbolic parameter names per circuit. Defaults to ``None``.
+            values (*Optional[List[List]]*): Numeric values for each parameter. Defaults to ``None``.
+            num_shots (*Optional[int]*): Number of measurement shots. Defaults to ``12000``.
+            lab_id (*Optional[str]*): Laboratory identifier. Defaults to ``None``.
+            exp_id (*Optional[str]*): Existing experiment identifier. Defaults to ``None``.
+            language (*QuantumLanguage*): Circuit language format. Defaults to ``QuantumLanguage.QCIS``.
+            version (*Optional[str]*): Experiment version label. Defaults to ``'1'``.
+            is_verify (*Optional[bool]*): Whether to verify the circuit before execution. Defaults to ``True``.
+            **kwargs: Extra options (e.g. ``noise``, ``quantum_state``).
 
         Returns:
-            Result.
+            Query ID(s) for the submitted job(s), or ``0`` on failure.
 
         Raises:
             ValueError: When circuit is not defined, experiment id should be defi...
@@ -502,13 +502,13 @@ class RemotePlatformClient:
         return self.handler_run_experiment_result(data)
 
     def handler_run_experiment_result(self, data):
-        """Handler run experiment result.
+        """Send an experiment-run request and extract query IDs.
 
         Args:
-            data: Input data array.
+            data: Dictionary containing the experiment result payload from the server.
 
         Returns:
-            Result.
+            List of query IDs, or ``0`` on failure.
         """
         result = self._send_request(path=self.CREATE_EXP_AND_RUN_PATH, data=data, method="POST")
         if result == 0:
@@ -516,15 +516,15 @@ class RemotePlatformClient:
         return result.get("data").get("query_ids")
 
     def query_experiment(self, query_id: Union[str, List[str]], max_wait_time: int = 120, sleep_time: int = 5):
-        """Query experiment.
+        """Poll for experiment results until all queries complete or timeout.
 
         Args:
-            query_id (*Union[str, List[str]]*): Query id (``Union[str, List[str]]``).
+            query_id (*Union[str, List[str]]*): One or more query identifiers.
             max_wait_time (*int*): Maximum wait time in seconds. Defaults to ``120``.
             sleep_time (*int*): Polling interval in seconds. Defaults to ``5``.
 
         Returns:
-            Result.
+            List of experiment result dictionaries.
 
         Raises:
             CqlibRequestError: Failed to query the experimental result.
@@ -546,14 +546,14 @@ class RemotePlatformClient:
         raise CqlibRequestError("Failed to query the experimental result.")
 
     def download_config(self, read_time: str = None, machine: str = None):
-        """Download config.
+        """Download hardware calibration configuration.
 
         Args:
-            read_time (*str*): Read time (``str``). Defaults to ``None``.
-            machine (*str*): Machine (``str``). Defaults to ``None``.
+            read_time (*str*): Timestamp for the calibration snapshot. Defaults to ``None``.
+            machine (*str*): Target machine name (falls back to ``self.machine_name``). Defaults to ``None``.
 
         Returns:
-            Result.
+            Configuration ``dict``.
 
         Raises:
             ValueError: f"The machine '{machine}' is not supported.
@@ -573,13 +573,13 @@ class RemotePlatformClient:
         return cfg
 
     def qcis_check_regular(self, qcis_raw: str):
-        """Qcis check regular.
+        """Validate a QCIS circuit string against the platform's syntax rules.
 
         Args:
-            qcis_raw (*str*): Qcis raw (``str``).
+            qcis_raw (*str*): Raw QCIS circuit string.
 
         Returns:
-            Result.
+            ``True`` if the circuit passes validation.
         """
         data = {"computerCode": self.machine_name, "qcis": qcis_raw}
         resp = self._send_request(path=self.QCIS_CHECK_REGULAR_PATH, method="POST", data=data, raise_for_code=False)
@@ -589,10 +589,10 @@ class RemotePlatformClient:
         """Retrieve the quantum circuit(s) associated with experiment query IDs.
 
         Args:
-            query_id (*Union[str, List[str]]*): Query id (``Union[str, List[str]]``).
+            query_id (*Union[str, List[str]]*): Single query ID or list of query IDs.
 
         Returns:
-            Retrieved data.
+            Circuit data from the platform response.
         """
         if isinstance(query_id, str):
             query_id = [query_id]
@@ -601,7 +601,7 @@ class RemotePlatformClient:
         return result.get("data")
 
     def query_quantum_computer_list(self):
-        """Query quantum computer list.
+        """Format quantum computer records as a header + rows table.
 
         Returns:
             List of lists with computer information rows.
@@ -617,7 +617,7 @@ class RemotePlatformClient:
         return table_data
 
     def query_quantum_computer_records(self) -> List[Dict[str, Any]]:
-        """Query quantum computer records.
+        """Fetch machine list and normalise status/toll codes to human-readable strings.
 
         Returns:
             List of dictionaries with computer records.
@@ -645,14 +645,14 @@ class RemotePlatformClient:
         return normalized_rows
 
     def re_execute_task(self, query_id: Optional[str] = None, lab_id: Optional[str] = None):
-        """Re execute task.
+        """Re-execute a previously submitted task.
 
         Args:
-            query_id (*Optional[str]*): Query id (``Optional[str]``). Defaults to ``None``.
-            lab_id (*Optional[str]*): Lab id (``Optional[str]``). Defaults to ``None``.
+            query_id (*Optional[str]*): Experiment query identifier. Defaults to ``None``.
+            lab_id (*Optional[str]*): Laboratory identifier. Defaults to ``None``.
 
         Returns:
-            Result.
+            Task data ``dict`` from the response.
 
         Raises:
             ValueError: Please provide lab_id or query_id.
@@ -664,14 +664,14 @@ class RemotePlatformClient:
         return result.get("data")
 
     def stop_running_experiments(self, lab_id: Optional[str] = None, query_id: Optional[str] = None):
-        """Stop running experiments.
+        """Stop currently running experiments.
 
         Args:
-            lab_id (*Optional[str]*): Lab id (``Optional[str]``). Defaults to ``None``.
-            query_id (*Optional[str]*): Query id (``Optional[str]``). Defaults to ``None``.
+            lab_id (*Optional[str]*): Laboratory identifier. Defaults to ``None``.
+            query_id (*Optional[str]*): Experiment query identifier. Defaults to ``None``.
 
         Returns:
-            Result.
+            Task data ``dict`` from the response.
 
         Raises:
             ValueError: Please provide lab_id or query_id.
@@ -694,7 +694,7 @@ class RemotePlatformClient:
             raise_for_code: Whether to raise on non-zero response codes. Defaults to ``True``.
 
         Returns:
-            Result.
+            Parsed JSON response ``dict``.
 
         Raises:
             CqlibRequestError: f'Request API failed: {res.text}
@@ -711,13 +711,13 @@ class RemotePlatformClient:
 
 
 def _to_int_qubit(value: Any) -> Optional[int]:
-    """To int qubit.
+    """Convert a qubit label (int or ``"Q3"``-style string) to ``int``.
 
     Args:
-        value (*Any*): Value to set.
+        value (*Any*): Qubit label to convert.
 
     Returns:
-        ``Optional[int]`` result.
+        ``int`` qubit index, or ``None`` if conversion fails.
     """
     if isinstance(value, int):
         return int(value)
@@ -731,13 +731,13 @@ def _to_int_qubit(value: Any) -> Optional[int]:
 
 
 def _extract_qubit_id(value: Any) -> Optional[int]:
-    """Extract qubit id.
+    """Parse an integer qubit ID from a name string, int, or metadata dict.
 
     Args:
-        value (*Any*): Value to set.
+        value (*Any*): Raw value (qubit name or dict with qubit metadata).
 
     Returns:
-        ``Optional[int]`` result.
+        Integer qubit ID, or ``None`` if extraction fails.
     """
     qid = _to_int_qubit(value)
     if qid is not None:
@@ -756,13 +756,13 @@ def _extract_qubit_id(value: Any) -> Optional[int]:
 
 
 def _normalize_coordinate(value: Any) -> Optional[List[float]]:
-    """Normalize coordinate.
+    """Parse a two-element ``[x, y]`` coordinate from list, tuple, or dict formats.
 
     Args:
-        value (*Any*): Value to set.
+        value (*Any*): Raw coordinate value (list, tuple, or dict with ``x``/``y`` keys).
 
     Returns:
-        Result list.
+        Two-element ``[x, y]`` list, or ``None`` if parsing fails.
     """
     if isinstance(value, (list, tuple)) and len(value) == 2:
         try:
@@ -781,13 +781,13 @@ def _normalize_coordinate(value: Any) -> Optional[List[float]]:
 
 
 def _extract_qubit_coordinates(config: Dict[str, Any]) -> Dict[int, List[float]]:
-    """Extract qubit coordinates.
+    """Aggregate qubit positions from ``qubits_info`` and ``overview`` config sections.
 
     Args:
         config (*Dict[str, Any]*): Configuration dictionary.
 
     Returns:
-        Result dictionary.
+        Qubit coordinate dictionary mapping qubit IDs to ``[x, y]`` lists.
     """
     out: Dict[int, List[float]] = {}
 
@@ -822,13 +822,13 @@ def _extract_qubit_coordinates(config: Dict[str, Any]) -> Dict[int, List[float]]
 
 
 def _infer_two_qubit_basis(config: Dict[str, Any]) -> str:
-    """Infer two qubit basis.
+    """Deduce the native two-qubit gate (cz/cx/iswap/ecr/fsim) from config keys.
 
     Args:
         config (*Dict[str, Any]*): Configuration dictionary.
 
     Returns:
-        Formatted string.
+        Two-qubit basis gate name (e.g. ``"cz"``, ``"cx"``).
     """
     twoq = config.get("twoQubitGate", {}) if isinstance(config, dict) else {}
     if isinstance(twoq, dict):
@@ -848,13 +848,13 @@ def _infer_two_qubit_basis(config: Dict[str, Any]) -> str:
 
 
 def _parse_comma_ids(value: Any) -> List[str]:
-    """Parse comma ids.
+    """Split a comma-separated string or flatten a list into trimmed ID strings.
 
     Args:
-        value (*Any*): Value to set.
+        value (*Any*): Raw comma-separated string or list of ID strings.
 
     Returns:
-        Result list.
+        List of trimmed, non-empty identifier strings.
     """
     if isinstance(value, str):
         return [v.strip() for v in value.split(",") if v.strip()]
@@ -868,13 +868,13 @@ def _parse_comma_ids(value: Any) -> List[str]:
 
 
 def _extract_disabled_qubits(config: Dict[str, Any]) -> set[int]:
-    """Extract disabled qubits.
+    """Parse the ``disabledQubits`` field into a set of qubit indices.
 
     Args:
         config (*Dict[str, Any]*): Configuration dictionary.
 
     Returns:
-        ``set[int]`` result.
+        Set of disabled qubit indices.
     """
     keys = ["disabledQubits"]
     values: List[str] = []
@@ -889,13 +889,13 @@ def _extract_disabled_qubits(config: Dict[str, Any]) -> set[int]:
 
 
 def _extract_disabled_couplers(config: Dict[str, Any]) -> set[str]:
-    """Extract disabled couplers.
+    """Parse the ``disabledCouplers`` field into a set of coupler ID strings.
 
     Args:
         config (*Dict[str, Any]*): Configuration dictionary.
 
     Returns:
-        ``set[str]`` result.
+        Set of disabled coupler identifier strings.
     """
     keys = ["disabledCouplers"]
     values: List[str] = []
@@ -905,13 +905,13 @@ def _extract_disabled_couplers(config: Dict[str, Any]) -> set[str]:
 
 
 def _extract_couplers(config: Dict[str, Any]) -> List[Tuple[str, int, int]]:
-    """Extract couplers.
+    """Collect enabled qubit-coupler pairs from the coupler map, filtering out disabled entries.
 
     Args:
         config (*Dict[str, Any]*): Configuration dictionary.
 
     Returns:
-        Result list.
+        List of ``(coupler_name, q1, q2)`` tuples for enabled couplers.
     """
     disabled_qubits = _extract_disabled_qubits(config)
     disabled_couplers = _extract_disabled_couplers(config)
@@ -942,14 +942,14 @@ def _extract_couplers(config: Dict[str, Any]) -> List[Tuple[str, int, int]]:
 
 
 def _extract_qubits(config: Dict[str, Any], couplers: Sequence[Tuple[str, int, int]]) -> List[int]:
-    """Extract qubits.
+    """Collect all active qubit indices from couplers and qubit list, excluding disabled ones.
 
     Args:
         config (*Dict[str, Any]*): Configuration dictionary.
         couplers (*Sequence[Tuple[str, int, int]]*): List of qubit coupler pairs.
 
     Returns:
-        Result list.
+        Sorted list of available qubit indices.
     """
     qubits = set()
     disabled_qubits = _extract_disabled_qubits(config)
@@ -971,13 +971,13 @@ def _extract_qubits(config: Dict[str, Any], couplers: Sequence[Tuple[str, int, i
 
 
 def _normalize_error_to_fidelity(value: Any) -> float:
-    """Normalize error to fidelity.
+    """Convert a percentage error value (0–100) to fidelity in ``[0.0, 1.0]``.
 
     Args:
-        value (*Any*): Value to set.
+        value (*Any*): Raw error value (may be a percentage).
 
     Returns:
-        Computed float result.
+        Fidelity in ``[0.0, 1.0]`` (i.e. ``1 − error_rate``).
     """
     try:
         error_value = float(value)
@@ -995,13 +995,13 @@ def _normalize_error_to_fidelity(value: Any) -> float:
 
 
 def _extract_qubit_fidelity_map(config: Dict[str, Any]) -> Dict[int, float]:
-    """Extract qubit fidelity map.
+    """Build a qubit-ID → fidelity dict from single-qubit gate error calibration data.
 
     Args:
         config (*Dict[str, Any]*): Configuration dictionary.
 
     Returns:
-        Result dictionary.
+        Per-qubit fidelity dictionary mapping qubit IDs to fidelity values.
     """
     gate_error = (
         config.get("qubit", {})
@@ -1028,13 +1028,13 @@ def _extract_qubit_fidelity_map(config: Dict[str, Any]) -> Dict[int, float]:
 
 
 def _extract_coupler_fidelity_map(config: Dict[str, Any]) -> Dict[str, float]:
-    """Extract coupler fidelity map.
+    """Build a coupler-name → fidelity dict from two-qubit gate error calibration data.
 
     Args:
         config (*Dict[str, Any]*): Configuration dictionary.
 
     Returns:
-        Result dictionary.
+        Per-coupler fidelity dictionary mapping coupler names to fidelity values.
     """
     if not isinstance(config, dict):
         return {}
@@ -1065,14 +1065,14 @@ def _extract_coupler_fidelity_map(config: Dict[str, Any]) -> Dict[str, float]:
 
 
 def chip_info_from_config(config: Dict[str, Any], *, machine_name: Optional[str] = None) -> Dict[str, Any]:
-    """Chip info from config.
+    """Transform a raw hardware config into a ``Backend``-compatible chip-info dict.
 
     Args:
         config (*Dict[str, Any]*): Configuration dictionary.
         machine_name (*Optional[str]*): Identifier of the target quantum machine. Defaults to ``None``.
 
     Returns:
-        Result dictionary.
+        Chip-info dictionary compatible with ``Backend``.
     """
     couplers = _extract_couplers(config)
     qubits = _extract_qubits(config, couplers)
@@ -1111,16 +1111,16 @@ def chip_info_from_config(config: Dict[str, Any], *, machine_name: Optional[str]
 
 
 def _infer_provider_from_chip_name(chip_name: str) -> str:
-    """Infer provider from chip name.
+    """Determine the platform provider (tianyan / guodun) from a chip name string.
 
     Args:
         chip_name (*str*): Name of the target chip.
 
     Returns:
-        Formatted string.
+        Provider name string (``"tianyan"`` or ``"guodun"``).
 
     Raises:
-        ValueError: f'Wrong chip name! {chip_name}
+        ValueError: f'Wrong chip name! {chip_name}'
     """
     normalized = str(chip_name).strip()
     if normalized in TIANYAN_HARDWARE_NAMES:
@@ -1136,15 +1136,15 @@ def load_cqlib_chip_info(
     provider: Optional[str] = None,
     platform: Optional[RemotePlatformClient] = None,
 ) -> Dict[str, Any]:
-    """Load cqlib chip info.
+    """Download hardware config and return a ``Backend``-compatible chip-info dict.
 
     Args:
         chip_name (*str*): Name of the target chip.
         provider (*Optional[str]*): Platform provider name (``"quafu"``, ``"tianyan"``, ``"guodun"``, ``"tencent"``). Defaults to ``None``.
-        platform (*Optional[RemotePlatformClient]*): Platform (``Optional[RemotePlatformClient]``). Defaults to ``None``.
+        platform (*Optional[RemotePlatformClient]*): Existing platform client instance. Defaults to ``None``.
 
     Returns:
-        Result dictionary.
+        Chip-info dictionary compatible with ``Backend``.
 
     Raises:
         ValueError: chip_name cannot be empty
@@ -1177,14 +1177,14 @@ def load_cqlib_chip_info(
 
 
 def load_backend_config(platform: RemotePlatformClient, *, machine_name: str) -> Dict[str, Any]:
-    """Load backend config.
+    """Fetch hardware configuration from the platform, returning empty dict on failure.
 
     Args:
-        platform (*RemotePlatformClient*): Platform (``RemotePlatformClient``).
+        platform (*RemotePlatformClient*): Authenticated platform client.
         machine_name (*str*): Identifier of the target quantum machine.
 
     Returns:
-        Result dictionary.
+        Raw backend configuration dictionary (empty dict on failure).
     """
     try:
         config = platform.download_config(machine=machine_name)

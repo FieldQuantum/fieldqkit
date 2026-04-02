@@ -67,8 +67,8 @@ def _compose_circuits(front: QuantumCircuit, back: QuantumCircuit) -> QuantumCir
     """Concatenate two circuits on the same register.
 
     Args:
-        front (*QuantumCircuit*): Front (``QuantumCircuit``).
-        back (*QuantumCircuit*): Back (``QuantumCircuit``).
+        front (*QuantumCircuit*): Circuit applied first.
+        back (*QuantumCircuit*): Circuit appended after *front*.
 
     Returns:
         Constructed ``QuantumCircuit``.
@@ -90,11 +90,11 @@ def _z_pauli_string(q: int, num_qubits: int) -> str:
     """Return a Pauli string with Z on qubit *q* and I elsewhere.
 
     Args:
-        q (*int*): Q (``int``).
+        q (*int*): Target qubit index.
         num_qubits (*int*): Number of qubits.
 
     Returns:
-        Formatted string.
+        Pauli string with ``Z`` on qubit *q* and ``I`` elsewhere.
     """
     return "I" * q + "Z" + "I" * (num_qubits - q - 1)
 
@@ -610,14 +610,14 @@ def _mmd_rbf(samples_p: np.ndarray, samples_q: np.ndarray, sigma: float) -> floa
         MMD² value as a float.
     """
     def _gram_mean(a: np.ndarray, b: np.ndarray) -> float:
-        """Gram mean.
+        """Compute the mean RBF kernel value between two sample sets.
 
         Args:
-            a (*np.ndarray*): A (``np.ndarray``).
-            b (*np.ndarray*): B (``np.ndarray``).
+            a (*np.ndarray*): First sample array of shape ``(Na, d)``.
+            b (*np.ndarray*): Second sample array of shape ``(Nb, d)``.
 
         Returns:
-            Computed float result.
+            Mean RBF kernel value between *a* and *b*.
         """
         # Hamming distances → RBF kernel
         diff = a[:, None, :] ^ b[None, :, :]  # (Na, Nb, d)
@@ -797,12 +797,12 @@ def run_qnn_unsupervised(
             """Submit bound circuit and return (N, n_qubits) sample array.
 
             Args:
-                qc_bound: Qc bound.
-                name: Descriptive name / identifier.
-                n_shots: N shots. Defaults to ``None``.
+                qc_bound: Bound quantum circuit with all parameters resolved.
+                name: Task name for the backend submission.
+                n_shots: Override shot count. Defaults to ``None`` (use ``backend_kwargs``).
 
             Returns:
-                Result.
+                ``np.ndarray`` of shape ``(N, n_qubits)`` with ``int64`` measurement samples.
             """
             kw = backend_kwargs if n_shots is None else {**backend_kwargs, "shots": n_shots}
             res = client._run_with_backend(

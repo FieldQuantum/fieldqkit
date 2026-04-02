@@ -75,9 +75,13 @@ def _apply_reset_torch(state, qubit: int, num_qubits: int):
     """
     axis = qubit
     tensor = state.reshape([2] * num_qubits)
-    slicer = [slice(None)] * num_qubits
-    slicer[axis] = 1
-    tensor[tuple(slicer)] = 0.0
+    slicer0 = [slice(None)] * num_qubits
+    slicer1 = [slice(None)] * num_qubits
+    slicer0[axis] = 0
+    slicer1[axis] = 1
+    # Move |1⟩ amplitudes into |0⟩ before clearing, so no amplitude is lost.
+    tensor[tuple(slicer0)] = tensor[tuple(slicer0)] + tensor[tuple(slicer1)]
+    tensor[tuple(slicer1)] = 0.0
     state = tensor.reshape(-1)
     norm = torch.linalg.norm(state)
     if float(norm.detach().cpu().item()) > 0.0:
@@ -217,13 +221,13 @@ def build_state_from_symbolic(
     """Build statevector from a symbolic circuit and differentiable param tensor.
 
     Args:
-        symbolic_qc (*QuantumCircuit*): Symbolic qc (``QuantumCircuit``).
-        params: Parameter values.
+        symbolic_qc (*QuantumCircuit*): Symbolic (unbound) quantum circuit.
+        params (*torch.Tensor | Sequence[float]*): Parameter values.
         param_names (*Sequence[str]*): Names of variational parameters.
         device (*torch.device | str | None*): Torch device (``'cpu'`` or ``'cuda'``). Defaults to ``None``.
 
     Returns:
-        Newly constructed object.
+        ``torch.Tensor`` statevector of length ``2**n_qubits``.
     """
     param_values = build_param_values_from_tensor(params=params, param_names=param_names)
     return simulate_statevector(symbolic_qc, param_values=param_values, device=device)
@@ -239,11 +243,11 @@ def expectation_pauli(
 
     Args:
         state: Quantum state vector or tensor.
-        pauli (*str*): Pauli (``str``).
+        pauli (*str*): Pauli string (e.g. ``'XZI'``).
         num_qubits (*int*): Number of qubits.
 
     Returns:
-        Result.
+        Scalar expectation value ``<psi|P|psi>``.
     """
     pattern = pauli_basis_pattern(pauli, num_qubits=num_qubits)
     acted = state
@@ -296,8 +300,8 @@ def energy_and_expectations(
     """Evaluate Hamiltonian energy from a symbolic circuit template in a differentiable way.
 
     Args:
-        symbolic_qc (*QuantumCircuit*): Symbolic qc (``QuantumCircuit``).
-        params: Parameter values.
+        symbolic_qc (*QuantumCircuit*): Symbolic (unbound) quantum circuit.
+        params (*torch.Tensor | Sequence[float]*): Parameter values.
         param_names (*Sequence[str]*): Names of variational parameters.
         hamiltonian (*List[Tuple[float, str]]*): Target Hamiltonian.
         device (*torch.device | str | None*): Torch device (``'cpu'`` or ``'cuda'``). Defaults to ``None``.

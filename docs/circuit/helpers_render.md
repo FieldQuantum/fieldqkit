@@ -3,7 +3,7 @@
 ## 概览
 
 - **模块**：`quantum_hw.circuit.quantumcircuit_helpers`、`quantum_hw.circuit.render`
-- **源文件**：`quantumcircuit_helpers.py`（~580 行）、`render.py`（25 行）
+- **源文件**：`quantumcircuit_helpers.py`（约620 行）、`render.py`（约50 行）
 - **作用**：
   - 管理门元信息（门集合常量、显示符号映射）
   - 参数格式化与表达式安全求值

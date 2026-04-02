@@ -33,7 +33,7 @@ class Transpiler:
         """Initialize the transpiler with optional backend and gate conversion settings.
 
         Args:
-            chip_backend (*Backend | None*): Chip backend (``Backend | None``). Defaults to ``None``.
+            chip_backend (*Backend | None*): Hardware backend providing topology and fidelity data. Defaults to ``None``.
             convert_single_qubit_gate_to_u (*bool | None*): Whether to convert single-qubit gates to U gates. Defaults to ``None``.
         """
         self.chip_backend = chip_backend

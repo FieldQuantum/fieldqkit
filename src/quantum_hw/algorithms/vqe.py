@@ -30,7 +30,7 @@ AnsatzKind = Literal["hardwareefficient", "ucc", "custom"]
 def build_ising_hamiltonian(num_qubits: int, j: float = 1.0, h: float = 1.0) -> Hamiltonian:
     """Build transverse-field Ising Hamiltonian.
 
-    ``H = -J \\sum_{i} Z_i Z_{i+1}  -  h \\sum_{i} X_i``
+    H = -J * sum_i(Z_i Z_{i+1}) - h * sum_i(X_i)
 
     Args:
         num_qubits: Number of qubits (chain length).
@@ -57,7 +57,7 @@ def build_heisenberg_hamiltonian(
 ) -> Hamiltonian:
     """Build Heisenberg Hamiltonian.
 
-    ``H = \\sum_i (J_x X_i X_{i+1} + J_y Y_i Y_{i+1} + J_z Z_i Z_{i+1}) + h_z \\sum_i Z_i``
+    H = sum_i(J_x X_i X_{i+1} + J_y Y_i Y_{i+1} + J_z Z_i Z_{i+1}) + h_z * sum_i(Z_i)
 
     Args:
         num_qubits: Chain length.
@@ -91,7 +91,7 @@ def build_xxz_hamiltonian(
 ) -> Hamiltonian:
     """Build XXZ Hamiltonian.
 
-    ``H = J_{xy}(XX + YY) + J_z ZZ + h_z Z``
+    H = J_xy * (XX + YY) + J_z * ZZ + h_z * Z
 
     Args:
         num_qubits: Chain length.
@@ -123,7 +123,7 @@ def build_xy_hamiltonian(
 ) -> Hamiltonian:
     """Build XY Hamiltonian.
 
-    ``H = J_x XX + J_y YY + h_z Z``
+    H = J_x * XX + J_y * YY + h_z * Z
 
     Args:
         num_qubits: Chain length.
@@ -190,13 +190,13 @@ def _extract_names_from_expr(expr: str) -> List[str]:
     out: List[str] = []
 
     def _walk(node):
-        """Walk.
+        """Recursively collect symbolic parameter names from an AST node.
 
         Args:
-            node: Node.
+            node: AST node to inspect (``Expression``, ``Name``, etc.).
 
         Raises:
-            ValueError: f'unsupported symbolic parameter expression: {expr}
+            ValueError: f'unsupported symbolic parameter expression: {expr}'
         """
         if isinstance(node, ast.Expression):
             _walk(node.body)

@@ -22,23 +22,23 @@ __all__ = [
 
 
 def _record_qubits(qubit_used: list, *qubits: int) -> None:
-    """Record qubits.
+    """Append qubit indices to the tracking list for register inference.
 
     Args:
-        qubit_used (*list*): Qubit used (``list``).
-        *qubits (*int*): *qubits (``int``).
+        qubit_used (*list*): Accumulator list of qubit indices encountered so far.
+        *qubits (*int*): Qubit indices to record.
     """
     qubit_used.extend(qubits)
 
 
 def parse_openqasm2_regs(openqasm2_str: str):
-    """Parse openqasm2 regs.
+    """Extract qubit/classical register declarations and strip them from the source.
 
     Args:
-        openqasm2_str (*str*): Openqasm2 str (``str``).
+        openqasm2_str (*str*): OpenQASM 2.0 source string.
 
     Returns:
-        Parsed result.
+        ``(qregs, cregs, cleaned_qasm)`` tuple.
     """
     qreg_pattern = r"qreg\s+(\w+)\[(\d+)\];"
     creg_pattern = r"creg\s+(\w+)\[(\d+)\];"
@@ -62,25 +62,25 @@ def parse_openqasm2_custom_gates(openqasm2_str: str):
     """Parse custom gate definitions and remove their blocks, keeping calls intact.
 
     Args:
-        openqasm2_str (*str*): Openqasm2 str (``str``).
+        openqasm2_str (*str*): OpenQASM 2.0 source string.
 
     Returns:
-        Parsed result.
+        ``(custom_gates_dict, cleaned_qasm)`` tuple.
 
     Raises:
-        ValueError: f'parse error {name} !
+        ValueError: f'parse error {name} !'
     """
     def parse_instruction(line: str):
-        """Parse instruction.
+        """Parse a single gate instruction line into a tuple.
 
         Args:
-            line (*str*): Line (``str``).
+            line (*str*): A single gate instruction line.
 
         Returns:
-            Parsed result.
+            Tuple of ``(gate_name, *params, *qargs)`` or ``None``.
 
         Raises:
-            ValueError: f'parse error {name} !
+            ValueError: f'parse error {name} !'
         """
         line = line.strip().rstrip(";")
         pattern = r"^(\w+)\s*(?:\(([^)]*)\))?\s*(.*)$"
@@ -132,13 +132,13 @@ def parse_openqasm2_custom_gates(openqasm2_str: str):
 
 
 def generate_reg_map(regs):
-    """Generate reg map.
+    """Build a mapping from register names to global qubit indices.
 
     Args:
-        regs: Regs.
+        regs: List of ``(register_name, size)`` tuples.
 
     Returns:
-        Result.
+        ``dict`` mapping each register name to a ``{local_idx: global_idx}`` dict.
     """
     num = sum(v for _, v in regs)
     all_reg = [i for i in range(num)]
@@ -205,16 +205,16 @@ def sparse_gate_params_qregs(line):
 
 
 def get_positions_list(gate, qregs_str, qreg_map, creg_map):
-    """Get positions list.
+    """Resolve qubit/classical register references to dense index lists.
 
     Args:
-        gate: Gate specification or name.
-        qregs_str: Qregs str.
-        qreg_map: Qreg map.
-        creg_map: Creg map.
+        gate: Gate name string.
+        qregs_str: Comma-separated register reference string.
+        qreg_map: Qubit register name-to-index mapping.
+        creg_map: Classical register name-to-index mapping.
 
     Returns:
-        Retrieved data.
+        Nested list of resolved qubit (and classical) indices.
 
     Raises:
         ValueError: measurement gate: position parse error
@@ -259,16 +259,16 @@ def get_positions_list(gate, qregs_str, qreg_map, creg_map):
 
 
 def parse_openqasm2_to_gates(openqasm2_str):
-    """Parse gate information from an input OpenQASM 2.0 string, and update gates, supporting multiple registers.
+    """Parse an OpenQASM 2.0 string into a list of gate tuples.
 
     Args:
-        openqasm2_str: Openqasm2 str.
+        openqasm2_str: OpenQASM 2.0 source string.
 
     Returns:
-        Parsed result.
+        List of gate tuples compatible with ``QuantumCircuit``.
 
     Raises:
-        ValueError: f'{gate} takes 2 quantum arguments, but got {len(position...
+        ValueError: f'{gate} takes 2 quantum arguments, but got {len(position...'
     """
     qregs_used, cregs_used, openqasm2_str = parse_openqasm2_regs(openqasm2_str)
     qreg_map = generate_reg_map(qregs_used)

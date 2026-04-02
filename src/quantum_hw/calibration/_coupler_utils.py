@@ -11,11 +11,11 @@ def coupler_key(q1: int, q2: int) -> str:
 	"""Build normalized coupler key as `min-max`.
 
 	Args:
-		q1 (*int*): Q1 (``int``).
-		q2 (*int*): Q2 (``int``).
+		q1 (*int*): First qubit index in the coupler pair.
+		q2 (*int*): Second qubit index in the coupler pair.
 
 	Returns:
-		Formatted string.
+		Normalised coupler key string ``"min-max"`` (e.g. ``"2-5"``).
 	"""
 	return f"{min(q1, q2)}-{max(q1, q2)}"
 
@@ -35,7 +35,7 @@ def resolve_positive_fidelity_couplers(
 		backend (*Backend*): Hardware backend descriptor.
 
 	Returns:
-		Result list.
+		List of ``(q1, q2)`` coupler pairs with positive fidelity.
 
 	Raises:
 		RuntimeError: no available couplers with fidelity > 0

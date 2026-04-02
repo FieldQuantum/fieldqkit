@@ -154,6 +154,7 @@ def cancel_task(self, handle: ProviderTaskHandle) -> None
 - Quafu：`quantum_hw.api.quantum_platform.quafu.QuafuTaskAdapter`
 - TianYan：`quantum_hw.api.quantum_platform.tianyan.TianYanTaskAdapter`
 - GuoDun：`quantum_hw.api.quantum_platform.guodun.GuoDunTaskAdapter`
+- Tencent：`quantum_hw.api.quantum_platform.tencent.TencentTaskAdapter`
 
 ## 与 QuantumHardwareClient 的配合
 

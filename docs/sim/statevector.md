@@ -19,20 +19,23 @@
 
 ## 关键函数
 
-### `simulate_statevector(qc, *, param_values=None) -> torch.Tensor`
+### `simulate_statevector(qc, *, param_values=None, device=None) -> torch.Tensor`
 
 - 从 `|0...0>` 初态按门序演化。
+- `device`：torch 设备（`'cpu'` / `'cuda'`），默认 `None`（自动选择）。
 - 支持离散门、参数门和 `reset`。
 - 返回一维态向量，形状 `(2**n,)`。
 
-### `simulate_counts(qc, shots, *, seed=None, param_values=None) -> Dict[str, int]`
+### `simulate_counts(qc, shots, *, seed=None, param_values=None, device=None) -> Dict[str, int]`
 
 - 基于 `simulate_statevector` 的概率分布进行多项式采样。
+- `device`：torch 设备（`'cpu'` / `'cuda'`），默认 `None`（自动选择）。
 - bitstring 输出采用小端序。
 
-### `build_state_from_symbolic(symbolic_qc, *, params, param_names) -> torch.Tensor`
+### `build_state_from_symbolic(symbolic_qc, *, params, param_names, device=None) -> torch.Tensor`
 
 - 输入符号参数线路和可微 `params` 张量。
+- `device`：torch 设备（`'cpu'` / `'cuda'`），默认 `None`（自动选择）。
 - 将 `param_names[i] -> params[i]` 映射为 `param_values`，再复用 `simulate_statevector(...)`。
 - 这是 autograd 路径构建态向量的统一入口。
 
@@ -49,9 +52,10 @@
 - 完全可微分，支持 autograd 回传。
 - 主要用途：无监督 QNN 的负对数似然（NLL）损失计算。
 
-### `energy_and_expectations(symbolic_qc, *, params, param_names, hamiltonian)`
+### `energy_and_expectations(symbolic_qc, *, params, param_names, hamiltonian, device=None)`
 
 - 先调用 `build_state_from_symbolic(...)` 得到当前态。
+- `device`：torch 设备（`'cpu'` / `'cuda'`），默认 `None`（自动选择）。
 - 遍历哈密顿量项，调用 `expectation_pauli(...)` 计算每个可观测量期望。
 - 返回：
   - `energy`：可微分的 Torch 标量。

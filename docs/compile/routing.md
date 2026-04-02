@@ -2,7 +2,7 @@
 
 ## 概览
 
-- **模块**：`quantum_hw.compile.routing`（456 行）
+- **模块**：`quantum_hw.compile.routing`（约650 行）
 - **作用**：基于 SABRE 算法插入 SWAP 门，使所有两比特门满足芯片拓扑连通性约束。
 - **继承**：`TranspilerPass`（实现 `run()` 方法）
 - **依赖**：`networkx`（Floyd-Warshall 距离矩阵）、`qc2dag` / `split_qubits`（DAG 构建与比特分割）

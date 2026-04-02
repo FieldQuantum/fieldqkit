@@ -17,6 +17,13 @@
 
 ## 关键函数
 
+### auto_sim_device(device=None)
+
+- 根据显式设备、CUDA 可用性自动选择仿真设备。
+- 参数：
+  - `device`: 显式指定的 torch device 或字符串（`'cpu'`/`'cuda'`）；若 `None`，优先检查 CUDA。
+- 返回：解析后的 `torch.device` 对象。
+
 ### resolve_param(qc, param, param_values=None)
 
 - 支持：

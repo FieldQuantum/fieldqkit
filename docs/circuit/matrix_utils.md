@@ -3,7 +3,7 @@
 ## 概览
 
 - **模块**：`quantum_hw.circuit.matrix`、`quantum_hw.circuit.utils`
-- **源文件**：`matrix.py`（~370 行）、`utils.py`（~245 行）
+- **源文件**：`matrix.py`（约400 行）、`utils.py`（约290 行）
 - **作用**：
   - 提供所有标准量子门的矩阵表示（常量 + 参数函数）
   - 提供门名到矩阵的统一查找字典 `gate_matrix_dict`

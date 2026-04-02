@@ -103,8 +103,8 @@ def _traversal_binary_tree(node, var_map):
         The evaluated numeric result.
 
     Raises:
-        NotImplementedError: f'Binary operator {node.op.name} not implemented.
-        TypeError: f'Invalid input type {type(node)} found when traversing b...
+        NotImplementedError: f'Binary operator {node.op.name} not implemented.'
+        TypeError: f'Invalid input type {type(node)} found when traversing b...'
     """
     if isinstance(node, (IntegerLiteral, FloatLiteral, ImaginaryLiteral, BooleanLiteral, DurationLiteral)):
         return node.value
@@ -620,7 +620,7 @@ class QasmToQcis:
             var_map: Variable name to value mapping. Defaults to None.
 
         Raises:
-            NotImplementedError: f'Invalid input type {type(argument)} found when parsing ...
+            NotImplementedError: f'Invalid input type {type(argument)} found when parsing ...'
         """
         raise NotImplementedError(f"Invalid input type {type(argument)} found when parsing argument {argument}.")
 
@@ -629,27 +629,27 @@ class QasmToQcis:
     @_parse_argument.register(ImaginaryLiteral)
     @_parse_argument.register(BooleanLiteral)
     def _(self, argument, var_map=None):
-        """.
+        """Return the Python value of a literal AST node.
 
         Args:
-            argument: Argument.
-            var_map: Var map. Defaults to ``None``.
+            argument: Literal AST node.
+            var_map: Variable mapping (unused for literals). Defaults to ``None``.
 
         Returns:
-            Result.
+            The literal’s Python value.
         """
         return argument.value
 
     @_parse_argument.register(DurationLiteral)
     def _(self, argument, var_map=None):
-        """.
+        """Convert a duration literal AST node to seconds.
 
         Args:
-            argument: Argument.
-            var_map: Var map. Defaults to ``None``.
+            argument: DurationLiteral AST node.
+            var_map: Variable mapping (unused). Defaults to ``None``.
 
         Returns:
-            Result.
+            ``float`` duration in seconds.
         """
         return _duration_literal_to_seconds(argument)
 
@@ -657,14 +657,14 @@ class QasmToQcis:
     @_parse_argument.register(Identifier)
     @_parse_argument.register(BinaryExpression)
     def _(self, argument, var_map=None):
-        """.
+        """Evaluate an expression AST node via binary-tree traversal.
 
         Args:
-            argument: Argument.
-            var_map: Var map. Defaults to ``None``.
+            argument: Expression AST node.
+            var_map: Variable name to value mapping. Defaults to ``None``.
 
         Returns:
-            Result.
+            Evaluated numeric value.
         """
         if var_map is None:
             var_map = self.var_map
@@ -679,23 +679,23 @@ class QasmToQcis:
             qubit_map: Gate-local qubit name to index mapping. Defaults to None.
 
         Raises:
-            NotImplementedError: f'Invalid input type {type(qubit)} found when parse argum...
+            NotImplementedError: f'Invalid input type {type(qubit)} found when parse argum...'
         """
         raise NotImplementedError(f"Invalid input type {type(qubit)} found when parse argument {qubit}.")
 
     @_parse_qubit.register(Identifier)
     def _(self, qubit, qubit_map=None):
-        """.
+        """Resolve a qubit Identifier to its integer index via gate-local mapping.
 
         Args:
-            qubit: Target qubit index.
-            qubit_map: Qubit map. Defaults to ``None``.
+            qubit: Identifier AST node for the qubit.
+            qubit_map: Gate-local qubit name to index mapping. Defaults to ``None``.
 
         Returns:
-            Result.
+            ``int`` qubit index.
 
         Raises:
-            KeyError: f'qubit map not defined when parsing qubit {qubit} with t...
+            KeyError: f'qubit map not defined when parsing qubit {qubit} with t...'
         """
         if qubit_map is None:
             raise KeyError(f"qubit map not defined when parsing qubit {qubit} with type {type(qubit)}.")
@@ -703,14 +703,14 @@ class QasmToQcis:
 
     @_parse_qubit.register(IndexedIdentifier)
     def _(self, qubit, qubit_map=None):
-        """.
+        """Resolve an IndexedIdentifier qubit reference to its integer index.
 
         Args:
-            qubit: Target qubit index.
-            qubit_map: Qubit map. Defaults to ``None``.
+            qubit: IndexedIdentifier AST node for the qubit.
+            qubit_map: Gate-local qubit mapping (unused; uses ``self.qubit_map``). Defaults to ``None``.
 
         Returns:
-            Result.
+            ``int`` qubit index.
         """
         return self.qubit_map[(qubit.name.name, qubit.indices[0][0].value)]
 
@@ -727,7 +727,7 @@ class QasmToQcis:
             list[Instruction]: The corresponding QCIS instructions.
 
         Raises:
-            NotImplementedError: f'Invalid input type {type(statement)} found when parsing...
+            NotImplementedError: f'Invalid input type {type(statement)} found when parsing...'
         """
         statement_type = statement.__class__.__name__
         if statement_type in {"CalibrationGrammarDeclaration"}:
@@ -746,18 +746,18 @@ class QasmToQcis:
 
     @_parse_ast_statement.register(Include)
     def _(self, statement, var_map=None, qubit_map=None):
-        """.
+        """Process an OpenQASM ``include`` statement, loading and converting the included file.
 
         Args:
-            statement: Statement.
-            var_map: Var map. Defaults to ``None``.
-            qubit_map: Qubit map. Defaults to ``None``.
+            statement: Include AST node.
+            var_map: Variable mapping. Defaults to ``None``.
+            qubit_map: Qubit mapping. Defaults to ``None``.
 
         Returns:
-            Result.
+            Empty string (side-effect: processes included file).
 
         Raises:
-            FileNotFoundError: f'Include file {include_file_name} not found.
+            FileNotFoundError: f'Include file {include_file_name} not found.'
         """
         include_file_name = statement.filename
         if include_file_name == "stdgates.inc":
@@ -776,27 +776,27 @@ class QasmToQcis:
     @_parse_ast_statement.register(ClassicalDeclaration)
     @_parse_ast_statement.register(QuantumPhase)
     def _(self, statement, var_map=None, qubit_map=None):
-        """.
+        """Skip unsupported classical declarations and quantum-phase statements.
 
         Args:
-            statement: Statement.
-            var_map: Var map. Defaults to ``None``.
-            qubit_map: Qubit map. Defaults to ``None``.
+            statement: AST statement node.
+            var_map: Variable mapping. Defaults to ``None``.
+            qubit_map: Qubit mapping. Defaults to ``None``.
 
         Returns:
-            Result.
+            Empty string (no-op).
         """
         return ""
 
     @_parse_ast_statement.register(QubitDeclaration)
     def _(self, statement):
-        """.
+        """Register qubits from a qubit declaration into the qubit mapping.
 
         Args:
-            statement: Statement.
+            statement: QubitDeclaration AST node.
 
         Returns:
-            Result.
+            Empty string (side-effect: populates ``self.qubit_map``).
         """
         name = statement.qubit.name
         size = statement.size.value
@@ -807,18 +807,18 @@ class QasmToQcis:
 
     @_parse_ast_statement.register(QuantumGate)
     def _(self, statement, var_map=None, qubit_map=None):
-        """.
+        """Convert a quantum gate AST statement into QCIS instructions.
 
         Args:
-            statement: Statement.
-            var_map: Var map. Defaults to ``None``.
-            qubit_map: Qubit map. Defaults to ``None``.
+            statement: QuantumGate AST node.
+            var_map: Variable name to value mapping. Defaults to ``None``.
+            qubit_map: Gate-local qubit mapping. Defaults to ``None``.
 
         Returns:
-            Result.
+            List of QCIS ``Instruction`` objects.
 
         Raises:
-            NotImplementedError: f'Qasm Modifier {modifiers} is not supported in QCIS order.
+            NotImplementedError: f'Qasm Modifier {modifiers} is not supported in QCIS order.'
         """
         if statement.modifiers:
             modifiers = [i.modifier.name for i in statement.modifiers]
@@ -834,13 +834,13 @@ class QasmToQcis:
 
     @_parse_ast_statement.register(QuantumMeasurementStatement)
     def _(self, statement):
-        """.
+        """Convert a measurement statement into a QCIS measurement instruction.
 
         Args:
-            statement: Statement.
+            statement: QuantumMeasurementStatement AST node.
 
         Returns:
-            Result.
+            List containing a single ``Instruction('m', ...)``.
         """
         qubit = statement.measure.qubit
         qubit_index = [self._parse_qubit(qubit)]
@@ -848,13 +848,13 @@ class QasmToQcis:
 
     @_parse_ast_statement.register(QuantumReset)
     def _(self, statement):
-        """.
+        """Convert a reset statement into a QCIS reset instruction.
 
         Args:
-            statement: Statement.
+            statement: QuantumReset AST node.
 
         Returns:
-            Result.
+            List containing a single ``Instruction('rst', ...)``.
         """
         qubit = statement.qubits
         qubit_index = [self._parse_qubit(qubit)]
@@ -862,26 +862,26 @@ class QasmToQcis:
 
     @_parse_ast_statement.register(QuantumBarrier)
     def _(self, statement):
-        """.
+        """Convert a barrier statement into a QCIS barrier instruction.
 
         Args:
-            statement: Statement.
+            statement: QuantumBarrier AST node.
 
         Returns:
-            Result.
+            List containing a single ``Instruction('b', ...)``.
         """
         qubit_index = [self._parse_qubit(i) for i in statement.qubits]
         return [Instruction("b", qubit_index)]
 
     @_parse_ast_statement.register(QuantumGateDefinition)
     def _(self, statement):
-        """.
+        """Register a custom gate definition for later use in conversion.
 
         Args:
-            statement: Statement.
+            statement: QuantumGateDefinition AST node.
 
         Returns:
-            Result.
+            Empty string (side-effect: registers gate in ``instruct_convert_rule_dict``).
         """
         gate_name = statement.name.name.lower()
         if gate_name in self.instruct_convert_rule_dict:

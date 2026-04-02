@@ -17,11 +17,11 @@ def _as_float_or_default(value: Any, default: float) -> float:
     """Convert *value* to float, returning *default* on failure.
 
     Args:
-        value (*Any*): Value to set.
-        default (*float*): Default (``float``).
+        value (*Any*): Value to convert.
+        default (*float*): Fallback value if conversion fails.
 
     Returns:
-        Computed float result.
+        ``float`` value of *value*, or *default* on failure.
     """
     try:
         return float(value)
@@ -33,8 +33,8 @@ def is_connected_coupler(coupler_info: Any, *, min_fidelity: float = MIN_CONNECT
     """Return True if *coupler_info* has fidelity >= *min_fidelity*.
 
     Args:
-        coupler_info (*Any*): Coupler info (``Any``).
-        min_fidelity (*float*): Min fidelity (``float``). Defaults to ``MIN_CONNECTED_COUPLER_FIDELITY``.
+        coupler_info (*Any*): Dictionary with coupler metadata (must contain a ``"fidelity"`` key).
+        min_fidelity (*float*): Minimum fidelity threshold. Defaults to ``MIN_CONNECTED_COUPLER_FIDELITY``.
 
     Returns:
         ``True`` if the condition is satisfied.
@@ -49,10 +49,10 @@ def _fallback_priority_qubits(qubits_info: Any) -> List[List[int]]:
     """Build a priority qubit list sorted by descending fidelity.
 
     Args:
-        qubits_info (*Any*): Qubits info (``Any``).
+        qubits_info (*Any*): Dictionary mapping qubit keys to metadata dicts.
 
     Returns:
-        Result list.
+        Nested list ``[[q0, q1, ...]]`` with qubits sorted by descending fidelity.
     """
     if not isinstance(qubits_info, dict):
         return []
@@ -79,7 +79,7 @@ def _build_simulator_chip_info(nqubits: int = 16) -> dict:
         nqubits (*int*): Number of qubits. Defaults to ``16``.
 
     Returns:
-        Result dictionary.
+        Synthetic chip-info dictionary with perfect fidelities.
     """
     qubits_info = {
         f"Q{i}": {"fidelity": 1.0}
@@ -117,10 +117,10 @@ class Backend:
         """Initialize Backend from a chip name or chip info dict.
 
         Args:
-            chip (*Union[str, dict]*): Chip (``Union[str, dict]``).
+            chip (*Union[str, dict]*): Chip name string or pre-built chip-info dictionary.
 
         Raises:
-            ValueError: f'Wrong chip name! {chip}
+            ValueError: f'Wrong chip name! {chip}'
         """
         if isinstance(chip, dict):
             self.chip_name = chip.get("chip_name", " ")
@@ -169,31 +169,31 @@ class Backend:
         """Return a subgraph keeping only edges/nodes with fidelity >= *thres*.
 
         Args:
-            thres (*float*): Thres (``float``). Defaults to ``0.6``.
+            thres (*float*): Fidelity threshold. Defaults to ``0.6``.
 
         Returns:
-            Result.
+            ``networkx.Graph`` containing only edges and nodes above the threshold.
         """
         def edge_filter(u, v):
-            """Edge filter.
+            """Return ``True`` if edge fidelity >= threshold.
 
             Args:
-                u: U.
-                v: V.
+                u: Source node index.
+                v: Target node index.
 
             Returns:
-                Result.
+                ``bool`` whether the edge passes the fidelity filter.
             """
             return self.graph[u][v].get("fidelity") >= thres
 
         def node_filter(n):
-            """Node filter.
+            """Return ``True`` if node fidelity >= threshold.
 
             Args:
-                n: N.
+                n: Node index.
 
             Returns:
-                Result.
+                ``bool`` whether the node passes the fidelity filter.
             """
             return self.graph.nodes[n].get("fidelity") >= thres
 
@@ -247,8 +247,8 @@ class Backend:
         """Draw the hardware topology graph and optionally save as SVG.
 
         Args:
-            save_svg_fname (*str | None*): Save svg fname (``str | None``). Defaults to ``None``.
-            edge_fidelity_thres (*float*): Edge fidelity thres (``float``). Defaults to ``0.9``.
+            save_svg_fname (*str | None*): File path to save the topology as SVG, or ``None`` to skip. Defaults to ``None``.
+            edge_fidelity_thres (*float*): Minimum fidelity threshold for rendering coupler edges. Defaults to ``0.9``.
         """
         import matplotlib.pyplot as plt
 
@@ -306,7 +306,7 @@ class Backend:
         """Draw and cache the topology figure as SVG in the .cache directory.
 
         Args:
-            edge_fidelity_thres (*float*): Edge fidelity thres (``float``). Defaults to ``0.9``.
+            edge_fidelity_thres (*float*): Minimum fidelity threshold for rendering coupler edges. Defaults to ``0.9``.
         """
         cache_dir = Path(__file__).resolve().parent / ".cache"
         cache_dir.mkdir(parents=True, exist_ok=True)
@@ -318,10 +318,10 @@ def normalize_hardware_preferences(prefer_hardware: Optional[Sequence[str] | str
     """Normalize preferred hardware names into a compact list.
 
     Args:
-        prefer_hardware (*Optional[Sequence[str] | str]*): Prefer hardware (``Optional[Sequence[str] | str]``).
+        prefer_hardware (*Optional[Sequence[str] | str]*): Raw hardware preference (string, sequence, or ``None``).
 
     Returns:
-        Result list.
+        Normalised list of trimmed, non-empty hardware name strings.
     """
     if isinstance(prefer_hardware, str):
         items = [prefer_hardware]
@@ -336,7 +336,7 @@ def is_simulator_preferred(prefer_hardware: Optional[Sequence[str] | str]) -> bo
     """Return True when hardware preference explicitly asks for simulator.
 
     Args:
-        prefer_hardware (*Optional[Sequence[str] | str]*): Prefer hardware (``Optional[Sequence[str] | str]``).
+        prefer_hardware (*Optional[Sequence[str] | str]*): Hardware name(s) to check, or ``None``.
 
     Returns:
         ``True`` if the condition is satisfied.
@@ -382,7 +382,7 @@ def build_simulator_profile(*, provider: str, num_qubits: int) -> HardwareProfil
         num_qubits (*int*): Number of qubits.
 
     Returns:
-        ``HardwareProfile`` result.
+        ``HardwareProfile`` for the simulated backend.
     """
     nqubits = max(int(num_qubits), 1)
     target = list(range(nqubits))
@@ -419,7 +419,7 @@ class BackendAdapter(ABC):
             List of hardware description dictionaries.
 
         Raises:
-            RuntimeError: f'{self.__class__.__name__} requires a bound platform wit...
+            RuntimeError: f'{self.__class__.__name__} requires a bound platform wit...'
         """
         platform_obj = getattr(self, "_platform", None)
         if platform_obj is None or not hasattr(platform_obj, "list_available_hardware"):
@@ -436,10 +436,10 @@ class BackendAdapter(ABC):
 
         Args:
             num_qubits (*int*): Number of qubits.
-            prefer_hardware (*Optional[Sequence[str] | str]*): Prefer hardware (``Optional[Sequence[str] | str]``). Defaults to ``None``.
+            prefer_hardware (*Optional[Sequence[str] | str]*): Preferred hardware name(s) to filter candidates. Defaults to ``None``.
 
         Returns:
-            Result list.
+            List of ``HardwareProfile`` instances matching the qubit requirement.
         """
         if is_simulator_preferred(prefer_hardware):
             return [build_simulator_profile(provider=self.provider, num_qubits=num_qubits)]
@@ -485,7 +485,7 @@ class BackendAdapter(ABC):
 
         Args:
             num_qubits (*int*): Number of qubits.
-            prefer_hardware (*Optional[Sequence[str] | str]*): Prefer hardware (``Optional[Sequence[str] | str]``). Defaults to ``None``.
+            prefer_hardware (*Optional[Sequence[str] | str]*): Preferred hardware name(s) to filter candidates. Defaults to ``None``.
 
         Returns:
             Resolved ``ResolvedBackend`` instance containing provider, backend, and profile.
@@ -543,7 +543,7 @@ def as_int_or_none(value: Any) -> Optional[int]:
         value (*Any*): Value to set.
 
     Returns:
-        ``Optional[int]`` result.
+        ``int`` value, or ``None`` if conversion fails.
     """
     try:
         return int(value)
@@ -563,13 +563,13 @@ def build_hardware_profile(
 
     Args:
         provider (*str*): Platform provider name (``"quafu"``, ``"tianyan"``, ``"guodun"``, ``"tencent"``).
-        hardware_name (*str*): Hardware name (``str``).
+        hardware_name (*str*): Human-readable identifier for the quantum hardware.
         backend (*Backend*): Hardware backend descriptor.
-        queue_length (*Optional[int]*): Queue length (``Optional[int]``).
-        raw_info (*Dict[str, Any]*): Raw info (``Dict[str, Any]``).
+        queue_length (*Optional[int]*): Current job queue depth on the hardware.
+        raw_info (*Dict[str, Any]*): Unprocessed chip metadata from the platform.
 
     Returns:
-        ``HardwareProfile`` result.
+        Constructed ``HardwareProfile`` for the given backend.
     """
     chip_info = getattr(backend, "chip_info", {}) if isinstance(backend, Backend) else {}
     qubits_info = chip_info.get("qubits_info", {}) if isinstance(chip_info, dict) else {}

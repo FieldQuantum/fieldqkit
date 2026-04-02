@@ -3,7 +3,7 @@
 ## 概览
 
 - **模块**：`quantum_hw.circuit.qasm2`、`quantum_hw.circuit.qasm3`
-- **源文件**：`qasm2.py`（~307 行）、`qasm3.py`（~353 行）
+- **源文件**：`qasm2.py`（约410 行）、`qasm3.py`（约490 行）
 - **作用**：将 OpenQASM 2/3 程序解析为统一的 gate tuple IR
 - **调用入口**：`QuantumCircuit.from_openqasm2`、`QuantumCircuit.from_openqasm3`
 

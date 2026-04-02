@@ -23,16 +23,16 @@ two_qubit_parameter_gates_available = {'rxx':'Rxx', 'ryy':'Ryy', 'rzz':'Rzz','cp
 functional_gates_available = {'barrier':'░', 'measure':'M', 'reset':'|0>','delay':'Delay'}
 
 def convert_gate_info_to_dag_info(nqubits:int,qubits:list,gates:list,show_qubits:bool=True) -> tuple[list,list]:
-    """Convert gate info to dag info.
+    """Transform gate tuples and qubit indices into DAG node and edge lists.
 
     Args:
         nqubits (*int*): Number of qubits.
         qubits (*list*): Target qubit indices.
-        gates (*list*): Gates (``list``).
-        show_qubits (*bool*): Show qubits (``bool``). Defaults to ``True``.
+        gates (*list*): Gate tuples from the circuit.
+        show_qubits (*bool*): Whether to include qubit nodes. Defaults to ``True``.
 
     Returns:
-        Result list.
+        ``(node_list, edge_list)`` tuple for DAG construction.
     """
     #print('check',nqubits,qubits)
     qubit_dic = [None for _ in range(nqubits)]
@@ -206,7 +206,7 @@ def _format_param_token(token, params_value: dict) -> str:
         params_value (*dict*): Mapping of parameter names to values.
 
     Returns:
-        Formatted string.
+        Display label string (pi-fraction or rounded decimal).
     """
     if isinstance(token, (float, int, np.floating, np.integer)):
         return is_multiple_of_pi(float(token))
@@ -222,10 +222,10 @@ def _safe_eval_expression(expr: str) -> float:
     """Safely evaluate a numeric expression that may contain pi.
 
     Args:
-        expr (*str*): Expr (``str``).
+        expr (*str*): Mathematical expression string.
 
     Returns:
-        Computed float result.
+        Evaluated ``float`` value.
 
     Raises:
         ValueError: Unsupported expression.
@@ -233,13 +233,13 @@ def _safe_eval_expression(expr: str) -> float:
     import ast
 
     def _eval(node):
-        """Eval.
+        """Recursively evaluate an AST node to a numeric value.
 
         Args:
-            node: Node.
+            node: AST node from ``ast.parse``.
 
         Returns:
-            Result.
+            ``float`` evaluated result.
 
         Raises:
             ValueError: Unsupported expression.
@@ -280,13 +280,13 @@ def _safe_eval_expression(expr: str) -> float:
 
 
 def parse_expression(expr: str) -> float:
-    """Parse expression.
+    """Parse a string expression (with optional pi) into a float.
 
     Args:
-        expr (*str*): Expr (``str``).
+        expr (*str*): Expression string (e.g. ``"pi/2"``, ``"3.14"``).
 
     Returns:
-        Computed float result.
+        Evaluated ``float`` value.
     """
     expr = expr.strip().replace('π', 'pi')
     expr = expr.replace('np.pi', 'pi')
@@ -311,15 +311,10 @@ def parse_expression(expr: str) -> float:
 def initialize_lines(nqubits:int,ncbits:int,gates:list) -> tuple[list, list]:
     """Initialize a blank circuit.
 
-    Returns:
-    tuple[list,list]: A tuple containing:
-        - A list of fake gates element.
-        - A list of fake gates element list.
-
     Args:
         nqubits (*int*): Number of qubits.
-        ncbits (*int*): Ncbits (``int``).
-        gates (*list*): Gates (``list``).
+        ncbits (*int*): Number of classical bits.
+        gates (*list*): List of gate info tuples.
 
     Returns:
         tuple[list,list]: A tuple containing:
@@ -357,17 +352,14 @@ def initialize_lines(nqubits:int,ncbits:int,gates:list) -> tuple[list, list]:
 def generate_gates_layerd(nqubits:int,ncbits:int,gates:list,params_value:dict) -> list:
     """Assign gates to their respective layers loosely.
 
-    Returns:
-    list: A list of gates element list.
-
     Args:
         nqubits (*int*): Number of qubits.
-        ncbits (*int*): Ncbits (``int``).
-        gates (*list*): Gates (``list``).
-        params_value (*dict*): Params value (``dict``).
+        ncbits (*int*): Number of classical bits.
+        gates (*list*): List of gate info tuples.
+        params_value (*dict*): Parameter name to value mapping.
 
     Returns:
-        list: A list of gates element list.
+        tuple[list, list]: ``(gates_layerd, lines_use)`` — layered gate strings and used line indices.
     """
     lines_use = []
     # according plot layer distributed gates
@@ -562,14 +554,11 @@ def generate_gates_layerd(nqubits:int,ncbits:int,gates:list,params_value:dict) -
 def format_gates_layerd(nqubits:int,ncbits:int,gates:list,params_value:dict) -> list:
     """Unify the width of each layer's gate strings.
 
-    Returns:
-   list: A new list of gates element list.
-
     Args:
         nqubits (*int*): Number of qubits.
-        ncbits (*int*): Ncbits (``int``).
-        gates (*list*): Gates (``list``).
-        params_value (*dict*): Params value (``dict``).
+        ncbits (*int*): Number of classical bits.
+        gates (*list*): List of gate info tuples.
+        params_value (*dict*): Parameter name to value mapping.
 
     Returns:
         list: A new list of gates element list.

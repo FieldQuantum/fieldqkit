@@ -19,11 +19,11 @@ def build_confusion_matrix(res_list: Sequence[Dict[str, int]], num_qubits: int) 
 	"""Build a confusion matrix from calibration results.
 
 	Args:
-		res_list (*Sequence[Dict[str, int]]*): Res list (``Sequence[Dict[str, int]]``).
+		res_list (*Sequence[Dict[str, int]]*): List of measurement count dictionaries, one per prepared basis state.
 		num_qubits (*int*): Number of qubits.
 
 	Returns:
-		NumPy array with the computed result.
+		NumPy array of shape ``(2**num_qubits, 2**num_qubits)`` representing the confusion matrix.
 	"""
 	dim = 2**num_qubits
 	mat = np.zeros((dim, dim), dtype=float)
@@ -78,14 +78,14 @@ class ReadoutCalibrationManager:
 
 		Args:
 			target_qubits (*Optional[Sequence[int]]*): Qubit indices for partial measurement.
-			shots (*Optional[int]*): Number of measurement shots. Defaults to ``None``.
+			shots (*Optional[int]*): Number of measurement shots. Defaults to ``1024`` if not provided.
 			chip_name (*Optional[str]*): Name of the target chip. Defaults to ``None``.
 			backend (*Optional[Backend]*): Hardware backend descriptor. Defaults to ``None``.
 			qasm_version (*str*): OpenQASM version (``'2.0'`` or ``'3.0'``). Defaults to ``'2.0'``.
 			print_true (*bool*): Whether to print progress information. Defaults to ``False``.
 
 		Returns:
-			``CalibrationResult`` result.
+			``CalibrationResult`` containing per-qubit confusion matrices and metadata.
 
 		Raises:
 			RuntimeError: backend is not set; use run_auto or provide backend
@@ -183,10 +183,10 @@ class ReadoutCalibrationManager:
 			backend (*Backend*): Hardware backend descriptor.
 
 		Returns:
-			Result list.
+			List of resolved qubit indices.
 
 		Raises:
-			RuntimeError: target_qubits is not set and backend.qubits_with_attribut...
+			RuntimeError: If target_qubits is not set and backend.qubits_with_attributes is missing or empty.
 		"""
 		if target_qubits is not None:
 			return list(target_qubits)
@@ -206,7 +206,7 @@ class ReadoutCalibrationManager:
 			chip_name (*Optional[str]*): Name of the target chip.
 
 		Returns:
-			``Path`` result.
+			``Path`` to the readout calibration cache file.
 		"""
 		return cache_file(self._cache_dir, stem="readout", chip_name=chip_name)
 
@@ -217,7 +217,7 @@ class ReadoutCalibrationManager:
 			chip_name (*Optional[str]*): Name of the target chip.
 
 		Returns:
-			Result dictionary.
+			Raw cache dictionary with ``"timestamps"`` and ``"per_qubit_confusion"`` keys.
 		"""
 		path = self._readout_cache_path(chip_name=chip_name)
 		timestamps, per_qubit = load_timestamped_payload(path, payload_key="per_qubit_confusion")

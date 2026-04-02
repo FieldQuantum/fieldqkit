@@ -18,11 +18,11 @@ __all__ = ["parse_openqasm3_to_gates"]
 
 
 def _record_qubits(qubit_used: list, *qubits: int) -> None:
-	"""Record qubits.
+	"""Append qubit indices to the tracking list for register inference.
 
 	Args:
-		qubit_used (*list*): Qubit used (``list``).
-		*qubits (*int*): *qubits (``int``).
+		qubit_used (*list*): Accumulator list of qubit indices encountered so far.
+		*qubits (*int*): Qubit indices to record.
 	"""
 	qubit_used.extend(qubits)
 
@@ -69,13 +69,13 @@ def parse_openqasm3_to_gates(openqasm3_str: str) -> tuple[list, set, set]:
 
 	def _name_of(node):
 		# openqasm3 AST field names vary across versions; keep compatibility.
-		"""Name of.
+		"""Extract the name string from an AST node, handling version differences.
 
 		Args:
-			node: Node.
+			node: OpenQASM 3 AST node.
 
 		Returns:
-			Result.
+			``str`` name, or ``None`` if the node is ``None`` or has no recognisable name attribute.
 		"""
 		if node is None:
 			return None
@@ -97,12 +97,12 @@ def parse_openqasm3_to_gates(openqasm3_str: str) -> tuple[list, set, set]:
 		return getattr(node, "id", None)
 
 	def _register_symbol(name, size_value: int, is_qubit: bool):
-		"""Register symbol.
+		"""Register a qubit or classical register symbol.
 
 		Args:
-			name: Descriptive name / identifier.
-			size_value (*int*): Size value (``int``).
-			is_qubit (*bool*): Is qubit (``bool``).
+			name: Register name.
+			size_value (*int*): Number of bits/qubits in the register.
+			is_qubit (*bool*): ``True`` for qubit register, ``False`` for classical.
 		"""
 		nonlocal next_q, next_c
 		if name is None:
@@ -115,13 +115,13 @@ def parse_openqasm3_to_gates(openqasm3_str: str) -> tuple[list, set, set]:
 			next_c += size_value
 
 	def _extract_decl_name_and_size(decl):
-		"""Extract decl name and size.
+		"""Extract the name, type name, and size from a declaration AST node.
 
 		Args:
-			decl: Decl.
+			decl: Declaration AST node.
 
 		Returns:
-			Result.
+			``(name, dtype_name, size_value)`` tuple.
 		"""
 		name = (
 			_name_of(decl)
@@ -136,12 +136,12 @@ def parse_openqasm3_to_gates(openqasm3_str: str) -> tuple[list, set, set]:
 		return name, dtype_name, size_value
 
 	def _ensure_register(name, idx, is_qubit: bool):
-		"""Ensure register.
+		"""Lazily create a register if it does not already exist.
 
 		Args:
-			name: Descriptive name / identifier.
-			idx: Index.
-			is_qubit (*bool*): Is qubit (``bool``).
+			name: Register name.
+			idx: Maximum index seen (used to infer register size).
+			is_qubit (*bool*): ``True`` for qubit register, ``False`` for classical.
 		"""
 		nonlocal next_q, next_c
 		if name is None:
@@ -159,13 +159,13 @@ def parse_openqasm3_to_gates(openqasm3_str: str) -> tuple[list, set, set]:
 			next_c += size_value
 
 	def _expr_to_float(expr):
-		"""Expr to float.
+		"""Recursively evaluate an OpenQASM 3 expression AST node to a ``float``.
 
 		Args:
-			expr: Expr.
+			expr: Expression AST node.
 
 		Returns:
-			Result.
+			``float`` value, or ``None`` if *expr* is ``None``.
 
 		Raises:
 			ValueError: Unsupported OpenQASM3 expression.
@@ -207,13 +207,13 @@ def parse_openqasm3_to_gates(openqasm3_str: str) -> tuple[list, set, set]:
 		raise ValueError("Unsupported OpenQASM3 expression.")
 
 	def _duration_to_seconds(duration):
-		"""Duration to seconds.
+		"""Convert a duration literal AST node to seconds.
 
 		Args:
-			duration: Duration.
+			duration: Duration AST node.
 
 		Returns:
-			Result.
+			``float`` duration in seconds, or ``None`` if *duration* is ``None``.
 		"""
 		if duration is None:
 			return None
@@ -233,13 +233,13 @@ def parse_openqasm3_to_gates(openqasm3_str: str) -> tuple[list, set, set]:
 		return _expr_to_float(duration)
 
 	def _extract_index(index_expr):
-		"""Extract index.
+		"""Extract an integer index from an index expression AST node.
 
 		Args:
-			index_expr: Index expr.
+			index_expr: Index expression node.
 
 		Returns:
-			Result.
+			``int`` index, or ``None`` if *index_expr* is ``None``.
 		"""
 		if index_expr is None:
 			return None
@@ -255,16 +255,16 @@ def parse_openqasm3_to_gates(openqasm3_str: str) -> tuple[list, set, set]:
 		return int(_expr_to_float(index_expr))
 
 	def _qubit_index(qref):
-		"""Qubit index.
+		"""Resolve a qubit reference AST node to its dense qubit index.
 
 		Args:
-			qref: Qref.
+			qref: Qubit reference (``Identifier``, ``IndexedIdentifier``, or ``int``).
 
 		Returns:
-			Result.
+			``int`` qubit index.
 
 		Raises:
-			ValueError: f'Unsupported qubit reference: {name}
+			ValueError: f'Unsupported qubit reference: {name}'
 		"""
 		if isinstance(qref, (int, np.integer)):
 			return int(qref)
@@ -284,16 +284,16 @@ def parse_openqasm3_to_gates(openqasm3_str: str) -> tuple[list, set, set]:
 		raise ValueError(f"Unsupported qubit reference: {name}")
 
 	def _bit_index(bref):
-		"""Bit index.
+		"""Resolve a classical bit reference AST node to its dense bit index.
 
 		Args:
-			bref: Bref.
+			bref: Bit reference (``Identifier``, ``IndexedIdentifier``, or ``int``).
 
 		Returns:
-			Result.
+			``int`` classical bit index.
 
 		Raises:
-			ValueError: f'Unsupported bit reference: {name}
+			ValueError: f'Unsupported bit reference: {name}'
 		"""
 		if isinstance(bref, (int, np.integer)):
 			return int(bref)
@@ -313,15 +313,15 @@ def parse_openqasm3_to_gates(openqasm3_str: str) -> tuple[list, set, set]:
 		raise ValueError(f"Unsupported bit reference: {name}")
 
 	def _handle_gate_call(gate_name, args, qargs):
-		"""Handle gate call.
+		"""Dispatch a gate call to the appropriate handler and append to *new*.
 
 		Args:
 			gate_name: Name of the quantum gate.
-			args: Args.
-			qargs: Qargs.
+			args: Gate parameter arguments.
+			qargs: Target qubit arguments.
 
 		Raises:
-			ValueError: f'{gate} takes 2 qubits, got {len(qubits)}
+			ValueError: f'{gate} takes 2 qubits, got {len(qubits)}'
 		"""
 		gate = gate_name.lower()
 		qubits = [_qubit_index(q) for q in _as_qargs(qargs)]
@@ -361,11 +361,11 @@ def parse_openqasm3_to_gates(openqasm3_str: str) -> tuple[list, set, set]:
 			raise ValueError(f"Unsupported OpenQASM3 gate {gate}")
 
 	def _expand_custom_gate(gate_name, args, qubits):
-		"""Expand custom gate.
+		"""Expand a custom gate definition into its constituent gate calls.
 
 		Args:
-			gate_name: Name of the quantum gate.
-			args: Args.
+			gate_name: Name of the custom gate.
+			args: Parameter arguments to substitute.
 			qubits: Target qubit indices.
 		"""
 		definition = custom_gates[gate_name]
@@ -381,14 +381,13 @@ def parse_openqasm3_to_gates(openqasm3_str: str) -> tuple[list, set, set]:
 				_handle_gate_call(gate, remapped_args, remapped_qargs)
 
 	def _as_qargs(qargs):
-		# Accept a single IndexedIdentifier or a list of qubit arguments.
-		"""As qargs.
+		"""Normalise qubit arguments to a flat list.
 
 		Args:
-			qargs: Qargs.
+			qargs: Single qubit reference or list of qubit references.
 
 		Returns:
-			Result.
+			List of qubit argument nodes.
 		"""
 		if qargs is None:
 			return []

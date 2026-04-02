@@ -32,7 +32,7 @@ class TianYanPlatform(RemotePlatformClient):
     STOP_RUNNING_EXP_PATH = ""
 
     def list_available_hardware(self) -> List[Dict[str, Any]]:
-        """List available hardware.
+        """Query the TianYan platform and return a normalized hardware catalog.
 
         Returns:
             List of hardware description dictionaries.
@@ -97,14 +97,14 @@ class TianYanTaskAdapter(TaskAdapter):
         options = dict(submit_request.submit_options or {})
 
         def _as_int(value: Any, default: int) -> int:
-            """As int.
+            """Convert *value* to ``int``, falling back to *default*.
 
             Args:
-                value (*Any*): Value to set.
-                default (*int*): Default (``int``).
+                value (*Any*): Value to convert.
+                default (*int*): Fallback value.
 
             Returns:
-                Computed integer result.
+                ``int`` converted value.
             """
             try:
                 return int(value)
@@ -123,13 +123,13 @@ class TianYanTaskAdapter(TaskAdapter):
         return handle
 
     def query_status(self, handle: ProviderTaskHandle) -> str:
-        """Query status.
+        """Poll experiment results and return a unified status string.
 
         Args:
             handle (*ProviderTaskHandle*): Task handle from a prior submission.
 
         Returns:
-            Formatted string.
+            ``"Finished"`` or ``"Failed"``.
         """
         payload = dict(self._handle_cache.get(handle.task_id, {}))
         payload.update(handle.payload)
@@ -142,16 +142,16 @@ class TianYanTaskAdapter(TaskAdapter):
         return "Finished" if result_items else "Failed"
 
     def fetch_result(self, handle: ProviderTaskHandle) -> Dict[str, Any]:
-        """Fetch result.
+        """Extract measurement counts from cached experiment results.
 
         Args:
             handle (*ProviderTaskHandle*): Task handle from a prior submission.
 
         Returns:
-            Result dictionary.
+            ``dict`` with ``"count"`` key mapping to bitstring counts.
 
         Raises:
-            RuntimeError: f'task {handle.task_id} ended with status Failed
+            RuntimeError: f'task {handle.task_id} ended with status Failed'
         """
         payload = dict(self._handle_cache.get(handle.task_id, {}))
         payload.update(handle.payload)
@@ -160,7 +160,7 @@ class TianYanTaskAdapter(TaskAdapter):
         return {"count": extract_counts_from_result_items(payload.get("result_items", []), num_qubits=int(payload.get("num_qubits", 0) or 0))}
 
     def cancel_task(self, handle: ProviderTaskHandle) -> None:
-        """Cancel task.
+        """Stop running TianYan experiments associated with the given task handle.
 
         Args:
             handle (*ProviderTaskHandle*): Task handle from a prior submission.

@@ -2,7 +2,7 @@
 
 ## 概览
 
-- **模块**：`quantum_hw.compile.transpiler`（141 行）
+- **模块**：`quantum_hw.compile.transpiler`（约170 行）
 - **作用**：编译流水线管理器，按顺序执行各编译 Pass，将逻辑线路转换为物理芯片可执行的门序列。
 - **依赖**：`Backend`、`Layout`、`SabreRouting`、`TranslateToBasisGates`、`GateCompressor`、`DynamicalDecoupling`、`ThreeQubitGateDecompose`、`split_qubits`
 - **继承**：无（独立类，非 `TranspilerPass` 子类）

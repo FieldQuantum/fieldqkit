@@ -289,36 +289,36 @@ def u_mat(theta: float, phi: float, lamda: float) -> np.ndarray:
     )
 
 def u1_mat(lamda:float):
-    """U1 mat.
+    """Generate the matrix for the U1 (phase) gate: ``diag(1, exp(i*lambda))``.
 
     Args:
-        lamda (*float*): Lamda (``float``).
+        lamda (*float*): Phase angle in radians.
 
     Returns:
-        Result.
+        2×2 complex-valued unitary matrix.
     """
     return u_mat(0., 0., lamda)
 
 def u2_mat(phi:float, lamda:float):
-    """U2 mat.
+    """Generate the matrix for the U2 gate: ``U(pi/2, phi, lambda)``.
 
     Args:
-        phi (*float*): Phase angle in radians.
-        lamda (*float*): Lamda (``float``).
+        phi (*float*): First phase angle in radians.
+        lamda (*float*): Second phase angle in radians.
 
     Returns:
-        Result.
+        2×2 complex-valued unitary matrix.
     """
     return u_mat(np.pi/2, phi, lamda)
 
 def rxx_mat(theta: float) -> np.ndarray:
-    """Rxx mat.
+    """Generate the matrix for the RXX (Ising XX) gate.
 
     Args:
         theta (*float*): Rotation angle in radians.
 
     Returns:
-        NumPy array with the computed result.
+        np.ndarray: 4×4 complex-valued unitary matrix.
     """
     return np.array(
         [
@@ -330,13 +330,13 @@ def rxx_mat(theta: float) -> np.ndarray:
     )
 
 def ryy_mat(theta: float) -> np.ndarray:
-    """Ryy mat.
+    """Generate the matrix for the RYY (Ising YY) gate.
 
     Args:
         theta (*float*): Rotation angle in radians.
 
     Returns:
-        NumPy array with the computed result.
+        np.ndarray: 4×4 complex-valued unitary matrix.
     """
     return np.array(
         [
@@ -348,13 +348,13 @@ def ryy_mat(theta: float) -> np.ndarray:
     )
 
 def rzz_mat(theta: float) -> np.ndarray:
-    """Rzz mat.
+    """Generate the matrix for the RZZ (Ising ZZ) gate.
 
     Args:
         theta (*float*): Rotation angle in radians.
 
     Returns:
-        NumPy array with the computed result.
+        np.ndarray: 4×4 complex-valued unitary matrix.
     """
     return np.array(
         [
@@ -366,13 +366,13 @@ def rzz_mat(theta: float) -> np.ndarray:
     )
 
 def cp_mat(theta: float) -> np.ndarray:
-    """Cp mat.
+    """Generate the matrix for the controlled-phase (CP) gate.
 
     Args:
-        theta (*float*): Rotation angle in radians.
+        theta (*float*): Phase angle in radians.
 
     Returns:
-        NumPy array with the computed result.
+        np.ndarray: 4×4 complex-valued unitary matrix.
     """
     return np.array(
         [

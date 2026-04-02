@@ -81,12 +81,12 @@ quantum_hw/                          入口 __init__.py（导出顶层 API）
 │   ├── client.py                    QuantumHardwareClient — 唯一用户入口
 │   ├── backend.py                   Backend / HardwareProfile / BackendAdapter (ABC)
 │   ├── task.py                      OpenQasmSubmitRequest / TaskAdapter (ABC) / ProviderTaskHandle
-│   ├── platform_credentials.py      凭证管理（Quafu / TianYan / GuoDun / Tencent）
+│   ├── platform_credentials.py      凭证管理（夸父 / 天衍 / 国盾 / 腾讯）
 │   └── quantum_platform/            四平台具体适配
-│       ├── quafu.py                 Quafu REST API（BAQIS）
-│       ├── tianyan.py               天衍（cqlib 协议）
-│       ├── guodun.py                国盾（cqlib 协议）
-│       ├── tencent.py               腾讯量子云（tensorcircuit cloud API）
+│       ├── quafu.py                 夸父
+│       ├── tianyan.py               天衍
+│       ├── guodun.py                国盾
+│       ├── tencent.py               腾讯
 │       └── cqlib.py                 cqlib 公共 HTTP 客户端 + QASM↔QCIS 转换
 │
 ├── circuit/                         线路表示
@@ -95,6 +95,7 @@ quantum_hw/                          入口 __init__.py（导出顶层 API）
 │   ├── qasm2.py / qasm3.py          OpenQASM 2/3 解析器
 │   ├── matrix.py                    门矩阵定义（numpy）
 │   ├── render.py                    线路文本可视化
+│   ├── qasm_to_qcis.py              QASM → QCIS 原生指令转换
 │   └── utils.py                     辅助工具
 │
 ├── compile/                         编译转译

@@ -3,7 +3,7 @@
 ## 概览
 
 - **模块**：`quantum_hw.circuit.qasm_to_qcis`
-- **源文件**：`qasm_to_qcis.py`（~426 行）
+- **源文件**：`qasm_to_qcis.py`（约930 行）
 - **作用**：将 OpenQASM 2.0/3.0 程序转换为 QCIS（Quantum Circuit Instruction Set）原生指令字符串
 - **QCIS 原生门集**：`X2P`、`X2M`、`Y2P`、`Y2M`、`RZ`、`CZ`（以及 `I` 用于 delay）
 

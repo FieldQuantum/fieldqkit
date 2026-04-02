@@ -17,7 +17,7 @@ def cache_file(cache_dir: Path, *, stem: str, chip_name: Optional[str]) -> Path:
 		chip_name (*Optional[str]*): Name of the target chip.
 
 	Returns:
-		``Path`` result.
+		``Path`` to the cache file (e.g. ``<cache_dir>/<stem>_<chip_name>.json``).
 	"""
 	name = chip_name if chip_name is not None else "unknown"
 	return cache_dir / f"{stem}_{name}.json"
@@ -65,7 +65,7 @@ def save_timestamped_payload(
 	Args:
 		path (*Path*): File path.
 		payload_key (*str*): Key for the payload in the cache file.
-		timestamps (*Dict[str, str]*): Timestamp string or list.
+		timestamps (*Dict[str, str]*): Dictionary mapping cache keys to ISO format timestamp strings.
 		payload (*Dict[str, object]*): Data payload.
 	"""
 	path.write_text(
@@ -78,8 +78,8 @@ def cache_is_fresh(ts_str: Optional[str], *, now: datetime, ttl_hours: int = 12)
 	"""Return True when timestamp exists and is within TTL.
 
 	Args:
-		ts_str (*Optional[str]*): Ts str (``Optional[str]``).
-		now (*datetime*): Now (``datetime``).
+		ts_str (*Optional[str]*): ISO format timestamp string to validate. Returns ``False`` if ``None`` or invalid.
+		now (*datetime*): Current datetime for freshness comparison.
 		ttl_hours (*int*): Cache time-to-live in hours. Defaults to ``12``.
 
 	Returns:

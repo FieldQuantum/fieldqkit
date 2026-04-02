@@ -2,7 +2,7 @@
 
 ## 概览
 
-- **模块**：`quantum_hw.compile.optimize`（598 行）
+- **模块**：`quantum_hw.compile.optimize`（约740 行）
 - **作用**：通过合并、对消和重排门来减少线路中的门数量，降低噪声影响。
 - **继承**：`TranspilerPass`（实现 `run()` 方法）
 - **依赖**：`qc2dag` / `dag2qc`（DAG 构建）、`u3_decompose`（合并后分解）、`gate_matrix_dict`（矩阵查表）

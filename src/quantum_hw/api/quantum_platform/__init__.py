@@ -28,7 +28,7 @@ def create_provider_runtime(*, provider: str, client: Any) -> ProviderRuntime:
         client (*Any*): ``QuantumHardwareClient`` instance.
 
     Returns:
-        ``ProviderRuntime`` result.
+        ``ProviderRuntime`` bound to the requested provider's backend and task adapters.
 
     Raises:
         ValueError: provider must be one of: 'quafu', 'tianyan', 'guodun', or...

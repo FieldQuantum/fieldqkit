@@ -634,8 +634,8 @@ def cswap_decompose(control_qubit1: int, control_qubit2: int, target_qubit: int)
 
     Args:
         control_qubit1 (int): Control qubit index.
-        control_qubit2 (int): First target qubit index.
-        target_qubit (int): Second target qubit index.
+        control_qubit2 (int): First swap-target qubit index.
+        target_qubit (int): Second swap-target qubit index.
 
     Returns:
         list: Decomposed gate info tuples.
@@ -720,8 +720,7 @@ class ThreeQubitGateDecompose(TranspilerPass):
     """A transpiler pass that decomposes three-qubit gates into combinations of single- and two-qubit gates."""
 
     def __init__(self):
-        """Init.
-        """
+        """Initialize the three-qubit gate decomposition pass."""
         super().__init__()
 
     def run(self, qc: QuantumCircuit):

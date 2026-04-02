@@ -37,11 +37,11 @@ def simulate_counts(
         qc (*QuantumCircuit*): Quantum circuit.
         shots (*int*): Number of measurement shots.
         seed (*Optional[int]*): Random seed for reproducibility. Defaults to ``None``.
-        param_values (*Dict[str, object] | None*): Param values (``Dict[str, object] | None``). Defaults to ``None``.
+        param_values (*Dict[str, object] | None*): Parameter name to value mapping. Defaults to ``None``.
         device (*torch.device | str | None*): Torch device (``'cpu'`` or ``'cuda'``). Defaults to ``None``.
 
     Returns:
-        Result dictionary.
+        ``Dict[str, int]`` mapping bitstrings to their occurrence counts.
     """
 
     nqubits = int(getattr(qc, "nqubits", 0) or 0)
@@ -73,7 +73,7 @@ def expectation_pauli(
 
     Args:
         state: Flat statevector tensor (≤ threshold qubits) or MPS tensor list (> threshold qubits).
-        pauli (*str*): Pauli (``str``).
+        pauli (*str*): Pauli string (e.g. ``'XZI'``).
         num_qubits (*int*): Number of qubits.
 
     Returns:
@@ -116,14 +116,14 @@ def energy_and_expectations(
     """Evaluate Hamiltonian energy via threshold-based backend selection.
 
     Args:
-        symbolic_qc (*QuantumCircuit*): Symbolic qc (``QuantumCircuit``).
-        params: Parameter values.
-        param_names: Names of variational parameters.
-        hamiltonian: Target Hamiltonian.
+        symbolic_qc (*QuantumCircuit*): Symbolic (unbound) quantum circuit.
+        params (*torch.Tensor*): 1-D tensor of variational parameter values.
+        param_names (*List[str]*): Names of variational parameters, matching ``params`` element-wise.
+        hamiltonian (*List[Tuple[float, str]]*): Target Hamiltonian as coefficient–Pauli-string pairs.
         device (*torch.device | str | None*): Torch device (``'cpu'`` or ``'cuda'``). Defaults to ``None``.
 
     Returns:
-        Result.
+        ``(energy, expectations)`` tuple from the selected backend.
     """
     nqubits = int(getattr(symbolic_qc, "nqubits", 0) or 0)
     if nqubits > MPS_THRESHOLD_QUBITS:

@@ -32,10 +32,10 @@ def extract_qubits(node_name: str):
     """Parse qubit indices from a DAG node name string.
 
     Args:
-        node_name (*str*): Node name (``str``).
+        node_name (*str*): DAG node name containing qubit indices in brackets, e.g. ``'cx_42_[0, 1]'``.
 
     Returns:
-        Result.
+        List of integer qubit indices parsed from the node name.
     """
     bracket_content = re.search(r"\[([^\]]*)\]", node_name)
     if not bracket_content:
@@ -47,11 +47,11 @@ def update_v2p_and_p2v_mapping(v2p: dict, swap_gate_info: tuple):
     """Return updated virtual-to-physical and physical-to-virtual qubit mappings after applying a SWAP.
 
     Args:
-        v2p (*dict*): V2p (``dict``).
-        swap_gate_info (*tuple*): Swap gate info (``tuple``).
+        v2p (*dict*): Current virtual-to-physical qubit mapping ``{virtual: physical}``.
+        swap_gate_info (*tuple*): SWAP gate tuple ``('swap', vq1, vq2)``.
 
     Returns:
-        Result.
+        ``(v2p, p2v)`` —updated mapping dictionaries.
     """
     v2p = copy.deepcopy(v2p)
     vq1, vq2 = swap_gate_info[1:]
@@ -100,7 +100,7 @@ class SabreRouting(TranspilerPass):
                     all_perfect = False
                 wg[u][v]["weight"] = w
             if all_perfect:
-                # All fidelities ≈ 1 → noise-aware gives no useful gradient;
+                # All fidelities ≈1 →noise-aware gives no useful gradient;
                 # fall back to hop-count distances.
                 self.distance_matrix = floyd_warshall_numpy(subgraph)
             else:
@@ -127,11 +127,11 @@ class SabreRouting(TranspilerPass):
         """Return the shortest-path distance between two physical qubits from the precomputed distance matrix.
 
         Args:
-            pq1 (*int*): Pq1 (``int``).
-            pq2 (*int*): Pq2 (``int``).
+            pq1 (*int*): First physical qubit index.
+            pq2 (*int*): Second physical qubit index.
 
         Returns:
-            Result.
+            ``float`` shortest-path distance.
         """
         idx1 = self.physical_qubits_index[pq1]
         idx2 = self.physical_qubits_index[pq2]
@@ -141,10 +141,10 @@ class SabreRouting(TranspilerPass):
         """Return the cached successor nodes of a DAG node.
 
         Args:
-            node (*str*): Node (``str``).
+            node (*str*): DAG node name.
 
         Returns:
-            Result.
+            List of successor node names.
         """
         return self._get_nodes(node, "successors")
 
@@ -152,10 +152,10 @@ class SabreRouting(TranspilerPass):
         """Return the cached predecessor nodes of a DAG node.
 
         Args:
-            node (*str*): Node (``str``).
+            node (*str*): DAG node name.
 
         Returns:
-            Result.
+            List of predecessor node names.
         """
         return self._get_nodes(node, "predecessors")
 
@@ -163,11 +163,11 @@ class SabreRouting(TranspilerPass):
         """Retrieve and cache successor or predecessor nodes for a DAG node using an LRU cache.
 
         Args:
-            node (*str*): Node (``str``).
-            query_type (*Literal['successors', 'predecessors']*): Query type (``Literal['successors', 'predecessors']``).
+            node (*str*): DAG node name.
+            query_type (*Literal['successors', 'predecessors']*): Direction to query.
 
         Returns:
-            Result.
+            List of neighboring node names.
         """
         key = (self.dag_id, id(node), query_type)
         if key in self._cache:
@@ -186,13 +186,13 @@ class SabreRouting(TranspilerPass):
         """Create initial virtual-to-physical qubit mappings from the configured strategy (trivial, random, or explicit list).
 
         Args:
-            virtual_qubits (*list*): Virtual qubits (``list``).
+            virtual_qubits (*list*): List of virtual qubit indices from the circuit.
 
         Returns:
-            Result.
+            ``(v2p, p2v)`` —virtual-to-physical and physical-to-virtual mapping dictionaries.
 
         Raises:
-            ValueError: f'The number of initial_mapping does not match the number...
+            ValueError: f'The number of initial_mapping does not match the number...'
         """
         if isinstance(self.initial_mapping, list):
             if len(set(self.initial_mapping)) != len(set(self.physical_qubits)):
@@ -213,7 +213,7 @@ class SabreRouting(TranspilerPass):
             else:
                 raise ValueError(f"There is a spelling error in the input of initial_mapping {self.initial_mapping}.")
         else:
-            raise ValueError("Invalid input type for initial_mapping — only str and list are supported.")
+            raise ValueError("Invalid input type for initial_mapping —only str and list are supported.")
         p2v = {p: v for v, p in v2p.items()}
         return v2p, p2v
 
@@ -221,13 +221,13 @@ class SabreRouting(TranspilerPass):
         """Convert a DAG node into a gate-info tuple with physical qubit indices using the current v2p mapping.
 
         Args:
-            node (*str*): Node (``str``).
+            node (*str*): DAG node identifier (e.g. ``"cx_0_3"``).
 
         Returns:
-            Result.
+            Gate-info tuple with physical qubit indices.
 
         Raises:
-            ValueError: f'Please first decompose the {gate} gate into a combinati...
+            ValueError: f'Please first decompose the {gate} gate into a combinati...'
         """
         gate = node.split("_")[0]
         if gate in one_qubit_gates_available.keys():
@@ -287,11 +287,11 @@ class SabreRouting(TranspilerPass):
         """Return the unweighted hop-count distance between two physical qubits.
 
         Args:
-            pq1 (*int*): Pq1 (``int``).
-            pq2 (*int*): Pq2 (``int``).
+            pq1 (*int*): First physical qubit index.
+            pq2 (*int*): Second physical qubit index.
 
         Returns:
-            Result.
+            ``float`` hop-count distance.
         """
         idx1 = self.physical_qubits_index[pq1]
         idx2 = self.physical_qubits_index[pq2]
@@ -301,10 +301,10 @@ class SabreRouting(TranspilerPass):
         """Return the subset of front-layer gates that can execute immediately on adjacent physical qubits.
 
         Args:
-            front_layer (*list*): Front layer (``list``).
+            front_layer (*list*): Current front layer of the DAG.
 
         Returns:
-            Result.
+            List of executable DAG node names.
         """
         execute_node_list = []
         for node in front_layer:
@@ -322,11 +322,11 @@ class SabreRouting(TranspilerPass):
         """Check whether a node's qubits are disjoint from all qubits currently in the front layer.
 
         Args:
-            node (*str*): Node (``str``).
-            front_layer (*list*): Front layer (``list``).
+            node (*str*): DAG node name.
+            front_layer (*list*): Current front layer of the DAG.
 
         Returns:
-            Result.
+            ``bool`` —``True`` if the node's qubits are disjoint from front-layer qubits.
         """
         qubitlst = []
         for fnode in front_layer:
@@ -343,10 +343,10 @@ class SabreRouting(TranspilerPass):
         """Generate candidate SWAP gates from physical neighbors of unresolved front-layer two-qubit gates.
 
         Args:
-            front_layer (*list*): Front layer (``list``).
+            front_layer (*list*): Current front layer of the DAG.
 
         Returns:
-            Result.
+            List of ``('swap', vq_min, vq_max)`` candidate tuples.
         """
         swap_candidate_list = []
         for hard_node in front_layer:
@@ -375,7 +375,7 @@ class SabreRouting(TranspilerPass):
         """Increment the decay weight of both physical qubits involved in the chosen SWAP.
 
         Args:
-            min_score_swap_gate_info (*tuple*): Min score swap gate info (``tuple``).
+            min_score_swap_gate_info (*tuple*): ``(score, qubit1, qubit2)`` tuple for the best SWAP candidate.
         """
         if "decay" in self.heuristic:
             min_score_swap_qubits = list(min_score_swap_gate_info[1:])
@@ -388,11 +388,11 @@ class SabreRouting(TranspilerPass):
         """Compute the basic SABRE heuristic score: mean front-layer gate distance after a candidate SWAP.
 
         Args:
-            swap_gate_info (*tuple*): Swap gate info (``tuple``).
-            front_layer (*list*): Front layer (``list``).
+            swap_gate_info (*tuple*): Candidate SWAP gate tuple ``('swap', vq1, vq2)``.
+            front_layer (*list*): Current front layer of the DAG.
 
         Returns:
-            Result.
+            ``float`` mean distance score.
         """
         v2p, _ = update_v2p_and_p2v_mapping(self.v2p, swap_gate_info)
         F = front_layer
@@ -407,11 +407,11 @@ class SabreRouting(TranspilerPass):
         """Compute the SABRE lookahead heuristic: front-layer distance plus weighted extended-set distance.
 
         Args:
-            swap_gate_info (*tuple*): Swap gate info (``tuple``).
-            front_layer (*list*): Front layer (``list``).
+            swap_gate_info (*tuple*): Candidate SWAP gate tuple ``('swap', vq1, vq2)``.
+            front_layer (*list*): Current front layer of the DAG.
 
         Returns:
-            Result.
+            ``float`` combined heuristic score.
         """
         v2p, _ = update_v2p_and_p2v_mapping(self.v2p, swap_gate_info)
         F = front_layer
@@ -438,11 +438,11 @@ class SabreRouting(TranspilerPass):
         """Compute the SABRE basic-decay heuristic: mean front-layer distance scaled by qubit decay weights.
 
         Args:
-            swap_gate_info (*tuple*): Swap gate info (``tuple``).
-            front_layer (*list*): Front layer (``list``).
+            swap_gate_info (*tuple*): Candidate SWAP gate tuple ``('swap', vq1, vq2)``.
+            front_layer (*list*): Current front layer of the DAG.
 
         Returns:
-            Result.
+            ``float`` decay-weighted distance score.
         """
         v2p, _ = update_v2p_and_p2v_mapping(self.v2p, swap_gate_info)
         F = front_layer
@@ -460,11 +460,11 @@ class SabreRouting(TranspilerPass):
         """Compute the SABRE lookahead-decay heuristic: lookahead distances scaled by qubit decay weights.
 
         Args:
-            swap_gate_info (*tuple*): Swap gate info (``tuple``).
-            front_layer (*list*): Front layer (``list``).
+            swap_gate_info (*tuple*): Candidate SWAP gate tuple ``('swap', vq1, vq2)``.
+            front_layer (*list*): Current front layer of the DAG.
 
         Returns:
-            Result.
+            ``float`` decay-weighted lookahead score.
         """
         v2p, _ = update_v2p_and_p2v_mapping(self.v2p, swap_gate_info)
         F = front_layer
@@ -492,11 +492,11 @@ class SabreRouting(TranspilerPass):
         """Dispatch to the configured SABRE heuristic scoring function and return the score.
 
         Args:
-            swap_gate_info (*tuple*): Swap gate info (``tuple``).
-            front_layer (*list*): Front layer (``list``).
+            swap_gate_info (*tuple*): Candidate SWAP gate tuple ``('swap', vq1, vq2)``.
+            front_layer (*list*): Current front layer of the DAG.
 
         Returns:
-            Result.
+            ``float`` heuristic score.
         """
         if self.heuristic == "basic":
             H = self._heuristic_score_basic(swap_gate_info, front_layer)
@@ -579,12 +579,12 @@ class SabreRouting(TranspilerPass):
 
         Args:
             qc: Quantum circuit.
-            virtual_qubits: Virtual qubits.
-            dag: Directed acyclic graph representation of the circuit.
-            rev_dag: Rev dag.
+            virtual_qubits: List of virtual qubit indices.
+            dag: Forward DAG representation of the circuit.
+            rev_dag: Reversed DAG for backward passes.
 
         Returns:
-            Result.
+            ``(new, nswap, v2p, final_p2v)`` —routed gate list, swap count, and final mappings.
         """
         self.v2p, self.p2v = self._initialize_v2p_p2v(virtual_qubits)
         init_p2v = {p: v for v, p in self.v2p.items()}
@@ -618,7 +618,7 @@ class SabreRouting(TranspilerPass):
             qc (*QuantumCircuit*): Quantum circuit.
 
         Returns:
-            Result.
+            Routed ``QuantumCircuit`` with SWAP gates inserted.
         """
         all_qubits = split_qubits(qc)
         virtual_qubits = [x for sub in all_qubits for x in sub]

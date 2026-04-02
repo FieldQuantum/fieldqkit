@@ -286,15 +286,15 @@ def simulate_mpo_process(
 
     Args:
         qc (*QuantumCircuit*): Quantum circuit.
-        param_values (*Dict[str, object] | None*): Param values (``Dict[str, object] | None``). Defaults to ``None``.
-        max_bond_dim (*int | None*): Max bond dim (``int | None``). Defaults to ``None``.
+        param_values (*Dict[str, object] | None*): Symbol-to-value mapping for parameterised gates. Defaults to ``None``.
+        max_bond_dim (*int | None*): Maximum bond dimension for SVD truncation. Defaults to ``None``.
         device (*torch.device | str | None*): Torch device (``'cpu'`` or ``'cuda'``). Defaults to ``None``.
 
     Returns:
-        Result list.
+        List of ``torch.Tensor`` site tensors with shape ``[Dl, pout, Dr, pin]``.
 
     Raises:
-        ValueError: f'unsupported gate for simulator: {gate}
+        ValueError: f'unsupported gate for simulator: {gate}'
     """
     num_qubits = int(qc.nqubits)
     if num_qubits <= 0:

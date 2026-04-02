@@ -120,9 +120,6 @@ class NativeTwoQubitTomographyManager:
 	) -> Dict[str, Dict[str, object]]:
 		"""Run two-qubit process tomography and return error channels.
 
-		Returns:
-        dict: keyed by "q1-q2" with Choi matrix for the error channel.
-
 		Args:
 			couplers (*Optional[Sequence[Tuple[int, int]]]*): List of qubit coupler pairs. Defaults to ``None``.
 			shots (*int*): Number of measurement shots. Defaults to ``1024``.
@@ -284,16 +281,16 @@ class NativeTwoQubitTomographyManager:
 		return [(a, b) for a in self._MEASUREMENT_AXES for b in self._MEASUREMENT_AXES]
 
 	def _state_density(self, label: str) -> np.ndarray:
-		"""State density.
+		"""Compute the density matrix |psi><psi| for a single-qubit state specified by *label*.
 
 		Args:
-			label (*str*): Descriptive label.
+			label (*str*): State label (e.g. ``'0'``, ``'1'``, ``'+'``, ``'-'``, ``'+i'``, ``'-i'``).
 
 		Returns:
-			NumPy array with the computed result.
+			2×2 density matrix as ``np.ndarray``.
 
 		Raises:
-			ValueError: f'unsupported state label: {label}
+			ValueError: f'unsupported state label: {label}'
 		"""
 		entries = self._STATE_VECTORS.get(label)
 		if entries is None:
@@ -302,15 +299,15 @@ class NativeTwoQubitTomographyManager:
 		return np.outer(vec, vec.conj())
 
 	def _apply_state_prep(self, qc: QuantumCircuit, label: str, qubit: int) -> None:
-		"""Apply state prep.
+		"""Prepare a single-qubit state by applying the gate sequence from ``_STATE_PREP_OPS[label]``.
 
 		Args:
 			qc (*QuantumCircuit*): Quantum circuit.
-			label (*str*): Descriptive label.
+			label (*str*): State label (e.g. ``'0'``, ``'1'``, ``'+'``).
 			qubit (*int*): Target qubit index.
 
 		Raises:
-			ValueError: f'unsupported state label: {label}
+			ValueError: f'unsupported state label: {label}'
 		"""
 		ops = self._STATE_PREP_OPS.get(label)
 		if ops is None:
@@ -319,26 +316,26 @@ class NativeTwoQubitTomographyManager:
 			getattr(qc, op)(qubit)
 
 	def _apply_measurement_basis(self, qc: QuantumCircuit, basis: str, qubit: int) -> None:
-		"""Apply measurement basis.
+		"""Apply measurement basis rotation gates to the circuit.
 
 		Args:
 			qc (*QuantumCircuit*): Quantum circuit.
-			basis (*str*): Basis (``str``).
+			basis (*str*): Measurement basis (``'X'``, ``'Y'``, or ``'Z'``).
 			qubit (*int*): Target qubit index.
 		"""
 		apply_measurement_basis_rotations(qc, [basis], target_qubits=[qubit])
 
 	def _apply_two_qubit_gate(self, qc: QuantumCircuit, gate: str, q1: int, q2: int) -> None:
-		"""Apply two qubit gate.
+		"""Apply a two-qubit gate to the circuit.
 
 		Args:
 			qc (*QuantumCircuit*): Quantum circuit.
-			gate (*str*): Gate specification or name.
-			q1 (*int*): Q1 (``int``).
-			q2 (*int*): Q2 (``int``).
+			gate (*str*): Gate name (e.g. ``'cz'``, ``'cx'``, ``'iswap'``).
+			q1 (*int*): First qubit index.
+			q2 (*int*): Second qubit index.
 
 		Raises:
-			ValueError: f'unsupported two-qubit gate: {gate}
+			ValueError: f'unsupported two-qubit gate: {gate}'
 		"""
 		canonical_gate = "cx" if gate in {"cnot", "cx"} else gate
 		method_name = self._TWO_QUBIT_GATE_METHODS.get(canonical_gate)
@@ -351,13 +348,13 @@ class NativeTwoQubitTomographyManager:
 		meas_probs: Dict[Tuple[str, str], np.ndarray],
 	) -> Dict[Tuple[str, str], float]:
 		# Expectation values of Pauli operators from basis measurements.
-		"""Expectations from measurements.
+		"""Compute Pauli expectation values from basis measurement probability distributions.
 
 		Args:
-			meas_probs (*Dict[Tuple[str, str], np.ndarray]*): Meas probs (``Dict[Tuple[str, str], np.ndarray]``).
+			meas_probs (*Dict[Tuple[str, str], np.ndarray]*): Mapping of ``(basis_a, basis_b)`` to probability arrays of length 4.
 
 		Returns:
-			Result dictionary.
+			Dict mapping ``(pauli_a, pauli_b)`` tuples to expectation values.
 		"""
 		expectations: Dict[Tuple[str, str], float] = {("I", "I"): 1.0}
 		for (basis_a, basis_b), probs in meas_probs.items():
@@ -368,13 +365,13 @@ class NativeTwoQubitTomographyManager:
 		return expectations
 
 	def _expectations_from_probs(self, probs: np.ndarray) -> Tuple[float, float, float]:
-		"""Expectations from probs.
+		"""Extract single-qubit Pauli expectation values from a two-qubit probability distribution.
 
 		Args:
-			probs (*np.ndarray*): Probability distribution.
+			probs (*np.ndarray*): Probability distribution of length 4.
 
 		Returns:
-			Result tuple.
+			Tuple of ``(ex_qubit0, ex_qubit1, ex_correlated)`` expectation values.
 
 		Raises:
 			ValueError: probabilities must have length 4 for two-qubit expectations
@@ -396,13 +393,13 @@ class NativeTwoQubitTomographyManager:
 		return ex1, ex2, ex12
 
 	def _expectations_to_pauli_vector(self, expectations: Dict[Tuple[str, str], float]) -> np.ndarray:
-		"""Expectations to pauli vector.
+		"""Convert Pauli expectation values to a 16-element decomposition vector.
 
 		Args:
-			expectations (*Dict[Tuple[str, str], float]*): Expectations (``Dict[Tuple[str, str], float]``).
+			expectations (*Dict[Tuple[str, str], float]*): Mapping of ``(pauli_a, pauli_b)`` to expectation values.
 
 		Returns:
-			NumPy array with the computed result.
+			16-element ``np.ndarray`` in two-qubit Pauli basis order.
 		"""
 		vec = np.zeros(16, dtype=float)
 		for i, a in enumerate(self._PAULI_LABELS):
@@ -414,13 +411,13 @@ class NativeTwoQubitTomographyManager:
 		return vec
 
 	def _rho_to_pauli_vector(self, rho: np.ndarray) -> np.ndarray:
-		"""Rho to pauli vector.
+		"""Convert a density matrix to its 16-element Pauli decomposition vector.
 
 		Args:
-			rho (*np.ndarray*): Rho (``np.ndarray``).
+			rho (*np.ndarray*): 4×4 density matrix.
 
 		Returns:
-			NumPy array with the computed result.
+			16-element ``np.ndarray`` with Pauli coefficients.
 		"""
 		basis = self._pauli_basis()
 		vec = np.zeros(16, dtype=float)
@@ -470,7 +467,7 @@ class NativeTwoQubitTomographyManager:
 	def _ptm_to_choi(self, ptm: np.ndarray) -> np.ndarray:
 		"""Convert a 16×16 Pauli transfer matrix to its Choi representation.
 
-		Computes ``C = (1/4) ∑_{ij} R_{ij} (P_i ⊗ P_j^T)`` using the two-qubit
+		Computes ``C = (1/4) ∑_{ij} R_{ij} (P_i ⊗P_j^T)`` using the two-qubit
 		Pauli basis.
 
 		Args:
@@ -487,39 +484,39 @@ class NativeTwoQubitTomographyManager:
 		return choi / 4.0
 
 	def _pauli_basis(self) -> List[np.ndarray]:
-		"""Pauli basis.
+		"""Return the list of all 16 two-qubit Pauli matrices in tensor-product order.
 
 		Returns:
-			Result list.
+			List of 16 ``np.ndarray`` matrices of shape ``(4, 4)``.
 		"""
 		return [np.kron(a, b) for a in self._PAULI_SINGLE for b in self._PAULI_SINGLE]
 
 	def _tomo_cache_path(self, *, chip_name: Optional[str]) -> Path:
-		"""Tomo cache path.
+		"""Resolve the on-disk cache file path for process tomography results.
 
 		Args:
 			chip_name (*Optional[str]*): Name of the target chip.
 
 		Returns:
-			``Path`` result.
+			``Path`` to the cache file.
 		"""
 		return cache_file(self._cache_dir, stem="tomo_two_qubit", chip_name=chip_name)
 
 	def _load_tomo_cache_raw(self, *, chip_name: Optional[str]) -> Dict[str, object]:
-		"""Load tomo cache raw.
+		"""Load raw process tomography cache data from disk.
 
 		Args:
 			chip_name (*Optional[str]*): Name of the target chip.
 
 		Returns:
-			Result dictionary.
+			Dict with ``'timestamps'`` and ``'per_coupler'`` entries.
 		"""
 		path = self._tomo_cache_path(chip_name=chip_name)
 		timestamps, per_coupler = load_timestamped_payload(path, payload_key="per_coupler")
 		return {"timestamps": timestamps, "per_coupler": per_coupler}
 
 	def _save_tomo_cache(self, results: Dict[str, Dict[str, object]], *, chip_name: Optional[str]) -> None:
-		"""Save tomo cache.
+		"""Persist process tomography results to the timestamped cache file.
 
 		Args:
 			results (*Dict[str, Dict[str, object]]*): Collection of result objects.
@@ -541,13 +538,13 @@ class NativeTwoQubitTomographyManager:
 		)
 
 	def _encode_choi_payload(self, choi: np.ndarray) -> Dict[str, object]:
-		"""Encode choi payload.
+		"""Serialize a complex Choi matrix into separate real and imaginary lists for JSON storage.
 
 		Args:
-			choi (*np.ndarray*): Choi (``np.ndarray``).
+			choi (*np.ndarray*): Complex Choi matrix.
 
 		Returns:
-			Result dictionary.
+			Dict with ``'real'`` and ``'imag'`` list entries.
 		"""
 		return {
 			"real": choi.real.tolist(),
@@ -555,13 +552,13 @@ class NativeTwoQubitTomographyManager:
 		}
 
 	def _decode_choi_payload(self, payload: Dict[str, object]) -> Dict[str, object]:
-		"""Decode choi payload.
+		"""Reconstruct a complex Choi matrix from its stored real/imaginary components.
 
 		Args:
-			payload (*Dict[str, object]*): Data payload.
+			payload (*Dict[str, object]*): Dict with ``'real'`` and ``'imag'`` list entries.
 
 		Returns:
-			Result dictionary.
+			Dict with ``'choi_error'`` key containing the reconstructed complex ``np.ndarray``.
 		"""
 		real = np.array(payload.get("real", []), dtype=float)
 		imag = np.array(payload.get("imag", []), dtype=float)

@@ -277,12 +277,12 @@ def test_noise_aware_with_very_low_fidelity():
 
 
 def test_noise_aware_with_fidelity_exactly_1():
-    """fidelity=1.0 时 -log(1)=0，不影响路由。"""
+    """fidelity=1.0 时 all_perfect 回退到跳数距离，与 hop_matrix 一致。"""
     g = _make_line_graph(3, fidelities=[1.0, 1.0])
     sr = SabreRouting(g, noise_aware=True, iterations=1)
-    assert sr.distance_matrix[0][1] == 0.0
-    assert sr.distance_matrix[0][2] == 0.0  # 0+0
-    # 但 hop_matrix 仍然是 1, 2
+    # 所有 fidelity=1.0 → -log(1)=0 → all_perfect=True → 回退跳数
+    assert sr.distance_matrix[0][1] == 1.0
+    assert sr.distance_matrix[0][2] == 2.0
     assert sr.hop_matrix[0][1] == 1
     assert sr.hop_matrix[0][2] == 2
 

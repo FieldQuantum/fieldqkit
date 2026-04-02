@@ -26,8 +26,8 @@ def draw_dag(dag, output="dag_figure.png"):
     """Draws a directed acyclic graph (DAG) representation of a quantum circuit and saves it as an image.
 
     Args:
-        dag: Directed acyclic graph representation of the circuit.
-        output: File path for the saved image. Defaults to ``'dag_figure.png'``.
+        dag (*nx.DiGraph*): Directed acyclic graph representation of the circuit.
+        output (*str*): File path for the saved image. Defaults to ``'dag_figure.png'``.
     """
     import matplotlib.pyplot as plt
 
@@ -63,10 +63,10 @@ def qc2dag(qc: QuantumCircuit, show_qubits: bool = True) -> nx.DiGraph:
 
     Args:
         qc (*QuantumCircuit*): Quantum circuit.
-        show_qubits (*bool*): Show qubits (``bool``). Defaults to ``True``.
+        show_qubits (*bool*): Whether to include ``start``/``end`` sentinel nodes per qubit. Defaults to ``True``.
 
     Returns:
-        ``nx.DiGraph`` result.
+        ``nx.DiGraph`` representing the circuit's gate dependency graph.
     """
     node_list, edge_list = convert_gate_info_to_dag_info(qc.nqubits, qc.qubits, qc.gates, show_qubits=show_qubits)
     dag = nx.DiGraph()
@@ -85,7 +85,7 @@ def dag2qc(dag: nx.DiGraph, nqubits: int | None = None, ncbits: int | None = Non
         ncbits (*int | None*): Number of classical bits. Defaults to ``None``.
 
     Returns:
-        Constructed ``QuantumCircuit``.
+        ``QuantumCircuit`` reconstructed from the topologically sorted DAG nodes.
     """
     current_qubits = []
     new = []
@@ -136,7 +136,7 @@ def get_qcgraph_edges(gates):
         list: List of (qubit1, qubit2) edge tuples.
 
     Raises:
-        ValueError: f'wrong gate type {gate}
+        ValueError: f'wrong gate type {gate}'
     """
     edges = []
     for gate_info in gates:

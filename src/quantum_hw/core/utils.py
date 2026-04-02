@@ -11,7 +11,7 @@ def get_probabilities(result: Dict[str, int], num_qubits: int) -> np.ndarray:
 	"""Normalize counts into probabilities via sample expansion.
 
 	Args:
-		result (*Dict[str, int]*): Raw result dictionary.
+		result (*Dict[str, int]*): Counts dictionary mapping bitstrings to occurrence counts.
 		num_qubits (*int*): Number of qubits.
 
 	Returns:
@@ -43,7 +43,7 @@ def get_probabilities_from_samples(samples: np.ndarray, num_qubits: int) -> np.n
 	"""Compute global basis probabilities from sample rows.
 
 	Args:
-		samples (*np.ndarray*): Measurement samples.
+		samples (*np.ndarray*): 2-D array of shape ``(nshots, num_qubits)`` with 0/1 entries.
 		num_qubits (*int*): Number of qubits.
 
 	Returns:
@@ -69,11 +69,11 @@ def marginal_samples(samples: np.ndarray, support: Sequence[int]) -> np.ndarray:
 	"""Extract marginal samples on a subset of qubits.
 
 	Args:
-		samples (*np.ndarray*): Measurement samples.
-		support (*Sequence[int]*): Support (``Sequence[int]``).
+		samples (*np.ndarray*): 2-D array of shape ``(nshots, num_qubits)`` with 0/1 entries.
+		support (*Sequence[int]*): Qubit column indices to extract.
 
 	Returns:
-		NumPy array with the computed result.
+		2-D NumPy array of shape ``(nshots, len(support))``.
 	"""
 	if not support:
 		return np.zeros((samples.shape[0], 0), dtype=int)
@@ -84,11 +84,11 @@ def get_local_probabilities_from_samples(samples: np.ndarray, support: Sequence[
 	"""Compute local probabilities on a subset of qubits from samples.
 
 	Args:
-		samples (*np.ndarray*): Measurement samples.
-		support (*Sequence[int]*): Support (``Sequence[int]``).
+		samples (*np.ndarray*): 2-D array of shape ``(nshots, num_qubits)`` with 0/1 entries.
+		support (*Sequence[int]*): Qubit column indices to marginalise over.
 
 	Returns:
-		NumPy array with the computed result.
+		1-D probability vector of length ``2**len(support)``.
 	"""
 	support = list(support)
 	if not support:
@@ -101,7 +101,7 @@ def expectation_from_probabilities(probabilities: np.ndarray, support: Sequence[
 	"""Compute Z-basis expectation value from probabilities.
 
 	Args:
-		probabilities (*np.ndarray*): Full probability vector.
+		probabilities (*np.ndarray*): 1-D probability vector of length ``2**num_qubits``.
 		support (*Sequence[int]*): Qubit dimension indices over which to compute Z-parity expectation.
 
 	Returns:

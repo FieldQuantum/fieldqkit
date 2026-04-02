@@ -15,13 +15,13 @@ from ..task import OpenQasmSubmitRequest, ProviderTaskHandle, TaskAdapter
 
 
 def _normalize_coordinate(value: Any) -> Optional[List[float]]:
-    """Normalize coordinate.
+    """Parse a coordinate value (list, tuple, or dict) into a two-element ``[x, y]`` float list.
 
     Args:
-        value (*Any*): Value to set.
+        value (*Any*): Raw coordinate value (list, tuple, or dict with ``x``/``y`` keys).
 
     Returns:
-        Result list.
+        Two-element ``[x, y]`` list, or ``None`` if parsing fails.
     """
     if isinstance(value, (list, tuple)) and len(value) == 2:
         try:
@@ -40,13 +40,13 @@ def _normalize_coordinate(value: Any) -> Optional[List[float]]:
 
 
 def _flip_bitstring(bs: str) -> str:
-    """Reverse a bitstring to convert big-endian ↔ little-endian.
+    """Reverse a bitstring to convert big-endian to little-endian.
 
     Args:
-        bs (*str*): Bs (``str``).
+        bs (*str*): Bitstring to reverse.
 
     Returns:
-        Formatted string.
+        Reversed bitstring.
     """
     return bs[::-1]
 
@@ -58,19 +58,19 @@ def _flip_counts(counts: Dict[str, int]) -> Dict[str, int]:
         counts (*Dict[str, int]*): Measurement count dictionary.
 
     Returns:
-        Result dictionary.
+        New dictionary with all bitstrings reversed.
     """
     return {_flip_bitstring(k): v for k, v in counts.items()}
 
 
 def load_quafu_chip_info(chip_name: str):
-    """Load quafu chip info.
+    """Fetch chip specifications via HTTP and return normalized qubit/coupler topology.
 
     Args:
         chip_name (*str*): Name of the target chip.
 
     Returns:
-        Loaded data.
+        Dictionary containing chip topology, qubit fidelities and coupler information.
     """
     session = requests.Session()
     url = "https://quafu-sqc.baqis.ac.cn"
@@ -132,13 +132,13 @@ def load_quafu_chip_info(chip_name: str):
 
 
 def get_available_chip_status(platform_obj) -> Dict[str, int]:
-    """Get available chip status.
+    """Return a dict mapping active chip names to their current queue lengths.
 
     Args:
-        platform_obj: Platform obj.
+        platform_obj: Authenticated Quafu platform instance.
 
     Returns:
-        Result dictionary.
+        Dictionary mapping chip names to queue lengths.
 
     Raises:
         RuntimeError: platform_obj.status() must return a dict of chip -> queue...
@@ -157,11 +157,11 @@ class QuafuPlatform:
         """Return singleton instance of the Quafu platform.
 
         Args:
-            *args: *args.
-            **kwargs: **kwargs.
+            *args: Positional arguments (unused, forwarded to ``super().__new__``).
+            **kwargs: Keyword arguments (unused, forwarded to ``super().__new__``).
 
         Returns:
-            Result.
+            ``QuafuPlatform`` singleton instance.
         """
         if not hasattr(cls, "instance"):
             cls.instance = super().__new__(cls)
@@ -187,10 +187,10 @@ class QuafuPlatform:
             method (*str*): HTTP method (``'get'`` or ``'post'``). Defaults to ``'get'``.
 
         Returns:
-            Result.
+            ``dict`` parsed JSON response.
 
         Raises:
-            ValueError: f'unsupported method: {method}
+            ValueError: f'unsupported method: {method}'
         """
         if method == "get":
             res = self.session.get(url, headers={"token": self.token})
@@ -223,18 +223,18 @@ class QuafuPlatform:
         """Query submitted tasks with filtering, pagination, and sorting options.
 
         Args:
-            tid (*int*): Tid (``int``). Defaults to ``2``.
-            chips (*str*): Chips (``str``). Defaults to ``'Baihua'``.
-            status (*str*): Status (``str``). Defaults to ``'Finished,Failed'``.
-            start (*str*): Start (``str``). Defaults to ``'2024-04-01'``.
-            end (*str*): End (``str``). Defaults to ``time.strftime('%Y-%m-%d')``.
-            offset (*int*): Offset (``int``). Defaults to ``0``.
-            limit (*int*): Limit (``int``). Defaults to ``10``.
-            sort (*Literal['taskId', 'taskName', 'chipName', 'status', 'submitTime']*): Sort (``Literal['taskId', 'taskName', 'chipName', 'status', 'submitTime']``). Defaults to ``'submitTime'``.
-            order (*Literal['asc', 'desc']*): Order (``Literal['asc', 'desc']``). Defaults to ``'desc'``.
+            tid (*int*): Task type ID. Defaults to ``2``.
+            chips (*str*): Comma-separated chip names to filter. Defaults to ``'Baihua'``.
+            status (*str*): Comma-separated status filters. Defaults to ``'Finished,Failed'``.
+            start (*str*): Start date (``YYYY-MM-DD``). Defaults to ``'2024-04-01'``.
+            end (*str*): End date (``YYYY-MM-DD``). Defaults to ``time.strftime('%Y-%m-%d')``.
+            offset (*int*): Pagination offset. Defaults to ``0``.
+            limit (*int*): Maximum records to return. Defaults to ``10``.
+            sort (*Literal['taskId', 'taskName', 'chipName', 'status', 'submitTime']*): Sort field. Defaults to ``'submitTime'``.
+            order (*Literal['asc', 'desc']*): Sort order. Defaults to ``'desc'``.
 
         Returns:
-            Result.
+            ``dict`` parsed JSON query response.
         """
         return self.request(f"{self.URL}/task/query/?tid={tid}&chips={chips}&status={status}&start={start}&end={end}&offset={offset}&limit={limit}&sort={sort}&order={order}")
 
@@ -242,10 +242,10 @@ class QuafuPlatform:
         """Delete a submitted task by its ID.
 
         Args:
-            tid (*int*): Tid (``int``).
+            tid (*int*): Task ID.
 
         Returns:
-            Result.
+            ``dict`` parsed JSON response.
         """
         return self.request(f"{self.URL}/task/delete/{tid}")
 
@@ -253,11 +253,11 @@ class QuafuPlatform:
         """Retrieve task result with optional timeout and automatic polling.
 
         Args:
-            tid (*int*): Tid (``int``).
-            timeout (*float*): Timeout (``float``). Defaults to ``0.0``.
+            tid (*int*): Task ID.
+            timeout (*float*): Maximum wait time in seconds; ``0`` for single request. Defaults to ``0.0``.
 
         Returns:
-            Result.
+            ``dict`` parsed JSON task result.
 
         Raises:
             TimeoutError: f'Task {tid} result timeout after {timeout} seconds
@@ -279,10 +279,10 @@ class QuafuPlatform:
         """Query the status of a submitted task.
 
         Args:
-            tid (*int*): Tid (``int``). Defaults to ``0``.
+            tid (*int*): Task ID. Defaults to ``0``.
 
         Returns:
-            Result.
+            ``dict`` parsed JSON status response.
         """
         time.sleep(0.2)
         return self.request(f"{self.URL}/task/status/{tid}")
@@ -291,10 +291,10 @@ class QuafuPlatform:
         """Cancel a running task by its ID.
 
         Args:
-            tid (*int*): Tid (``int``).
+            tid (*int*): Task ID.
 
         Returns:
-            Result.
+            ``dict`` parsed JSON response.
         """
         time.sleep(0.2)
         return self.request(f"{self.URL}/task/cancel/{tid}")
@@ -303,11 +303,11 @@ class QuafuPlatform:
         """Submit a quantum circuit task to the Quafu backend and return its task ID.
 
         Args:
-            task (*dict*): Task (``dict``).
+            task (*dict*): Task configuration with keys ``'chip'``, ``'circuit'``, and optionally ``'name'``, ``'shots'``.
             repeat (*int*): Number of measurement repetitions. Defaults to ``1``.
 
         Returns:
-            Result.
+            ``dict`` parsed JSON response containing the task ID.
         """
         time.sleep(0.2)
         name = task.get("name", "MyQuantumJob")
@@ -383,7 +383,7 @@ class QuafuTaskAdapter(TaskAdapter):
             backend (*ResolvedBackend*): Hardware backend descriptor.
 
         Returns:
-            ``ProviderTaskHandle`` result.
+            ``ProviderTaskHandle`` for tracking the submitted task.
 
         Raises:
             RuntimeError: platform_obj is missing in backend metadata
@@ -406,13 +406,13 @@ class QuafuTaskAdapter(TaskAdapter):
         )
 
     def query_status(self, handle: ProviderTaskHandle) -> str:
-        """Query status.
+        """Return the current task status from the Quafu platform.
 
         Args:
             handle (*ProviderTaskHandle*): Task handle from a prior submission.
 
         Returns:
-            Formatted string.
+            Status string (e.g. ``"Finished"``, ``"Failed"``, ``"Running"``).
 
         Raises:
             RuntimeError: platform_obj is missing in task handle payload
@@ -424,13 +424,13 @@ class QuafuTaskAdapter(TaskAdapter):
         return platform_obj.status(task_id)
 
     def fetch_result(self, handle: ProviderTaskHandle) -> Dict[str, Any]:
-        """Fetch result.
+        """Fetch measurement counts for a completed Quafu task.
 
         Args:
             handle (*ProviderTaskHandle*): Task handle from a prior submission.
 
         Returns:
-            Result dictionary.
+            ``dict`` with ``"count"`` key mapping to big-endian bitstring counts.
 
         Raises:
             RuntimeError: platform_obj is missing in task handle payload
@@ -446,7 +446,7 @@ class QuafuTaskAdapter(TaskAdapter):
         return res
 
     def cancel_task(self, handle: ProviderTaskHandle) -> None:
-        """Cancel task.
+        """Abort a submitted Quafu task via its platform handle.
 
         Args:
             handle (*ProviderTaskHandle*): Task handle from a prior submission.

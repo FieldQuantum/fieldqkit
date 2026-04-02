@@ -19,7 +19,7 @@ def _parse_pauli_string(pauli: str, num_qubits: int | None = None) -> List[Tuple
 	"""Parse Pauli strings in either compact or indexed form.
 
 	Args:
-		pauli (*str*): Pauli (``str``).
+		pauli (*str*): Pauli string in compact (``"ZZIX"``) or indexed (``"Z0 X2"``) form.
 		num_qubits (*int | None*): Number of qubits. Defaults to ``None``.
 
 	Returns:
@@ -61,7 +61,7 @@ def pauli_support(pauli: str, num_qubits: int | None = None) -> List[int]:
 	"""Return the sorted support indices of non-identity Pauli terms.
 
 	Args:
-		pauli (*str*): Pauli (``str``).
+		pauli (*str*): Pauli string in compact or indexed form.
 		num_qubits (*int | None*): Number of qubits. Defaults to ``None``.
 
 	Returns:
@@ -75,8 +75,8 @@ def shift_pauli_string(pauli: str, offset: int) -> str:
 	"""Shift all qubit indices in a Pauli string by an offset.
 
 	Args:
-		pauli (*str*): Pauli (``str``).
-		offset (*int*): Offset (``int``).
+		pauli (*str*): Pauli string in indexed form.
+		offset (*int*): Integer offset applied to each qubit index.
 
 	Returns:
 		Pauli string in indexed form with shifted qubit indices.
@@ -92,7 +92,7 @@ def append_pauli_measurement(qc, pauli: str) -> None:
 
 	Args:
 		qc: Quantum circuit.
-		pauli (*str*): Pauli (``str``).
+		pauli (*str*): Pauli string specifying measurement basis per qubit.
 	"""
 	num_qubits = qc.num_qubits if hasattr(qc, "num_qubits") else None
 	basis_pattern = pauli_basis_pattern(pauli, num_qubits=num_qubits)
@@ -105,7 +105,7 @@ def pauli_basis_pattern(pauli: str, num_qubits: int) -> List[str]:
 	"""Return basis pattern (I/X/Y/Z) per qubit for a Pauli string.
 
 	Args:
-		pauli (*str*): Pauli (``str``).
+		pauli (*str*): Pauli string in compact or indexed form.
 		num_qubits (*int*): Number of qubits.
 
 	Returns:
@@ -122,11 +122,11 @@ def apply_measurement_basis_rotations(qc, basis_pattern: Sequence[str], target_q
 
 	Args:
 		qc: Quantum circuit.
-		basis_pattern (*Sequence[str]*): Basis pattern (``Sequence[str]``).
+		basis_pattern (*Sequence[str]*): Per-qubit measurement basis labels, e.g. ``['X', 'Z', 'Y']``.
 		target_qubits (*Sequence[int]*): Qubit indices for partial measurement. Defaults to ``None``.
 
 	Raises:
-		ValueError: f'unsupported basis op: {op}
+		ValueError: f'unsupported basis op: {op}'
 	"""
 	if target_qubits is None:
 		target_qubits = qc.qubits if hasattr(qc, "qubits") else list(range(len(basis_pattern)))
@@ -143,7 +143,7 @@ def append_measurement_basis(qc, basis_pattern: Sequence[str], target_qubits: Se
 
 	Args:
 		qc: Quantum circuit.
-		basis_pattern (*Sequence[str]*): Basis pattern (``Sequence[str]``).
+		basis_pattern (*Sequence[str]*): Per-qubit measurement basis labels, e.g. ``['X', 'Z', 'Y']``.
 		target_qubits (*Sequence[int]*): Qubit indices for partial measurement. Defaults to ``None``.
 	"""
 	if target_qubits is None:
@@ -158,8 +158,8 @@ def _compatible_with_basis(pattern: Sequence[str], basis: Sequence[str]) -> bool
 	"""Check whether two basis patterns are compatible for grouping.
 
 	Args:
-		pattern (*Sequence[str]*): Pattern (``Sequence[str]``).
-		basis (*Sequence[str]*): Basis (``Sequence[str]``).
+		pattern (*Sequence[str]*): Per-qubit Pauli pattern to check.
+		basis (*Sequence[str]*): Per-qubit measurement basis.
 
 	Returns:
 		``True`` if the condition is satisfied.
@@ -174,11 +174,11 @@ def _merge_basis(pattern: Sequence[str], basis: Sequence[str]) -> List[str]:
 	"""Merge two compatible basis patterns into a single pattern.
 
 	Args:
-		pattern (*Sequence[str]*): Pattern (``Sequence[str]``).
-		basis (*Sequence[str]*): Basis (``Sequence[str]``).
+		pattern (*Sequence[str]*): Per-qubit Pauli pattern to merge.
+		basis (*Sequence[str]*): Per-qubit measurement basis.
 
 	Returns:
-		Result list.
+		Merged basis list with non-identity entries from *pattern* filled in.
 	"""
 	merged = list(basis)
 	for i, p in enumerate(pattern):
@@ -221,11 +221,10 @@ def pauli_expectation(samples: np.ndarray, pauli: str) -> float:
 
 	Args:
 		samples (*np.ndarray*): Measurement samples.
-		pauli (*str*): Pauli (``str``).
+		pauli (*str*): Pauli string specifying the observable.
 
 	Returns:
-		Computed float result.
-
+		Expectation value in ``[-1, 1]``.
 	Raises:
 		ValueError: samples must be 2D
 	"""

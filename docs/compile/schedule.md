@@ -2,7 +2,7 @@
 
 ## 概览
 
-- **模块**：`quantum_hw.compile.schedule`（179 行）
+- **模块**：`quantum_hw.compile.schedule`（约210 行）
 - **作用**：在量子线路的空闲时段插入动力学去耦（DD）序列，抑制退相干噪声。
 - **继承**：`TranspilerPass`（实现 `run()` 方法）
 - **依赖**：`qc2dag` / `dag2qc`（DAG 构建）、`networkx.topological_generations`

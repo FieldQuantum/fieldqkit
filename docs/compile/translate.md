@@ -2,7 +2,7 @@
 
 ## 概览
 
-- **模块**：`quantum_hw.compile.translate`（162 行）
+- **模块**：`quantum_hw.compile.translate`（约170 行）
 - **作用**：将线路中所有门翻译为目标芯片的本征门集（单比特统一为 U 门，两比特统一为指定本征门）。
 - **继承**：`TranspilerPass`（实现 `run()` 方法）
 - **依赖**：`decompose` 模块（所有两比特门分解函数）、`u3_decompose`（矩阵→U 分解）

@@ -25,10 +25,10 @@ def _select_key_basis(raw_probs, mit_probs, num_qubits: int, max_states: int = 1
 	"""Select representative basis states for visualization.
 
 	Args:
-		raw_probs: Raw probs.
-		mit_probs: Mit probs.
+		raw_probs: Raw probability distribution (list or array).
+		mit_probs: Mitigated probability distribution (list or array).
 		num_qubits (*int*): Number of qubits.
-		max_states (*int*): Max states (``int``). Defaults to ``16``.
+		max_states (*int*): Maximum number of basis states to select for display. Defaults to ``16``.
 
 	Returns:
 		List of selected basis state indices for plotting.
@@ -49,10 +49,10 @@ def _as_float(value, default: float = 0.0) -> float:
 
 	Args:
 		value: Value to convert to float.
-		default (*float*): Default (``float``). Defaults to ``0.0``.
+		default (*float*): Fallback if conversion fails. Defaults to ``0.0``.
 
 	Returns:
-		Computed float result.
+		``float`` value, or *default* on failure.
 	"""
 	if value is None:
 		return default
@@ -67,9 +67,9 @@ def _ordered_observable_keys(raw, mitigated, observables=None):
 	"""Resolve observable keys in a stable plotting order.
 
 	Args:
-		raw: Raw.
-		mitigated: Mitigated.
-		observables: Observable operators to measure. Defaults to ``None``.
+		raw: Raw observable expectation values (scalar, dict, or ``None``).
+		mitigated: Mitigated observable expectation values (scalar, dict, or ``None``).
+		observables: Observable operators for key ordering. Defaults to ``None``.
 
 	Returns:
 		Ordered list of observable key strings.
@@ -101,10 +101,10 @@ def plot_probabilities_compare(raw, mitigated, num_qubits: int, max_labels: int 
 	"""Plot raw vs mitigated probabilities for selected basis states.
 
 	Args:
-		raw: Raw.
-		mitigated: Mitigated.
+		raw: Raw probability distribution (dict or array).
+		mitigated: Mitigated probability distribution (dict or array).
 		num_qubits (*int*): Number of qubits.
-		max_labels (*int*): Max labels (``int``). Defaults to ``16``.
+		max_labels (*int*): Maximum number of basis-state labels on the x-axis. Defaults to ``16``.
 	"""
 	raw_probs = _flatten_probabilities(raw)
 	mit_probs = _flatten_probabilities(mitigated)
@@ -135,9 +135,9 @@ def plot_observables_compare(raw, mitigated, observables=None) -> None:
 	"""Plot comparison of observable expectations (scalar or dict).
 
 	Args:
-		raw: Raw.
-		mitigated: Mitigated.
-		observables: Observable operators to measure. Defaults to ``None``.
+		raw: Raw observable expectation values (scalar or dict).
+		mitigated: Mitigated observable expectation values (scalar or dict).
+		observables: Observable operators for key ordering. Defaults to ``None``.
 	"""
 	if raw is None and mitigated is None:
 		return

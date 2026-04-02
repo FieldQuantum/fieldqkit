@@ -1,3 +1,5 @@
+"""Tests for OpenQASM 2/3 parsing, custom gates, and circuit rendering helpers."""
+
 import numpy as np
 
 from quantum_hw.circuit.qasm2 import (
@@ -6,11 +8,21 @@ from quantum_hw.circuit.qasm2 import (
     parse_openqasm2_custom_gates,
 )
 from quantum_hw.circuit.qasm3 import parse_openqasm3_to_gates
-from quantum_hw.circuit.quantumcircuit_helpers import add_gates_to_lines, format_gates_layerd
+from quantum_hw.circuit.quantumcircuit_helpers import (
+    add_gates_to_lines,
+    format_gates_layerd,
+    parse_expression,
+)
+import pytest
 
 
 def _find_gate(gates, name):
     return [g for g in gates if g[0] == name]
+
+
+# ═══════════════════════════════════════════════════════════
+#  QASM2 parsing
+# ═══════════════════════════════════════════════════════════
 
 
 def test_qasm2_regs_and_custom_gate_strip():
@@ -103,6 +115,52 @@ def test_qasm2_params_delay_reset_barrier():
     assert qubits == {0, 1}
 
 
+def test_qasm2_custom_gate_expansion():
+    qasm = """
+    OPENQASM 2.0;
+    include \"qelib1.inc\";
+    qreg q[1];
+    gate g(theta) a { rz(theta) a; }
+    g(pi/4) q[0];
+    """
+    gates, qubits, _ = parse_openqasm2_to_gates(qasm)
+    rz_gate = _find_gate(gates, "rz")[0]
+    assert np.isclose(rz_gate[1], np.pi / 4)
+    assert qubits == {0}
+
+
+def test_openqasm_custom_gate_and_multi_registers():
+    qasm = """
+OPENQASM 2.0;
+include "qelib1.inc";
+qreg a[2];
+qreg b[1];
+creg c[3];
+
+gate mygate(theta) q0,q1 { cx q0,q1; rz(theta) q0; }
+
+mygate(pi/2) a[0], b[0];
+rx(pi) a[1];
+measure a[1] -> c[2];
+""".strip()
+
+    gates, qubits, cbits = parse_openqasm2_to_gates(qasm)
+    assert qubits == {0, 1, 2}
+    assert cbits == {2}
+
+    assert gates[0] == ("cx", 0, 2)
+    assert gates[1][0] == "rz"
+    assert gates[1][2] == 0
+    assert gates[1][1] == pytest.approx(np.pi / 2)
+    assert gates[2] == ("rx", pytest.approx(np.pi), 1)
+    assert gates[3] == ("measure", [1], [2])
+
+
+# ═══════════════════════════════════════════════════════════
+#  QASM3 parsing
+# ═══════════════════════════════════════════════════════════
+
+
 def test_qasm3_basic_parse():
     qasm = """
     OPENQASM 3.0;
@@ -140,20 +198,6 @@ def test_qasm3_delay_reset_barrier():
     assert cbits == {1}
 
 
-def test_qasm2_custom_gate_expansion():
-    qasm = """
-    OPENQASM 2.0;
-    include \"qelib1.inc\";
-    qreg q[1];
-    gate g(theta) a { rz(theta) a; }
-    g(pi/4) q[0];
-    """
-    gates, qubits, _ = parse_openqasm2_to_gates(qasm)
-    rz_gate = _find_gate(gates, "rz")[0]
-    assert np.isclose(rz_gate[1], np.pi / 4)
-    assert qubits == {0}
-
-
 def test_qasm3_custom_gate_and_param():
     qasm = """
     OPENQASM 3.0;
@@ -180,6 +224,11 @@ def test_qasm3_measurement_statement_variant():
     assert ("measure", [0], [0]) in gates
     assert qubits == {0}
     assert cbits == {0}
+
+
+# ═══════════════════════════════════════════════════════════
+#  Rendering helpers
+# ═══════════════════════════════════════════════════════════
 
 
 def test_add_gates_to_lines_formats_mixed_parameter_tokens():

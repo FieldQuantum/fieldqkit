@@ -13,11 +13,11 @@ def build_local_confusion_matrix(per_qubit_confusion: Dict[int, np.ndarray], tar
 	"""Tensor product local per-qubit confusion matrices.
 
 	Args:
-		per_qubit_confusion (*Dict[int, np.ndarray]*): Per qubit confusion (``Dict[int, np.ndarray]``).
+		per_qubit_confusion (*Dict[int, np.ndarray]*): Mapping from qubit index to its 2×2 confusion matrix.
 		target_qubits (*Sequence[int]*): Qubit indices whose per-qubit confusion matrices will be tensored together.
 
 	Returns:
-		NumPy array with the computed result.
+		Kronecker product confusion matrix of shape ``(2^k, 2^k)``.
 
 	Raises:
 		ValueError: target_qubits is empty
@@ -37,11 +37,11 @@ def mitigate_readout(probabilities: np.ndarray, confusion_matrix: np.ndarray) ->
 	The result is clipped to ``[0, 1]`` and renormalized to sum to 1.
 
 	Args:
-		probabilities (*np.ndarray*): Probabilities (``np.ndarray``).
+		probabilities (*np.ndarray*): Raw probability vector.
 		confusion_matrix (*np.ndarray*): Readout confusion matrix.
 
 	Returns:
-		NumPy array with the computed result.
+		Mitigated probability vector (clipped and renormalized).
 
 	Raises:
 		ValueError: confusion_matrix must be square
@@ -64,11 +64,11 @@ def expectation_from_samples_unbiased(local_samples: np.ndarray, local_confusion
 at the cost of higher variance.
 
 	Args:
-		local_samples (*np.ndarray*): Local samples (``np.ndarray``).
-		local_confusion_matrices (*Sequence[np.ndarray]*): Local confusion matrices (``Sequence[np.ndarray]``).
+		local_samples (*np.ndarray*): 2-D array of shape ``(nshots, k)`` with 0/1 outcomes.
+		local_confusion_matrices (*Sequence[np.ndarray]*): Sequence of ``k`` 2×2 confusion matrices, one per qubit.
 
 	Returns:
-		Computed float result.
+		Unbiased readout-mitigated parity expectation value.
 
 	Raises:
 		ValueError: local_samples must be a 2D array with shape (nshots, k)
@@ -123,7 +123,7 @@ def mitigate_observable_from_samples(
 		marginal_max_support (*int*): Maximum support size for exact marginal mitigation; larger supports use the unbiased estimator. Defaults to ``10``.
 
 	Returns:
-		Computed float result.
+		Readout-mitigated expectation value for the observable.
 	"""
 	if not support:
 		return 1.0

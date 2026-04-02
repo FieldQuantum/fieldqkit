@@ -8,10 +8,10 @@ except Exception:  # pragma: no cover - fallback for non-notebook envs
 
 
 def _render_lines(lines: list[str]) -> None:
-    """Render lines.
+    """Display circuit diagram lines as HTML in Jupyter or plaintext in terminal.
 
     Args:
-        lines (*list[str]*): Lines (``list[str]``).
+        lines (*list[str]*): List of pre-formatted circuit diagram line strings.
     """
     fline = "\n" + "\n".join(lines)
     if display is None or HTML is None:
@@ -23,20 +23,20 @@ def _render_lines(lines: list[str]) -> None:
 
 
 def draw_circuit(lines: list[str]) -> None:
-    """Draw circuit.
+    """Display the complete circuit diagram with all qubit lines and gates.
 
     Args:
-        lines (*list[str]*): Lines (``list[str]``).
+        lines (*list[str]*): List of pre-formatted circuit diagram line strings.
     """
     _render_lines(lines)
 
 
 def draw_circuit_simply(lines: list[str], lines_use: list[int], nqubits: int) -> None:
-    """Draw circuit simply.
+    """Display a simplified circuit diagram showing only active qubit lines.
 
     Args:
-        lines (*list[str]*): Lines (``list[str]``).
-        lines_use (*list[int]*): Lines use (``list[int]``).
+        lines (*list[str]*): List of pre-formatted circuit diagram line strings.
+        lines_use (*list[int]*): Indices of active qubit lines to display.
         nqubits (*int*): Number of qubits.
     """
     lines_use_set = set(lines_use)

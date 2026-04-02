@@ -2,7 +2,7 @@
 
 ## 概览
 
-- **模块**：`quantum_hw.compile.decompose`（482 行）
+- **模块**：`quantum_hw.compile.decompose`（约750 行）
 - **作用**：将高阶门（三比特门、非本征两比特门）分解为单比特 + 本征两比特门的组合。
 - **设计**：三比特门分解由 `ThreeQubitGateDecompose` TranspilerPass 完成；两比特门分解由独立函数完成，被 `TranslateToBasisGates` 调用。
 - **依赖**：`u3_decompose`（U 分解）、`u_mat`（U 矩阵构造）

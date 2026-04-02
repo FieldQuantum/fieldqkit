@@ -2,7 +2,7 @@
 
 ## 概览
 
-- **模块**：`quantum_hw.compile.dag`（176 行）
+- **模块**：`quantum_hw.compile.dag`（约220 行）
 - **作用**：提供量子线路与有向无环图（DAG）、无向交互图之间的互转工具，供编译 Pass 内部使用。
 - **依赖**：`networkx`、`convert_gate_info_to_dag_info`（来自 `quantumcircuit_helpers`）
 

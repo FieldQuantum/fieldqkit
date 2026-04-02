@@ -9,7 +9,7 @@ def apply_zne_cz_tripling(qct):
 	"""Apply CZ gate tripling for simple ZNE noise scaling (scale factor 3).
 
 	Args:
-		qct: Circuit object with a ``.gates`` attribute.
+		qct (*QuantumCircuit*): Circuit to apply CZ tripling to.
 
 	Returns:
 		A copy of the circuit with each CZ gate tripled.
@@ -34,8 +34,8 @@ def zne_linear_extrapolate(probs_1, probs_3):
 	Output probabilities are *not* renormalized.
 
 	Args:
-		probs_1: Probabilities or expectation values at noise scale factor 1.
-		probs_3: Probabilities or expectation values at noise scale factor 3.
+		probs_1 (*np.ndarray | float*): Probabilities or expectation values at noise scale factor 1.
+		probs_3 (*np.ndarray | float*): Probabilities or expectation values at noise scale factor 3.
 
 	Returns:
 		Linearly extrapolated zero-noise estimate.

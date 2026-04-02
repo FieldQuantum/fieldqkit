@@ -913,7 +913,7 @@ def simulate_counts(
         device (*torch.device | str | None*): Torch device (``'cpu'`` or ``'cuda'``). Defaults to ``None``.
 
     Returns:
-        Result dictionary.
+        ``Dict[str, int]`` mapping bitstrings to their occurrence counts.
     """
     mps = simulate_mps(qc, param_values=param_values, device=device)
     samples = _sample_bits_from_mps(mps, int(shots), seed=seed)
@@ -935,11 +935,11 @@ def expectation_pauli(
 
     Args:
         state: MPS site tensor list (``List[torch.Tensor]``).
-        pauli (*str*): Pauli (``str``).
+        pauli (*str*): Pauli string (e.g. ``'XZI'``).
         num_qubits (*int*): Number of qubits.
 
     Returns:
-        Result.
+        Scalar expectation value ``<psi|P|psi>``.
 
     Raises:
         TypeError: MPS expectation_pauli expects a non-empty MPS tensor list...
@@ -970,14 +970,14 @@ def energy_and_expectations(
     """Evaluate Hamiltonian energy from symbolic circuit using MPS contraction.
 
     Args:
-        symbolic_qc (*QuantumCircuit*): Symbolic qc (``QuantumCircuit``).
+        symbolic_qc (*QuantumCircuit*): Symbolic (unbound) quantum circuit.
         params: Parameter values.
         param_names: Names of variational parameters.
-        hamiltonian: Target Hamiltonian.
+        hamiltonian: Target Hamiltonian as ``List[Tuple[float, str]]``.
         device (*torch.device | str | None*): Torch device (``'cpu'`` or ``'cuda'``). Defaults to ``None``.
 
     Returns:
-        Result.
+        ``(energy, expectations)`` tuple.
 
     Raises:
         TypeError: params must be a torch.Tensor

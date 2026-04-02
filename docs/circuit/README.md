@@ -4,7 +4,7 @@
 
 - **模块路径**：`quantum_hw.circuit`
 - **模块定位**：量子线路表示与转换能力
-- **源文件**：`quantumcircuit.py`（1364 行）、`quantumcircuit_helpers.py`（580 行）、`matrix.py`（370 行）、`utils.py`（245 行）、`qasm2.py`（307 行）、`qasm3.py`（353 行）、`qasm_to_qcis.py`（426 行）、`render.py`（25 行）
+- **源文件**：`quantumcircuit.py`、`quantumcircuit_helpers.py`、`matrix.py`、`utils.py`、`qasm2.py`、`qasm3.py`、`qasm_to_qcis.py`、`render.py`
 - **主要能力**：
   - `QuantumCircuit` 线路构建与编辑
   - OpenQASM 2/3 导入解析与导出

@@ -76,13 +76,10 @@ class NativeTwoQubitRBManager:
 	) -> Dict[str, Dict[str, object]]:
 		"""Run native two-qubit RB and return per-coupler results.
 
-		Returns:
-        dict: keyed by "q1-q2" with averaged survival probabilities and fit.
-
 		Args:
 			couplers (*Optional[Sequence[Tuple[int, int]]]*): List of qubit coupler pairs. Defaults to ``None``.
-			lengths (*Optional[Sequence[int]]*): Lengths (``Optional[Sequence[int]]``). Defaults to ``None``.
-			num_sequences (*int*): Num sequences (``int``). Defaults to ``20``.
+			lengths (*Optional[Sequence[int]]*): Sequence lengths for RB decay curve. Defaults to ``None`` (auto-generated).
+			num_sequences (*int*): Number of random Clifford sequences per length. Defaults to ``20``.
 			shots (*int*): Number of measurement shots. Defaults to ``1024``.
 			chip_name (*Optional[str]*): Name of the target chip. Defaults to ``None``.
 			backend (*Optional[Backend]*): Hardware backend descriptor. Defaults to ``None``.
@@ -256,15 +253,15 @@ class NativeTwoQubitRBManager:
 
 		Args:
 			qubits (*List[int]*): Target qubit indices.
-			length (*int*): Length (``int``).
-			basis_gate (*str*): Basis gate (``str``).
-			rng (*np.random.Generator*): Rng (``np.random.Generator``).
+			length (*int*): Number of random Clifford layers.
+			basis_gate (*str*): Native two-qubit gate name (e.g. ``'cz'``, ``'cx'``, ``'iswap'``).
+			rng (*np.random.Generator*): NumPy random generator for sequence sampling.
 
 		Returns:
-			Result tuple.
+			Tuple of ``(circuit, total_length)`` where *total_length* is the effective gate count.
 
 		Raises:
-			ValueError: f'unsupported two-qubit basis gate: {basis_gate}
+			ValueError: f'unsupported two-qubit basis gate: {basis_gate}'
 		"""
 		qc = QuantumCircuit(max(qubits) + 1)
 		# Pauli-only single-qubit twirl for native two-qubit RB.
@@ -298,7 +295,7 @@ class NativeTwoQubitRBManager:
 		return qc, total_length
 
 	def _apply_single_gate_name(self, qc: QuantumCircuit, gate_name: str, qubit: int) -> None:
-		"""Apply single gate name.
+		"""Append a named single-qubit gate to the circuit, raising on unsupported names.
 
 		Args:
 			qc (*QuantumCircuit*): Quantum circuit.
@@ -306,7 +303,7 @@ class NativeTwoQubitRBManager:
 			qubit (*int*): Target qubit index.
 
 		Raises:
-			ValueError: f'unsupported single-qubit gate: {gate_name}
+			ValueError: f'unsupported single-qubit gate: {gate_name}'
 		"""
 		if gate_name == "id":
 			return
@@ -316,7 +313,7 @@ class NativeTwoQubitRBManager:
 		gate_method(qubit)
 
 	def _apply_single_gate(self, qc: QuantumCircuit, gate: str, qubit: int) -> None:
-		"""Apply single gate.
+		"""Delegate a single-qubit gate specification to :meth:`_apply_single_gate_name`.
 
 		Args:
 			qc (*QuantumCircuit*): Quantum circuit.
@@ -344,7 +341,7 @@ class NativeTwoQubitRBManager:
 		self._apply_single_gate_name(qc, dagger_gate, qubit)
 
 	def _canonical_two_qubit_gate(self, gate: str) -> str:
-		"""Canonicalize a two-qubit gate name (e.g. ``'cnot'`` → ``'cx'``).
+		"""Canonicalize a two-qubit gate name (e.g. ``'cnot'`` →``'cx'``).
 
 		Args:
 			gate (*str*): Gate name to canonicalize.
@@ -355,16 +352,16 @@ class NativeTwoQubitRBManager:
 		return "cx" if gate == "cnot" else gate
 
 	def _apply_two_qubit_gate(self, qc: QuantumCircuit, gate: str, q1: int, q2: int) -> None:
-		"""Apply two qubit gate.
+		"""Append a supported two-qubit gate (CZ, CX, iSWAP, ECR) to the circuit.
 
 		Args:
 			qc (*QuantumCircuit*): Quantum circuit.
 			gate (*str*): Gate specification or name.
-			q1 (*int*): Q1 (``int``).
-			q2 (*int*): Q2 (``int``).
+			q1 (*int*): First qubit index in the coupler pair.
+			q2 (*int*): Second qubit index in the coupler pair.
 
 		Raises:
-			ValueError: f'unsupported two-qubit gate: {gate}
+			ValueError: f'unsupported two-qubit gate: {gate}'
 		"""
 		canonical = self._canonical_two_qubit_gate(gate)
 		if canonical not in {"cz", "cx", "iswap", "ecr"}:
@@ -375,7 +372,7 @@ class NativeTwoQubitRBManager:
 		"""Apply the inverse (dagger) of a two-qubit gate.
 
 		For self-inverse gates (CZ, CX, ECR) this is the gate itself.
-		For iSWAP the inverse is implemented as iSWAP³ (since iSWAP⁴ = I).
+		For iSWAP the inverse is implemented as iSWAP³ (since iSWAP⁴= I).
 
 		Args:
 			qc (*QuantumCircuit*): Quantum circuit to append the gate to.
@@ -384,7 +381,7 @@ class NativeTwoQubitRBManager:
 			q2 (*int*): Second qubit index.
 
 		Raises:
-			ValueError: f'unsupported two-qubit gate: {gate}
+			ValueError: f'unsupported two-qubit gate: {gate}'
 		"""
 		canonical = self._canonical_two_qubit_gate(gate)
 		if canonical == "iswap":
@@ -428,31 +425,31 @@ class NativeTwoQubitRBManager:
 		return {"p": p, "epc": epc, "fidelity": f_avg, "A": a, "B": b}
 
 	def _rb_cache_path(self, *, chip_name: Optional[str]) -> Path:
-		"""Rb cache path.
+		"""Construct the filesystem path for two-qubit RB calibration cache.
 
 		Args:
 			chip_name (*Optional[str]*): Name of the target chip.
 
 		Returns:
-			``Path`` result.
+			``Path`` to the RB cache file.
 		"""
 		return cache_file(self._cache_dir, stem="rb_two_qubit", chip_name=chip_name)
 
 	def _load_rb_cache_raw(self, *, chip_name: Optional[str]) -> Dict[str, object]:
-		"""Load rb cache raw.
+		"""Load raw RB cache containing timestamps and per-coupler fidelity data.
 
 		Args:
 			chip_name (*Optional[str]*): Name of the target chip.
 
 		Returns:
-			Result dictionary.
+			Raw cache dictionary with ``"timestamps"`` and ``"per_coupler"`` keys.
 		"""
 		path = self._rb_cache_path(chip_name=chip_name)
 		timestamps, per_coupler = load_timestamped_payload(path, payload_key="per_coupler")
 		return {"timestamps": timestamps, "per_coupler": per_coupler}
 
 	def _save_rb_cache(self, results: Dict[str, Dict[str, object]], *, chip_name: Optional[str]) -> None:
-		"""Save rb cache.
+		"""Persist RB calibration results to cache with updated timestamps.
 
 		Args:
 			results (*Dict[str, Dict[str, object]]*): Collection of result objects.

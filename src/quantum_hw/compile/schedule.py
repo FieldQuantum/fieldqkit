@@ -45,10 +45,10 @@ class DynamicalDecoupling(TranspilerPass):
         """Determine the maximum idle-time unit for a DAG generation based on the heaviest gate type present.
 
         Args:
-            nodes: Nodes.
+            nodes: Collection of DAG node name strings.
 
         Returns:
-            Result.
+            ``float`` gate duration in seconds (``t2g`` if two-qubit gates present, ``t1g`` if only single-qubit, else ``0``).
         """
         gates = [node.split("_")[0] for node in nodes]
         one_qubit_gates = list(one_qubit_gates_available.keys()) + list(one_qubit_parameter_gates_available.keys())
@@ -65,11 +65,11 @@ class DynamicalDecoupling(TranspilerPass):
         """Subtract the gate's duration from the remaining idle time for a qubit.
 
         Args:
-            node: Node.
-            max_idle_time: Max idle time.
+            node: DAG node name string.
+            max_idle_time: Current remaining idle time in seconds.
 
         Returns:
-            Result.
+            ``float`` remaining idle time after subtracting the gate duration.
         """
         gate = node.split("_")[0]
         if gate in one_qubit_gates_available.keys() or gate in one_qubit_parameter_gates_available.keys():
@@ -83,15 +83,15 @@ class DynamicalDecoupling(TranspilerPass):
 
         Args:
             qc: Quantum circuit.
-            sequence (*Literal['XY4', 'CPMG']*): Sequence (``Literal['XY4', 'CPMG']``). Defaults to ``'XY4'``.
-            align_right (*bool*): Align right (``bool``). Defaults to ``True``.
-            insert_before_barrier (*bool*): Insert before barrier (``bool``). Defaults to ``False``.
+            sequence (*Literal['XY4', 'CPMG']*): DD sequence type to insert. Defaults to ``'XY4'``.
+            align_right (*bool*): If ``True``, align DD insertions to the right side of idle windows. Defaults to ``True``.
+            insert_before_barrier (*bool*): If ``True``, insert DD sequences before barrier instructions. Defaults to ``False``.
 
         Returns:
             ``QuantumCircuit`` with DD sequences inserted into idle windows.
 
         Raises:
-            ValueError: f'Sequence {sequence} is not support now!
+            ValueError: f'Sequence {sequence} is not support now!'
         """
         if sequence == "XY4":
             sequence_length = 4

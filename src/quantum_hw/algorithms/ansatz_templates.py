@@ -13,11 +13,14 @@ def build_hardware_efficient_ansatz(
     *,
     layers: int = 1,
 ) -> QuantumCircuit:
-    """Build hardware efficient ansatz.
+    """Construct an Ry-Rx layered ansatz with CZ entanglers.
+
+    Each layer applies Rx and Ry rotations on every qubit followed by a
+    nearest-neighbour CZ chain.  A final Rx+Ry rotation block is appended.
 
     Args:
         num_qubits (*int*): Number of qubits.
-        params (*Sequence[float]*): Parameter values.
+        params (*Sequence[float]*): Rotation angles consumed left-to-right.
         layers (*int*): Number of ansatz layers. Defaults to ``1``.
 
     Returns:
@@ -56,11 +59,15 @@ def build_hardware_efficient_ansatz_symbolic(
     *,
     layers: int = 1,
 ) -> QuantumCircuit:
-    """Build hardware efficient ansatz symbolic.
+    """Symbolic variant of :func:`build_hardware_efficient_ansatz`.
+
+    Returns a circuit whose rotation gates carry symbolic parameter names
+    instead of concrete float values, suitable for template-based
+    parameter-shift evaluation.
 
     Args:
         num_qubits (*int*): Number of qubits.
-        param_names (*Sequence[str]*): Names of variational parameters.
+        param_names (*Sequence[str]*): Symbolic names bound to rotation gates.
         layers (*int*): Number of ansatz layers. Defaults to ``1``.
 
     Returns:
@@ -120,11 +127,14 @@ def build_ucc_ansatz(
     *,
     layers: int = 1,
 ) -> QuantumCircuit:
-    """Build ucc ansatz.
+    """Construct a Unitary Coupled-Cluster (UCC) inspired ansatz.
+
+    Each layer applies single-qubit Ry rotations followed by CNOT-Ry-CNOT
+    entangling blocks on neighbouring qubit pairs.
 
     Args:
         num_qubits (*int*): Number of qubits.
-        params (*Sequence[float]*): Parameter values.
+        params (*Sequence[float]*): Rotation angles consumed left-to-right.
         layers (*int*): Number of ansatz layers. Defaults to ``1``.
 
     Returns:
@@ -157,11 +167,14 @@ def build_ucc_ansatz_symbolic(
     *,
     layers: int = 1,
 ) -> QuantumCircuit:
-    """Build ucc ansatz symbolic.
+    """Symbolic variant of :func:`build_ucc_ansatz`.
+
+    Returns a UCC circuit with symbolic parameter names instead of concrete
+    float values.
 
     Args:
         num_qubits (*int*): Number of qubits.
-        param_names (*Sequence[str]*): Names of variational parameters.
+        param_names (*Sequence[str]*): Symbolic names bound to rotation gates.
         layers (*int*): Number of ansatz layers. Defaults to ``1``.
 
     Returns:

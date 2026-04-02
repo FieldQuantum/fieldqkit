@@ -19,21 +19,21 @@
 | 项目 | 说明 |
 |---|---|
 | 环境变量 | `TIANYAN_LOGIN_KEY` |
-| 返回值 | TianYan 登录 key 字符串 |
+| 返回值 | TianYan API token 字符串 |
 
 ### `get_guodun_login_key() -> str`
 
 | 项目 | 说明 |
 |---|---|
 | 环境变量 | `GUODUN_LOGIN_KEY` |
-| 返回值 | GuoDun 登录 key 字符串 |
+| 返回值 | GuoDun API token 字符串 |
 
 ### `get_tencent_api_token() -> str`
 
 | 项目 | 说明 |
 |---|---|
 | 环境变量 | `TENCENT_API_TOKEN` |
-| 返回值 | Tencent 量子云 API token 字符串 |
+| 返回值 | Tencent API token 字符串 |
 
 ## 行为说明
 

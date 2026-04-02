@@ -72,7 +72,7 @@ def _qaoa_num_params(p: int) -> int:
         p (*int*): Depth parameter for QAOA.
 
     Returns:
-        Computed integer result.
+        Total parameter count ``2p`` (one gamma and one beta per layer).
     """
     return 2 * p
 
@@ -84,22 +84,20 @@ def build_qaoa_ansatz_symbolic(
 ) -> Tuple[List[str], QuantumCircuit]:
     """Build a symbolic QAOA ansatz circuit.
 
+    The initial state is ``|+>^n`` prepared with Hadamard gates.
     Structure per layer *l*:
-  - Cost unitary:  ``RZZ(gamma_l, i, j)`` for every edge ``(i, j)``
-  - Mixer unitary: ``RX(beta_l, q)`` for every qubit ``q``
 
-The initial state is ``|+>^n`` prepared with Hadamard gates.
-
-Returns ``(param_names, circuit)`` where *param_names* lists
-``["gamma_0", "beta_0", "gamma_1", "beta_1", ...]``.
+    - Cost unitary:  ``RZZ(gamma_l, i, j)`` for every edge ``(i, j)``
+    - Mixer unitary: ``RX(beta_l, q)`` for every qubit ``q``
 
     Args:
         num_qubits (*int*): Number of qubits.
-        edges (*Sequence[Tuple[int, int]]*): Edges (``Sequence[Tuple[int, int]]``).
+        edges (*Sequence[Tuple[int, int]]*): Graph edges for the cost unitary.
         p (*int*): Depth parameter for QAOA.
 
     Returns:
-        Result list.
+        Tuple of ``(param_names, circuit)`` where *param_names* lists
+        ``["gamma_0", "beta_0", "gamma_1", "beta_1", ...]``.
 
     Raises:
         ValueError: QAOA depth p must be positive
@@ -375,7 +373,7 @@ class QAOARunner:
             prefer_chips (*Optional[Sequence[str] | str]*): Candidate chip filter (e.g. ``"Simulator"``). Defaults to ``None``.
 
         Returns:
-            ``QAOAResult`` result.
+            ``QAOAResult`` with best cost, parameters, and optimisation history.
 
         Raises:
             RuntimeError: all candidate chips failed to run QAOA

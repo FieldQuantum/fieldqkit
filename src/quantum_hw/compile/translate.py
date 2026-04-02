@@ -44,7 +44,7 @@ class TranslateToBasisGates(TranspilerPass):
 
         Args:
             convert_single_qubit_gate_to_u (*bool*): Whether to convert single-qubit gates to U gates. Defaults to ``True``.
-            two_qubit_gate_basis (*Literal['cz', 'cx', 'iswap', 'ecr']*): Two qubit gate basis (``Literal['cz', 'cx', 'iswap', 'ecr']``). Defaults to ``'cz'``.
+            two_qubit_gate_basis (*Literal['cz', 'cx', 'iswap', 'ecr']*): Target native two-qubit gate for decomposition. Defaults to ``'cz'``.
         """
         super().__init__()
         self.convert_single_qubit_gate_to_u = convert_single_qubit_gate_to_u
@@ -57,10 +57,10 @@ class TranslateToBasisGates(TranspilerPass):
             qc (*QuantumCircuit*): Quantum circuit.
 
         Returns:
-            Constructed ``QuantumCircuit``.
+            ``QuantumCircuit`` with all gates translated to the target basis gate set.
 
         Raises:
-            TypeError: f'Input {gate} gate is not support to basic gates now.
+            TypeError: If a gate is not supported for basis gate translation.
         """
         new_qc = qc.deepcopy()
 

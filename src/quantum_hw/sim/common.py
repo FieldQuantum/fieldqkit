@@ -17,7 +17,7 @@ def auto_sim_device(device: torch.device | str | None = None) -> torch.device:
         device (*torch.device | str | None*): Torch device (``'cpu'`` or ``'cuda'``). Defaults to ``None``.
 
     Returns:
-        ``torch.device`` result.
+        Resolved ``torch.device`` —explicit choice, CUDA if available, else CPU.
     """
     if device is not None:
         return torch.device(device)
@@ -34,16 +34,16 @@ def resolve_param(
     """Resolve scalar/symbolic parameter value for simulation.
 
     Args:
-        qc (*QuantumCircuit*): Quantum circuit.
-        param: Param.
-        param_values (*Dict[str, object] | None*): Param values (``Dict[str, object] | None``). Defaults to ``None``.
+        qc (*QuantumCircuit*): Quantum circuit containing parameter bindings.
+        param: Scalar value (``int``/``float``) or symbolic parameter name (``str``).
+        param_values (*Dict[str, object] | None*): Optional external parameter value mapping. Defaults to ``None``.
 
     Returns:
-        Result.
+        ``float`` resolved numeric value.
 
     Raises:
-        TypeError: f'unsupported parameter type: {type(param)}
-        ValueError: f'missing parameter value for {name}
+        TypeError: f'unsupported parameter type: {type(param)}'
+        ValueError: f'missing parameter value for {name}'
     """
     if isinstance(param, (float, int)):
         return float(param)
@@ -92,13 +92,13 @@ def materialize_gate_matrix(
     """Return gate matrix tensor for fixed/parameterized gates.
 
     Args:
-        gate (*str*): Gate specification or name.
-        params: Parameter values.
+        gate (*str*): Gate name (e.g. ``'rx'``, ``'cz'``).
+        params: Numeric parameter values for parameterized gates.
         dtype (*torch.dtype*): Torch data type.
         device (*torch.device*): Torch device (``'cpu'`` or ``'cuda'``).
 
     Returns:
-        Result.
+        ``torch.Tensor`` unitary matrix.
     """
     mat_or_fn = gate_matrix_dict[gate]
     if callable(mat_or_fn):
@@ -110,15 +110,15 @@ def single_pauli(op: str, *, dtype, device):
     """Return a single-qubit Pauli matrix tensor.
 
     Args:
-        op (*str*): Op (``str``).
+        op (*str*): Pauli operator: ``'X'``, ``'Y'``, or ``'Z'``.
         dtype: Torch data type.
         device: Torch device (``'cpu'`` or ``'cuda'``).
 
     Returns:
-        Result.
+        ``torch.Tensor`` of shape ``(2, 2)``.
 
     Raises:
-        ValueError: f'unsupported Pauli: {op}
+        ValueError: f'unsupported Pauli: {op}'
     """
     if op == "X":
         return torch.tensor([[0.0, 1.0], [1.0, 0.0]], dtype=dtype, device=device)
@@ -137,10 +137,10 @@ def build_param_values_from_tensor(*, params, param_names: Sequence[str]) -> Dic
         param_names (*Sequence[str]*): Names of variational parameters.
 
     Returns:
-        Result dictionary.
+        ``Dict[str, object]`` mapping parameter names to their values.
 
     Raises:
-        ValueError: f'params length must be {expected}
+        ValueError: f'params length must be {expected}'
     """
     expected = len(param_names)
     if params.numel() != expected:

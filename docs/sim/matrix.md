@@ -16,12 +16,12 @@
 
 ## 关键函数
 
-### `ketn0(nqubits: int) -> torch.Tensor`
+### `ketn0(nqubits: int, *, device=None) -> torch.Tensor`
 
 - 作用：构造 `|0...0⟩` 列向量。
 - 维度：`(2**nqubits, 1)`。
 
-### `ketn1(nqubits: int) -> torch.Tensor`
+### `ketn1(nqubits: int, *, device=None) -> torch.Tensor`
 
 - 作用：构造 `|1...1⟩` 列向量。
 - 维度：`(2**nqubits, 1)`。

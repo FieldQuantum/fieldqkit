@@ -13,16 +13,16 @@ _COMPRESSION_NAMES = {
 
 
 def __getattr__(name: str):
-    """Getattr.
+    """Lazily import circuit compression symbols on first access.
 
     Args:
-        name (*str*): Descriptive name / identifier.
+        name (*str*): Attribute name to look up.
 
     Returns:
-        Result.
+        The requested attribute from ``circuit_compression``.
 
     Raises:
-        AttributeError: f'module {__name__!r} has no attribute {name!r}
+        AttributeError: f'module {__name__!r} has no attribute {name!r}'
     """
     if name in _COMPRESSION_NAMES:
         from . import circuit_compression as _cc

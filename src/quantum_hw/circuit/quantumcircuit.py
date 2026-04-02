@@ -91,10 +91,10 @@ class QuantumCircuit:
         self.params_value = {}
 
     def deepcopy(self) -> 'QuantumCircuit':
-        """Deepcopy.
+        """Create an independent copy of the circuit including qubits, gates, and parameters.
 
         Returns:
-            Constructed ``QuantumCircuit``.
+            Deep copy of this ``QuantumCircuit``.
         """
         new_qc = QuantumCircuit(self.nqubits,self.ncbits)
         new_qc.qubits = copy.deepcopy(self.qubits)
@@ -113,8 +113,11 @@ class QuantumCircuit:
             num (*int*): Offset added to every qubit index.
             cbit_offset (*Optional[int]*): Offset added to every cbit index. Defaults to ``None`` (same as *num*).
 
+        Returns:
+            This ``QuantumCircuit`` instance (mutated in-place).
+
         Raises:
-            ValueError: f'Unsupported gate type in adjust_index: {gate}
+            ValueError: f'Unsupported gate type in adjust_index: {gate}'
         """
         if cbit_offset is None:
             cbit_offset = num
@@ -163,7 +166,7 @@ class QuantumCircuit:
 
     @property
     def cbits(self):
-        """Cbits.
+        """Sorted list of unique classical bit indices used in measurement gates.
 
         Returns:
             List of classical bit indices used in the circuit.
@@ -177,10 +180,10 @@ class QuantumCircuit:
         return sorted(set(cbits))
 
     def _add_qubits(self,*args):
-        """Add qubits.
+        """Merge new qubit indices into the circuit's sorted qubit set.
 
         Args:
-            *args: *args.
+            *args: Qubit indices to add.
         """
         # Deduplicate and sort qubits.
         temp_set = set(self.qubits).union(args)
@@ -188,16 +191,16 @@ class QuantumCircuit:
         return self
 
     def _resolve_param(self, param):
-        """Resolve param.
+        """Resolve a numeric or symbolic parameter to a float value.
 
         Args:
-            param: Param.
+            param: Numeric value (``int``/``float``) or symbolic name (``str``).
 
         Returns:
-            Result.
+            ``float`` resolved value.
 
         Raises:
-            TypeError: f'Wrong param type! {param}
+            TypeError: f'Wrong param type! {param}'
         """
         if isinstance(param, (float, int)):
             return float(param)
@@ -211,13 +214,13 @@ class QuantumCircuit:
         raise TypeError(f"Wrong param type! {param}")
 
     def _resolve_param_list(self, params):
-        """Resolve param list.
+        """Resolve a list of parameters to float values.
 
         Args:
-            params: Parameter values.
+            params: Sequence of numeric or symbolic parameter values.
 
         Returns:
-            Result.
+            List of resolved ``float`` values.
         """
         return [self._resolve_param(param) for param in params]
 
@@ -233,22 +236,22 @@ class QuantumCircuit:
             Evaluated numeric result.
 
         Raises:
-            ValueError: f'unsupported parameter expression: {expr}
+            ValueError: f'unsupported parameter expression: {expr}'
         """
         expr = str(expr).strip().replace('π', 'pi').replace('np.pi', 'pi')
 
         if symbol_resolver is None:
             def symbol_resolver(name: str):
-                """Symbol resolver.
+                """Resolve a symbolic parameter name to its numeric value.
 
                 Args:
-                    name (*str*): Descriptive name / identifier.
+                    name (*str*): Symbolic parameter name.
 
                 Returns:
-                    Result.
+                    ``float`` value of the parameter.
 
                 Raises:
-                    ValueError: f'please apply value for parameter {name}
+                    ValueError: f'please apply value for parameter {name}'
                 """
                 if name == "pi":
                     return float(np.pi)
@@ -260,16 +263,16 @@ class QuantumCircuit:
                 raise ValueError(f"please apply value for parameter {name}")
 
         def _eval(node):
-            """Eval.
+            """Recursively evaluate an AST node to a numeric value.
 
             Args:
-                node: Node.
+                node: AST node from ``ast.parse``.
 
             Returns:
-                Result.
+                ``float`` evaluated result.
 
             Raises:
-                ValueError: f'unsupported parameter expression: {expr}
+                ValueError: f'unsupported parameter expression: {expr}'
             """
             if isinstance(node, ast.Expression):
                 return _eval(node.body)
@@ -315,11 +318,11 @@ class QuantumCircuit:
 Indexed format examples: "X1 Y2 Z3 Z4".
 
         Args:
-            pauli (*str*): Pauli (``str``).
+            pauli (*str*): Pauli string, e.g. ``'XIZY'`` (compact) or ``'X1 Y2 Z3'`` (indexed).
             num_qubits (*Optional[int]*): Number of qubits. Defaults to ``None``.
 
         Returns:
-            Result.
+            List of ``(pauli_op, qubit_index)`` tuples.
 
         Raises:
             TypeError: pauli must be a string
@@ -365,6 +368,9 @@ Indexed format examples: "X1 Y2 Z3 Z4".
 
         Args:
             openqasm2_str (str): A string representing a quantum circuit in OpenQASM 2.0 format.
+
+        Returns:
+            This ``QuantumCircuit`` instance, populated from the parsed program.
         """
         if 'OPENQASM 2.0' not in openqasm2_str:
             raise ValueError("Input is not a valid OpenQASM 2.0 program")
@@ -381,6 +387,9 @@ Indexed format examples: "X1 Y2 Z3 Z4".
 
         Args:
             openqasm3_str (str): A string representing a quantum circuit in OpenQASM 3 format.
+
+        Returns:
+            This ``QuantumCircuit`` instance, populated from the parsed program.
         """
         if 'OPENQASM 3.0' not in openqasm3_str:
             raise ValueError("Input is not a valid OpenQASM 3.0 program")
@@ -854,9 +863,9 @@ Indexed format examples: "X1 Y2 Z3 Z4".
         $$
 
         Args:
-            theta (float): The rotation angle of the gate.
-            phi (float): The rotation angle of the gate.
-            lamda (float): The rotation angle of the gate.
+            theta (float): Polar rotation angle.
+            phi (float): Azimuthal phase angle.
+            lamda (float): Diagonal phase angle.
             qubit (int): The qubit to apply the gate to.
 
         Raises:
@@ -1075,11 +1084,11 @@ Indexed format examples: "X1 Y2 Z3 Z4".
         """Append ``exp(-i * theta/2 * P)`` for a Pauli string ``P``.
 
         The Pauli string supports compact format (e.g. ``"IXYZ"``) and
-indexed format (e.g. ``"X1 Y2 Z3 Z4"``).
+        indexed format (e.g. ``"X1 Y2 Z3 Z4"``).
 
         Args:
             theta (*float | str*): Rotation angle in radians.
-            pauli (*str*): Pauli (``str``).
+            pauli (*str*): Pauli string, e.g. ``'XIZY'`` (compact) or ``'X1 Y2 Z3'`` (indexed).
         """
         terms = self._parse_pauli_string(pauli, num_qubits=self.nqubits)
         if not terms:
@@ -1170,11 +1179,11 @@ indexed format (e.g. ``"X1 Y2 Z3 Z4"``).
         """Resolve a symbolic parameter expression when all symbols are bound.
 
         Args:
-            param: Param.
-            params_dic: Params dic.
+            param: Parameter value (returned as-is if numeric) or symbolic expression string.
+            params_dic: Dictionary mapping parameter names to numeric values.
 
         Returns:
-            Result.
+            Resolved numeric value, or the original string if unresolvable.
         """
         if not isinstance(param, str):
             return param
@@ -1236,6 +1245,9 @@ indexed format (e.g. ``"X1 Y2 Z3 Z4"``).
         Args:
             unitary (np.ndarray): A 2x2 unitary matrix.
             qubit (int): The qubit to apply the gate to.
+
+        Returns:
+            This ``QuantumCircuit`` instance.
         """
         if unitary.shape != (2, 2):
             raise ValueError("unitary must be a 2x2 matrix")
@@ -1253,6 +1265,9 @@ indexed format (e.g. ``"X1 Y2 Z3 Z4"``).
         Args:
             unitary (np.ndarray): A 2x2 unitary matrix.
             qubit (int): The qubit to apply the gate sequence to.
+
+        Returns:
+            This ``QuantumCircuit`` instance.
         """
         if unitary.shape != (2, 2):
             raise ValueError("unitary must be a 2x2 matrix")
@@ -1273,6 +1288,9 @@ indexed format (e.g. ``"X1 Y2 Z3 Z4"``).
             unitary (np.ndarray): A 4 x 4 unitary matrix.
             qubit1 (int): The first qubit to apply the gates to.
             qubit2 (int): The second qubit to apply the gates to.
+
+        Returns:
+            This ``QuantumCircuit`` instance.
         """
         if unitary.shape != (4, 4):
             raise ValueError("unitary must be a 4x4 matrix")
@@ -1316,7 +1334,7 @@ indexed format (e.g. ``"X1 Y2 Z3 Z4"``).
         Args:
             duration (*int | float*): Delay duration (in the unit given by *unit*).
             *qubits (*tuple[int]*): Qubit indices to delay. If omitted, delays all qubits.
-            unit: Time unit — ``'s'``, ``'ms'``, ``'us'``, or ``'ns'``. Defaults to ``'s'``.
+            unit: Time unit ``'s'``, ``'ms'``, ``'us'``, or ``'ns'``. Defaults to ``'s'``.
 
         Raises:
             ValueError: Qubit index out of range
@@ -1475,13 +1493,13 @@ indexed format (e.g. ``"X1 Y2 Z3 Z4"``).
         return self._to_openqasm(version="3.0")
 
     def _to_openqasm(self, version: str) -> str:
-        """To openqasm.
+        """Serialize the circuit to an OpenQASM string.
 
         Args:
-            version (*str*): Version (``str``).
+            version (*str*): OpenQASM version (``"2.0"`` or ``"3.0"``).
 
         Returns:
-            Formatted string.
+            Complete OpenQASM program string.
         """
         lines = self._openqasm_header(version)
         for gate_info in self.gates:
@@ -1489,16 +1507,16 @@ indexed format (e.g. ``"X1 Y2 Z3 Z4"``).
         return "\n".join(lines)
 
     def _openqasm_header(self, version: str) -> list[str]:
-        """Openqasm header.
+        """Generate OpenQASM header lines (version, includes, register declarations).
 
         Args:
-            version (*str*): Version (``str``).
+            version (*str*): OpenQASM version (``"2.0"`` or ``"3.0"``).
 
         Returns:
-            Result list.
+            List of header line strings.
 
         Raises:
-            ValueError: f'Unsupported OpenQASM version: {version}
+            ValueError: f'Unsupported OpenQASM version: {version}'
         """
         gates0 = [gate[0] for gate in self.gates]
         lines = []
@@ -1525,17 +1543,17 @@ indexed format (e.g. ``"X1 Y2 Z3 Z4"``).
         return lines
 
     def _openqasm_gate_lines(self, gate_info, version: str) -> list[str]:
-        """Openqasm gate lines.
+        """Convert a single gate tuple to OpenQASM instruction lines.
 
         Args:
-            gate_info: Gate info.
-            version (*str*): Version (``str``).
+            gate_info: Gate tuple from ``self.gates``.
+            version (*str*): OpenQASM version (``"2.0"`` or ``"3.0"``).
 
         Returns:
-            Result list.
+            List of gate instruction line strings.
 
         Raises:
-            ValueError: f'Unsupported gate for OpenQASM {version}: {gate}
+            ValueError: f'Unsupported gate for OpenQASM {version}: {gate}'
         """
         gate = gate_info[0]
         if gate in one_qubit_gates_available.keys():

@@ -6,7 +6,7 @@
 - **作用**：将用户构建的逻辑量子线路编译为可在物理芯片上执行的本征门序列。
 - **对外导出**：`Transpiler`（编译流水线管理器）
 - **内部 Pass**：`ThreeQubitGateDecompose` → `Layout` + `SabreRouting` → `TranslateToBasisGates` → `GateCompressor` → `DynamicalDecoupling`
-- **基类**：`TranspilerPass`（`basepasses.py`，42 行），定义 `run(qc) -> QuantumCircuit` 抽象方法
+- **基类**：`TranspilerPass`（`basepasses.py`，约30 行），定义 `run(qc) -> QuantumCircuit` 抽象方法
 
 ---
 

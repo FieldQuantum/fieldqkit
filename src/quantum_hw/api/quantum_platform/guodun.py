@@ -28,7 +28,7 @@ class GuoDunPlatform(RemotePlatformClient):
     DOWN_WAVEFORM_DIAGRAM = "/experiment/sdk/getWaveformDiagram"
 
     def list_available_hardware(self) -> List[Dict[str, Any]]:
-        """List available hardware.
+        """Query the GuoDun platform and return a normalized hardware catalog.
 
         Returns:
             List of hardware description dictionaries.
@@ -37,14 +37,14 @@ class GuoDunPlatform(RemotePlatformClient):
         return normalize_hardware_rows(provider="guodun", records=records)
 
     def re_execute_task(self, query_id: Optional[str] = None, lab_id: Optional[str] = None):
-        """Re execute task.
+        """Re-execute a previously submitted task.
 
         Args:
-            query_id (*Optional[str]*): Query id (``Optional[str]``). Defaults to ``None``.
-            lab_id (*Optional[str]*): Lab id (``Optional[str]``). Defaults to ``None``.
+            query_id (*Optional[str]*): Experiment query identifier. Defaults to ``None``.
+            lab_id (*Optional[str]*): Laboratory identifier. Defaults to ``None``.
 
         Returns:
-            Result.
+            Task data ``dict`` from the response.
 
         Raises:
             ValueError: Please provide lab_id or query_id.
@@ -64,14 +64,14 @@ class GuoDunPlatform(RemotePlatformClient):
         return result.get("data")
 
     def stop_running_experiments(self, lab_id: Optional[str] = None, query_id: Optional[str] = None):
-        """Stop running experiments.
+        """Stop currently running experiments.
 
         Args:
-            lab_id (*Optional[str]*): Lab id (``Optional[str]``). Defaults to ``None``.
-            query_id (*Optional[str]*): Query id (``Optional[str]``). Defaults to ``None``.
+            lab_id (*Optional[str]*): Laboratory identifier. Defaults to ``None``.
+            query_id (*Optional[str]*): Experiment query identifier. Defaults to ``None``.
 
         Returns:
-            Result.
+            Task data ``dict`` from the response.
 
         Raises:
             ValueError: Please provide lab_id or query_id.
@@ -91,14 +91,14 @@ class GuoDunPlatform(RemotePlatformClient):
         return result.get("data")
 
     def create_waveform_data(self, circuit, circuit_name: Optional[str] = None) -> int:
-        """Create waveform data.
+        """Submit circuit waveform data to the platform.
 
         Args:
             circuit: Quantum circuit to execute.
-            circuit_name (*Optional[str]*): Circuit name (``Optional[str]``). Defaults to ``None``.
+            circuit_name (*Optional[str]*): Optional name for the waveform entry. Defaults to ``None``.
 
         Returns:
-            Computed integer result.
+            Waveform diagram ID (``int``).
 
         Raises:
             ValueError: Please provide circuit.
@@ -112,13 +112,13 @@ class GuoDunPlatform(RemotePlatformClient):
         return res.get("data").get("id")
 
     def query_waveform_data(self, query_id: int) -> str:
-        """Query waveform data.
+        """Retrieve the waveform visualisation URL for a diagram.
 
         Args:
-            query_id (*int*): Query id (``int``).
+            query_id (*int*): Waveform diagram ID.
 
         Returns:
-            Formatted string.
+            Waveform visible URL string.
         """
         params = {"id": query_id}
         res = self._send_request(self.DOWN_WAVEFORM_DIAGRAM, method="GET", params=params)
@@ -181,14 +181,14 @@ class GuoDunTaskAdapter(TaskAdapter):
         options = dict(submit_request.submit_options or {})
 
         def _as_int(value: Any, default: int) -> int:
-            """As int.
+            """Convert *value* to ``int``, falling back to *default*.
 
             Args:
-                value (*Any*): Value to set.
-                default (*int*): Default (``int``).
+                value (*Any*): Value to convert.
+                default (*int*): Fallback value.
 
             Returns:
-                Computed integer result.
+                ``int`` converted value.
             """
             try:
                 return int(value)
@@ -207,13 +207,13 @@ class GuoDunTaskAdapter(TaskAdapter):
         return handle
 
     def query_status(self, handle: ProviderTaskHandle) -> str:
-        """Query status.
+        """Poll experiment results and return a unified status string.
 
         Args:
             handle (*ProviderTaskHandle*): Task handle from a prior submission.
 
         Returns:
-            Formatted string.
+            ``"Finished"`` or ``"Failed"``.
         """
         payload = dict(self._handle_cache.get(handle.task_id, {}))
         payload.update(handle.payload)
@@ -226,16 +226,16 @@ class GuoDunTaskAdapter(TaskAdapter):
         return "Finished" if result_items else "Failed"
 
     def fetch_result(self, handle: ProviderTaskHandle) -> Dict[str, Any]:
-        """Fetch result.
+        """Extract measurement counts from cached experiment results.
 
         Args:
             handle (*ProviderTaskHandle*): Task handle from a prior submission.
 
         Returns:
-            Result dictionary.
+            ``dict`` with ``"count"`` key mapping to bitstring counts.
 
         Raises:
-            RuntimeError: f'task {handle.task_id} ended with status Failed
+            RuntimeError: f'task {handle.task_id} ended with status Failed'
         """
         payload = dict(self._handle_cache.get(handle.task_id, {}))
         payload.update(handle.payload)
@@ -244,7 +244,7 @@ class GuoDunTaskAdapter(TaskAdapter):
         return {"count": extract_counts_from_result_items(payload.get("result_items", []), num_qubits=int(payload.get("num_qubits", 0) or 0))}
 
     def cancel_task(self, handle: ProviderTaskHandle) -> None:
-        """Cancel task.
+        """Stop running GuoDun experiments associated with the given task handle.
 
         Args:
             handle (*ProviderTaskHandle*): Task handle from a prior submission.

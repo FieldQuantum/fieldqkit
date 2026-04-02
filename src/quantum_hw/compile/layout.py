@@ -59,7 +59,7 @@ virtual qubits i and j.  Returns a ``networkx.Graph``.
             qc (*QuantumCircuit*): Quantum circuit.
 
         Returns:
-            Result.
+            ``networkx.Graph`` with edge weights representing gate counts.
         """
         G = nx.Graph()
         G.add_nodes_from(qc.qubits)
@@ -83,11 +83,11 @@ interactions to the most central physical qubits, then sum
 Lower is better.
 
         Args:
-            interaction_graph: Interaction graph.
-            subgraph: Subgraph.
+            interaction_graph: Weighted graph of virtual-qubit interactions.
+            subgraph: Candidate hardware subgraph for layout mapping.
 
         Returns:
-            Result.
+            ``float`` estimated routing cost (lower is better).
         """
         ig = interaction_graph
         if ig.number_of_edges() == 0:
@@ -128,10 +128,10 @@ Lower is better.
         """Return the list of neighboring physical qubits for a node in the hardware graph.
 
         Args:
-            node (*int*): Node (``int``).
+            node (*int*): Physical qubit index.
 
         Returns:
-            Result.
+            List of neighboring physical qubit indices.
         """
         return list(self.graph.neighbors(node))
 
@@ -139,11 +139,11 @@ Lower is better.
         """Build a forward-reachable neighbor dictionary from a starting node up to *nqubits* hops deep.
 
         Args:
-            node (*int*): Node (``int``).
-            nqubits (*int*): Number of qubits.
+            node (*int*): Starting physical qubit index.
+            nqubits (*int*): Maximum depth (number of qubits in target subgraph).
 
         Returns:
-            Result.
+            ``dict`` mapping each visited node to its forward neighbors.
         """
         current_neighbours = [i for i in self._get_node_neighbours(node) if i > node]
         dd = {node: current_neighbours}
@@ -162,22 +162,22 @@ Lower is better.
         """Enumerate all connected subgraphs of size *nqubits* containing the given start node.
 
         Args:
-            node (*int*): Node (``int``).
-            nqubits (*int*): Number of qubits.
+            node (*int*): Starting physical qubit index.
+            nqubits (*int*): Required subgraph size.
 
         Returns:
-            Retrieved data.
+            List of tuples, each a sorted set of physical qubit indices forming a connected subgraph.
         """
         def post_combinations(mid, dd, cut):
             """Generate neighbor combinations up to *cut* elements for subgraph expansion.
 
             Args:
-                mid: Mid.
-                dd: Dd.
-                cut: Cut.
+                mid: Current set of nodes in the subgraph.
+                dd: Forward-neighbor dictionary.
+                cut: Maximum number of additional nodes to add.
 
             Returns:
-                Result.
+                List of candidate node lists for expansion.
             """
             rr = set([elem for node in mid if node in dd for elem in dd[node]])
             cc = []
@@ -217,10 +217,10 @@ Lower is better.
         """Enumerate connected subgraphs of size *nqubits* from every node using multiprocessing.
 
         Args:
-            nqubits: Number of qubits.
+            nqubits (*int*): Number of qubits.
 
         Returns:
-            Result.
+            List of subgraph tuples (sorted qubit index tuples).
         """
         collect_all = []
         try:
@@ -236,10 +236,10 @@ Lower is better.
         """Compute edge-fidelity statistics for a subgraph and return its info if mean fidelity exceeds the threshold.
 
         Args:
-            nodes (*tuple | list*): Nodes (``tuple | list``).
+            nodes (*tuple | list*): Physical qubit indices forming the subgraph.
 
         Returns:
-            Retrieved data.
+            ``(nodes, degree_dict, fidelity_mean, fidelity_var)`` tuple, or ``None`` if below threshold.
         """
         subgraph = self.graph.subgraph(nodes)
         subgraph_degree = dict(subgraph.degree())
@@ -258,7 +258,7 @@ Lower is better.
             nqubits (*int*): Number of qubits.
 
         Returns:
-            Result.
+            List of subgraph info tuples (or ``None`` entries for below-threshold subgraphs).
         """
         all_subgraph = self.collect_all_subgraph_in_parallel(nqubits)
         try:
@@ -275,7 +275,7 @@ Lower is better.
             nqubits (*int*): Number of qubits.
 
         Returns:
-            Result.
+            ``(linear_list, nonlinear_list)`` two lists of ``(nodes, fidelity_mean, fidelity_var)`` tuples.
         """
         linear_subgraph_list = []
         nonlinear_subgraph_list = []
@@ -295,11 +295,11 @@ Lower is better.
 
         Args:
             nqubits (*int*): Number of qubits.
-            num (*int*): Num (``int``). Defaults to ``1``.
+            num (*int*): Maximum number of candidate layouts to return. Defaults to ``1``.
             printdetails (*bool*): Whether to print detailed progress. Defaults to ``True``.
 
         Returns:
-            Result.
+            ``(linear_sorted[:num], nonlinear_sorted[:num])`` — top candidates by mean fidelity.
         """
         linear_subgraph_list, nonlinear_subgraph_list = self.classify_all_subgraph_according_topology(nqubits)
         linear_subgraph_list_sort = sorted(linear_subgraph_list, key=lambda x: x[1], reverse=True)
@@ -347,11 +347,11 @@ Lower is better.
 
         Args:
             nqubits (*int*): Number of qubits.
-            num (*int*): Num (``int``). Defaults to ``1``.
+            num (*int*): Maximum number of candidate layouts to return. Defaults to ``1``.
             printdetails (*bool*): Whether to print detailed progress. Defaults to ``True``.
 
         Returns:
-            Result.
+            ``(linear_sorted[:num], nonlinear_sorted[:num])`` — top candidates by lowest variance.
         """
         linear_subgraph_list, nonlinear_subgraph_list = self.classify_all_subgraph_according_topology(nqubits)
         linear_subgraph_list_sort = sorted(linear_subgraph_list, key=lambda x: x[2])
@@ -359,7 +359,7 @@ Lower is better.
 
         if printdetails:
             print(len(linear_subgraph_list_sort), len(nonlinear_subgraph_list_sort))
-            print("The average fidelity is arranged in descending order, only print the first ten.")
+            print("The fidelity variance is arranged in ascending order, only print the first ten.")
             length = nqubits * 5 + 22
 
             print(
@@ -424,15 +424,15 @@ Lower is better.
         Args:
             nqubits (*int*): Number of qubits.
             key (*Literal['fidelity_mean', 'fidelity_var']*): Lookup key. Defaults to ``'fidelity_var'``.
-            topology (*Literal['linear', 'nonlinear']*): Topology (``Literal['linear', 'nonlinear']``). Defaults to ``'linear'``.
+            topology (*Literal['linear', 'nonlinear']*): Subgraph topology preference. Defaults to ``'linear'``.
             printdetails (*bool*): Whether to print detailed progress. Defaults to ``False``.
-            interaction_graph: Interaction graph. Defaults to ``None``.
+            interaction_graph: Circuit interaction graph for routing-cost re-ranking. Defaults to ``None``.
 
         Returns:
-            Result.
+            List of selected physical qubit indices.
 
         Raises:
-            ValueError: f'There is no {nqubits} qubits that meets both key = {key...
+            ValueError: f'There is no {nqubits} qubits that meets both key = {key...'
         """
         # When circuit-aware, collect more candidates for re-ranking.
         num = 10 if interaction_graph is not None and interaction_graph.number_of_edges() > 0 else 1
@@ -491,13 +491,13 @@ Lower is better.
         """Select physical qubits for a large circuit via BFS expansion on the largest connected component.
 
         Args:
-            nqubits: Number of qubits.
+            nqubits (*int*): Number of qubits.
 
         Returns:
-            Result.
+            List of selected physical qubit indices.
 
         Raises:
-            ValueError: f'The user circuit requires {nqubits} qubits exceeds the ...
+            ValueError: f'The user circuit requires {nqubits} qubits exceeds the ...'
         """
         one_subgraph = self._get_largest_component()
         if len(one_subgraph.nodes()) < nqubits:
@@ -524,12 +524,12 @@ Lower is better.
         """Select physical qubits using size-adaptive heuristics: single-qubit, small-enumeration, or BFS-based strategies.
 
         Args:
-            nqubits: Number of qubits.
-            select_criteria: Select criteria.
-            interaction_graph: Interaction graph. Defaults to ``None``.
+            nqubits (*int*): Number of qubits.
+            select_criteria (*dict*): Selection criteria dict with keys ``'key'`` and ``'topology'``.
+            interaction_graph (*nx.Graph | None*): Circuit interaction graph for routing-cost re-ranking. Defaults to ``None``.
 
         Returns:
-            Result.
+            List of selected physical qubit indices.
 
         Raises:
             ValueError: Wrong qubits error!
@@ -579,15 +579,15 @@ Lower is better.
         Args:
             qc (*QuantumCircuit*): Quantum circuit.
             target_qubits (*list*): Qubit indices for partial measurement. Defaults to ``[]``.
-            use_chip_priority (*bool*): Use chip priority (``bool``). Defaults to ``True``.
-            select_criteria (*dict*): Select criteria (``dict``). Defaults to ``{'key': 'fidelity_var', 'topology': 'linear'}``.
-            skip_split_qc (*bool*): Skip split qc (``bool``). Defaults to ``True``.
+            use_chip_priority (*bool*): Whether to prefer the backend's pre-ranked priority qubit list. Defaults to ``True``.
+            select_criteria (*dict*): Selection strategy with keys ``'key'`` and ``'topology'``. Defaults to ``{'key': 'fidelity_var', 'topology': 'linear'}``.
+            skip_split_qc (*bool*): If ``True``, treat the circuit as a single block. Defaults to ``True``.
 
         Returns:
-            Result.
+            ``networkx.Graph`` subgraph representing the selected hardware layout.
 
         Raises:
-            ValueError: f'The number of qubits {len(target_qubits)} in target_qub...
+            ValueError: f'The number of qubits {len(target_qubits)} in target_qub...'
         """
         nqubits = len(qc.qubits)
         if skip_split_qc:

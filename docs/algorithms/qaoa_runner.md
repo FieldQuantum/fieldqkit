@@ -63,6 +63,8 @@ run_model(
 | `clifford_fitting` | `bool` | `False` | 否 | `QAOARunner` 初始化参数：是否启用 Clifford fitting。 |
 | `seed` | `Optional[int]` | `None` | 否 | `QAOARunner` 初始化参数：RNG 种子。 |
 | `gradient_method` | `Literal["parameter-shift", "autograd"]` | `"parameter-shift"` | 否 | 梯度计算方式。`autograd` 仅限 Simulator。 |
+| `max_wait_time` | `int` | `3600` | 否 | `QAOARunner` 初始化参数：任务查询最大等待时间（秒）。 |
+| `sleep_time` | `int` | `5` | 否 | `QAOARunner` 初始化参数：查询轮询间隔（秒）。 |
 | `target_qubits` | `Optional[Sequence[int]]` | `None` | 否 | 物理比特映射。 |
 | `init_params` | `Optional[Sequence[float]]` | `None` | 否 | 自定义初始参数（长度 = 2p）。 |
 | `callback` | `Optional[Callable]` | `None` | 否 | 每轮回调 `(iter, cost, params)`。 |

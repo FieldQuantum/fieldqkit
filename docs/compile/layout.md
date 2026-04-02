@@ -2,7 +2,7 @@
 
 ## 概览
 
-- **模块**：`quantum_hw.compile.layout`（516 行）
+- **模块**：`quantum_hw.compile.layout`（约670 行）
 - **作用**：根据芯片拓扑和耦合保真度，为量子线路选择最优的物理比特子图。
 - **依赖**：`Backend`、`QuantumCircuit`、`split_qubits`、`networkx`、`numpy`、`multiprocessing`
 - **继承**：无（独立类）
