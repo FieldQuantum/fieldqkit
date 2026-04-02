@@ -30,7 +30,7 @@
 
 - 基于 `simulate_statevector` 的概率分布进行多项式采样。
 - `device`：torch 设备（`'cpu'` / `'cuda'`），默认 `None`（自动选择）。
-- bitstring 输出采用小端序。
+- bitstring 输出采用大端序（qubit 0 对应字符串最左位）。
 
 ### `build_state_from_symbolic(symbolic_qc, *, params, param_names, device=None) -> torch.Tensor`
 

@@ -309,6 +309,9 @@ def run_pqc_classifier(
 
     Returns:
         ``QMLResult`` with loss history and accuracy.
+
+    Raises:
+        ValueError: If *gradient_method* is invalid or parameter-shift mode lacks *client*/*backend*.
     """
     method = gradient_method.lower()
     if method not in ("autograd", "parameter-shift"):
@@ -736,6 +739,9 @@ def run_qnn_unsupervised(
     Returns:
         ``QBMResult`` with loss history and generated samples
         (``generated_samples`` is a ``List[List[int]]``).
+
+    Raises:
+        ValueError: If *gradient_method* is invalid or parameter-shift mode lacks *client*/*backend*.
     """
     method = gradient_method.lower()
     if method not in ("autograd", "parameter-shift"):

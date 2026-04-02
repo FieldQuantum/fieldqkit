@@ -942,7 +942,7 @@ def expectation_pauli(
         Scalar expectation value ``<psi|P|psi>``.
 
     Raises:
-        TypeError: MPS expectation_pauli expects a non-empty MPS tensor list...
+        TypeError: If *state* is not a non-empty list of MPS tensors.
     """
     if not isinstance(state, list) or len(state) == 0:
         raise TypeError("MPS expectation_pauli expects a non-empty MPS tensor list when fallback is disabled")

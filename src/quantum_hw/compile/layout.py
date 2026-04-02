@@ -432,7 +432,7 @@ Lower is better.
             List of selected physical qubit indices.
 
         Raises:
-            ValueError: f'There is no {nqubits} qubits that meets both key = {key...'
+            ValueError: If no subgraph with the required number of qubits can be found.
         """
         # When circuit-aware, collect more candidates for re-ranking.
         num = 10 if interaction_graph is not None and interaction_graph.number_of_edges() > 0 else 1
@@ -497,7 +497,7 @@ Lower is better.
             List of selected physical qubit indices.
 
         Raises:
-            ValueError: f'The user circuit requires {nqubits} qubits exceeds the ...'
+            ValueError: If the circuit requires more qubits than the largest connected subgraph.
         """
         one_subgraph = self._get_largest_component()
         if len(one_subgraph.nodes()) < nqubits:
@@ -578,7 +578,7 @@ Lower is better.
 
         Args:
             qc (*QuantumCircuit*): Quantum circuit.
-            target_qubits (*list*): Qubit indices for partial measurement. Defaults to ``[]``.
+            target_qubits (*list*): Physical qubit indices to constrain the layout to. Defaults to ``[]``.
             use_chip_priority (*bool*): Whether to prefer the backend's pre-ranked priority qubit list. Defaults to ``True``.
             select_criteria (*dict*): Selection strategy with keys ``'key'`` and ``'topology'``. Defaults to ``{'key': 'fidelity_var', 'topology': 'linear'}``.
             skip_split_qc (*bool*): If ``True``, treat the circuit as a single block. Defaults to ``True``.
@@ -587,7 +587,7 @@ Lower is better.
             ``networkx.Graph`` subgraph representing the selected hardware layout.
 
         Raises:
-            ValueError: f'The number of qubits {len(target_qubits)} in target_qub...'
+            ValueError: If *target_qubits* length doesn't match the circuit's qubit count.
         """
         nqubits = len(qc.qubits)
         if skip_split_qc:

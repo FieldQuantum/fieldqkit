@@ -27,7 +27,7 @@ class Instruction:
 |------|------|------|
 | `name` | `str` | 指令名称 |
 | `qubit_index` | `list[int]` | 作用的 qubit 索引列表 |
-| `arguments` | `list[float]` | 指令参数（角度、delay 时长等），默认空列表 |
+| `arguments` | `Optional[List[Union[int, float]]]` | 指令参数（角度、delay 时长等），默认 `None` |
 
 `__str__` 方法生成标准 QCIS 格式字符串，例如：
 

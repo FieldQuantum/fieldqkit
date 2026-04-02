@@ -409,6 +409,13 @@ def run_vqe_with_backend(
 
     Returns:
         ``VQEResult`` with best energy, parameters, and full history.
+
+    Raises:
+        ValueError: If *gradient_method* is invalid, or numeric hyperparameters
+            (*planner_bond_cap*, *planner_trunc_tol*, *planner_max_layers_per_block*,
+            *compression_optimizer_steps*, *compression_optimizer_lr*,
+            *clifford_fitting_num_non_clifford_gates*) are out of range,
+            or *compression_block_layers* is missing/invalid when compression is enabled.
     """
     method = str(gradient_method).lower()
     if method not in {"parameter-shift", "autograd"}:

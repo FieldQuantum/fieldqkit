@@ -131,7 +131,8 @@ class SabreRouting(TranspilerPass):
             pq2 (*int*): Second physical qubit index.
 
         Returns:
-            ``float`` shortest-path distance.
+            ``float`` — shortest-path distance (weighted by ``-log(fidelity)`` when
+            ``noise_aware=True``, unweighted hop-count otherwise).
         """
         idx1 = self.physical_qubits_index[pq1]
         idx2 = self.physical_qubits_index[pq2]
@@ -192,7 +193,8 @@ class SabreRouting(TranspilerPass):
             ``(v2p, p2v)`` —virtual-to-physical and physical-to-virtual mapping dictionaries.
 
         Raises:
-            ValueError: f'The number of initial_mapping does not match the number...'
+            ValueError: If *initial_mapping* length doesn't match the physical qubits,
+                or the mapping strategy string is unrecognised.
         """
         if isinstance(self.initial_mapping, list):
             if len(set(self.initial_mapping)) != len(set(self.physical_qubits)):
@@ -227,7 +229,7 @@ class SabreRouting(TranspilerPass):
             Gate-info tuple with physical qubit indices.
 
         Raises:
-            ValueError: f'Please first decompose the {gate} gate into a combinati...'
+            ValueError: If the gate has not been decomposed into supported basis gates.
         """
         gate = node.split("_")[0]
         if gate in one_qubit_gates_available.keys():
@@ -512,7 +514,8 @@ class SabreRouting(TranspilerPass):
         """Execute a single forward pass of SABRE routing.
 
         Returns:
-            Tuple of routed DAG data and final qubit mapping.
+            ``(new, nswap)`` — routed gate list and number of SWAP gates inserted.
+            Final qubit mappings are stored in ``self.v2p`` and ``self.p2v``.
         """
         front_layer = list(nx.topological_generations(self.dag))
         if front_layer != []:

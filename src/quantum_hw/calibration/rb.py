@@ -93,7 +93,8 @@ class NativeTwoQubitRBManager:
 			dict: keyed by "q1-q2" with averaged survival probabilities and fit.
 
 		Raises:
-			RuntimeError: backend is not set; use run_auto or provide backend
+			RuntimeError: backend is not set; use run_auto or provide backend.
+			RuntimeError: chip_name is not set; use run_auto or provide chip_name.
 		"""
 		if backend is None:
 			raise RuntimeError("backend is not set; use run_auto or provide backend")

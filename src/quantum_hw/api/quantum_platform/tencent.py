@@ -50,8 +50,8 @@ def _post_json(endpoint: str, *, token: str, json: Any = None) -> Dict[str, Any]
         Parsed JSON response ``dict``.
 
     Raises:
-        RuntimeError: f'Tencent API request to {endpoint} failed after {_MAX_RE...'
-        ValueError: unexpected non-dict response from server
+        RuntimeError: If the request fails after all retries.
+        ValueError: If the server returns an unexpected non-dict response.
     """
     url = _BASE_URL + endpoint
     last_exc: Optional[Exception] = None

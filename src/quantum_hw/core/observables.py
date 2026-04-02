@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Dict, List, Sequence, Tuple
+from typing import Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
 
@@ -117,7 +117,7 @@ def pauli_basis_pattern(pauli: str, num_qubits: int) -> List[str]:
 		pattern[idx] = op
 	return pattern
 
-def apply_measurement_basis_rotations(qc, basis_pattern: Sequence[str], target_qubits: Sequence[int] = None) -> None:
+def apply_measurement_basis_rotations(qc, basis_pattern: Sequence[str], target_qubits: Optional[Sequence[int]] = None) -> None:
 	"""Apply only basis rotations for a full I/X/Y/Z pattern.
 
 	Args:
@@ -138,7 +138,7 @@ def apply_measurement_basis_rotations(qc, basis_pattern: Sequence[str], target_q
 			getattr(qc, gate_op)(idx)
 
 
-def append_measurement_basis(qc, basis_pattern: Sequence[str], target_qubits: Sequence[int] = None) -> None:
+def append_measurement_basis(qc, basis_pattern: Sequence[str], target_qubits: Optional[Sequence[int]] = None) -> None:
 	"""Apply basis rotations for a full pattern and append measurements.
 
 	Args:
@@ -189,8 +189,6 @@ def _merge_basis(pattern: Sequence[str], basis: Sequence[str]) -> List[str]:
 
 def group_observables(observables: Sequence[str], num_qubits: int) -> List[Dict[str, object]]:
 	"""Group observables that can share a single measurement basis.
-
-	TODO: implement more optimal grouping algorithms (c.f., quantum overlapping tomography) if needed.
 
 	Args:
 		observables (*Sequence[str]*): Observable operators to measure.

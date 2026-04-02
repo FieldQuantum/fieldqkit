@@ -262,7 +262,7 @@ class QuantumHardwareClient:
 			``str`` final status (``"Finished"``, ``"Failed"``, or ``"Canceled"``).
 
 		Raises:
-			RuntimeError: active task adapter and ProviderTaskHandle are required w...
+			RuntimeError: If active task adapter and ``ProviderTaskHandle`` are not set.
 		"""
 		import time
 		adapter = self._active_task_adapter
@@ -284,7 +284,7 @@ class QuantumHardwareClient:
 			Provider-specific task result from the active adapter.
 
 		Raises:
-			RuntimeError: active task adapter and ProviderTaskHandle are required w...
+			RuntimeError: If active task adapter and ``ProviderTaskHandle`` are not set.
 		"""
 		adapter = self._active_task_adapter
 		if adapter is None or not isinstance(task_id, ProviderTaskHandle):
@@ -412,8 +412,8 @@ class QuantumHardwareClient:
 			``RunResult`` containing counts, expectations, and metadata.
 
 		Raises:
-			ValueError: f'num_qubits ({num_qubits}) must match len(target_qubits)...'
-			RuntimeError: f'task {task_id} ended with status {status}'
+			ValueError: If *num_qubits* doesn't match *target_qubits* length.
+			RuntimeError: If the submitted task ends with a non-success status.
 		"""
 		if isinstance(observables, str):
 			observables = [observables]

@@ -100,7 +100,7 @@ def build_qaoa_ansatz_symbolic(
         ``["gamma_0", "beta_0", "gamma_1", "beta_1", ...]``.
 
     Raises:
-        ValueError: QAOA depth p must be positive
+        ValueError: If QAOA depth *p* or *num_qubits* is non-positive.
     """
     if p <= 0:
         raise ValueError("QAOA depth p must be positive")
@@ -205,6 +205,9 @@ def run_qaoa_with_backend(
 
     Returns:
         ``QAOAResult`` with best cost, parameters, and optimisation history.
+
+    Raises:
+        ValueError: If *gradient_method* is not ``'parameter-shift'`` or ``'autograd'``.
     """
     method = str(gradient_method).lower()
     if method not in {"parameter-shift", "autograd"}:

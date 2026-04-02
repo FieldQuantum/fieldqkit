@@ -31,7 +31,7 @@ def create_provider_runtime(*, provider: str, client: Any) -> ProviderRuntime:
         ``ProviderRuntime`` bound to the requested provider's backend and task adapters.
 
     Raises:
-        ValueError: provider must be one of: 'quafu', 'tianyan', 'guodun', or...
+        ValueError: If *provider* is not one of the supported platform names.
     """
     provider_name = str(provider).lower()
     if provider_name == "quafu":

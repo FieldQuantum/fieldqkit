@@ -93,6 +93,8 @@ run_model(
 | `compression_optimizer_lr` | `float` | `0.05` | 否 | 压缩优化学习率。 |
 | `compression_verbose` | `bool` | `False` | 否 | 是否打印压缩统计。 |
 | `compression_plot_loss` | `bool` | `False` | 否 | 是否绘制压缩 loss 曲线。 |
+| `max_wait_time` | `int` | `3600` | 否 | `VQERunner` 初始化参数：任务查询最大等待时间（秒）。 |
+| `sleep_time` | `int` | `5` | 否 | `VQERunner` 初始化参数：查询轮询间隔（秒）。 |
 | `target_qubits` | `Optional[Sequence[int]]` | `None` | 否 | 指定物理比特映射。 |
 | `seed` | `Optional[int]` | `None` | 否 | `VQERunner` 初始化参数：参数初始化随机种子。 |
 | `gradient_method` | `Literal["parameter-shift", "autograd"]` | `"parameter-shift"` | 否 | 梯度计算方式。`autograd` 仅支持 `chip_name="Simulator"`，并调用 sim 接口层的可微分能量入口。 |

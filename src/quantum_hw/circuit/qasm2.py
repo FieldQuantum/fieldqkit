@@ -268,7 +268,7 @@ def parse_openqasm2_to_gates(openqasm2_str):
         List of gate tuples compatible with ``QuantumCircuit``.
 
     Raises:
-        ValueError: f'{gate} takes 2 quantum arguments, but got {len(position...'
+        ValueError: If a gate receives an unexpected number of quantum arguments.
     """
     qregs_used, cregs_used, openqasm2_str = parse_openqasm2_regs(openqasm2_str)
     qreg_map = generate_reg_map(qregs_used)

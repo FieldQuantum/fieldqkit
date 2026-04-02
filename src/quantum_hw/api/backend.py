@@ -419,7 +419,7 @@ class BackendAdapter(ABC):
             List of hardware description dictionaries.
 
         Raises:
-            RuntimeError: f'{self.__class__.__name__} requires a bound platform wit...'
+            RuntimeError: If no bound platform with ``list_available_hardware()`` is available.
         """
         platform_obj = getattr(self, "_platform", None)
         if platform_obj is None or not hasattr(platform_obj, "list_available_hardware"):
@@ -648,7 +648,7 @@ def list_available_hardware(provider: str) -> List[Dict[str, Any]]:
         List of normalized hardware description dictionaries.
 
     Raises:
-        ValueError: provider must be one of: 'quafu', 'tianyan', 'guodun', or...
+        ValueError: If *provider* is not one of the supported platform names.
     """
     provider_name = str(provider).lower()
 

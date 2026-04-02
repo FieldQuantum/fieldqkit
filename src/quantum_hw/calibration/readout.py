@@ -88,7 +88,8 @@ class ReadoutCalibrationManager:
 			``CalibrationResult`` containing per-qubit confusion matrices and metadata.
 
 		Raises:
-			RuntimeError: backend is not set; use run_auto or provide backend
+			RuntimeError: backend is not set; use run_auto or provide backend.
+			RuntimeError: chip_name is not set; use run_auto or provide chip_name.
 		"""
 		if backend is None:
 			raise RuntimeError("backend is not set; use run_auto or provide backend")

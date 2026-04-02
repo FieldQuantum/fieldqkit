@@ -103,8 +103,8 @@ def _traversal_binary_tree(node, var_map):
         The evaluated numeric result.
 
     Raises:
-        NotImplementedError: f'Binary operator {node.op.name} not implemented.'
-        TypeError: f'Invalid input type {type(node)} found when traversing b...'
+        NotImplementedError: If a binary operator is not supported.
+        TypeError: If an AST node has an unexpected type.
     """
     if isinstance(node, (IntegerLiteral, FloatLiteral, ImaginaryLiteral, BooleanLiteral, DurationLiteral)):
         return node.value
@@ -695,7 +695,7 @@ class QasmToQcis:
             ``int`` qubit index.
 
         Raises:
-            KeyError: f'qubit map not defined when parsing qubit {qubit} with t...'
+            KeyError: If qubit map is not defined for the given qubit.
         """
         if qubit_map is None:
             raise KeyError(f"qubit map not defined when parsing qubit {qubit} with type {type(qubit)}.")

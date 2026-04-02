@@ -63,7 +63,7 @@ def qc2dag(qc: QuantumCircuit, show_qubits: bool = True) -> nx.DiGraph:
 
     Args:
         qc (*QuantumCircuit*): Quantum circuit.
-        show_qubits (*bool*): Whether to include ``start``/``end`` sentinel nodes per qubit. Defaults to ``True``.
+        show_qubits (*bool*): Whether to include qubit nodes in the DAG. Defaults to ``True``.
 
     Returns:
         ``nx.DiGraph`` representing the circuit's gate dependency graph.

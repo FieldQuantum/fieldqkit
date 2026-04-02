@@ -141,7 +141,7 @@ def get_available_chip_status(platform_obj) -> Dict[str, int]:
         Dictionary mapping chip names to queue lengths.
 
     Raises:
-        RuntimeError: platform_obj.status() must return a dict of chip -> queue...
+        RuntimeError: If ``platform_obj.status()`` does not return a dict.
     """
     status = platform_obj.status()
     if not isinstance(status, dict):
@@ -412,7 +412,7 @@ class QuafuTaskAdapter(TaskAdapter):
             handle (*ProviderTaskHandle*): Task handle from a prior submission.
 
         Returns:
-            Status string (e.g. ``"Finished"``, ``"Failed"``, ``"Running"``).
+            Status string or parsed JSON response from the Quafu API.
 
         Raises:
             RuntimeError: platform_obj is missing in task handle payload

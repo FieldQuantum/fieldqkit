@@ -49,7 +49,7 @@ def _assign_parameters(
         List of QCIS circuit strings with parameter placeholders substituted.
 
     Raises:
-        ValueError: f'Circuit has parameters {circuit_parameters}, but no val...'
+        ValueError: If a circuit has parameters but no values provided.
     """
     new_circuit: List[str] = []
     for circuit, parameter, value in zip(circuits, parameters, values):
@@ -460,7 +460,7 @@ class RemotePlatformClient:
             Query ID(s) for the submitted job(s), or ``0`` on failure.
 
         Raises:
-            ValueError: When circuit is not defined, experiment id should be defi...
+            ValueError: If neither circuit nor experiment_id is defined.
         """
         if isinstance(circuit, str):
             circuit = [circuit]

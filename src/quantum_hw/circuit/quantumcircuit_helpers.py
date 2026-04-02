@@ -34,7 +34,6 @@ def convert_gate_info_to_dag_info(nqubits:int,qubits:list,gates:list,show_qubits
     Returns:
         ``(node_list, edge_list)`` tuple for DAG construction.
     """
-    #print('check',nqubits,qubits)
     qubit_dic = [None for _ in range(nqubits)]
     node_list = []
     edge_list = []
@@ -162,7 +161,6 @@ def convert_gate_info_to_dag_info(nqubits:int,qubits:list,gates:list,show_qubits
                 edge_info = (edge[0],edge[1],{"qubit":list(sorted(temp[1][idx]))})
                 edge_list.append(edge_info)
         else:
-           #print(gate_info,qubits[0])
             assert(len(qubits) == 1)
             if qubit_dic[qubits[0]] is not None:
                 edge_info = (qubit_dic[qubits[0]],node_info[0],{"qubit" : [qubits[0]]})
@@ -349,7 +347,7 @@ def initialize_lines(nqubits:int,ncbits:int,gates:list) -> tuple[list, list]:
     gates_layerd = [gates_initial] + [copy.deepcopy(gates_element) for _ in range(n)]
     return gates_element,gates_layerd
 
-def generate_gates_layerd(nqubits:int,ncbits:int,gates:list,params_value:dict) -> list:
+def generate_gates_layerd(nqubits:int,ncbits:int,gates:list,params_value:dict) -> tuple:
     """Assign gates to their respective layers loosely.
 
     Args:
@@ -551,7 +549,7 @@ def generate_gates_layerd(nqubits:int,ncbits:int,gates:list,params_value:dict) -
             break
     return gates_layerd[:cut],lines_use
         
-def format_gates_layerd(nqubits:int,ncbits:int,gates:list,params_value:dict) -> list:
+def format_gates_layerd(nqubits:int,ncbits:int,gates:list,params_value:dict) -> tuple:
     """Unify the width of each layer's gate strings.
 
     Args:
@@ -561,7 +559,7 @@ def format_gates_layerd(nqubits:int,ncbits:int,gates:list,params_value:dict) -> 
         params_value (*dict*): Parameter name to value mapping.
 
     Returns:
-        list: A new list of gates element list.
+        tuple[list, list]: ``(gates_layerd_format, lines_use)`` — formatted gate strings and used line indices.
     """
     gates_layerd,lines_use = generate_gates_layerd(nqubits,ncbits,gates,params_value)
     gates_layerd_format = [gates_layerd[0]]
@@ -593,7 +591,7 @@ def format_gates_layerd(nqubits:int,ncbits:int,gates:list,params_value:dict) -> 
             gates_layerd_format.append(lst)
     return gates_layerd_format,lines_use
     
-def add_gates_to_lines(nqubits:int,ncbits:int,gates:list,params_value:dict, width: int = 4) -> list:
+def add_gates_to_lines(nqubits:int,ncbits:int,gates:list,params_value:dict, width: int = 4) -> tuple:
     r"""Add gates to lines.
 
     Args:

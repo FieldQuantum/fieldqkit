@@ -27,7 +27,7 @@ MPO 过程模拟不在该分发层中自动路由，需要显式调用 quantum_h
 
 - 返回 Dict[str, int]。
 - `device`：torch 设备（`'cpu'` / `'cuda'`），默认 `None`（自动选择）。
-- bitstring 序与后端保持一致（当前均为小端序）。
+- bitstring 采用大端序（qubit 0 对应字符串最左位）。
 
 ### expectation_pauli(state, pauli, *, num_qubits)
 

@@ -24,7 +24,7 @@ def _basis_to_code(basis: Sequence[str]) -> np.ndarray:
         basis (*Sequence[str]*): Sequence of basis labels (``'X'``, ``'Y'``, or ``'Z'``).
 
     Returns:
-        Integer array where X→, Y→, Z→.
+        Integer array where X→0, Y→1, Z→2.
     """
     mapping = {"X": 0, "Y": 1, "Z": 2}
     return np.array([mapping[b] for b in basis], dtype=int)
@@ -38,7 +38,7 @@ def _observable_to_codes(observable: str, num_qubits: int) -> np.ndarray:
         num_qubits (*int*): Number of qubits.
 
     Returns:
-        Integer array where X→, Y→, Z→, I→1.
+        Integer array where X→0, Y→1, Z→2, I→-1.
     """
     mapping = {"X": 0, "Y": 1, "Z": 2, "I": -1}
     pattern = pauli_basis_pattern(observable, num_qubits=num_qubits)

@@ -134,7 +134,8 @@ class NativeTwoQubitTomographyManager:
 			dict: keyed by "q1-q2" with Choi matrix for the error channel.
 
 		Raises:
-			RuntimeError: backend is not set; use run_auto or provide backend
+			RuntimeError: backend is not set; use run_auto or provide backend.
+			RuntimeError: chip_name is not set; use run_auto or provide chip_name.
 		"""
 		if backend is None:
 			raise RuntimeError("backend is not set; use run_auto or provide backend")

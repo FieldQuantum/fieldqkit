@@ -58,7 +58,7 @@ class Transpiler:
 
         Args:
             qc (*QuantumCircuit*): Quantum circuit.
-            target_qubits (*list | None*): Qubit indices for partial measurement. Defaults to ``None``.
+            target_qubits (*list | None*): Physical qubit indices for layout selection. Defaults to ``None``.
             niter (*int*): Number of SABRE routing iterations (forward+reverse passes). Defaults to ``5``.
             use_dd (*bool*): Whether to insert dynamical decoupling sequences into idle windows. Defaults to ``True``.
             use_three_qubit_decompose (*bool*): Whether to decompose three-qubit gates into one- and two-qubit gates. Defaults to ``True``.
@@ -74,8 +74,8 @@ class Transpiler:
             *QuantumCircuit*: The transpiled quantum circuit ready for hardware execution.
 
         Raises:
-            TypeError: Expected a QuantumCircuit, but got a {}.'.format(type(qc))
-            ValueError: If quantum circuit can be divided along the qubits, rando...
+            TypeError: If *qc* is not a ``QuantumCircuit``.
+            ValueError: If quantum circuit can be divided along the qubits, random initial mapping is restricted.
         """
         if isinstance(qc, QuantumCircuit):
             pass
