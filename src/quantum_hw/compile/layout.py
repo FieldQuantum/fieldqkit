@@ -8,11 +8,14 @@ See THIRD_PARTY_NOTICES for full license text.
 
 from __future__ import annotations
 
+import logging
 import os
 import copy
 import networkx as nx
 import numpy as np
 from typing import Literal
+
+logger = logging.getLogger(__name__)
 from itertools import combinations, zip_longest, product
 from multiprocessing import Pool
 from functools import partial
@@ -305,11 +308,11 @@ Lower is better.
         linear_subgraph_list_sort = sorted(linear_subgraph_list, key=lambda x: x[1], reverse=True)
         nonlinear_subgraph_list_sort = sorted(nonlinear_subgraph_list, key=lambda x: x[1], reverse=True)
         if printdetails:
-            print(len(linear_subgraph_list_sort), len(nonlinear_subgraph_list_sort))
-            print("The average fidelity is arranged in descending order,only print the first ten.")
+            logger.debug("%d linear, %d nonlinear subgraphs", len(linear_subgraph_list_sort), len(nonlinear_subgraph_list_sort))
+            logger.info("The average fidelity is arranged in descending order,only print the first ten.")
             length = nqubits * 5 + 22
 
-            print(
+            logger.info(
                 "{:<3} | {:^{}} | {:^{}} ".format(
                     "idx",
                     "subgraph with linear topology",
@@ -326,7 +329,7 @@ Lower is better.
                 if i >= len(nonlinear_subgraph_list_sort):
                     nonlinear = ("(                  )", 0.0, 0.0)
                 if i <= num:
-                    print(
+                    logger.info(
                         "{:<3} | {:<{}} {:<10.6f} {:<10.6f} | {:<{}} {:<10.6f} {:<10.6f} ".format(
                             i,
                             str(linear[0]),
@@ -358,11 +361,11 @@ Lower is better.
         nonlinear_subgraph_list_sort = sorted(nonlinear_subgraph_list, key=lambda x: x[2])
 
         if printdetails:
-            print(len(linear_subgraph_list_sort), len(nonlinear_subgraph_list_sort))
-            print("The fidelity variance is arranged in ascending order, only print the first ten.")
+            logger.debug("%d linear, %d nonlinear subgraphs", len(linear_subgraph_list_sort), len(nonlinear_subgraph_list_sort))
+            logger.info("The fidelity variance is arranged in ascending order, only print the first ten.")
             length = nqubits * 5 + 22
 
-            print(
+            logger.info(
                 "{:<3} | {:^{}} | {:^{}} ".format(
                     "idx",
                     "subgraph with linear topology",
@@ -380,7 +383,7 @@ Lower is better.
                     nonlinear = ("(                  )", 0.0, 0.0)
 
                 if i <= num:
-                    print(
+                    logger.info(
                         "{:<3} | {:<{}} {:<10.6f} {:<10.6f} | {:<{}} {:<10.6f} {:<10.6f} ".format(
                             i,
                             str(linear[0]),
@@ -554,7 +557,7 @@ Lower is better.
                     )
                 except Exception as e:
                     physical_qubits_layout = []
-                    print(f"Warning! {e}")
+                    logger.warning("Layout selection failed: %s", e)
                 if physical_qubits_layout:
                     break
                     break

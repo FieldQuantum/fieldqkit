@@ -1,0 +1,27 @@
+# quantum_hw 凭证配置文件
+#
+# 使用方式：复制到项目根目录并填入 token
+#   cp .quantum_hw.example.yaml .quantum_hw.yaml
+#
+# 查找优先级：.quantum_hw.yaml → 环境变量
+#
+# ⚠️  请勿将包含真实 token 的文件提交到 Git！
+#     .quantum_hw.yaml 已在 .gitignore 中排除。
+
+credentials:
+  # 夸父量子云 — https://quafu-sqc.baqis.ac.cn/
+  # 免费、无限时，推荐入门体验
+  quafu:
+    api_token: ""
+
+  # 天衍量子云 — https://qc.zdxlz.com/
+  tianyan:
+    api_token: ""
+
+  # 国盾量子云 — https://quantumctek-cloud.com/
+  guodun:
+    api_token: ""
+
+  # 腾讯量子云 — https://quantum.tencent.com/cloud/
+  tencent:
+    api_token: ""

@@ -8,5 +8,29 @@ __pycache__/
 dist/
 build/
 *.egg-info/
+*.egg
+.eggs/
+*.so
 src/quantum_hw/.cache/
 src/quantum_hw/api/.cache/
+
+# Type checking / linting caches
+.mypy_cache/
+.ruff_cache/
+.tox/
+
+# Coverage
+.coverage
+htmlcov/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Quantum-hw credentials (never commit tokens)
+.quantum_hw.yaml

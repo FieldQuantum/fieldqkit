@@ -10,9 +10,12 @@ Provides:
 
 from __future__ import annotations
 
+import logging
 from typing import Callable, Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
+
+logger = logging.getLogger(__name__)
 
 from ..api.backend import Backend
 from ..circuit import QuantumCircuit
@@ -768,7 +771,7 @@ def run_variational_loop(
     info = f"params={len(param_names)} iters={max_iters} shots={shots} gradient={method}"
     if extra_info:
         info = f"{extra_info} {info}"
-    print(f"[{tag}] start optimization:", info)
+    logger.info("[%s] start optimization: %s", tag, info)
 
     for it in range(max_iters):
         if method == "autograd":
@@ -828,7 +831,7 @@ def run_variational_loop(
             )
 
         grad_norm = float(np.linalg.norm(grads))
-        print(f"[{tag}] iter {it} cost={cost:.6f} grad_norm={grad_norm:.6f}")
+        logger.info("[%s] iter %d cost=%.6f grad_norm=%.6f", tag, it, cost, grad_norm)
 
         params, m, v = adam_update(
             params, grads, m, v, it + 1,
@@ -842,7 +845,7 @@ def run_variational_loop(
         if cost < best_cost:
             best_cost = float(cost)
             best_params = params.copy()
-            print(f"[{tag}] iter {it} new best={best_cost:.6f}")
+            logger.info("[%s] iter %d new best=%.6f", tag, it, best_cost)
 
         if callback is not None:
             callback(it, float(cost), params)

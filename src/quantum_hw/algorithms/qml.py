@@ -14,6 +14,7 @@ on hardware.
 
 from __future__ import annotations
 
+import logging
 from typing import (
     Callable,
     List,
@@ -22,6 +23,8 @@ from typing import (
     Tuple,
     Union,
 )
+
+logger = logging.getLogger(__name__)
 
 import numpy as np
 
@@ -392,8 +395,7 @@ def run_pqc_classifier(
             original_qc=full_symbolic_template,
             num_qubits=num_qubits,
         )
-        print(f"[qml-classifier] transpiled ONCE (unified template), "
-              f"target_qubits={target_qubits_in_use}")
+        logger.info("transpiled ONCE (unified template), target_qubits=%s", target_qubits_in_use)
     else:
         transpiled_template = full_symbolic_template
         target_qubits_in_use = None
@@ -419,9 +421,10 @@ def run_pqc_classifier(
             convert_single_qubit_gate_to_u=convert_single_qubit_gate_to_u,
         )
 
-    print(f"[qml-classifier] start: {num_qubits}q, {num_ansatz_params} ansatz params, "
-          f"{len(enc_param_names)} encoding params, "
-          f"{n_samples} samples, {max_iters} iters, gradient={method}")
+    logger.info(
+        "start: %dq, %d ansatz params, %d encoding params, %d samples, %d iters, gradient=%s",
+        num_qubits, num_ansatz_params, len(enc_param_names), n_samples, max_iters, method,
+    )
 
     for it in range(max_iters):
         # ---- autograd path ----
@@ -540,11 +543,7 @@ def run_pqc_classifier(
             msg = f"[qml-classifier] iter {it} loss={loss_val:.6f}"
             if test_loss_val is not None:
                 msg += f" test_loss={test_loss_val:.6f}"
-            print(msg)
-        if callback is not None:
-            callback(it, loss_val)
-
-    # ---- Accuracy evaluation ----
+            logger.info("%s", msg)
     if method == "autograd":
         train_z = _get_z_autograd(
             _build_state, _expectation_pauli, full_symbolic_template,
@@ -581,7 +580,7 @@ def run_pqc_classifier(
     msg = f"[qml-classifier] done. best_loss={best_loss:.6f} train_accuracy={accuracy:.4f}"
     if test_accuracy is not None:
         msg += f" test_accuracy={test_accuracy:.4f}"
-    print(msg)
+    logger.info("%s", msg)
 
     return QMLResult(
         task="supervised",
@@ -797,7 +796,7 @@ def run_qnn_unsupervised(
             target_qubits=target_qubits_in_use, qasm_version=qasm_version,
             convert_single_qubit_gate_to_u=convert_single_qubit_gate_to_u,
         )
-        print(f"[qnn-unsupervised] transpiled ONCE, target_qubits={target_qubits_in_use}")
+        logger.info("transpiled ONCE, target_qubits=%s", target_qubits_in_use)
 
         def _run_and_get_samples(qc_bound, name, n_shots=None):
             """Submit bound circuit and return (N, n_qubits) sample array.
@@ -830,10 +829,11 @@ def run_qnn_unsupervised(
     beta1, beta2, adam_eps = 0.9, 0.999, 1e-8
     lr = learning_rate
 
-    print(f"[qnn-unsupervised] start: {num_qubits}q, {num_params} params, "
-          f"{n_train} train samples ({n_unique_train} unique), "
-          f"{max_iters} iters, gradient={method}, "
-          f"loss={'NLL' if method == 'autograd' else 'MMD'}")
+    logger.info(
+        "start: %dq, %d params, %d train samples (%d unique), %d iters, gradient=%s, loss=%s",
+        num_qubits, num_params, n_train, n_unique_train, max_iters, method,
+        "NLL" if method == "autograd" else "MMD",
+    )
 
     for it in range(max_iters):
         # ---- autograd: NLL loss ----
@@ -917,7 +917,7 @@ def run_qnn_unsupervised(
             msg = f"[qnn-unsupervised] iter {it} loss={loss_val:.6f}"
             if test_loss_val is not None:
                 msg += f" test_loss={test_loss_val:.6f}"
-            print(msg)
+            logger.info("%s", msg)
         if callback is not None:
             callback(it, loss_val)
 
@@ -932,7 +932,7 @@ def run_qnn_unsupervised(
         generated = _run_and_get_samples(qc_gen, "qnn_gen", n_shots=gen_shots)
 
     generated_list = generated.tolist()
-    print(f"[qnn-unsupervised] done. best_loss={best_loss:.6f}, generated {len(generated_list)} samples")
+    logger.info("done. best_loss=%.6f, generated %d samples", best_loss, len(generated_list))
 
     return QBMResult(
         best_loss=best_loss,

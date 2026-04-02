@@ -659,19 +659,19 @@ def list_available_hardware(provider: str) -> List[Dict[str, Any]]:
         return platform_obj.list_available_hardware()
 
     if provider_name == "tianyan":
-        from .platform_credentials import get_tianyan_login_key
+        from .platform_credentials import get_tianyan_api_token
         from .quantum_platform.tianyan import TianYanPlatform
 
-        login_key = get_tianyan_login_key()
-        platform_obj = TianYanPlatform(login_key=login_key, auto_login=True, machine_name=None)
+        api_token = get_tianyan_api_token()
+        platform_obj = TianYanPlatform(login_key=api_token, auto_login=True, machine_name=None)
         return platform_obj.list_available_hardware()
 
     if provider_name == "guodun":
-        from .platform_credentials import get_guodun_login_key
+        from .platform_credentials import get_guodun_api_token
         from .quantum_platform.guodun import GuoDunPlatform
 
-        login_key = get_guodun_login_key()
-        platform_obj = GuoDunPlatform(login_key=login_key, auto_login=True, machine_name=None)
+        api_token = get_guodun_api_token()
+        platform_obj = GuoDunPlatform(login_key=api_token, auto_login=True, machine_name=None)
         return platform_obj.list_available_hardware()
 
     if provider_name == "tencent":

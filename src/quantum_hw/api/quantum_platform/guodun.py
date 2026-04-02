@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any, Dict, List, Optional
 
 from .cqlib import QuantumLanguage, RemotePlatformClient, extract_counts_from_result_items, normalize_hardware_rows, records_from_platform_list_query
-from ..platform_credentials import get_guodun_login_key
+from ..platform_credentials import get_guodun_api_token
 from ..backend import BackendAdapter, ResolvedBackend
 from ..task import OpenQasmSubmitRequest, ProviderTaskHandle, TaskAdapter
 
@@ -129,35 +129,35 @@ class GuoDunBackendAdapter(BackendAdapter):
     provider = "guodun"
     default_hardware_name = "gd_qc1"
 
-    def __init__(self, *, machine_name: Optional[str] = None, login_key: Optional[str] = None) -> None:
+    def __init__(self, *, machine_name: Optional[str] = None, api_token: Optional[str] = None) -> None:
         """Initialize GuoDun backend adapter with optional machine and login credentials.
 
         Args:
             machine_name (*Optional[str]*): Identifier of the target quantum machine. Defaults to ``None``.
-            login_key (*Optional[str]*): Login key for authentication. Defaults to ``None``.
+            api_token (*Optional[str]*): API token for authentication. Defaults to ``None``.
 
         Raises:
-            ValueError: guodun login key cannot be empty
+            ValueError: guodun api token cannot be empty
         """
-        self._login_key = login_key or get_guodun_login_key()
-        if not self._login_key:
-            raise ValueError("guodun login key cannot be empty")
+        self._api_token = api_token or get_guodun_api_token()
+        if not self._api_token:
+            raise ValueError("guodun api token cannot be empty")
         self._machine_name = machine_name
-        self._platform = GuoDunPlatform(login_key=self._login_key, auto_login=True, machine_name=machine_name)
+        self._platform = GuoDunPlatform(login_key=self._api_token, auto_login=True, machine_name=machine_name)
 
 
 class GuoDunTaskAdapter(TaskAdapter):
     provider = "guodun"
 
-    def __init__(self, *, client: Any, login_key: Optional[str] = None) -> None:
+    def __init__(self, *, client: Any, api_token: Optional[str] = None) -> None:
         """Initialize GuoDun task adapter with quantum hardware client and credentials.
 
         Args:
             client (*Any*): ``QuantumHardwareClient`` instance.
-            login_key (*Optional[str]*): Login key for authentication. Defaults to ``None``.
+            api_token (*Optional[str]*): API token for authentication. Defaults to ``None``.
         """
         self._client = client
-        self._login_key = login_key or get_guodun_login_key()
+        self._api_token = api_token or get_guodun_api_token()
         self._handle_cache: Dict[str, Dict[str, Any]] = {}
 
     def submit_openqasm(self, submit_request: OpenQasmSubmitRequest, backend: ResolvedBackend) -> ProviderTaskHandle:

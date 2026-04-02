@@ -8,7 +8,10 @@ See THIRD_PARTY_NOTICES for full license text.
 
 from __future__ import annotations
 
+import logging
 from copy import deepcopy
+
+logger = logging.getLogger(__name__)
 
 from ..api.backend import Backend
 
@@ -86,7 +89,7 @@ class Transpiler:
             target_qubits = []
 
         if self.chip_backend is None:
-            print("Warning: No chip specified, defaulting to a linearly connected layout for simulation.")
+            logger.warning("No chip specified, defaulting to a linearly connected layout for simulation.")
             import networkx as nx
 
             # Build a simple line topology based on logical qubit order.

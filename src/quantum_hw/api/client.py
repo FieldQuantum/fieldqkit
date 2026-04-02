@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Dict, List, Optional, Sequence, Tuple, Union
+
+logger = logging.getLogger(__name__)
 from copy import deepcopy
 from pathlib import Path
 
@@ -422,7 +425,7 @@ class QuantumHardwareClient:
 		observables = list(observables)
 
 		if print_true:
-			print("[hardware] which hardware:", chip_name)
+			logger.info("which hardware: %s", chip_name)
 
 		use_simulator = str(chip_name).lower() == "simulator"
 
@@ -538,7 +541,7 @@ class QuantumHardwareClient:
 					submit_options=submit_options,
 				)
 				if print_true:
-					print("[run] compile and run circuit:", f"{name}_g{gi}")
+					logger.info("compile and run circuit: %s", f"{name}_g{gi}")
 				pending.append((gi, "1", task_id_1))
 				task_ids.append(task_id_1)
 
@@ -562,7 +565,7 @@ class QuantumHardwareClient:
 						submit_options=submit_options,
 					)
 					if print_true:
-						print("[run] run circuit:", "zero-noise extrapolation")
+						logger.info("run circuit: zero-noise extrapolation")
 					pending.append((gi, "3", task_id_3))
 					task_ids.append(task_id_3)
 
@@ -600,7 +603,7 @@ class QuantumHardwareClient:
 			per_qubit = {k: np.asarray(v) for k, v in cal.per_qubit_confusion.items()}
 
 		if print_true:
-			print("[run] which qubits:", list(target_qubits_group) if target_qubits_group is not None else "auto")
+			logger.info("which qubits: %s", list(target_qubits_group) if target_qubits_group is not None else "auto")
 
 		# Collect counts for each group (and ZNE scale if enabled).
 		if not use_simulator:
@@ -684,7 +687,7 @@ class QuantumHardwareClient:
 							observable_values[obs] = val_rem_zne
 
 		if print_true:
-			print("[finish] returning results")
+			logger.info("returning results")
 
 		return RunResult(
 			task_ids=[str(t) for t in task_ids] if task_ids else None,

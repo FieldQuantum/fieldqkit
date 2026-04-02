@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from typing import Callable, Dict, List, Literal, Optional, Sequence, Tuple
+
+logger = logging.getLogger(__name__)
 
 import numpy as np
 
@@ -275,10 +278,10 @@ def run_qaoa_with_backend(
             obs: {"a": float(c[0]), "b": float(c[1])}
             for obs, c in clifford_fit_map.items()
         }
-        print(
-            "[qaoa] clifford fitting prepared:",
-            f"terms={len(clifford_fit_map)}",
-            f"samples={int(clifford_fitting_num_samples)}",
+        logger.info(
+            "clifford fitting prepared: terms=%d samples=%d",
+            len(clifford_fit_map),
+            int(clifford_fitting_num_samples),
         )
 
     loop_result = _run_variational_loop(
@@ -381,14 +384,9 @@ class QAOARunner:
         Raises:
             RuntimeError: all candidate chips failed to run QAOA
         """
-        print(
-            "[qaoa] prepare run:",
-            f"name={name}",
-            f"num_qubits={num_qubits}",
-            f"provider={provider}",
-            f"p={self.p}",
-            f"shots={self.shots}",
-            f"max_iters={self.max_iters}",
+        logger.info(
+            "prepare run: name=%s num_qubits=%d provider=%s p=%d shots=%d max_iters=%d",
+            name, num_qubits, provider, self.p, self.shots, self.max_iters,
         )
         hamiltonian = build_maxcut_hamiltonian(edges, num_qubits)
 
@@ -401,7 +399,7 @@ class QAOARunner:
             num_qubits=num_qubits,
             prefer_hardware=prefer_chips,
         )
-        print("[qaoa] candidate chips:", [p.hardware_name for p in profiles])
+        logger.info("candidate chips: %s", [p.hardware_name for p in profiles])
         if not profiles:
             raise RuntimeError(
                 f"no available {provider_name} hardware for num_qubits={num_qubits}"
@@ -420,7 +418,7 @@ class QAOARunner:
             self.client._active_resolved_backend = resolved
             self.client._active_num_qubits = num_qubits
             try:
-                print("[qaoa] running on chip:", resolved.hardware_name)
+                logger.info("running on chip: %s", resolved.hardware_name)
                 return run_qaoa_with_backend(
                     self.client,
                     name=name,

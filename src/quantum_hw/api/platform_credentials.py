@@ -1,47 +1,173 @@
-"""Centralized credential helpers for multi-platform integrations."""
+"""Centralized credential helpers for multi-platform integrations.
+
+Credentials are resolved in the following order (first match wins):
+
+1. **Configuration file** ``.quantum_hw.yaml`` in the project root
+   (copy from ``.quantum_hw.example.yaml`` and fill in your tokens).
+2. **Environment variables**:
+
+   - ``QUAFU_API_TOKEN``   – 夸父量子云 (https://quafu-sqc.baqis.ac.cn/)
+   - ``TIANYAN_API_TOKEN``  – 天衍量子云 (https://qc.zdxlz.com/)
+   - ``GUODUN_API_TOKEN``  – 国盾量子云 (https://quantumctek-cloud.com/)
+   - ``TENCENT_API_TOKEN``  – 腾讯量子云 (https://quantum.tencent.com/cloud/)
+
+The ``.quantum_hw.yaml`` file is excluded from Git via ``.gitignore``.
+"""
 
 from __future__ import annotations
 
+import logging
 import os
+from pathlib import Path
+from typing import Any, Dict, Optional
 
-# Debug-only fallback. Replace for quick local testing.
-DEBUG_QUAFU_API_TOKEN = "FRb5fWkVduBE3VhBcGlfH6DfXZjUfVPJqPWQo`Ii:8T/:KUNxREPzJkMyZEO5B{N3d{OypkJxiY[jxjJyBkPyBkPyFEJ4FUM{BUM3JENzJjPjRYZqKDMxpkJtWnemynJtJTcwOnMtmXZueHRu2XcwW4[vWHbkWYfjpkJzW3d2Kzf"
-DEBUG_TIANYAN_LOGIN_KEY = "NGlC79z1l66J95ngf7QvRARX4+YDeWcQQ/ns5kHzbjg="
-DEBUG_GUODUN_LOGIN_KEY = "YtoTCR9P6p2Rt72yC0WYetJ/X3XFTYftPDe+aHIDmvE="
-DEBUG_TENCENT_API_TOKEN = "cAS2u.w4vMT4Vy18lgdyxqP36tMv6b07xXdroaG18CQ5rr3AhSKZMVrwCNFosehawUySH0kOcHIpIjnP8QuFg-ZTRc4RZZeCPOsGEfDAOdnRKDv0M05ukxbo8x6S0dHjzlY7B-VSkIAnJyU3sMdebeAs"
+logger = logging.getLogger(__name__)
+
+_CONFIG_FILENAME = ".quantum_hw.yaml"
+
+# ---------------------------------------------------------------------------
+# YAML config loading
+# ---------------------------------------------------------------------------
+
+_cached_config: Optional[Dict[str, Any]] = None
+
+
+def _load_config(*, force: bool = False) -> Dict[str, Any]:
+    """Load and cache the project-local config file.
+
+    Returns an empty dict when no config file exists.
+    """
+    global _cached_config
+    if _cached_config is not None and not force:
+        return _cached_config
+
+    try:
+        import yaml
+    except ImportError:
+        _cached_config = {}
+        return _cached_config
+
+    path = Path.cwd() / _CONFIG_FILENAME
+    if path.is_file():
+        try:
+            with open(path, encoding="utf-8") as fh:
+                data = yaml.safe_load(fh)
+            if isinstance(data, dict):
+                logger.debug("Loaded credentials config from %s", path)
+                _cached_config = data
+                return _cached_config
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Failed to parse config %s: %s", path, exc)
+
+    _cached_config = {}
+    return _cached_config
+
+
+def reload_config() -> None:
+    """Force-reload the configuration file (useful after editing)."""
+    _load_config(force=True)
+
+
+# ---------------------------------------------------------------------------
+# Credential resolution: config file → env var → error
+# ---------------------------------------------------------------------------
+
+_CREDENTIAL_MAP: Dict[str, tuple[str, str, str]] = {
+    # key: (config_yaml_path_section, config_yaml_key, env_var)
+    "quafu":   ("quafu",   "api_token",  "QUAFU_API_TOKEN"),
+    "tianyan":  ("tianyan",  "api_token",  "TIANYAN_API_TOKEN"),
+    "guodun":  ("guodun",  "api_token",  "GUODUN_API_TOKEN"),
+    "tencent": ("tencent", "api_token",  "TENCENT_API_TOKEN"),
+}
+
+_PLATFORM_LABELS: Dict[str, str] = {
+    "quafu":   "Quafu (夸父)  – https://quafu-sqc.baqis.ac.cn/",
+    "tianyan":  "TianYan (天衍) – https://qc.zdxlz.com/",
+    "guodun":  "GuoDun (国盾)  – https://quantumctek-cloud.com/",
+    "tencent": "Tencent (腾讯) – https://quantum.tencent.com/cloud/",
+}
+
+
+def _get_credential(platform: str) -> str:
+    """Resolve a credential for *platform*.
+
+    Lookup order: config file ``credentials.<platform>.<key>`` →
+    environment variable → ``ValueError``.
+    """
+    section, key, env_var = _CREDENTIAL_MAP[platform]
+
+    # 1. config file
+    cfg = _load_config()
+    creds = cfg.get("credentials", {})
+    if isinstance(creds, dict):
+        plat_section = creds.get(section, {})
+        if isinstance(plat_section, dict):
+            value = plat_section.get(key)
+            if value:
+                return str(value)
+
+    # 2. environment variable
+    env_value = os.getenv(env_var)
+    if env_value:
+        return env_value
+
+    # 3. error
+    label = _PLATFORM_LABELS[platform]
+    raise ValueError(
+        f"Credential for {label} not found.\n"
+        f"Please set it in one of the following ways:\n"
+        f"  1. Copy .quantum_hw.example.yaml to .quantum_hw.yaml and fill in:\n"
+        f"     credentials:\n"
+        f"       {section}:\n"
+        f"         {key}: <your-token>\n"
+        f"  2. Set environment variable: export {env_var}=<your-token>\n"
+        f"Obtain your token from: {label.split(' – ')[-1]}"
+    )
 
 
 def get_quafu_api_token() -> str:
-    """Return Quafu API token from env first, then debug fallback.
+    """Return Quafu API token (config file → ``QUAFU_API_TOKEN`` env var).
 
     Returns:
         API token string.
+
+    Raises:
+        ValueError: If no credential is found.
     """
-    return os.getenv("QUAFU_API_TOKEN", DEBUG_QUAFU_API_TOKEN)
+    return _get_credential("quafu")
 
 
-def get_tianyan_login_key() -> str:
-    """Return TianYan login key from env first, then debug fallback.
+def get_tianyan_api_token() -> str:
+    """Return TianYan API token (config file → ``TIANYAN_API_TOKEN`` env var).
 
     Returns:
-        Login key string.
+        API token string.
+
+    Raises:
+        ValueError: If no credential is found.
     """
-    return os.getenv("TIANYAN_LOGIN_KEY", DEBUG_TIANYAN_LOGIN_KEY)
+    return _get_credential("tianyan")
 
 
-def get_guodun_login_key() -> str:
-    """Return GuoDun login key from env first, then debug fallback.
+def get_guodun_api_token() -> str:
+    """Return GuoDun API token (config file → ``GUODUN_API_TOKEN`` env var).
 
     Returns:
-        Login key string.
+        API token string.
+
+    Raises:
+        ValueError: If no credential is found.
     """
-    return os.getenv("GUODUN_LOGIN_KEY", DEBUG_GUODUN_LOGIN_KEY)
+    return _get_credential("guodun")
 
 
 def get_tencent_api_token() -> str:
-    """Return Tencent API token from env first, then debug fallback.
+    """Return Tencent API token (config file → ``TENCENT_API_TOKEN`` env var).
 
     Returns:
         API token string.
+
+    Raises:
+        ValueError: If no credential is found.
     """
-    return os.getenv("TENCENT_API_TOKEN", DEBUG_TENCENT_API_TOKEN)
+    return _get_credential("tencent")

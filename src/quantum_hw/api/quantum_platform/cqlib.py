@@ -325,11 +325,11 @@ class RemotePlatformClient:
         """Initialize CQLIB platform with login credentials and optional machine selection.
 
         Args:
-            login_key (*str*): Login key for authentication.
+            login_key (*str*): API token for authentication.
             auto_login (*bool*): Whether to log in immediately on initialization. Defaults to ``True``.
             machine_name (*str*): Identifier of the target quantum machine. Defaults to ``None``.
         """
-        self.login_key = login_key
+        self.api_token = login_key
         self.auto_login = auto_login
         self.machine_name = machine_name
         self.access_token = ""
@@ -350,7 +350,7 @@ class RemotePlatformClient:
         """
         data = {
             "grant_type": "openId",
-            "openId": self.login_key,
+            "openId": self.api_token,
             "account_type": "member",
         }
         res = requests.post(
@@ -1156,19 +1156,19 @@ def load_cqlib_chip_info(
     if platform is None:
         resolved_provider = provider or _infer_provider_from_chip_name(machine_name)
         if resolved_provider == "tianyan":
-            from .tianyan import TianYanPlatform, get_tianyan_login_key
+            from .tianyan import TianYanPlatform, get_tianyan_api_token
 
-            login_key = get_tianyan_login_key()
-            if not login_key:
-                raise ValueError("tianyan login key cannot be empty")
-            platform = TianYanPlatform(login_key=login_key, auto_login=True, machine_name=machine_name)
+            api_token = get_tianyan_api_token()
+            if not api_token:
+                raise ValueError("tianyan api token cannot be empty")
+            platform = TianYanPlatform(login_key=api_token, auto_login=True, machine_name=machine_name)
         elif resolved_provider == "guodun":
-            from .guodun import GuoDunPlatform, get_guodun_login_key
+            from .guodun import GuoDunPlatform, get_guodun_api_token
 
-            login_key = get_guodun_login_key()
-            if not login_key:
-                raise ValueError("guodun login key cannot be empty")
-            platform = GuoDunPlatform(login_key=login_key, auto_login=True, machine_name=machine_name)
+            api_token = get_guodun_api_token()
+            if not api_token:
+                raise ValueError("guodun api token cannot be empty")
+            platform = GuoDunPlatform(login_key=api_token, auto_login=True, machine_name=machine_name)
         else:
             raise ValueError(f"Unsupported provider: {resolved_provider}")
 

@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Sequence, Tuple, Union
+
+logger = logging.getLogger(__name__)
 
 import numpy as np
 
@@ -361,7 +364,7 @@ class ShadowTomography:
         qasm_version = self.client._default_qasm_version_for_provider(provider_name)
         use_dd = provider_name not in {"tianyan", "guodun", "tencent"}
         convert_single_qubit_gate_to_u = provider_name not in {"tencent"}
-        print("[shadow] read hardware information and select", f"provider={provider_name}")
+        logger.info("read hardware information and select provider=%s", provider_name)
         # Normalize input circuit and strip measurements if present.
         qc = self.client._normalize_input_circuit(circuit, num_qubits)
 

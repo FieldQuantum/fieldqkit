@@ -3,7 +3,36 @@
 ## 概览
 
 - 模块：`quantum_hw.api.platform_credentials`
-- 作用：集中读取四家平台凭据（优先环境变量）。
+- 作用：集中管理四家量子云平台的 API 凭证，支持配置文件和环境变量两种方式。
+
+## 凭证查找优先级
+
+凭证按以下顺序查找，使用第一个找到的值：
+
+1. **项目本地配置文件** `./.quantum_hw.yaml`（当前工作目录）
+2. **环境变量**（见下表）
+3. 以上均未找到 → 抛出 `ValueError`
+
+## 配置文件格式
+
+```yaml
+credentials:
+  quafu:
+    api_token: "your-token"
+  tianyan:
+    api_token: "your-token"
+  guodun:
+    api_token: "your-token"
+  tencent:
+    api_token: "your-token"
+```
+
+项目根目录提供了模板文件 `.quantum_hw.example.yaml`，复制并填入 token 即可：
+
+```bash
+# 复制模板并填入 token
+cp .quantum_hw.example.yaml .quantum_hw.yaml
+```
 
 ## 函数
 
@@ -11,60 +40,71 @@
 
 | 项目 | 说明 |
 |---|---|
+| 配置路径 | `credentials.quafu.api_token` |
 | 环境变量 | `QUAFU_API_TOKEN` |
 | 返回值 | Quafu API token 字符串 |
 
-### `get_tianyan_login_key() -> str`
+### `get_tianyan_api_token() -> str`
 
 | 项目 | 说明 |
 |---|---|
-| 环境变量 | `TIANYAN_LOGIN_KEY` |
+| 配置路径 | `credentials.tianyan.api_token` |
+| 环境变量 | `TIANYAN_API_TOKEN` |
 | 返回值 | TianYan API token 字符串 |
 
-### `get_guodun_login_key() -> str`
+### `get_guodun_api_token() -> str`
 
 | 项目 | 说明 |
 |---|---|
-| 环境变量 | `GUODUN_LOGIN_KEY` |
+| 配置路径 | `credentials.guodun.api_token` |
+| 环境变量 | `GUODUN_API_TOKEN` |
 | 返回值 | GuoDun API token 字符串 |
 
 ### `get_tencent_api_token() -> str`
 
 | 项目 | 说明 |
 |---|---|
+| 配置路径 | `credentials.tencent.api_token` |
 | 环境变量 | `TENCENT_API_TOKEN` |
 | 返回值 | Tencent API token 字符串 |
 
-## 行为说明
+### `reload_config() -> None`
 
-- 当前实现优先读取环境变量。
-- 当环境变量未设置时，会回退到模块内调试常量。
-
-## 推荐实践
-
-- 生产环境应始终通过环境变量注入密钥。
-- 建议在 CI/部署环境中显式检查四项环境变量是否已设置。
+强制重新加载配置文件（编辑配置后调用）。
 
 ## 示例
 
+### 方式一：配置文件（推荐）
+
+```bash
+cp .quantum_hw.example.yaml .quantum_hw.yaml
+# 编辑 .quantum_hw.yaml，填入 token
+```
+
+```python
+from quantum_hw.api.platform_credentials import get_quafu_api_token
+
+token = get_quafu_api_token()  # 自动从配置文件读取
+```
+
+### 方式二：环境变量
+
 ```python
 import os
-from quantum_hw.api.platform_credentials import (
-    get_quafu_api_token,
-    get_tianyan_login_key,
-    get_guodun_login_key,
-    get_tencent_api_token,
-)
-
 os.environ["QUAFU_API_TOKEN"] = "<token>"
-os.environ["TIANYAN_LOGIN_KEY"] = "<key>"
-os.environ["GUODUN_LOGIN_KEY"] = "<key>"
-os.environ["TENCENT_API_TOKEN"] = "<token>"
 
-print(bool(get_quafu_api_token()))
-print(bool(get_tianyan_login_key()))
-print(bool(get_guodun_login_key()))
-print(bool(get_tencent_api_token()))
+from quantum_hw.api.platform_credentials import get_quafu_api_token
+token = get_quafu_api_token()
+```
+
+### 运行时重新加载
+
+```python
+from quantum_hw.api.platform_credentials import reload_config
+
+# 修改了 .quantum_hw.yaml 之后
+reload_config()
+token = get_quafu_api_token()  # 读取更新后的值
 ```
 
 ## 相关页面

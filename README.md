@@ -65,7 +65,47 @@ print(result.probabilities)
 
 ## 真机使用
 
-若要使用真机，请登录对应平台获取API凭证，并通过设置环境变量或修改 `quantum_hw.api.platform_credentials` 中的凭证管理来提供认证信息。各平台的链接如下：
+使用真机前需要配置对应平台的 API 凭证。推荐通过**配置文件**管理 token：
+
+### 1. 创建配置文件
+
+将项目根目录的模板文件复制为配置文件：
+
+```bash
+cp .quantum_hw.example.yaml .quantum_hw.yaml
+```
+
+### 2. 填入你的 token
+
+编辑配置文件，将购买或申请到的 token 填入对应字段：
+
+```yaml
+credentials:
+  quafu:
+    api_token: "your-quafu-token-here"
+  tianyan:
+    api_token: "your-tianyan-token-here"
+  guodun:
+    api_token: "your-guodun-token-here"
+  tencent:
+    api_token: "your-tencent-token-here"
+```
+
+### 3. 凭证查找优先级
+
+`.quantum_hw.yaml` → 环境变量 → 报错
+
+也可以用传统的环境变量方式：
+
+```bash
+export QUAFU_API_TOKEN="<token>"
+export TIANYAN_API_TOKEN="<token>"
+export GUODUN_API_TOKEN="<token>"
+export TENCENT_API_TOKEN="<token>"
+```
+
+### 各平台链接
+
 - 夸父量子云：https://quafu-sqc.baqis.ac.cn/
 - 天衍量子云： https://qc.zdxlz.com/
 - 国盾量子云： https://quantumctek-cloud.com/

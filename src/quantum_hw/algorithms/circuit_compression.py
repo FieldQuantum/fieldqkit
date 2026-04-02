@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from typing import Dict, List, Literal, Optional, Sequence, Tuple
+
+logger = logging.getLogger(__name__)
 
 import numpy as np
 import torch
@@ -880,16 +883,13 @@ def build_compression_transform(
 
             if compression_verbose:
                 call_tag = "base" if changed_param_index is None else f"shift(param={int(changed_param_index)})"
-                print(
-                    f"[{tag}] circuit compressed:",
-                    f"call={call_tag}",
-                    f"stage={int(stage_id)}",
-                    f"layers={approx_depth}",
-                    f"mode={summary['objective_mode']}",
-                    f"init={summary['init_loss']:.3e}",
-                    f"loss={summary['best_loss']:.3e}",
-                    f"delta={summary['loss_delta']:.3e}",
-                    f"inf={summary['objective_infidelity']:.3e}",
+                logger.info(
+                    "[%s] circuit compressed: call=%s stage=%d layers=%d mode=%s "
+                    "init=%.3e loss=%.3e delta=%.3e inf=%.3e",
+                    tag, call_tag, int(stage_id), approx_depth,
+                    summary['objective_mode'], summary['init_loss'],
+                    summary['best_loss'], summary['loss_delta'],
+                    summary['objective_infidelity'],
                 )
 
             if compression_plot_loss:
@@ -907,19 +907,18 @@ def build_compression_transform(
                         _plt.show()
                 except Exception as _plot_exc:
                     if compression_verbose:
-                        print(f"[{tag}] compression loss plotting skipped:", _plot_exc)
+                        logger.info("[%s] compression loss plotting skipped: %s", tag, _plot_exc)
 
         warm_start[0] = local_warm_start
         if changed_param_index is None and warm_start[0] is not None:
             base_params[0] = warm_start[0].copy()
 
         if plan is not None and compression_verbose:
-            print(
-                f"[{tag}] hybrid block plan:",
-                f"split={plan.split_layer}/{plan.total_layers}",
-                f"seed_bond={plan.prefix_max_bond}",
-                f"seed_err={plan.prefix_relative_trunc_error:.3e}",
-                f"blocks={len(plan.blocks)}",
+            logger.info(
+                "[%s] hybrid block plan: split=%d/%d seed_bond=%s seed_err=%.3e blocks=%d",
+                tag, plan.split_layer, plan.total_layers,
+                plan.prefix_max_bond, plan.prefix_relative_trunc_error,
+                len(plan.blocks),
             )
         return _compose_stage_circuits(compressed_stage_exec_circuits, num_qubits)
 

@@ -319,6 +319,7 @@ def test_list_available_hardware_quafu(monkeypatch):
 
 def test_list_available_hardware_tianyan(monkeypatch):
     import quantum_hw.api.quantum_platform.tianyan as _ty
+    import quantum_hw.api.platform_credentials as _creds
 
     class _FakeTianYanPlatform:
         def __init__(self, login_key, auto_login, machine_name):
@@ -330,7 +331,8 @@ def test_list_available_hardware_tianyan(monkeypatch):
                 {"provider": "tianyan", "hardware_name": "tianyan24", "queue_length": None, "status": "calibration", "is_toll": "paid", "raw": {"machineName": "tianyan24"}},
             ]
 
-    monkeypatch.setattr(_ty, "get_tianyan_login_key", lambda: "k")
+    monkeypatch.setattr(_creds, "get_tianyan_api_token", lambda: "k")
+    monkeypatch.setattr(_ty, "get_tianyan_api_token", lambda: "k")
     monkeypatch.setattr(_ty, "TianYanPlatform", _FakeTianYanPlatform)
 
     rows = qp.list_available_hardware("tianyan")
@@ -449,7 +451,7 @@ def test_tianyan_backend_adapter_selects_platform_and_resolves(monkeypatch):
             ]
 
     monkeypatch.setattr(ty, "TianYanPlatform", _FakePlatform)
-    monkeypatch.setattr(ty, "get_tianyan_login_key", lambda: "k")
+    monkeypatch.setattr(ty, "get_tianyan_api_token", lambda: "k")
     monkeypatch.setattr(bmod, "Backend", lambda chip: {"chip": chip})
     monkeypatch.setattr(
         bmod,
@@ -496,7 +498,7 @@ def test_guodun_backend_adapter_selects_platform_and_resolves(monkeypatch):
             ]
 
     monkeypatch.setattr(gd, "GuoDunPlatform", _FakePlatform)
-    monkeypatch.setattr(gd, "get_guodun_login_key", lambda: "k")
+    monkeypatch.setattr(gd, "get_guodun_api_token", lambda: "k")
     monkeypatch.setattr(bmod, "Backend", lambda chip: {"chip": chip})
     monkeypatch.setattr(
         bmod,
@@ -527,7 +529,7 @@ def test_tianyan_backend_adapter_supports_simulator_preference(monkeypatch):
             del login_key, auto_login, machine_name
 
     monkeypatch.setattr(ty, "TianYanPlatform", _FakePlatform)
-    monkeypatch.setattr(ty, "get_tianyan_login_key", lambda: "k")
+    monkeypatch.setattr(ty, "get_tianyan_api_token", lambda: "k")
 
     adapter = ty.TianYanBackendAdapter(machine_name="abc")
     resolved = adapter.resolve_backend(num_qubits=3, prefer_hardware="Simulator")
@@ -540,7 +542,7 @@ def test_guodun_backend_adapter_supports_simulator_preference(monkeypatch):
             del login_key, auto_login, machine_name
 
     monkeypatch.setattr(gd, "GuoDunPlatform", _FakePlatform)
-    monkeypatch.setattr(gd, "get_guodun_login_key", lambda: "k")
+    monkeypatch.setattr(gd, "get_guodun_api_token", lambda: "k")
 
     adapter = gd.GuoDunBackendAdapter(machine_name="abc")
     resolved = adapter.resolve_backend(num_qubits=2, prefer_hardware="Simulator")
@@ -558,7 +560,7 @@ def test_tianyan_backend_adapter_discovery_uses_bound_platform(monkeypatch):
             ]
 
     monkeypatch.setattr(ty, "TianYanPlatform", _FakePlatform)
-    monkeypatch.setattr(ty, "get_tianyan_login_key", lambda: "k")
+    monkeypatch.setattr(ty, "get_tianyan_api_token", lambda: "k")
     monkeypatch.setattr(bmod, "list_available_hardware", lambda provider: (_ for _ in ()).throw(AssertionError(f"unexpected fallback for {provider}")))
     monkeypatch.setattr(bmod, "Backend", lambda chip: {"chip": chip})
     monkeypatch.setattr(
@@ -575,7 +577,7 @@ def test_tianyan_backend_adapter_discovery_uses_bound_platform(monkeypatch):
         ),
     )
 
-    adapter = ty.TianYanBackendAdapter(login_key="custom_key")
+    adapter = ty.TianYanBackendAdapter(api_token="custom_key")
     profiles = adapter.discover_hardware(num_qubits=2)
 
     assert [profile.hardware_name for profile in profiles] == ["tianyan176"]
@@ -607,7 +609,7 @@ def test_tianyan_backend_adapter_does_not_request_extra_overview(monkeypatch):
             ]
 
     monkeypatch.setattr(ty, "TianYanPlatform", _FakePlatform)
-    monkeypatch.setattr(ty, "get_tianyan_login_key", lambda: "k")
+    monkeypatch.setattr(ty, "get_tianyan_api_token", lambda: "k")
 
     adapter = ty.TianYanBackendAdapter(machine_name="abc")
     resolved = adapter.resolve_backend(num_qubits=2)
@@ -640,7 +642,7 @@ def test_guodun_backend_adapter_does_not_request_extra_overview(monkeypatch):
             ]
 
     monkeypatch.setattr(gd, "GuoDunPlatform", _FakePlatform)
-    monkeypatch.setattr(gd, "get_guodun_login_key", lambda: "k")
+    monkeypatch.setattr(gd, "get_guodun_api_token", lambda: "k")
     monkeypatch.setattr(bmod, "Backend", lambda chip: {"chip": chip})
     monkeypatch.setattr(
         bmod,
@@ -809,7 +811,7 @@ def test_vendored_adapter_submit_openqasm_submit_job_and_fetch_result(monkeypatc
         metadata={"platform_obj": platform},
     )
 
-    adapter = ty.TianYanTaskAdapter(client=_DummyClient(), login_key="k")
+    adapter = ty.TianYanTaskAdapter(client=_DummyClient(), api_token="k")
     handle = adapter.submit_openqasm(
         ut.OpenQasmSubmitRequest(
             name="exp",
@@ -836,12 +838,12 @@ def test_vendored_adapter_submit_openqasm_submit_job_and_fetch_result(monkeypatc
 
 
 def test_tianyan_adapter_provider_value():
-    adapter = ty.TianYanTaskAdapter(client=_DummyClient(), login_key="k")
+    adapter = ty.TianYanTaskAdapter(client=_DummyClient(), api_token="k")
     assert adapter.provider == "tianyan"
 
 
 def test_guodun_adapter_provider_value():
-    adapter = gd.GuoDunTaskAdapter(client=_DummyClient(), login_key="k")
+    adapter = gd.GuoDunTaskAdapter(client=_DummyClient(), api_token="k")
     assert adapter.provider == "guodun"
 
 
@@ -876,7 +878,7 @@ def test_guodun_task_adapter_submit_query_fetch_cancel_lifecycle(monkeypatch):
         metadata={"platform_obj": platform},
     )
 
-    adapter = gd.GuoDunTaskAdapter(client=_DummyClient(), login_key="k")
+    adapter = gd.GuoDunTaskAdapter(client=_DummyClient(), api_token="k")
     handle = adapter.submit_openqasm(
         ut.OpenQasmSubmitRequest(
             name="gd_exp",
@@ -938,7 +940,7 @@ def test_tianyan_task_adapter_submit_query_fetch_lifecycle(monkeypatch):
         metadata={"platform_obj": platform},
     )
 
-    adapter = ty.TianYanTaskAdapter(client=_DummyClient(), login_key="k")
+    adapter = ty.TianYanTaskAdapter(client=_DummyClient(), api_token="k")
     handle = adapter.submit_openqasm(
         ut.OpenQasmSubmitRequest(
             name="ty_exp",

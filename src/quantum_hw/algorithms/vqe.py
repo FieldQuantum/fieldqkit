@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 import ast
+import logging
 from dataclasses import dataclass
 from typing import Callable, Dict, List, Literal, Optional, Sequence, Tuple
+
+logger = logging.getLogger(__name__)
 
 import numpy as np
 from ..api.backend import Backend
@@ -549,11 +552,11 @@ def run_vqe_with_backend(
             obs: {"a": float(coeffs[0]), "b": float(coeffs[1])}
             for obs, coeffs in clifford_fit_map.items()
         }
-        print(
-            "[vqe] clifford fitting prepared:",
-            f"terms={len(clifford_fit_map)}",
-            f"samples={int(clifford_fitting_num_samples)}",
-            f"non_clifford_gates={int(clifford_fitting_num_non_clifford_gates)}",
+        logger.info(
+            "clifford fitting prepared: terms=%d samples=%d non_clifford_gates=%d",
+            len(clifford_fit_map),
+            int(clifford_fitting_num_samples),
+            int(clifford_fitting_num_non_clifford_gates),
         )
 
     loop_result = _run_variational_loop(
@@ -672,15 +675,9 @@ class VQERunner:
         Returns:
             ``VQEResult`` with optimisation history.
         """
-        print(
-            "[vqe] prepare run:",
-            f"name={name}",
-            f"num_qubits={num_qubits}",
-            f"provider={provider}",
-            f"model={model}",
-            f"layers={self.layers}",
-            f"shots={self.shots}",
-            f"max_iters={self.max_iters}",
+        logger.info(
+            "prepare run: name=%s num_qubits=%d provider=%s model=%s layers=%d shots=%d max_iters=%d",
+            name, num_qubits, provider, model, self.layers, self.shots, self.max_iters,
         )
         model = model.lower()
         params = model_params or {}
@@ -708,7 +705,7 @@ class VQERunner:
             num_qubits=num_qubits,
             prefer_hardware=prefer_chips,
         )
-        print("[vqe] candidate chips:", [p.hardware_name for p in profiles])
+        logger.info("candidate chips: %s", [p.hardware_name for p in profiles])
         if not profiles:
             raise RuntimeError(f"no available {provider_name} hardware for num_qubits={num_qubits}")
 
@@ -725,7 +722,7 @@ class VQERunner:
             self.client._active_resolved_backend = resolved
             self.client._active_num_qubits = num_qubits
             try:
-                print("[vqe] running on chip:", resolved.hardware_name)
+                logger.info("running on chip: %s", resolved.hardware_name)
                 return run_vqe_with_backend(
                     self.client,
                     name=name,

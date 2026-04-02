@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable, Dict, List, Optional, Sequence, Tuple
+
+logger = logging.getLogger(__name__)
 
 import numpy as np
 
@@ -122,7 +125,7 @@ class ReadoutCalibrationManager:
 		# Cache TTL is 12 hours.
 		if not missing:
 			if print_true:
-				print("[readout] using cached readout calibration")
+				logger.info("using cached readout calibration")
 			return CalibrationResult(
 				target_qubits=target_qubits,
 				per_qubit_confusion=cached_confusion,
@@ -130,7 +133,7 @@ class ReadoutCalibrationManager:
 
 		per_qubit_confusion: Dict[int, np.ndarray] = {}
 		if print_true:
-			print("[readout] run readout calibration on hardware")
+			logger.info("run readout calibration on hardware")
 		pending: List[Tuple[object, int, str]] = []
 		res_map: Dict[int, Dict[str, Dict[str, int]]] = {q: {} for q in missing}
 		for q in missing:

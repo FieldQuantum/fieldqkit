@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable, Dict, List, Optional, Sequence, Tuple
+
+logger = logging.getLogger(__name__)
 
 import numpy as np
 
@@ -186,7 +189,7 @@ class NativeTwoQubitTomographyManager:
 				continue
 
 			if print_true:
-				print(f"[tomo] run two-qubit process tomography on coupler {key}")
+				logger.info("run two-qubit process tomography on coupler %s", key)
 
 			local_cm = None
 			if readout_mitigation:

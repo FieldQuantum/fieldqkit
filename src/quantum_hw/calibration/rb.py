@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable, Dict, List, Optional, Sequence, Tuple
+
+logger = logging.getLogger(__name__)
 
 import numpy as np
 
@@ -152,7 +155,7 @@ class NativeTwoQubitRBManager:
 				continue
 
 			if print_true:
-				print(f"[rb] run native two-qubit RB on coupler {key}")
+				logger.info("run native two-qubit RB on coupler %s", key)
 
 			survival_samples: Dict[int, List[float]] = {length: [] for length in lengths}
 			# Total gate count includes forward sequence plus explicit inverse sequence.
@@ -237,7 +240,7 @@ class NativeTwoQubitRBManager:
 					"survival_avg": avg_survival,
 					"fit": fit,
 				}
-			print(f"Coupler {key}: fidelity={results[key]['fit']['fidelity']}")
+			logger.info("Coupler %s: fidelity=%s", key, results[key]['fit']['fidelity'])
 
 			# Cache stores fidelity only to keep payload minimal.
 			self._save_rb_cache(results, chip_name=chip_name)
