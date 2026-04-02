@@ -10,7 +10,7 @@ from .core.readout import mitigate_readout
 from .calibration import ReadoutCalibrationManager, NativeTwoQubitRBManager, NativeTwoQubitTomographyManager
 from .core.types import QAOAResult, QMLResult, QBMResult, ShadowResult, VQEResult, RunResult, CalibrationResult
 from .core.zne import apply_zne_cz_tripling
-from .algorithms.shadow import ShadowTomography
+from .algorithms.shadow import ShadowTomography, estimate_observables, run_shadow_with_backend
 from .algorithms.vqe import (
     VQERunner,
     build_custom_hamiltonian,
@@ -18,10 +18,12 @@ from .algorithms.vqe import (
     build_ising_hamiltonian,
     build_xy_hamiltonian,
     build_xxz_hamiltonian,
+    run_vqe_with_backend,
 )
 from .algorithms.qaoa import (
     QAOARunner,
     build_maxcut_hamiltonian,
+    run_qaoa_with_backend,
 )
 from .algorithms.qml import (
     run_pqc_classifier,
@@ -49,10 +51,14 @@ __all__ = [
     "apply_zne_cz_tripling",
     "ShadowTomography",
     "ShadowResult",
+    "estimate_observables",
+    "run_shadow_with_backend",
     "VQERunner",
     "VQEResult",
+    "run_vqe_with_backend",
     "QAOAResult",
     "QAOARunner",
+    "run_qaoa_with_backend",
     "build_custom_hamiltonian",
     "build_heisenberg_hamiltonian",
     "build_ising_hamiltonian",

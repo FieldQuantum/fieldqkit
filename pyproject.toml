@@ -58,3 +58,4 @@ quantum_hw = ["circuit/include/*.inc"]
 Homepage = "https://github.com/FieldQuantum/Quantum_control"
 Repository = "https://github.com/FieldQuantum/Quantum_control"
 Documentation = "https://github.com/FieldQuantum/Quantum_control/tree/main/docs"
+Issues = "https://github.com/FieldQuantum/Quantum_control/issues"
