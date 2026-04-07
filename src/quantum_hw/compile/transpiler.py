@@ -52,8 +52,8 @@ class Transpiler:
         use_sabre_routing: bool = True,
         use_translate_to_basis: bool = True,
         use_gate_compressor: bool = True,
-        routing_initial_mapping: str = "trivial",
-        routing_random_choice: bool = False,
+        routing_initial_mapping: str = "random",
+        routing_random_choice: bool = True,
         noise_aware: bool | None = None,
         routing_n_trials: int = 1,
     ):
@@ -68,8 +68,8 @@ class Transpiler:
             use_sabre_routing (*bool*): Whether to run SABRE routing for qubit connectivity mapping. Defaults to ``True``.
             use_translate_to_basis (*bool*): Whether to translate gates to the backend's native basis gate set. Defaults to ``True``.
             use_gate_compressor (*bool*): Whether to compress adjacent compatible gates. Defaults to ``True``.
-            routing_initial_mapping (*str*): Initial qubit mapping strategy: ``'trivial'``, ``'random'``, or an explicit list. Defaults to ``'trivial'``.
-            routing_random_choice (*bool*): Whether to randomly select among equally-scored SWAP candidates. Defaults to ``False``.
+            routing_initial_mapping (*str*): Initial qubit mapping strategy: ``'trivial'``, ``'random'``, or an explicit list. Defaults to ``'random'``.
+            routing_random_choice (*bool*): Whether to randomly select among equally-scored SWAP candidates. Defaults to ``True``.
             noise_aware (*bool | None*): Whether to use noise-aware strategies. Defaults to ``None``.
             routing_n_trials (*int*): Number of independent SABRE trials to run, keeping the best result. Defaults to ``1``.
 

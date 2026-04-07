@@ -23,6 +23,7 @@ Files modified from quarkstudio:
   - src/quantum_hw/compile/schedule.py
   - src/quantum_hw/compile/translate.py
   - src/quantum_hw/compile/transpiler.py
+  - src/quantum_hw/api/quantum_platform/quafu.py
 
 MIT License
 
@@ -43,3 +44,54 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+================================================================================
+cqlib
+================================================================================
+
+Copyright (c) China Telecom Quantum Group Quantum Computing Team
+Licensed under the Apache License, Version 2.0
+
+Files modified from cqlib:
+  - src/quantum_hw/api/quantum_platform/cqlib.py
+  - src/quantum_hw/api/quantum_platform/guodun.py
+  - src/quantum_hw/api/quantum_platform/tianyan.py
+  - src/quantum_hw/circuit/qasm_to_qcis.py
+
+                                 Apache License
+                           Version 2.0, January 2004
+                        http://www.apache.org/licenses/
+
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
+
+       http://www.apache.org/licenses/LICENSE-2.0
+
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
+
+================================================================================
+TensorCircuit
+================================================================================
+
+Copyright (c) TensorCircuit Authors
+Licensed under the Apache License, Version 2.0
+
+Files modified from TensorCircuit:
+  - src/quantum_hw/api/quantum_platform/tencent.py
+
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
+
+       http://www.apache.org/licenses/LICENSE-2.0
+
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
