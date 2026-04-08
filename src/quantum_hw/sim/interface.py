@@ -23,6 +23,59 @@ from .statevector import simulate_counts as _simulate_counts_statevector
 
 MPS_THRESHOLD_QUBITS: int = 16
 
+
+def _extract_measurements(qc: QuantumCircuit):
+    """Extract qubit-to-cbit mapping from measure gates in a circuit.
+
+    Args:
+        qc (*QuantumCircuit*): Quantum circuit.
+
+    Returns:
+        Tuple of ``(measured_qubits, measured_cbits, num_cbits)`` or ``None``
+        if the circuit contains no measurement gates.
+    """
+    measured_qubits: list[int] = []
+    measured_cbits: list[int] = []
+    for gate in getattr(qc, "gates", []):
+        if gate[0] == "measure":
+            measured_qubits.extend(gate[1])
+            measured_cbits.extend(gate[2])
+    if not measured_qubits:
+        return None
+    num_cbits = max(measured_cbits) + 1
+    return measured_qubits, measured_cbits, num_cbits
+
+
+def _project_counts_to_cbits(
+    counts: Dict[str, int],
+    measured_qubits: Sequence[int],
+    measured_cbits: Sequence[int],
+    num_cbits: int,
+) -> Dict[str, int]:
+    """Project full-qubit simulator counts to the classical-bit subspace.
+
+    Each qubit in *measured_qubits* is mapped to the corresponding classical
+    bit in *measured_cbits*.  Unmeasured qubits are marginalized out.
+
+    Args:
+        counts (*Dict[str, int]*): Full-qubit counts from the simulator.
+        measured_qubits (*Sequence[int]*): Qubit indices that are measured.
+        measured_cbits (*Sequence[int]*): Classical bit index each qubit maps to.
+        num_cbits (*int*): Width of the output bitstring (``max(cbits) + 1``).
+
+    Returns:
+        Counts dictionary with ``num_cbits``-wide bitstrings.
+    """
+    projected: Dict[str, int] = {}
+    for bitstring, count in counts.items():
+        cbits = [0] * num_cbits
+        for q, c in zip(measured_qubits, measured_cbits):
+            cbits[c] = int(bitstring[q])
+        key = "".join(str(b) for b in cbits)
+        projected[key] = projected.get(key, 0) + count
+    return projected
+
+
 def simulate_counts(
     qc: QuantumCircuit,
     shots: int,
@@ -42,11 +95,14 @@ def simulate_counts(
 
     Returns:
         ``Dict[str, int]`` mapping bitstrings to their occurrence counts.
+        When the circuit contains explicit measure gates with a qubit-to-cbit
+        mapping, the returned bitstrings are projected to the classical-bit
+        subspace (width = ``max(cbit) + 1``).
     """
 
     nqubits = int(getattr(qc, "nqubits", 0) or 0)
     if nqubits > MPS_THRESHOLD_QUBITS:
-        return _simulate_counts_mps(
+        raw = _simulate_counts_mps(
             qc,
             shots,
             seed=seed,
@@ -54,13 +110,18 @@ def simulate_counts(
             device=device,
         )
     else:
-        return _simulate_counts_statevector(
+        raw = _simulate_counts_statevector(
             qc,
             shots,
             seed=seed,
             param_values=param_values,
             device=device,
         )
+
+    meas = _extract_measurements(qc)
+    if meas is not None:
+        return _project_counts_to_cbits(raw, *meas)
+    return raw
 
 
 def expectation_pauli(

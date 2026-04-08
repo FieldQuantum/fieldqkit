@@ -28,6 +28,7 @@ MPO 过程模拟不在该分发层中自动路由，需要显式调用 quantum_h
 - 返回 Dict[str, int]。
 - `device`：torch 设备（`'cpu'` / `'cuda'`），默认 `None`（自动选择）。
 - bitstring 采用大端序（qubit 0 对应字符串最左位）。
+- **测量投影**：当线路包含显式 `measure` 门且指定了 qubit→cbit 映射时，返回的 bitstring 会被投影到经典比特子空间（宽度 = `max(cbit) + 1`）。未测量的 qubit 被 marginalize 掉。若无显式测量门，行为不变（全 qubit 空间）。
 
 ### expectation_pauli(state, pauli, *, num_qubits)
 

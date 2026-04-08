@@ -179,6 +179,12 @@ def _transpile_with_backend(
 | `use_dd` | `bool` | `True` | 是否启用动力学去耦。 |
 | `convert_single_qubit_gate_to_u` | `bool \| None` | `None` | 是否将单比特门转换为 U 门；`None` 时由 Transpiler 自动推断。 |
 
+### `_normalize_input_circuit(circuit, num_qubits, *, observables=None) -> QuantumCircuit`
+
+- 作用：将输入标准化为 `QuantumCircuit`，并根据 `observables` 决定是否保留用户测量门。
+- 当 `observables` 不为空且线路已含 `measure` 门时：发出 warning 并移除已有测量（后续由 observable 基变换重新添加）。
+- 当 `observables` 为空或 `None` 时：保留用户指定的测量门不做修改。
+
 ### `_run_with_backend(...) -> RunResult`
 
 - 作用：在已解析 backend 条件下执行统一流程。
@@ -189,6 +195,7 @@ def _transpile_with_backend(
   - 硬件异步提交或本地模拟
   - 可选 ZNE 与 readout mitigation
   - 统一汇总 `RunResult`
+- **部分测量支持**：当用户线路包含显式 `measure` 门（含 qubit→cbit 映射）且不提供 observables 时，返回的 `samples` 和 `probabilities` 基于经典比特子空间（宽度 = `max(cbit) + 1`），而非全 qubit 空间。
 
 ### `_submit_openqasm_async(...) -> ProviderTaskHandle`
 

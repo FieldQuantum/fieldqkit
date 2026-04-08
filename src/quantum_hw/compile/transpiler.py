@@ -78,7 +78,6 @@ class Transpiler:
 
         Raises:
             TypeError: If *qc* is not a ``QuantumCircuit``.
-            ValueError: If quantum circuit can be divided along the qubits, random initial mapping is restricted.
         """
         if isinstance(qc, QuantumCircuit):
             pass
@@ -114,9 +113,10 @@ class Transpiler:
             )
         if use_sabre_routing and routing_initial_mapping == "random":
             if len(split_qubits(qc)) > 1:
-                raise ValueError(
+                logger.warning(
                     "If quantum circuit can be divided along the qubits, random initial mapping is restricted."
                 )
+                routing_initial_mapping = "trivial"
 
         # Default noise_aware: True when using a real backend, False otherwise.
         # For the built-in Simulator all fidelities are 1.0 so noise-aware

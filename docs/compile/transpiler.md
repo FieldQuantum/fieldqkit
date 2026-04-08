@@ -67,7 +67,7 @@ def run(
 | `use_sabre_routing` | `bool` | `True` | 是否启用 SABRE 路由。关闭时不插入 SWAP。 |
 | `use_translate_to_basis` | `bool` | `True` | 是否将所有门翻译到芯片本征门集。 |
 | `use_gate_compressor` | `bool` | `True` | 是否启用门压缩（对易重排 + 单比特合并 + 两比特对消 + DAG 压缩）。 |
-| `routing_initial_mapping` | `str` | `"random"` | 初始映射策略：`"trivial"`（按顺序映射）或 `"random"`（随机映射）。注意：`"random"` 不支持可沿比特分割的线路（`split_qubits` 返回多组），否则抛出 `ValueError`。 |
+| `routing_initial_mapping` | `str` | `"random"` | 初始映射策略：`"trivial"`（按顺序映射）或 `"random"`（随机映射）。注意：当线路可沿比特分割（`split_qubits` 返回多组）时，`"random"` 会自动降级为 `"trivial"` 并发出 `logger.warning`。 |
 | `routing_random_choice` | `bool` | `True` | SABRE 选择 SWAP 时是否随机（而非确定性贪心选最优）。 |
 | `noise_aware` | `bool \| None` | `None` | 路由时使用 $-\log(f)$ 保真度加权距离；`None` 时自动推断——有真机 backend 时启用，否则关闭。 |
 | `routing_n_trials` | `int` | `1` | SABRE 多随机初始映射试验次数。>1 时，第一次用指定策略，后续用 `"random"`，取 SWAP 数最少的结果。 |
@@ -76,7 +76,6 @@ def run(
 
 **异常：**
 - `TypeError`：`qc` 类型不是 `QuantumCircuit`。
-- `ValueError`：`routing_initial_mapping="random"` 且线路可沿比特分割。
 
 ---
 

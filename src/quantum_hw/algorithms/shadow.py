@@ -365,8 +365,10 @@ class ShadowTomography:
         use_dd = provider_name not in {"tianyan", "guodun", "tencent"}
         convert_single_qubit_gate_to_u = provider_name not in {"tencent"}
         logger.info("read hardware information and select provider=%s", provider_name)
-        # Normalize input circuit and strip measurements if present.
-        qc = self.client._normalize_input_circuit(circuit, num_qubits)
+        if not observables:
+            raise ValueError("shadow tomography requires at least one observable")
+        # Shadow always uses observables; pass them to strip any user measurements.
+        qc = self.client._normalize_input_circuit(circuit, num_qubits, observables=observables)
 
         runtime = create_provider_runtime(provider=provider_name, client=self.client)
         profiles = runtime.backend_adapter.discover_hardware(

@@ -40,7 +40,7 @@ run(
 | `provider` | `str` | `"quafu"` | 否 | 平台名，支持 `quafu/tianyan/guodun/tencent`，或指定 `"Simulator"`。 |
 | `shots` | `int` | `8192` | 否 | 总采样预算。实际会被按 batch 分配。 |
 | `shots_per_basis` | `int` | `1` | 否 | 每个随机测量基的 shots。batch 数量为 `ceil(shots / shots_per_basis)`。 |
-| `observables` | `Optional[Sequence[str] \| str]` | `None` | 否 | 待估计的 Pauli 字符串；可传单个字符串。 |
+| `observables` | `Sequence[str] \| str` | - | 是 | 待估计的 Pauli 字符串；可传单个字符串。至少提供一个 observable，否则抛出 `ValueError`。 |
 | `zne` | `bool` | `False` | 否 | 是否启用 ZNE（会同时运行基线与 3x 噪声缩放数据）。 |
 | `estimator` | `str` | `"mean"` | 否 | 估计器：`"mean"` 或 `"mom"`（median-of-means）。 |
 | `mom_groups` | `Optional[int]` | `None` | 否 | `estimator="mom"` 时分组数；为空则使用 `max(1, int(sqrt(nshots)))`。 |
@@ -101,6 +101,7 @@ run_shadow_with_backend(
 ## 异常与报错
 
 - `ValueError`
+  - `observables` 为空或 `None`（shadow tomography 必须提供至少一个 observable）。
   - `estimator` 不是 `"mean"` 或 `"mom"`。
   - `estimate_observables(...)` 输入维度不合法（例如样本不是二维数组）。
 - `RuntimeError`
@@ -138,7 +139,7 @@ print(result.num_samples)
 
 - `shots_per_basis` 越大，随机基数量越少；统计方差与测量基覆盖会相互权衡。
 - `estimator="mom"` 对重尾噪声更稳健，但在样本量较小时方差可能变大。
-- 当 `observables=None` 时，依旧会执行 shadow 采样，但估计结果字典为空。
+- `observables` 为必填参数；传入 `None` 或空列表会抛出 `ValueError`。
 - ZNE 路径下，文档中“raw”字段均对应 1x 噪声数据，最终字段为线性外推结果。
 - 当 `prefer_chips="Simulator"` 时，底层测量仍通过统一仿真接口执行（详见 sim interface 文档）。
 

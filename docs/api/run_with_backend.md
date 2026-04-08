@@ -74,10 +74,12 @@ _run_with_backend(
 ## 执行流程
 
 1. 标准化 `observables`，并预计算每个 observable 的 support。
+   - 输入线路通过 `_normalize_input_circuit` 处理：仅当提供了 `observables` 且线路已含测量门时才移除已有测量（并发出 warning），否则保留用户测量。
 2. 按是否可共测分组（`merge_groups=True` 时调用 `group_observables`）。
 3. 预编译一次基线路（可选），每组仅追加基变换和测量。
-4. `chip_name="Simulator"` 时直接本地 `simulate_counts`。
+4. `chip_name="Simulator"` 时直接本地 `simulate_counts`（若线路含显式 `measure` 门，simulator 会自动投影到 cbit 子空间）。
 5. 硬件模式下逐组异步提交任务，随后统一轮询与取结果。
+   - 结果解析时从 counts key 推断 bit 宽度（支持部分测量投影场景）。
 6. 若启用 ZNE，额外执行 scale=3 线路并线性外推。
 7. 若启用 readout mitigation，调用 `ReadoutCalibrationManager` 获取 confusion matrix 并做概率/observable 缓解。
 8. 汇总并返回 `RunResult`。

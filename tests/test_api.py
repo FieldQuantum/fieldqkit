@@ -1295,3 +1295,221 @@ def test_run_auto_request_contains_provider_options(monkeypatch):
     assert run_seen["kwargs"]["transpile"] is True
     assert run_seen["kwargs"]["submit_options"]["max_wait_time"] == 12
     assert run_seen["kwargs"]["submit_options"]["sleep_time"] == 9
+
+
+# ═══════════════════════════════════════════════════════════
+#  _normalize_input_circuit measurement handling
+# ═══════════════════════════════════════════════════════════
+
+
+class TestNormalizeMeasurements:
+    """Verify _normalize_input_circuit preserves or strips measurements
+    depending on whether observables are provided."""
+
+    def _make_client(self):
+        return QuantumHardwareClient()
+
+    # -- observables + measurements → warn and strip --
+
+    def test_measurements_stripped_when_observables_provided(self):
+        client = self._make_client()
+        qc = QuantumCircuit(3)
+        qc.h(0)
+        qc.cx(0, 1)
+        qc.cx(1, 2)
+        qc.measure_all()
+        assert client._has_measurements(qc)
+
+        result = client._normalize_input_circuit(qc, 3, observables=["Z0", "X1"])
+        assert not client._has_measurements(result)
+
+    def test_warning_emitted_when_observables_conflict(self, caplog):
+        import logging
+        client = self._make_client()
+        qc = QuantumCircuit(2)
+        qc.h(0)
+        qc.cx(0, 1)
+        qc.measure_all()
+
+        with caplog.at_level(logging.WARNING):
+            client._normalize_input_circuit(qc, 2, observables=["Z0"])
+        assert any("conflict" in r.message.lower() for r in caplog.records)
+
+    # -- no observables + measurements → preserve --
+
+    def test_measurements_preserved_when_no_observables(self):
+        client = self._make_client()
+        qc = QuantumCircuit(3)
+        qc.h(0)
+        qc.cx(0, 1)
+        qc.cx(1, 2)
+        qc.measure_all()
+
+        result = client._normalize_input_circuit(qc, 3, observables=None)
+        assert client._has_measurements(result)
+
+    def test_measurements_preserved_when_observables_empty_list(self):
+        client = self._make_client()
+        qc = QuantumCircuit(2)
+        qc.h(0)
+        qc.cx(0, 1)
+        qc.measure([0, 1], [0, 1])
+
+        result = client._normalize_input_circuit(qc, 2, observables=[])
+        assert client._has_measurements(result)
+
+    # -- no measurements + no observables → nothing to strip --
+
+    def test_no_measurements_and_no_observables(self):
+        client = self._make_client()
+        qc = QuantumCircuit(2)
+        qc.h(0)
+        qc.cx(0, 1)
+
+        result = client._normalize_input_circuit(qc, 2, observables=None)
+        assert not client._has_measurements(result)
+
+    # -- partial measurements with scrambled cbit order, no observables --
+
+    def test_partial_measure_scrambled_cbits_preserved(self):
+        """Circuit measures only qubits 0 and 2 (out of 4), mapping them
+        to classical bits in a non-trivial order (cbit 1 ← qubit 0,
+        cbit 0 ← qubit 2).  Without observables the measure gate must
+        be kept exactly as the user specified."""
+        client = self._make_client()
+        qc = QuantumCircuit(4)
+        qc.h(0)
+        qc.cx(0, 1)
+        qc.cx(1, 2)
+        qc.cx(2, 3)
+        # Scrambled cbit mapping: qubit 0 → cbit 1, qubit 2 → cbit 0
+        qc.measure([0, 2], [1, 0])
+
+        result = client._normalize_input_circuit(qc, 4, observables=None)
+        # Measurement must survive
+        assert client._has_measurements(result)
+        # Find the measure gate and verify qubit/cbit mapping unchanged
+        measure_gates = [g for g in result.gates if g[0] == "measure"]
+        assert len(measure_gates) == 1
+        gate_name, qubits, cbits = measure_gates[0]
+        assert qubits == [0, 2], f"measured qubits changed: {qubits}"
+        assert cbits == [1, 0], f"cbit mapping changed: {cbits}"
+
+    def test_partial_measure_scrambled_cbits_stripped_with_observables(self):
+        """Same scrambled partial measurement but WITH observables —
+        the user-specified measure must be stripped."""
+        client = self._make_client()
+        qc = QuantumCircuit(4)
+        qc.h(0)
+        qc.cx(0, 1)
+        qc.cx(1, 2)
+        qc.cx(2, 3)
+        qc.measure([0, 2], [1, 0])
+
+        result = client._normalize_input_circuit(qc, 4, observables=["Z0 Z2"])
+        assert not client._has_measurements(result)
+
+    # -- run_auto integration: qc forwarded to _run_with_backend keeps measurements --
+
+    def test_run_auto_preserves_user_measurements_no_observables(self):
+        """Run a partial-measurement circuit through the real simulator path
+        (chip_name='simulator', transpile=False) and verify the results.
+
+        Circuit: H(0)→CX(0,1) produces (|000⟩+|110⟩)/√2.
+        User adds measure([0, 2], [1, 0]) — partial and scrambled:
+            qubit 0 → cbit 1, qubit 2 → cbit 0.
+        Without observables the pipeline must keep the user measure gates,
+        project simulator counts to the 2-cbit subspace, and return
+        2-bit samples with the scrambled cbit ordering.
+
+        Expected outcomes (cbit order [c0, c1]):
+            |000⟩ → c0=q2=0, c1=q0=0 → [0, 0]
+            |110⟩ → c0=q2=0, c1=q0=1 → [0, 1]
+        """
+        client = QuantumHardwareClient()
+        qc = QuantumCircuit(3)
+        qc.h(0)
+        qc.cx(0, 1)
+        # Partial measure with scrambled cbit order: qubit 0→cbit 1, qubit 2→cbit 0
+        qc.measure([0, 2], [1, 0])
+
+        # Normalize — measurements must survive without observables
+        qc_norm = client._normalize_input_circuit(qc, 3, observables=None)
+        assert client._has_measurements(qc_norm)
+        measure_gates = [g for g in qc_norm.gates if g[0] == "measure"]
+        assert measure_gates[0][1] == [0, 2]
+        assert measure_gates[0][2] == [1, 0]
+
+        # Run through the real _run_with_backend using the simulator
+        result = client._run_with_backend(
+            qc_norm,
+            name="sim_partial_meas",
+            num_qubits=3,
+            backend=Backend("simulator"),
+            chip_name="simulator",
+            shots=2048,
+            transpile=False,
+            observables=None,
+            return_probabilities=True,
+            print_true=False,
+        )
+
+        # Samples should be 2-bit (only 2 cbits from the partial measure).
+        assert result.samples is not None and len(result.samples) == 1
+        samples = result.samples[0]  # list of [c0, c1] rows
+        assert len(samples[0]) == 2, f"expected 2-bit samples, got {len(samples[0])}-bit"
+
+        unique_rows = {tuple(row) for row in samples}
+        # |000⟩ → [0, 0], |110⟩ → [0, 1]  (qubit 2 is always 0 → c0 always 0)
+        assert unique_rows <= {(0, 0), (0, 1)}, f"unexpected outcomes: {unique_rows}"
+
+        # Probabilities over 2 cbits → length 4 (2**2)
+        probs = result.probabilities[0]
+        assert len(probs) == 4, f"expected 4 probabilities, got {len(probs)}"
+        # P("00")≈0.5, P("01")≈0.5, the rest zero
+        assert probs[0] > 0.3   # P(c0c1=00) ≈ 0.5
+        assert probs[1] > 0.3   # P(c0c1=01) ≈ 0.5
+        assert probs[2] + probs[3] < 1e-9  # no outcomes with c0=1
+
+    def test_run_auto_strips_measurements_with_observables(self, monkeypatch):
+        backend_adapter = _FakeBackendAdapter(provider="quafu")
+        task_adapter = _FakeTaskAdapter()
+        _install_runtime_mocks(monkeypatch, backend_adapter=backend_adapter, task_adapter=task_adapter)
+        run_seen = _install_run_with_backend_mock(monkeypatch)
+
+        client = QuantumHardwareClient()
+        qc = QuantumCircuit(2)
+        qc.h(0)
+        qc.cx(0, 1)
+        qc.measure_all()
+
+        client.run_auto(
+            circuit=qc,
+            name="strip_meas",
+            num_qubits=2,
+            provider="quafu",
+            observables=["Z0"],
+            print_true=False,
+        )
+
+        forwarded_qc = run_seen["qc"]
+        assert not QuantumHardwareClient._has_measurements(forwarded_qc)
+
+    def test_empty_circuit_with_z_observable_expectation_is_one(self):
+        """Empty circuit (|000⟩ state) with ZZZ observable should yield expectation 1.0."""
+        client = QuantumHardwareClient()
+        qc = QuantumCircuit(3)
+        # No gates — state is |000⟩
+
+        result = client._run_with_backend(
+            qc,
+            name="empty_zzz",
+            num_qubits=3,
+            backend=Backend("simulator"),
+            chip_name="simulator",
+            shots=1024,
+            observables=["ZZZ"],
+            transpile=False,
+        )
+
+        assert result.observable_values["ZZZ"] == pytest.approx(1.0)

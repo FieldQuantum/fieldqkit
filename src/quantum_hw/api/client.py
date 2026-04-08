@@ -86,27 +86,23 @@ class QuantumHardwareClient:
 		"""
 		return any(gate[0] == "measure" for gate in getattr(qc, "gates", []))
 
-	@staticmethod
-	def _infer_circuit_qubits(qc: QuantumCircuit) -> int:
-		"""Return the number of qubits required by the circuit.
-
-		Args:
-			qc (*QuantumCircuit*): Quantum circuit.
-
-		Returns:
-			Total qubit count (``max(qubits) + 1``).
-		"""
-		qubits = getattr(qc, "qubits", None) or []
-		if qubits:
-			return max(qubits) + 1
-		return int(getattr(qc, "nqubits", 0) or 0)
-
-	def _normalize_input_circuit(self, circuit: Union[str, QuantumCircuit], num_qubits: int) -> QuantumCircuit:
+	def _normalize_input_circuit(
+		self,
+		circuit: Union[str, QuantumCircuit],
+		num_qubits: int,
+		observables: Optional[Sequence[str]] = None,
+	) -> QuantumCircuit:
 		"""Convert input into a QuantumCircuit and sanitize measurements.
+
+		When *observables* are provided and the circuit already contains
+		measurements, a warning is emitted and the existing measurements are
+		removed so that the correct measurement bases can be appended later.
+		When no observables are given, existing measurements are preserved.
 
 		Args:
 			circuit (*Union[str, QuantumCircuit]*): Quantum circuit to execute.
 			num_qubits (*int*): Number of qubits.
+			observables (*Optional[Sequence[str]]*): Observable operators. Defaults to ``None``.
 
 		Returns:
 			Constructed ``QuantumCircuit``.
@@ -122,10 +118,17 @@ class QuantumHardwareClient:
 			qc = QuantumCircuit().from_openqasm3(openqasm3_str=circuit)
 		else:
 			qc = self.build_circuit(circuit, num_qubits=num_qubits)
-		# Measurements are appended later based on basis/targets.
+		has_obs = observables is not None and len(observables) > 0
 		if self._has_measurements(qc):
-			qc.remove_gate("measure")
-		qc_qubits = self._infer_circuit_qubits(qc)
+			if has_obs:
+				logger.warning(
+					"Circuit contains measurement gates that conflict with the "
+					"provided observables. The existing measurements will be "
+					"removed and replaced by the observable-derived bases."
+				)
+				qc.remove_gate("measure")
+			# else: keep user-specified measurements as-is
+		qc_qubits = int(getattr(qc, "nqubits", 0) or 0)
 		if qc_qubits and qc_qubits != num_qubits:
 			raise ValueError("num_qubits mismatch with QuantumCircuit")
 		if qc_qubits == 0 and num_qubits > 0:
@@ -320,8 +323,13 @@ class QuantumHardwareClient:
 		compiled_qc: QuantumCircuit,
 		original_qc: QuantumCircuit,
 		num_qubits: int,
-	) -> Optional[List[int]]:
-		"""Recover measurement qubit order from transpiler layout mapping when available.
+	) -> List[int]:
+		"""Recover measurement qubit order from transpiler layout mapping.
+
+		Uses ``compiled_qc.logical_to_physical`` when available.  If the
+		layout is missing (e.g. ``use_sabre_routing=False``), falls back to
+		``compiled_qc.qubits`` (physical qubit list from Layout), then to
+		``range(num_qubits)``.
 
 		Args:
 			compiled_qc (*QuantumCircuit*): Transpiled circuit with physical qubit layout applied.
@@ -329,26 +337,29 @@ class QuantumHardwareClient:
 			num_qubits (*int*): Number of qubits.
 
 		Returns:
-			Ordered list of physical qubit indices, or ``None`` if layout is unavailable.
+			Ordered list of physical qubit indices (never ``None``).
 		"""
 		layout = getattr(compiled_qc, "logical_to_physical", None)
-		if not isinstance(layout, dict) or not layout:
-			return None
+		if isinstance(layout, dict) and layout:
+			logical_qubits = original_qc.qubits
+			if not logical_qubits:
+				logical_qubits = list(range(num_qubits))
 
-		logical_qubits = original_qc.qubits
-		if not logical_qubits:
-			logical_qubits = list(range(num_qubits))
+			ordered: List[int] = []
+			for lq in logical_qubits:
+				pq = layout.get(lq)
+				if not isinstance(pq, int):
+					break
+				ordered.append(pq)
+			else:
+				if len(set(ordered)) == len(ordered):
+					return ordered
 
-		ordered: List[int] = []
-		for lq in logical_qubits:
-			pq = layout.get(lq)
-			if not isinstance(pq, int):
-				return None
-			ordered.append(pq)
-
-		if len(set(ordered)) != len(ordered):
-			return None
-		return ordered
+		# Fallback: use transpiled circuit's qubit list (Layout order).
+		used = list(getattr(compiled_qc, "qubits", None) or [])
+		if used and len(used) >= num_qubits:
+			return used[:num_qubits]
+		return list(range(num_qubits))
 
 	@staticmethod
 	def _default_qasm_version_for_provider(provider: str) -> str:
@@ -623,19 +634,22 @@ class QuantumHardwareClient:
 
 		for gi, meta in enumerate(group_meta):
 			counts_1 = group_counts[gi]["1"]
-			samples_1 = get_samples(counts_1, num_qubits)
+			# Infer bit width from counts (handles partial-measurement projection).
+			_sample_key = next(iter(counts_1), "")
+			_num_bits = len(_sample_key) if _sample_key else num_qubits
+			samples_1 = get_samples(counts_1, _num_bits)
 			samples_list.append(samples_1.tolist())
 			if zne:
 				counts_3 = group_counts[gi]["3"]
-				samples_3 = get_samples(counts_3, num_qubits)
+				samples_3 = get_samples(counts_3, _num_bits)
 				samples_zne_list.append(samples_3.tolist())
 
 			if return_probabilities:
-				probs_1 = get_probabilities_from_samples(samples_1, num_qubits)
+				probs_1 = get_probabilities_from_samples(samples_1, _num_bits)
 				probabilities_raw_list.append(probs_1.tolist())
 				probabilities_list.append(probs_1.tolist())
 				if zne:
-					probs_3 = get_probabilities_from_samples(samples_3, num_qubits)
+					probs_3 = get_probabilities_from_samples(samples_3, _num_bits)
 					probs_zne = zne_linear_extrapolate(probs_1, probs_3)
 					probs_zne = np.clip(probs_zne, 0.0, 1.0)
 					s = probs_zne.sum()
@@ -742,8 +756,8 @@ class QuantumHardwareClient:
 		Returns:
 			``RunResult`` containing counts, expectations, and metadata.
 		"""
-		# Normalize input circuit and strip measurements if present.
-		qc = self._normalize_input_circuit(circuit, num_qubits)
+		# Normalize input circuit; strip measurements only when observables conflict.
+		qc = self._normalize_input_circuit(circuit, num_qubits, observables=observables)
 		provider = str(provider).lower()
 		qasm_version = self._default_qasm_version_for_provider(provider)
 		use_dd = provider not in {"tianyan", "guodun", "tencent"}
