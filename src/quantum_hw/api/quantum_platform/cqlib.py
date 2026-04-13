@@ -84,8 +84,7 @@ def _assign_parameters(
             new_circuit.append(circuit)
     return new_circuit
 
-TIANYAN_HARDWARE_NAMES = {"tianyan176", "tianyan176-2", "tianyan24", "tianyan504", "tianyan287"}
-GUODUN_HARDWARE_NAMES = {"gd_qc1", "chmy176", "gd_sim1"}
+from ..backend import TIANYAN_HARDWARE_NAMES, GUODUN_HARDWARE_NAMES
 
 
 class QuantumLanguage(Enum):

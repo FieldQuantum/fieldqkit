@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 
 import numpy as np
 
-from ..api.backend import Backend
+from ..api.backend import Backend, resolve_provider
 from ..api.quantum_platform import create_provider_runtime
 from ..circuit import QuantumCircuit
 from ..core.types import QAOAResult
@@ -169,6 +169,7 @@ def run_qaoa_with_backend(
     qasm_version: str = "2.0",
     use_dd: bool = True,
     convert_single_qubit_gate_to_u: bool = True,
+    transpile: bool = True,
 ) -> QAOAResult:
     """Run QAOA optimization on a specific backend.
 
@@ -205,6 +206,9 @@ def run_qaoa_with_backend(
         use_dd: Enable dynamical decoupling.
         convert_single_qubit_gate_to_u: Whether to convert single-qubit gates
             to ``U`` during transpilation.
+        transpile: Whether to transpile the circuit for hardware on the client
+            side.  When ``False`` the symbolic template is used as-is and no
+            layout mapping is performed.  Defaults to ``True``.
 
     Returns:
         ``QAOAResult`` with best cost, parameters, and optimisation history.
@@ -234,19 +238,23 @@ def run_qaoa_with_backend(
         if str(chip_name).lower() != "simulator":
             raise ValueError("autograd mode is only supported on Simulator backend")
     else:
-        transpiled_template = client._transpile_with_backend(
-            symbolic_qc,
-            backend,
-            target_qubits=target_qubits,
-            use_dd=use_dd,
-            use_gate_compressor=False,
-            convert_single_qubit_gate_to_u=convert_single_qubit_gate_to_u,
-        )
-        target_qubits_in_use = client._ordered_target_qubits_from_layout(
-            compiled_qc=transpiled_template,
-            original_qc=symbolic_qc,
-            num_qubits=num_qubits,
-        )
+        if transpile:
+            transpiled_template = client._transpile_with_backend(
+                symbolic_qc,
+                backend,
+                target_qubits=target_qubits,
+                use_dd=use_dd,
+                use_gate_compressor=False,
+                convert_single_qubit_gate_to_u=convert_single_qubit_gate_to_u,
+            )
+            target_qubits_in_use = client._ordered_target_qubits_from_layout(
+                compiled_qc=transpiled_template,
+                original_qc=symbolic_qc,
+                num_qubits=num_qubits,
+            )
+        else:
+            transpiled_template = symbolic_qc
+            target_qubits_in_use = list(target_qubits) if target_qubits is not None else list(range(num_qubits))
 
     # Clifford fitting
     clifford_fit_map: Optional[CliffordFitMap] = None
@@ -353,6 +361,7 @@ class QAOARunner:
     gradient_method: Literal["parameter-shift", "autograd"] = "parameter-shift"
     max_wait_time: int = 3600
     sleep_time: int = 5
+    transpile_on_client: bool = True
 
     def run_model(
         self,
@@ -390,7 +399,7 @@ class QAOARunner:
         )
         hamiltonian = build_maxcut_hamiltonian(edges, num_qubits)
 
-        provider_name = str(provider).lower()
+        provider_name = resolve_provider(provider, prefer_chips)
         qasm_version = self.client._default_qasm_version_for_provider(provider_name)
         use_dd = provider_name not in {"tianyan", "guodun", "tencent"}
         convert_single_qubit_gate_to_u = provider_name not in {"tencent"}
@@ -448,6 +457,7 @@ class QAOARunner:
                     qasm_version=qasm_version,
                     use_dd=use_dd,
                     convert_single_qubit_gate_to_u=convert_single_qubit_gate_to_u,
+                    transpile=bool(self.transpile_on_client),
                 )
             except Exception as exc:
                 last_error = exc

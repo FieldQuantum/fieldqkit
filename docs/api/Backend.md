@@ -277,12 +277,39 @@ class BackendAdapter(ABC):
 - 支持：`quafu/tianyan/guodun/tencent`。
 - 注意：这是 `quantum_hw.api.backend` 模块级函数，与 `BackendAdapter.list_available_hardware()` 实例方法不同。
 
+### `infer_provider_from_chip(chip_name) -> Optional[str]`
+
+- 作用：根据芯片名推断对应的 provider。内部查找全局芯片注册表（不区分大小写）。
+- 返回：provider 名称字符串，未知芯片返回 `None`。
+
+### `resolve_provider(provider, prefer_chips=None) -> str`
+
+- 作用：若 `prefer_chips` 中包含已知芯片，返回该芯片推断出的 provider；否则回退到调用方提供的 provider。
+- 典型场景：`run_with_backend` 硬件主路径自动根据芯片名解析 provider。
+
+## 模块级常量（芯片注册表）
+
+| 常量 | 包含值 |
+|---|---|
+| `QUAFU_HARDWARE_NAMES` | Baihua, Dongling, Haituo, Yunmeng, Miaofeng, Yudu, Hongluo |
+| `TIANYAN_HARDWARE_NAMES` | tianyan176, tianyan176-2, tianyan24, tianyan504, tianyan287 |
+| `GUODUN_HARDWARE_NAMES` | gd_qc1, chmy176, gd_sim1 |
+| `CQLIB_HARDWARE_NAMES` | TIANYAN + GUODUN |
+| `TENCENT_HARDWARE_NAMES` | tianji_s2, tianji_m2, tianxuan_s2 |
+| `SIMULATOR_HARDWARE_NAMES` | Simulator, simulator |
+
+这些集合是芯片名 → provider 映射的唯一数据源，`cqlib.py` 等子模块统一从 `backend.py` 导入。
+
+## `SimulatorBackendAdapter`
+
+轻量级本地模拟器后端适配器，不需要 API 凭证。实现 `BackendAdapter` 接口，`create_provider_runtime(provider="simulator")` 会返回此适配器。
+
 ## 常见报错
 
 - `ValueError("Wrong chip name! ...")`
-- `ValueError("provider must be one of: 'quafu', 'tianyan', 'guodun', or 'tencent'")`
+- `ValueError("provider must be one of: 'quafu', 'tianyan', 'guodun', 'tencent', or 'simulator'")`
 - `RuntimeError("no available chips satisfy num_qubits requirement")`
-
+- `RuntimeError("Cannot infer provider for chip ...")`
 ## 示例
 
 ```python

@@ -3,7 +3,12 @@
 Provides supervised classification via ``run_pqc_classifier``: train a PQC to
 map encoded quantum states to class labels.
 
-``run_pqc_classifier`` supports both **autograd** (simulator, torch) and
+``run_qnn_unsupervised`` trains a QNN to reproduce an unlabelled distribution.
+
+``run_qnn_conditional`` trains a QNN to learn the conditional probability
+``P(y|x)`` between input bit-strings *x* and output bit-strings *y*.
+
+All three routines support both **autograd** (simulator, torch) and
 **parameter-shift** (hardware backend) gradient methods, mirroring the VQE
 dual-path design.
 
@@ -38,6 +43,7 @@ from .optimizer_utils import (
     evaluate_energy_with_backend,
     instantiate_transpiled_template,
 )
+from ..compile.optimize import GateCompressor
 from .qml_encoding import (
     angle_encoding_circuit_symbolic,
     iqp_encoding_circuit_symbolic,
@@ -235,10 +241,13 @@ def _get_z_backend(client, template, param_names, features_list, theta,
     Returns:
         ``List[List[float]]`` of shape ``(n_samples, n_observables)``.
     """
+    convert_flag = backend_kwargs.get("convert_single_qubit_gate_to_u", True)
+    _compressor = GateCompressor(convert_single_qubit_gate_to_u=convert_flag)
     results: List[List[float]] = []
     for si, feat in enumerate(features_list):
         all_vals = np.concatenate([feat, theta])
         qc_bound = instantiate_transpiled_template(template, param_names, all_vals)
+        qc_bound = _compressor.run(qc_bound)
         _, exps = evaluate_energy_with_backend(
             client, qc_bound, name=f"{name_prefix}_s{si}",
             hamiltonian=z_hamiltonian, **backend_kwargs,
@@ -798,6 +807,8 @@ def run_qnn_unsupervised(
         )
         logger.info("transpiled ONCE, target_qubits=%s", target_qubits_in_use)
 
+        _unsup_compressor = GateCompressor(convert_single_qubit_gate_to_u=convert_single_qubit_gate_to_u)
+
         def _run_and_get_samples(qc_bound, name, n_shots=None):
             """Submit bound circuit and return (N, n_qubits) sample array.
 
@@ -809,6 +820,7 @@ def run_qnn_unsupervised(
             Returns:
                 ``np.ndarray`` of shape ``(N, n_qubits)`` with ``int64`` measurement samples.
             """
+            qc_bound = _unsup_compressor.run(qc_bound)
             kw = backend_kwargs if n_shots is None else {**backend_kwargs, "shots": n_shots}
             res = client._run_with_backend(
                 qc_bound, name, observables=[], transpile=False, **kw,
@@ -933,6 +945,336 @@ def run_qnn_unsupervised(
 
     generated_list = generated.tolist()
     logger.info("done. best_loss=%.6f, generated %d samples", best_loss, len(generated_list))
+
+    return QBMResult(
+        best_loss=best_loss,
+        best_params=best_params.tolist(),
+        loss_history=loss_history,
+        test_loss_history=test_loss_history if test_loss_history else None,
+        params_history=params_history,
+        generated_samples=generated_list,
+    )
+
+
+# ---------------------------------------------------------------------------
+# 3. Conditional QNN — learn P(y|x) from (input, output) bit-string pairs
+# ---------------------------------------------------------------------------
+
+def run_qnn_conditional(
+    num_qubits: int,
+    train_pairs: Sequence[Tuple[Sequence[int], Sequence[int]]],
+    *,
+    test_pairs: Optional[Sequence[Tuple[Sequence[int], Sequence[int]]]] = None,
+    layers: int = 2,
+    max_iters: int = 100,
+    learning_rate: float = 0.01,
+    seed: Optional[int] = None,
+    callback: Optional[Callable[[int, float], None]] = None,
+    gradient_method: str = "autograd",
+    # --- parameter-shift / hardware params ---
+    client=None,
+    backend=None,
+    chip_name: str = "",
+    shots: int = 4096,
+    shift: float = np.pi / 2,
+    zne: bool = False,
+    readout_mitigation: bool = False,
+    target_qubits: Optional[Sequence[int]] = None,
+    qasm_version: str = "2.0",
+    convert_single_qubit_gate_to_u: bool = True,
+    # --- MMD params (parameter-shift only) ---
+    mmd_sigma: float = 1.0,
+    # --- generation ---
+    gen_shots: int = 1024,
+) -> QBMResult:
+    """Train a QNN to learn the conditional distribution P(y|x).
+
+    Given pairs ``(x, y)`` where *x* is an input bit-string and *y* is an
+    output bit-string, the initial state is prepared as the computational
+    basis state ``|x⟩`` (by applying X gates on qubits where ``xᵢ = 1``),
+    then a parameterized ansatz ``U(θ)`` is applied.  The circuit is trained
+    so that measuring ``U(θ)|x⟩`` reproduces ``P(y|x)``.
+
+    **autograd** path (simulator): Negative log-likelihood loss.
+        For each training pair ``(x, y)`` the circuit ``Prep(x) · U(θ)`` is
+        simulated; the loss is ``-1/N Σ log P(yᵢ | xᵢ; θ)``.
+
+    **parameter-shift** path (hardware): Maximum Mean Discrepancy (MMD) loss.
+        For each input *x* the circuit is run on hardware; the generated
+        samples are compared against the corresponding target outputs via MMD².
+
+    Args:
+        num_qubits: Number of qubits.
+        train_pairs: List of ``(input_bits, output_bits)`` pairs.  Each element
+            is a sequence of 0/1 integers of length ``num_qubits``.
+        test_pairs: Optional validation pairs.
+        layers: Number of ansatz layers.
+        max_iters: Training iterations.
+        learning_rate: Adam learning rate.
+        seed: Optional random seed.
+        callback: ``(iter, loss)`` callback.
+        gradient_method: ``"autograd"`` or ``"parameter-shift"``.
+        client: ``QuantumHardwareClient`` instance (parameter-shift only).
+        backend: Target backend (parameter-shift only).
+        chip_name: Target chip identifier (parameter-shift only).
+        shots: Measurement shots (parameter-shift only).
+        shift: Parameter-shift magnitude (parameter-shift only).
+        zne: Enable zero-noise extrapolation (parameter-shift only).
+        readout_mitigation: Enable readout mitigation (parameter-shift only).
+        target_qubits: Physical qubit mapping (parameter-shift only).
+        qasm_version: OpenQASM serialisation version (parameter-shift only).
+        convert_single_qubit_gate_to_u: Whether to convert single-qubit gates
+            to ``U`` during transpilation.
+        mmd_sigma: RBF kernel bandwidth for MMD (parameter-shift only).
+        gen_shots: Number of shots for sample generation at the end.
+
+    Returns:
+        ``QBMResult`` with loss history and generated samples.  The
+        ``generated_samples`` field contains samples conditioned on the
+        **first** training input.
+
+    Raises:
+        ValueError: If *gradient_method* is invalid or parameter-shift mode
+            lacks *client*/*backend*.
+    """
+    method = gradient_method.lower()
+    if method not in ("autograd", "parameter-shift"):
+        raise ValueError(f"gradient_method must be 'autograd' or 'parameter-shift', got {method!r}")
+    if method == "parameter-shift" and (client is None or backend is None):
+        raise ValueError("parameter-shift requires client and backend")
+
+    train_x = [np.asarray(x, dtype=np.int64) for x, _ in train_pairs]
+    train_y = [np.asarray(y, dtype=np.int64) for _, y in train_pairs]
+    n_train = len(train_pairs)
+
+    if method == "autograd":
+        import torch
+        from ..sim.statevector import (
+            build_state_from_symbolic as _build_state,
+            sample_probabilities as _sample_probs_sv,
+        )
+        if seed is not None:
+            torch.manual_seed(int(seed))
+
+    rng = np.random.default_rng(seed)
+    if seed is not None:
+        np.random.seed(int(seed))
+
+    has_test = test_pairs is not None and len(test_pairs) > 0
+    if has_test:
+        test_x = [np.asarray(x, dtype=np.int64) for x, _ in test_pairs]
+        test_y = [np.asarray(y, dtype=np.int64) for _, y in test_pairs]
+        n_test = len(test_pairs)
+    else:
+        test_x, test_y, n_test = [], [], 0
+
+    # ---- Build ansatz (only variational part is symbolic) ----
+    ansatz_qc, ansatz_param_names = _build_ansatz_symbolic(num_qubits, layers)
+    num_ansatz_params = len(ansatz_param_names)
+    params = rng.uniform(-np.pi, np.pi, size=num_ansatz_params)
+
+    def _build_basis_prep(bits: np.ndarray) -> QuantumCircuit:
+        """Build a circuit that prepares |bits⟩ from |0...0⟩ via X gates."""
+        qc = QuantumCircuit(num_qubits)
+        for q in range(num_qubits):
+            if int(bits[q]):
+                qc.x(q)
+        return qc
+
+    # Transpile ansatz once (prep X gates are added per-sample before running)
+    if method == "parameter-shift":
+        transpiled_ansatz = client._transpile_with_backend(
+            ansatz_qc, backend, target_qubits=target_qubits,
+            use_dd=False, use_gate_compressor=False,
+            convert_single_qubit_gate_to_u=convert_single_qubit_gate_to_u,
+        )
+        target_qubits_in_use = client._ordered_target_qubits_from_layout(
+            compiled_qc=transpiled_ansatz,
+            original_qc=ansatz_qc,
+            num_qubits=num_qubits,
+        )
+        backend_kwargs = dict(
+            num_qubits=num_qubits, backend=backend, chip_name=chip_name,
+            shots=shots, zne=zne, readout_mitigation=readout_mitigation,
+            target_qubits=target_qubits_in_use, qasm_version=qasm_version,
+            convert_single_qubit_gate_to_u=convert_single_qubit_gate_to_u,
+        )
+        logger.info("transpiled ONCE (conditional ansatz), target_qubits=%s", target_qubits_in_use)
+
+        _cond_compressor = GateCompressor(convert_single_qubit_gate_to_u=convert_single_qubit_gate_to_u)
+
+        def _run_and_get_samples(qc_bound, name, n_shots=None):
+            qc_bound = _cond_compressor.run(qc_bound)
+            kw = backend_kwargs if n_shots is None else {**backend_kwargs, "shots": n_shots}
+            res = client._run_with_backend(
+                qc_bound, name, observables=[], transpile=False, **kw,
+            )
+            return np.asarray(res.samples[0], dtype=np.int64)
+
+    # ---- Training pair arrays ----
+    train_y_arr = np.array(train_y, dtype=np.int64)
+
+    def _nll_for_pairs(x_list, y_list, theta_vals, no_grad=False):
+        """Compute NLL loss over (x, y) pairs via simulator.
+
+        For each pair, composes Prep(x) + Ansatz(θ) and computes P(y).
+        """
+        if no_grad:
+            params_t = torch.tensor(theta_vals, dtype=torch.float64)
+            ctx = torch.no_grad()
+        else:
+            params_t = torch.tensor(theta_vals, dtype=torch.float64, requires_grad=True)
+            ctx = _nullctx()
+
+        with ctx:
+            loss_t = torch.zeros((), dtype=torch.float64)
+            for xi, yi in zip(x_list, y_list):
+                prep_qc = _build_basis_prep(xi)
+                full_qc = _compose_circuits(prep_qc, ansatz_qc)
+                state = _build_state(full_qc, params=params_t, param_names=ansatz_param_names)
+                yi_2d = torch.tensor(yi, dtype=torch.int64).unsqueeze(0)
+                prob = _sample_probs_sv(state, yi_2d.numpy())
+                loss_t = loss_t - torch.log(prob[0] + 1e-10)
+            loss_t = loss_t / len(x_list)
+
+        if no_grad:
+            return float(loss_t.cpu().item()), None
+        else:
+            loss_t.backward()
+            return float(loss_t.detach().cpu().item()), params_t.grad.detach().cpu().numpy().astype(float, copy=True)
+
+    def _mmd_for_pairs(x_list, y_list, theta_vals, name_prefix):
+        """Compute average MMD² loss over (x, y) pairs via hardware.
+
+        For each pair, composes Prep(x) + instantiated Ansatz(θ).
+        """
+        total_mmd = 0.0
+        for si, (xi, yi) in enumerate(zip(x_list, y_list)):
+            prep_qc = _build_basis_prep(xi)
+            qc_ansatz_bound = instantiate_transpiled_template(
+                transpiled_ansatz, ansatz_param_names, theta_vals,
+            )
+            qc_bound = _compose_circuits(prep_qc, qc_ansatz_bound)
+            gen_arr = _run_and_get_samples(qc_bound, f"{name_prefix}_s{si}")
+            target_arr = yi.reshape(1, -1) if yi.ndim == 1 else yi
+            total_mmd += _mmd_rbf(target_arr, gen_arr, sigma=mmd_sigma)
+        return total_mmd / len(x_list)
+
+    # Dummy context manager for autograd path
+    class _nullctx:
+        def __enter__(self):
+            return self
+        def __exit__(self, *args):
+            pass
+
+    loss_history: List[float] = []
+    test_loss_history: List[float] = []
+    params_history: List[List[float]] = []
+    best_loss = float("inf")
+    best_params = params.copy()
+
+    # Adam state
+    m = np.zeros(num_ansatz_params, dtype=np.float64)
+    v = np.zeros(num_ansatz_params, dtype=np.float64)
+    beta1, beta2, adam_eps = 0.9, 0.999, 1e-8
+    lr = learning_rate
+
+    logger.info(
+        "start conditional: %dq, %d ansatz params, "
+        "%d train pairs, %d iters, gradient=%s",
+        num_qubits, num_ansatz_params,
+        n_train, max_iters, method,
+    )
+
+    for it in range(max_iters):
+        # ---- autograd: NLL loss ----
+        if method == "autograd":
+            loss_val, grads = _nll_for_pairs(
+                train_x, train_y, params,
+            )
+
+        # ---- parameter-shift: MMD loss ----
+        else:
+            loss_val = _mmd_for_pairs(
+                train_x, train_y, params,
+                name_prefix=f"cond_iter{it}",
+            )
+
+            # Gradient via parameter-shift on MMD
+            grads = np.zeros(num_ansatz_params, dtype=np.float64)
+            for i in range(num_ansatz_params):
+                params_plus = params.copy()
+                params_minus = params.copy()
+                params_plus[i] += shift
+                params_minus[i] -= shift
+
+                mmd_p = _mmd_for_pairs(
+                    train_x, train_y, params_plus,
+                    name_prefix=f"cond_iter{it}_g{i}p",
+                )
+                mmd_m = _mmd_for_pairs(
+                    train_x, train_y, params_minus,
+                    name_prefix=f"cond_iter{it}_g{i}m",
+                )
+                grads[i] = (mmd_p - mmd_m) / (2.0 * shift)
+
+        # ---- Adam update ----
+        params, m, v = adam_update(
+            params, grads, m, v, it + 1,
+            lr=lr, beta1=beta1, beta2=beta2, eps=adam_eps,
+        )
+
+        loss_history.append(loss_val)
+        params_history.append(params.tolist())
+
+        # ---- Test loss ----
+        test_loss_val = None
+        if has_test:
+            if method == "autograd":
+                test_loss_val, _ = _nll_for_pairs(
+                    test_x, test_y, params,
+                    no_grad=True,
+                )
+            else:
+                test_loss_val = _mmd_for_pairs(
+                    test_x, test_y, params,
+                    name_prefix=f"cond_iter{it}_test",
+                )
+            test_loss_history.append(test_loss_val)
+
+        # ---- Best model selection ----
+        selection_loss = test_loss_val if test_loss_val is not None else loss_val
+        if selection_loss < best_loss:
+            best_loss = selection_loss
+            best_params = params.copy()
+
+        if it % max(1, max_iters // 10) == 0:
+            msg = f"[qnn-conditional] iter {it} loss={loss_val:.6f}"
+            if test_loss_val is not None:
+                msg += f" test_loss={test_loss_val:.6f}"
+            logger.info("%s", msg)
+        if callback is not None:
+            callback(it, loss_val)
+
+    # ---- Generate samples conditioned on first training input ----
+    x0 = train_x[0]
+    prep_qc_gen = _build_basis_prep(x0)
+    if method == "autograd":
+        full_gen_qc = _compose_circuits(prep_qc_gen, ansatz_qc)
+        param_values = {name: float(val) for name, val in zip(ansatz_param_names, best_params)}
+        generated = _simulate_samples(full_gen_qc, gen_shots, param_values, seed)
+    else:
+        qc_ansatz_bound = instantiate_transpiled_template(
+            transpiled_ansatz, ansatz_param_names, best_params,
+        )
+        qc_gen = _compose_circuits(prep_qc_gen, qc_ansatz_bound)
+        generated = _run_and_get_samples(qc_gen, "cond_gen", n_shots=gen_shots)
+
+    generated_list = generated.tolist()
+    logger.info(
+        "conditional done. best_loss=%.6f, generated %d samples",
+        best_loss, len(generated_list),
+    )
 
     return QBMResult(
         best_loss=best_loss,

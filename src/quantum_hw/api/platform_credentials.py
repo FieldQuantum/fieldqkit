@@ -2,8 +2,12 @@
 
 Credentials are resolved in the following order (first match wins):
 
-1. **Configuration file** ``.quantum_hw.yaml`` in the project root
-   (copy from ``.quantum_hw.example.yaml`` and fill in your tokens).
+1. **Configuration file** ``.quantum_hw.yaml`` discovered from common roots:
+
+    - current working directory and its ancestors
+    - package installation directory and its ancestors
+
+    (copy from ``.quantum_hw.example.yaml`` and fill in your tokens).
 2. **Environment variables**:
 
    - ``QUAFU_API_TOKEN``   – 夸父量子云 (https://quafu-sqc.baqis.ac.cn/)
@@ -32,6 +36,39 @@ _CONFIG_FILENAME = ".quantum_hw.yaml"
 _cached_config: Optional[Dict[str, Any]] = None
 
 
+def _iter_config_candidates() -> list[Path]:
+    """Return de-duplicated config file candidates ordered by priority."""
+    seen: set[Path] = set()
+    candidates: list[Path] = []
+
+    # Optional explicit override for power users.
+    env_path = os.getenv("QUANTUM_HW_CONFIG")
+    if env_path:
+        explicit_path = Path(env_path).expanduser()
+        if not explicit_path.is_absolute():
+            explicit_path = Path.cwd() / explicit_path
+        explicit_path = explicit_path.resolve()
+        seen.add(explicit_path)
+        candidates.append(explicit_path)
+
+    module_file = Path(__file__).resolve()
+    search_starts = [
+        Path.cwd(),
+        module_file.parent,       # .../quantum_hw/api
+        module_file.parents[1],   # .../quantum_hw
+    ]
+
+    for start in search_starts:
+        for directory in (start, *start.parents):
+            path = (directory / _CONFIG_FILENAME).resolve()
+            if path in seen:
+                continue
+            seen.add(path)
+            candidates.append(path)
+
+    return candidates
+
+
 def _load_config(*, force: bool = False) -> Dict[str, Any]:
     """Load and cache the project-local config file.
 
@@ -47,17 +84,19 @@ def _load_config(*, force: bool = False) -> Dict[str, Any]:
         _cached_config = {}
         return _cached_config
 
-    path = Path.cwd() / _CONFIG_FILENAME
-    if path.is_file():
-        try:
-            with open(path, encoding="utf-8") as fh:
-                data = yaml.safe_load(fh)
-            if isinstance(data, dict):
-                logger.debug("Loaded credentials config from %s", path)
-                _cached_config = data
-                return _cached_config
-        except Exception as exc:  # noqa: BLE001
-            logger.warning("Failed to parse config %s: %s", path, exc)
+    # Search current/workspace roots first, then package-install roots.
+    for path in _iter_config_candidates():
+        if path.is_file():
+            try:
+                with open(path, encoding="utf-8") as fh:
+                    data = yaml.safe_load(fh)
+                if isinstance(data, dict):
+                    logger.debug("Loaded credentials config from %s", path)
+                    _cached_config = data
+                    return _cached_config
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("Failed to parse config %s: %s", path, exc)
+                continue
 
     _cached_config = {}
     return _cached_config

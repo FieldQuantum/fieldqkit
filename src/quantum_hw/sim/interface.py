@@ -22,6 +22,55 @@ from .statevector import simulate_counts as _simulate_counts_statevector
 
 
 MPS_THRESHOLD_QUBITS: int = 16
+_UNSET = object()  # sentinel for dynamic default resolution
+
+
+def get_sim_config() -> dict:
+    """Return the current simulator configuration.
+
+    Returns:
+        ``dict`` with keys ``'mps_threshold_qubits'`` and ``'max_bond_dim'``.
+    """
+    from . import mps as _mps_mod
+
+    return {
+        "mps_threshold_qubits": MPS_THRESHOLD_QUBITS,
+        "max_bond_dim": _mps_mod.MAX_BOND_DIM,
+    }
+
+
+def set_sim_config(
+    *,
+    mps_threshold_qubits: int | None = None,
+    max_bond_dim: int | None = ...,
+) -> None:
+    """Update simulator hyper-parameters at runtime.
+
+    Args:
+        mps_threshold_qubits (*int | None*): Qubit count above which MPS is
+            used instead of statevector.  ``None`` leaves the value unchanged.
+        max_bond_dim (*int | None*): Maximum MPS bond dimension.  ``None``
+            means no truncation.  The sentinel ``...`` (default) leaves the
+            value unchanged.
+
+    Example::
+
+        from quantum_hw.sim import set_sim_config
+        set_sim_config(mps_threshold_qubits=20, max_bond_dim=512)
+    """
+    global MPS_THRESHOLD_QUBITS
+    from . import mps as _mps_mod
+
+    if mps_threshold_qubits is not None:
+        if not isinstance(mps_threshold_qubits, int) or mps_threshold_qubits < 1:
+            raise ValueError("mps_threshold_qubits must be a positive integer")
+        MPS_THRESHOLD_QUBITS = mps_threshold_qubits
+
+    if max_bond_dim is not ...:
+        if max_bond_dim is not None:
+            if not isinstance(max_bond_dim, int) or max_bond_dim < 1:
+                raise ValueError("max_bond_dim must be a positive integer or None")
+        _mps_mod.MAX_BOND_DIM = max_bond_dim
 
 
 def _extract_measurements(qc: QuantumCircuit):
@@ -82,6 +131,7 @@ def simulate_counts(
     *,
     seed: Optional[int] = None,
     param_values: Dict[str, object] | None = None,
+    max_bond_dim: int | None | object = _UNSET,
     device: torch.device | str | None = None,
 ) -> Dict[str, int]:
     """Simulate counts with threshold-based backend selection.
@@ -91,6 +141,7 @@ def simulate_counts(
         shots (*int*): Number of measurement shots.
         seed (*Optional[int]*): Random seed for reproducibility. Defaults to ``None``.
         param_values (*Dict[str, object] | None*): Parameter name to value mapping. Defaults to ``None``.
+        max_bond_dim (*int | None*): Maximum MPS bond dimension (MPS backend only). ``None`` means no truncation. Defaults to current ``mps.MAX_BOND_DIM``.
         device (*torch.device | str | None*): Torch device (``'cpu'`` or ``'cuda'``). Defaults to ``None``.
 
     Returns:
@@ -99,6 +150,9 @@ def simulate_counts(
         mapping, the returned bitstrings are projected to the classical-bit
         subspace (width = ``max(cbit) + 1``).
     """
+    from . import mps as _mps_mod
+    if max_bond_dim is _UNSET:
+        max_bond_dim = _mps_mod.MAX_BOND_DIM
 
     nqubits = int(getattr(qc, "nqubits", 0) or 0)
     if nqubits > MPS_THRESHOLD_QUBITS:
@@ -107,6 +161,7 @@ def simulate_counts(
             shots,
             seed=seed,
             param_values=param_values,
+            max_bond_dim=max_bond_dim,
             device=device,
         )
     else:
@@ -172,6 +227,7 @@ def energy_and_expectations(
     params,
     param_names,
     hamiltonian,
+    max_bond_dim: int | None | object = _UNSET,
     device: torch.device | str | None = None,
 ):
     """Evaluate Hamiltonian energy via threshold-based backend selection.
@@ -181,11 +237,16 @@ def energy_and_expectations(
         params (*torch.Tensor*): 1-D tensor of variational parameter values.
         param_names (*List[str]*): Names of variational parameters, matching ``params`` element-wise.
         hamiltonian (*List[Tuple[float, str]]*): Target Hamiltonian as coefficient–Pauli-string pairs.
+        max_bond_dim (*int | None*): Maximum MPS bond dimension (MPS backend only). ``None`` means no truncation. Defaults to current ``mps.MAX_BOND_DIM``.
         device (*torch.device | str | None*): Torch device (``'cpu'`` or ``'cuda'``). Defaults to ``None``.
 
     Returns:
         ``(energy, expectations)`` tuple from the selected backend.
     """
+    from . import mps as _mps_mod
+    if max_bond_dim is _UNSET:
+        max_bond_dim = _mps_mod.MAX_BOND_DIM
+
     nqubits = int(getattr(symbolic_qc, "nqubits", 0) or 0)
     if nqubits > MPS_THRESHOLD_QUBITS:
         return _energy_and_expectations_mps(
@@ -193,6 +254,7 @@ def energy_and_expectations(
             params=params,
             param_names=param_names,
             hamiltonian=hamiltonian,
+            max_bond_dim=max_bond_dim,
             device=device,
         )
     return _energy_and_expectations_statevector(

@@ -19,6 +19,7 @@ logger = logging.getLogger(__name__)
 
 from ..api.backend import Backend
 from ..circuit import QuantumCircuit
+from ..compile.optimize import GateCompressor
 
 Hamiltonian = List[Tuple[float, str]]
 CliffordFitMap = Dict[str, Tuple[float, float]]
@@ -576,6 +577,7 @@ def parameter_shift_gradient(
     if param_template is None or param_names is None:
         raise ValueError("parameter_shift_gradient requires param_template and param_names")
 
+    _gate_compressor = GateCompressor(convert_single_qubit_gate_to_u=convert_single_qubit_gate_to_u)
     grads = np.zeros_like(params, dtype=float)
     for i in range(params.size):
         params_plus = params.copy()
@@ -588,6 +590,8 @@ def parameter_shift_gradient(
         if circuit_transform is not None:
             qc_plus = circuit_transform(qc_plus, i)
             qc_minus = circuit_transform(qc_minus, i)
+        qc_plus = _gate_compressor.run(qc_plus)
+        qc_minus = _gate_compressor.run(qc_minus)
         e_plus, _ = evaluate_energy_with_backend(
             client,
             qc_plus,
@@ -768,6 +772,8 @@ def run_variational_loop(
     m = np.zeros_like(params, dtype=float)
     v = np.zeros_like(params, dtype=float)
 
+    _gate_compressor = GateCompressor(convert_single_qubit_gate_to_u=convert_single_qubit_gate_to_u)
+
     info = f"params={len(param_names)} iters={max_iters} shots={shots} gradient={method}"
     if extra_info:
         info = f"{extra_info} {info}"
@@ -793,6 +799,7 @@ def run_variational_loop(
             )
             if circuit_transform is not None:
                 qc = circuit_transform(qc, None)
+            qc = _gate_compressor.run(qc)
             cost, expectations = evaluate_energy_with_backend(
                 client,
                 qc,

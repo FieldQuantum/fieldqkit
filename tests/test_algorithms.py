@@ -23,7 +23,12 @@ from quantum_hw.algorithms.qml_encoding import (
     iqp_encoding_circuit,
     iqp_encoding_circuit_symbolic,
 )
-from quantum_hw.algorithms.qml import run_pqc_classifier
+from quantum_hw.algorithms.qml import (
+    run_pqc_classifier,
+    run_qnn_conditional,
+    run_qnn_unsupervised,
+)
+from quantum_hw.algorithms.qml_runner import QMLRunner
 from quantum_hw.algorithms.circuit_compression import (
     compress_circuit_with_hybrid_objective,
     plan_hybrid_suffix_blocks,
@@ -379,3 +384,267 @@ def test_compress_circuit_accepts_warm_start_shape():
     )
 
     assert params_out.shape[0] == param_count
+
+
+# ═══════════════════════════════════════════════════════════
+#  QNN unsupervised
+# ═══════════════════════════════════════════════════════════
+
+
+class TestQNNUnsupervisedErrors:
+    def test_bad_gradient_method(self):
+        with pytest.raises(ValueError, match="gradient_method"):
+            run_qnn_unsupervised(
+                num_qubits=2,
+                train_samples=np.array([[0, 1], [1, 0]]),
+                gradient_method="invalid",
+                max_iters=1,
+            )
+
+    def test_parameter_shift_requires_backend(self):
+        with pytest.raises(ValueError, match="parameter-shift requires"):
+            run_qnn_unsupervised(
+                num_qubits=2,
+                train_samples=np.array([[0, 1]]),
+                gradient_method="parameter-shift",
+                max_iters=1,
+            )
+
+
+class TestQNNUnsupervisedAutograd:
+    def test_basic_training_returns_qbm_result(self):
+        train = np.array([[0, 0], [0, 1], [1, 0], [1, 1]])
+        result = run_qnn_unsupervised(
+            num_qubits=2,
+            train_samples=train,
+            layers=1,
+            max_iters=3,
+            learning_rate=0.05,
+            seed=42,
+            gradient_method="autograd",
+            gen_shots=64,
+        )
+        assert len(result.loss_history) == 3
+        assert np.isfinite(result.best_loss)
+        assert len(result.best_params) > 0
+        assert result.generated_samples is not None
+        assert len(result.generated_samples) == 64
+
+    def test_with_test_samples(self):
+        train = np.array([[0, 0], [1, 1]])
+        test = np.array([[0, 1], [1, 0]])
+        result = run_qnn_unsupervised(
+            num_qubits=2,
+            train_samples=train,
+            test_samples=test,
+            layers=1,
+            max_iters=2,
+            seed=7,
+            gradient_method="autograd",
+            gen_shots=32,
+        )
+        assert result.test_loss_history is not None
+        assert len(result.test_loss_history) == 2
+
+    def test_loss_decreases_over_iterations(self):
+        # A simple distribution — all-zeros should be easy to learn
+        train = np.zeros((10, 2), dtype=int)
+        result = run_qnn_unsupervised(
+            num_qubits=2,
+            train_samples=train,
+            layers=2,
+            max_iters=30,
+            learning_rate=0.1,
+            seed=123,
+            gradient_method="autograd",
+            gen_shots=32,
+        )
+        # Best loss should be lower than initial loss
+        assert result.best_loss <= result.loss_history[0] + 1e-6
+
+    def test_generated_samples_are_binary(self):
+        train = np.array([[0, 1], [1, 0]])
+        result = run_qnn_unsupervised(
+            num_qubits=2,
+            train_samples=train,
+            layers=1,
+            max_iters=2,
+            seed=0,
+            gradient_method="autograd",
+            gen_shots=16,
+        )
+        samples = np.array(result.generated_samples)
+        assert samples.shape == (16, 2)
+        assert set(samples.flatten()).issubset({0, 1})
+
+
+# ═══════════════════════════════════════════════════════════
+#  QNN conditional
+# ═══════════════════════════════════════════════════════════
+
+
+class TestQNNConditionalErrors:
+    def test_bad_gradient_method(self):
+        with pytest.raises(ValueError, match="gradient_method"):
+            run_qnn_conditional(
+                num_qubits=2,
+                train_pairs=[([0, 1], [1, 0])],
+                gradient_method="invalid",
+                max_iters=1,
+            )
+
+    def test_parameter_shift_requires_backend(self):
+        with pytest.raises(ValueError, match="parameter-shift requires"):
+            run_qnn_conditional(
+                num_qubits=2,
+                train_pairs=[([0, 1], [1, 0])],
+                gradient_method="parameter-shift",
+                max_iters=1,
+            )
+
+
+class TestQNNConditionalAutograd:
+    def test_basic_training_returns_qbm_result(self):
+        pairs = [
+            ([0, 0], [1, 1]),
+            ([1, 0], [0, 1]),
+            ([0, 1], [1, 0]),
+        ]
+        result = run_qnn_conditional(
+            num_qubits=2,
+            train_pairs=pairs,
+            layers=1,
+            max_iters=3,
+            learning_rate=0.05,
+            seed=42,
+            gradient_method="autograd",
+            gen_shots=64,
+        )
+        assert len(result.loss_history) == 3
+        assert np.isfinite(result.best_loss)
+        assert len(result.best_params) > 0
+        assert result.generated_samples is not None
+        assert len(result.generated_samples) == 64
+
+    def test_with_test_pairs(self):
+        train = [([0, 0], [1, 1]), ([1, 1], [0, 0])]
+        test = [([0, 1], [1, 0])]
+        result = run_qnn_conditional(
+            num_qubits=2,
+            train_pairs=train,
+            test_pairs=test,
+            layers=1,
+            max_iters=2,
+            seed=7,
+            gradient_method="autograd",
+            gen_shots=32,
+        )
+        assert result.test_loss_history is not None
+        assert len(result.test_loss_history) == 2
+
+    def test_different_inputs_give_different_loss(self):
+        """Verify the model sees different inputs (basis prep matters)."""
+        # Identity mapping: x -> x
+        pairs_identity = [([0, 0], [0, 0]), ([1, 1], [1, 1])]
+        # Flip mapping: x -> NOT(x)
+        pairs_flip = [([0, 0], [1, 1]), ([1, 1], [0, 0])]
+        r1 = run_qnn_conditional(
+            num_qubits=2, train_pairs=pairs_identity,
+            layers=1, max_iters=5, seed=42,
+            gradient_method="autograd", gen_shots=8,
+        )
+        r2 = run_qnn_conditional(
+            num_qubits=2, train_pairs=pairs_flip,
+            layers=1, max_iters=5, seed=42,
+            gradient_method="autograd", gen_shots=8,
+        )
+        # With the same seed and different data, losses should differ
+        assert r1.loss_history != r2.loss_history
+
+    def test_generated_samples_are_binary(self):
+        pairs = [([0, 0], [0, 0]), ([1, 1], [1, 1])]
+        result = run_qnn_conditional(
+            num_qubits=2,
+            train_pairs=pairs,
+            layers=1,
+            max_iters=2,
+            seed=0,
+            gradient_method="autograd",
+            gen_shots=16,
+        )
+        samples = np.array(result.generated_samples)
+        assert samples.shape == (16, 2)
+        assert set(samples.flatten()).issubset({0, 1})
+
+    def test_loss_is_finite_across_iterations(self):
+        pairs = [([0, 1], [1, 0])] * 4
+        result = run_qnn_conditional(
+            num_qubits=2,
+            train_pairs=pairs,
+            layers=1,
+            max_iters=5,
+            seed=99,
+            gradient_method="autograd",
+            gen_shots=8,
+        )
+        for loss in result.loss_history:
+            assert np.isfinite(loss)
+
+    def test_callback_invoked(self):
+        calls = []
+        pairs = [([0, 0], [1, 1])]
+        run_qnn_conditional(
+            num_qubits=2,
+            train_pairs=pairs,
+            layers=1,
+            max_iters=3,
+            seed=0,
+            gradient_method="autograd",
+            gen_shots=8,
+            callback=lambda it, loss: calls.append((it, loss)),
+        )
+        assert len(calls) == 3
+        assert all(isinstance(l, float) for _, l in calls)
+
+
+# ═══════════════════════════════════════════════════════════
+#  QMLRunner (import & construction only — hardware not mocked)
+# ═══════════════════════════════════════════════════════════
+
+
+class TestQMLRunnerConstruction:
+    def test_default_construction(self):
+        runner = QMLRunner(client=object())
+        assert runner.layers == 2
+        assert runner.shots == 4096
+        assert runner.max_iters == 100
+        assert runner.gradient_method == "parameter-shift"
+        assert runner.gen_shots == 1024
+        assert runner.mmd_sigma == 1.0
+
+    def test_custom_parameters(self):
+        runner = QMLRunner(
+            client=object(),
+            layers=3,
+            shots=2048,
+            max_iters=50,
+            learning_rate=0.1,
+            seed=42,
+            gradient_method="autograd",
+            gen_shots=512,
+            mmd_sigma=2.0,
+        )
+        assert runner.layers == 3
+        assert runner.shots == 2048
+        assert runner.max_iters == 50
+        assert runner.learning_rate == 0.1
+        assert runner.seed == 42
+        assert runner.gradient_method == "autograd"
+        assert runner.gen_shots == 512
+        assert runner.mmd_sigma == 2.0
+
+    def test_has_all_public_methods(self):
+        runner = QMLRunner(client=object())
+        assert callable(getattr(runner, "run_classifier", None))
+        assert callable(getattr(runner, "run_unsupervised", None))
+        assert callable(getattr(runner, "run_conditional", None))

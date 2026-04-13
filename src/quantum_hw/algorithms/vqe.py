@@ -10,7 +10,7 @@ from typing import Callable, Dict, List, Literal, Optional, Sequence, Tuple
 logger = logging.getLogger(__name__)
 
 import numpy as np
-from ..api.backend import Backend
+from ..api.backend import Backend, resolve_provider
 from ..api.quantum_platform import create_provider_runtime
 
 from ..circuit import QuantumCircuit
@@ -353,6 +353,7 @@ def run_vqe_with_backend(
     qasm_version: str = "2.0",
     use_dd: bool = True,
     convert_single_qubit_gate_to_u: bool = True,
+    transpile: bool = True,
 ) -> VQEResult:
     """Run VQE optimization on a specific backend.
 
@@ -409,6 +410,9 @@ def run_vqe_with_backend(
         use_dd: Enable dynamical decoupling.
         convert_single_qubit_gate_to_u: Whether to convert single-qubit gates
             to ``U`` during transpilation.
+        transpile: Whether to transpile the circuit for hardware on the client
+            side.  When ``False`` the symbolic template is used as-is and no
+            layout mapping is performed.  Defaults to ``True``.
 
     Returns:
         ``VQEResult`` with best energy, parameters, and full history.
@@ -477,20 +481,25 @@ def run_vqe_with_backend(
             torch.manual_seed(int(seed))
     else:
         if not enable_circuit_compression:
-            transpiled_template = client._transpile_with_backend(
-                symbolic_qc,
-                backend,
-                target_qubits=target_qubits,
-                use_dd=use_dd,
-                use_gate_compressor=False,
-                convert_single_qubit_gate_to_u=convert_single_qubit_gate_to_u,
-            )
-            gradient_param_template = transpiled_template
-            target_qubits_in_use = client._ordered_target_qubits_from_layout(
-                compiled_qc=transpiled_template,
-                original_qc=symbolic_qc,
-                num_qubits=num_qubits,
-            )
+            if transpile:
+                transpiled_template = client._transpile_with_backend(
+                    symbolic_qc,
+                    backend,
+                    target_qubits=target_qubits,
+                    use_dd=use_dd,
+                    use_gate_compressor=False,
+                    convert_single_qubit_gate_to_u=convert_single_qubit_gate_to_u,
+                )
+                gradient_param_template = transpiled_template
+                target_qubits_in_use = client._ordered_target_qubits_from_layout(
+                    compiled_qc=transpiled_template,
+                    original_qc=symbolic_qc,
+                    num_qubits=num_qubits,
+                )
+            else:
+                transpiled_template = symbolic_qc
+                gradient_param_template = symbolic_qc
+                target_qubits_in_use = list(target_qubits) if target_qubits is not None else list(range(num_qubits))
         else:
             gradient_param_template = symbolic_qc
             from .circuit_compression import build_compression_transform as _build_compression_transform
@@ -512,6 +521,7 @@ def run_vqe_with_backend(
                 compression_plot_loss=compression_plot_loss,
                 tag="vqe",
                 convert_single_qubit_gate_to_u=convert_single_qubit_gate_to_u,
+                transpile=transpile,
             )
             circuit_transform_fn = comp_ctx["transform"]
             compressed_transpiled_template = comp_ctx["compressed_transpiled_template"]
@@ -635,6 +645,7 @@ class VQERunner:
     compression_plot_loss: bool = False
     max_wait_time: int = 3600
     sleep_time: int = 5
+    transpile_on_client: bool = True
 
     def run_model(
         self,
@@ -696,7 +707,7 @@ class VQERunner:
         else:
             raise ValueError(f"unsupported model: {model}")
 
-        provider_name = str(provider).lower()
+        provider_name = resolve_provider(provider, prefer_chips)
         qasm_version = self.client._default_qasm_version_for_provider(provider_name)
         use_dd = provider_name not in {"tianyan", "guodun", "tencent"}
         convert_single_qubit_gate_to_u = provider_name not in {"tencent"}
@@ -763,6 +774,7 @@ class VQERunner:
                     qasm_version=qasm_version,
                     use_dd=use_dd,
                     convert_single_qubit_gate_to_u=convert_single_qubit_gate_to_u,
+                    transpile=bool(self.transpile_on_client),
                 )
             except Exception as exc:
                 last_error = exc

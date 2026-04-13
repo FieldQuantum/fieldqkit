@@ -252,6 +252,31 @@ print(f"Generated {len(result.generated_samples)} samples")
 - [simulator interface — sample_probabilities](../sim/interface.md)
 - [statevector simulator](../sim/statevector.md)
 - [mps simulator](../sim/mps.md)
-- [QML 分类教程](../../examples/demo_qml.ipynb)
-- [QML Iris 教程](../../examples/demo_qml_iris.ipynb)
+- [QML 分类教程](../../examples/demo_qml_iris.ipynb)
+- [QNN BAS 教程](../../examples/demo_qnn_bas.ipynb)
 - [QNN 无监督教程](../../examples/demo_qnn_unsupervised.ipynb)
+
+---
+
+## 3. 条件 QNN — `run_qnn_conditional`
+
+### 功能
+
+训练一个参数化量子线路学习条件分布 $P(y|x)$，其中 $x$ 为输入 bit-string，$y$ 为输出 bit-string。
+
+支持 **autograd**（NLL 损失）和 **parameter-shift**（MMD 损失）两种梯度路径，与 `run_qnn_unsupervised` 框架一致。
+
+---
+
+## 4. 高层入口 — `QMLRunner`
+
+模块：`quantum_hw.algorithms.qml_runner`
+
+`QMLRunner` 是 QML 任务的高层封装，类似 `VQERunner` / `QAOARunner` 的设计：自动解析 provider → backend → chip，然后委托底层 `run_pqc_classifier` / `run_qnn_unsupervised` / `run_qnn_conditional`。
+
+```python
+from quantum_hw.algorithms.qml_runner import QMLRunner
+
+runner = QMLRunner(client=client, layers=2, max_iters=100)
+result = runner.run_classifier(train_data=train, test_data=test, num_qubits=4)
+```

@@ -99,6 +99,18 @@ class Transpiler:
             self.two_qubit_gate_basis = "cx"
             self.convert_single_qubit_gate_to_u = False
         else:
+            # Auto-resize simulator backend when the circuit needs more qubits.
+            if getattr(self.chip_backend, 'chip_name', '') in ('Simulator',):
+                nq_circuit = max(len(qc.qubits), max(qc.qubits) + 1 if qc.qubits else 0)
+                nq_target = max(target_qubits) + 1 if target_qubits else 0
+                nq_needed = max(nq_circuit, nq_target)
+                sim_nqubits = int(
+                    self.chip_backend.chip_info.get("global_info", {}).get("nqubits_available", 0) or 0
+                )
+                if nq_needed > sim_nqubits:
+                    from ..api.backend import _build_simulator_chip_info
+                    self.chip_backend = Backend(_build_simulator_chip_info(nqubits=nq_needed))
+
             # Use the backend's basis and topology-aware layout selection.
             self.two_qubit_gate_basis = self.chip_backend.two_qubit_gate_basis
             self.convert_single_qubit_gate_to_u = True if self._convert_single_qubit_gate_to_u_override is None else self._convert_single_qubit_gate_to_u_override
@@ -151,7 +163,7 @@ class Transpiler:
                 )
             )
         if use_gate_compressor:
-            passes.append(GateCompressor())
+            passes.append(GateCompressor(convert_single_qubit_gate_to_u=self.convert_single_qubit_gate_to_u))
         if use_dd:
             try:
                 # Append dynamical decoupling using backend gate lengths.

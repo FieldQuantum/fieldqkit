@@ -101,17 +101,32 @@ compress_circuit_with_hybrid_objective(
 ```
 
 - 作用：把 `qc_bound` 拟合为浅层硬件高效线路。
+- 内部先将 `qc_bound` 模拟为 MPS 或 MPO 目标态，然后委托给 `compile_tn_1d` 执行优化。
 - 目标模式：
-	- `objective_mode="mps"`：仅计算状态 infidelity。
-	- `objective_mode="mpo"`：仅计算过程 infidelity。
-- 初始化策略：内部创建 3 组候选初始参数（1 组来自 `warm_start_params`，2 组随机），按 MPS infidelity 选取最优种子。
-- 优化器：Adam，两阶段：
-	1. 主优化：全 lr，`optimizer_steps` 步。
-	2. Refine（仅当 `best_loss > init_loss * 0.995` 时触发）：lr × 0.2，`max(4, ceil(optimizer_steps * 0.5))` 步。
-- 返回：
-	- `compressed_qc`：压缩后线路。
-	- `best_params`：可用于下一次 warm start 的参数。
-	- `summary`：包含 `objective_mode/objective_infidelity/init_loss/best_loss/loss_delta/loss_history`。
+	- `objective_mode="mps"`：状态 infidelity。
+	- `objective_mode="mpo"`：过程 infidelity。
+
+### `compile_tn_1d`
+
+```python
+compile_tn_1d(
+		target_tn,
+		*,
+		num_qubits: int,
+		approx_layers: int,
+		optimizer_steps: int,
+		optimizer_lr: float,
+		objective_mode: Literal["mps", "mpo"] = "mps",
+		bond_cap: int,
+		warm_start_params: Optional[np.ndarray],
+		device: torch.device | str | None = None,
+) -> Tuple[QuantumCircuit, np.ndarray, Dict[str, object]]
+```
+
+- 作用：核心张量网络优化器，接收已有的 MPS/MPO 张量目标，用浅层 HEA 逼近。
+- 优化器：Adam，两阶段（主优化 + 可选 refine）。
+- 初始化策略：3 组候选初始参数（1 组 warm start + 2 组随机），按 fidelity 选最优种子。
+- `compress_circuit_with_hybrid_objective` 是对此函数的上层包装。
 
 ### `build_compression_transform`
 

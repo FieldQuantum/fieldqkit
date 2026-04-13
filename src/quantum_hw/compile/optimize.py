@@ -30,10 +30,15 @@ _NON_REORDERABLE = frozenset({'barrier', 'measure', 'reset', 'delay'})
 class GateCompressor(TranspilerPass):
     """A transpiler pass that merges or compresses adjacent gates in a quantum circuit."""
 
-    def __init__(self):
+    def __init__(self, convert_single_qubit_gate_to_u: bool = True):
         """Initialize the gate compressor with the set of compressible gates and internal counters.
+
+        Args:
+            convert_single_qubit_gate_to_u (*bool*): Whether merged single-qubit runs may use ``u`` gates.
+                When ``False``, merged results are decomposed into ``rz``/``ry`` sequences. Defaults to ``True``.
         """
         super().__init__()
+        self.convert_single_qubit_gate_to_u = convert_single_qubit_gate_to_u
         self.compressible_gates = [
             "id",
             "x",
@@ -377,9 +382,40 @@ class GateCompressor(TranspilerPass):
             if np.allclose(accumulated, np.eye(2)):
                 continue  # Entire run cancels out.
             theta, phi, lamda, _ = u3_decompose(accumulated)
-            result.append(("u", theta, phi, lamda, qubit))
+            if self.convert_single_qubit_gate_to_u:
+                result.append(("u", theta, phi, lamda, qubit))
+            else:
+                result += self._u_to_native_gates(theta, phi, lamda, qubit)
         new_qc.gates = result
         return new_qc
+
+    @staticmethod
+    def _u_to_native_gates(theta: float, phi: float, lamda: float, qubit: int) -> list:
+        """Decompose U(θ, φ, λ) into an rz/ry sequence: rz(λ) · ry(θ) · rz(φ).
+
+        Near-zero rotations are elided.
+
+        Args:
+            theta (float): Polar angle.
+            phi (float): First azimuthal angle.
+            lamda (float): Second azimuthal angle.
+            qubit (int): Target qubit index.
+
+        Returns:
+            list: Gate info tuples using only ``rz`` and ``ry``.
+        """
+        eps = 1e-10
+        gates = []
+        if not np.isclose(lamda % (2 * np.pi), 0, atol=eps):
+            gates.append(("rz", lamda, qubit))
+        if not np.isclose(theta % (2 * np.pi), 0, atol=eps):
+            gates.append(("ry", theta, qubit))
+        if not np.isclose(phi % (2 * np.pi), 0, atol=eps):
+            gates.append(("rz", phi, qubit))
+        if not gates:
+            # Identity – nothing to emit (should not reach here after allclose check).
+            pass
+        return gates
 
     def remove_identity_gates(self, qc: QuantumCircuit):
         """Remove gates that evaluate to the identity matrix.

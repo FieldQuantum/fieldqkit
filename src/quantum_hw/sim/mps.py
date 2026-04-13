@@ -30,6 +30,7 @@ from .common import (
 )
 
 MAX_BOND_DIM: int | None = 256
+SVD_EPS: float = 1e-12  # Singular values below this are truncated
 
 
 class ComplexSVD(torch.autograd.Function):
@@ -216,6 +217,11 @@ def _split_two_site_theta(
     u, s, vh = complex_svd(mat)
 
     chi = s.shape[0] if max_bond_dim is None else min(int(max_bond_dim), int(s.shape[0]))
+    # Precision-based truncation: drop singular values below SVD_EPS
+    s_real = s.detach().real
+    n_significant = int((s_real > SVD_EPS).sum())
+    if n_significant > 0:
+        chi = min(chi, n_significant)
     u = u[:, :chi]
     s = s[:chi]
     vh = vh[:chi, :]
@@ -282,6 +288,10 @@ def _two_qubit_unitary_to_mpo(
     g = gate_2q.reshape(2, 2, 2, 2).permute(0, 2, 1, 3).reshape(4, 4)
     u, s, vh = complex_svd(g)
     chi = s.shape[0] if max_bond_dim is None else min(int(max_bond_dim), int(s.shape[0]))
+    s_real = s.detach().real
+    n_significant = int((s_real > SVD_EPS).sum())
+    if n_significant > 0:
+        chi = min(chi, n_significant)
     u = u[:, :chi]
     s = s[:chi]
     vh = vh[:chi, :]
@@ -327,6 +337,10 @@ def _unitary_to_mpo(
         cur = cur.permute(0, 1, 4, 2, 3, 5).reshape(-1, rest * rest)
         u, s, vh = complex_svd(cur)
         chi = s.shape[0] if max_bond_dim is None else min(int(max_bond_dim), int(s.shape[0]))
+        s_real = s.detach().real
+        n_significant = int((s_real > SVD_EPS).sum())
+        if n_significant > 0:
+            chi = min(chi, n_significant)
         u = u[:, :chi]
         s = s[:chi]
         vh = vh[:chi, :]
@@ -750,7 +764,7 @@ def simulate_mps(
     qc: QuantumCircuit,
     *,
     param_values: Dict[str, object] | None = None,
-    max_bond_dim: int | None = None,
+    max_bond_dim: int | None = MAX_BOND_DIM,
     device: torch.device | str | None = None,
 ) -> List[torch.Tensor]:
     """Simulate a quantum circuit using the Matrix Product State (MPS) method.
@@ -763,7 +777,7 @@ def simulate_mps(
     Args:
         qc (*QuantumCircuit*): Quantum circuit to simulate.
         param_values (*Dict[str, object] | None*): Symbolic parameter name-to-value map. Defaults to ``None``.
-        max_bond_dim (*int | None*): Maximum MPS bond dimension for truncation. ``None`` keeps all. Defaults to ``None``.
+        max_bond_dim (*int | None*): Maximum MPS bond dimension for truncation. ``None`` keeps all. Defaults to ``MAX_BOND_DIM``.
         device (*torch.device | str | None*): Torch device (``'cpu'`` or ``'cuda'``). Defaults to ``None``.
 
     Returns:
@@ -901,6 +915,7 @@ def simulate_counts(
     *,
     seed: Optional[int] = None,
     param_values: Dict[str, object] | None = None,
+    max_bond_dim: int | None = MAX_BOND_DIM,
     device: torch.device | str | None = None,
 ) -> Dict[str, int]:
     """Simulate counts with MPS backend, matching statevector bitstring order.
@@ -910,13 +925,15 @@ def simulate_counts(
         shots (*int*): Number of measurement shots.
         seed (*Optional[int]*): Random seed for reproducibility. Defaults to ``None``.
         param_values (*Dict[str, object] | None*): Param values (``Dict[str, object] | None``). Defaults to ``None``.
+        max_bond_dim (*int | None*): Maximum MPS bond dimension. Defaults to ``MAX_BOND_DIM``.
         device (*torch.device | str | None*): Torch device (``'cpu'`` or ``'cuda'``). Defaults to ``None``.
 
     Returns:
         ``Dict[str, int]`` mapping bitstrings to their occurrence counts.
     """
-    mps = simulate_mps(qc, param_values=param_values, device=device)
-    samples = _sample_bits_from_mps(mps, int(shots), seed=seed)
+    with torch.no_grad():
+        mps = simulate_mps(qc, param_values=param_values, max_bond_dim=max_bond_dim, device=device)
+        samples = _sample_bits_from_mps(mps, int(shots), seed=seed)
 
     out: Dict[str, int] = {}
     for bits in samples:
@@ -965,6 +982,7 @@ def energy_and_expectations(
     params,
     param_names,
     hamiltonian,
+    max_bond_dim: int | None = MAX_BOND_DIM,
     device: torch.device | str | None = None,
 ):
     """Evaluate Hamiltonian energy from symbolic circuit using MPS contraction.
@@ -974,6 +992,7 @@ def energy_and_expectations(
         params: Parameter values.
         param_names: Names of variational parameters.
         hamiltonian: Target Hamiltonian as ``List[Tuple[float, str]]``.
+        max_bond_dim (*int | None*): Maximum MPS bond dimension. Defaults to ``MAX_BOND_DIM``.
         device (*torch.device | str | None*): Torch device (``'cpu'`` or ``'cuda'``). Defaults to ``None``.
 
     Returns:
@@ -990,7 +1009,7 @@ def energy_and_expectations(
         params = params.to(selected_device)
 
     param_values = build_param_values_from_tensor(params=params, param_names=param_names)
-    mps = simulate_mps(symbolic_qc, param_values=param_values, device=selected_device)
+    mps = simulate_mps(symbolic_qc, param_values=param_values, max_bond_dim=max_bond_dim, device=selected_device)
 
     energy = torch.zeros((), dtype=params.dtype, device=params.device)
     expectations: dict[str, float] = {}

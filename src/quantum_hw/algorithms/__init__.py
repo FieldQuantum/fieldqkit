@@ -7,6 +7,7 @@ from __future__ import annotations
 _COMPRESSION_NAMES = {
     "HybridCompressionPlan",
     "SuffixCompressionBlock",
+    "compile_tn_1d",
     "compress_circuit_with_hybrid_objective",
     "plan_hybrid_suffix_blocks",
 }
@@ -32,8 +33,10 @@ def __getattr__(name: str):
 
 from .qml import (
     run_pqc_classifier,
+    run_qnn_conditional,
     run_qnn_unsupervised,
 )
+from .qml_runner import QMLRunner
 from .qml_encoding import (
     angle_encoding_circuit,
     angle_encoding_circuit_symbolic,
@@ -77,7 +80,9 @@ __all__ = [
     "plan_hybrid_suffix_blocks",
     "compress_circuit_with_hybrid_objective",
     "run_pqc_classifier",
+    "run_qnn_conditional",
     "run_qnn_unsupervised",
+    "QMLRunner",
     "angle_encoding_circuit",
     "angle_encoding_circuit_symbolic",
     "iqp_encoding_circuit",

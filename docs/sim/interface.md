@@ -23,9 +23,26 @@ MPO 过程模拟不在该分发层中自动路由，需要显式调用 quantum_h
 
 ## 公开函数
 
-### simulate_counts(qc, shots, *, seed=None, param_values=None, device=None)
+### get_sim_config() -> dict
+
+返回当前模拟器配置，包含 `'mps_threshold_qubits'` 和 `'max_bond_dim'`。
+
+### set_sim_config(*, mps_threshold_qubits=None, max_bond_dim=...)
+
+运行时修改模拟器超参。
+
+- `mps_threshold_qubits`：超过此值时使用 MPS，`None` 不变。
+- `max_bond_dim`：MPS 最大键维，`None` 不截断，`...`（默认）不变。
+
+```python
+from quantum_hw.sim import set_sim_config
+set_sim_config(mps_threshold_qubits=20, max_bond_dim=512)
+```
+
+### simulate_counts(qc, shots, *, seed=None, param_values=None, max_bond_dim=MAX_BOND_DIM, device=None)
 
 - 返回 Dict[str, int]。
+- `max_bond_dim`：MPS 后端的最大键维，默认 `MAX_BOND_DIM`（256）。传 `None` 表示不截断。statevector 后端忽略此参数。
 - `device`：torch 设备（`'cpu'` / `'cuda'`），默认 `None`（自动选择）。
 - bitstring 采用大端序（qubit 0 对应字符串最左位）。
 - **测量投影**：当线路包含显式 `measure` 门且指定了 qubit→cbit 映射时，返回的 bitstring 会被投影到经典比特子空间（宽度 = `max(cbit) + 1`）。未测量的 qubit 被 marginalize 掉。若无显式测量门，行为不变（全 qubit 空间）。
@@ -42,9 +59,10 @@ MPO 过程模拟不在该分发层中自动路由，需要显式调用 quantum_h
 - 按 num_qubits 阈值分派到 statevector 或 MPS 后端。
 - 用于无监督 QNN 的 NLL 损失计算。
 
-### energy_and_expectations(symbolic_qc, *, params, param_names, hamiltonian, device=None)
+### energy_and_expectations(symbolic_qc, *, params, param_names, hamiltonian, max_bond_dim=MAX_BOND_DIM, device=None)
 
 - 返回 (energy, expectations)。
+- `max_bond_dim`：MPS 后端的最大键维，默认 `MAX_BOND_DIM`（256）。传 `None` 表示不截断。statevector 后端忽略此参数。
 - `device`：torch 设备（`'cpu'` / `'cuda'`），默认 `None`（自动选择）。
 - VQE 训练路径通常通过此函数统一进入仿真后端。
 
@@ -52,6 +70,8 @@ MPO 过程模拟不在该分发层中自动路由，需要显式调用 quantum_h
 
 quantum_hw.sim.__init__ 当前导出：
 
+- get_sim_config
+- set_sim_config
 - simulate_counts
 - expectation_pauli
 - sample_probabilities

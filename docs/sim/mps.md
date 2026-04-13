@@ -30,7 +30,7 @@
 
 ## 关键函数
 
-### simulate_mps(qc, *, param_values=None, max_bond_dim=None, device=None) -> List[torch.Tensor]
+### simulate_mps(qc, *, param_values=None, max_bond_dim=MAX_BOND_DIM, device=None) -> List[torch.Tensor]
 
 - 从 |0...0> 初态构造 MPS 并按门序演化。
 - 支持：
@@ -41,10 +41,11 @@
   - None: 不做显式截断
   - int: 在脏区间触发 sweep 压缩时截断键维
 
-### simulate_counts(qc, shots, *, seed=None, param_values=None, device=None) -> Dict[str, int]
+### simulate_counts(qc, shots, *, seed=None, param_values=None, max_bond_dim=MAX_BOND_DIM, device=None) -> Dict[str, int]
 
 - 基于 MPS 逐位条件采样。
 - 输出 bitstring 采用小端序（与 statevector 后端一致）。
+- max_bond_dim: 传递给 simulate_mps，默认 MAX_BOND_DIM（256）。
 
 ### expectation_pauli(state, pauli, *, num_qubits)
 
@@ -57,10 +58,11 @@
 - 通过批量 MPS 振幅收缩计算每个样本的概率 $|\langle b|\psi\rangle|^2$。
 - 返回 1-D 张量，支持自动微分。
 
-### energy_and_expectations(symbolic_qc, *, params, param_names, hamiltonian, device=None)
+### energy_and_expectations(symbolic_qc, *, params, param_names, hamiltonian, max_bond_dim=MAX_BOND_DIM, device=None)
 
 - 将 params + param_names 映射到 param_values。
 - 调用 simulate_mps(...) 得到态后，逐项收缩哈密顿量。
+- max_bond_dim: 传递给 simulate_mps，默认 MAX_BOND_DIM（256）。
 - 返回：
   - energy: 可微分 Torch 标量
   - expectations: Dict[str, float]
@@ -76,6 +78,13 @@
 
 - 当 qubit 数超过 interface.MPS_THRESHOLD_QUBITS（当前为 16）时，
   interface 层会把 counts/expectation/energy 路由到本模块。
+
+## 模块级常量
+
+| 常量 | 默认值 | 说明 |
+|---|---|---|
+| `MAX_BOND_DIM` | `256` | 默认最大键维；可通过 `set_sim_config(max_bond_dim=...)` 修改 |
+| `SVD_EPS` | `1e-12` | SVD 截断精度阈值；低于此值的奇异值被丢弃 |
 
 ## 常见限制与报错
 

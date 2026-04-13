@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from .cqlib import QuantumLanguage, RemotePlatformClient
-from ..backend import list_available_hardware
+from ..backend import list_available_hardware, SimulatorBackendAdapter
 from .quafu import QuafuBackendAdapter, QuafuPlatform, QuafuTaskAdapter
 from .tianyan import TianYanBackendAdapter, TianYanPlatform, TianYanTaskAdapter
 from .guodun import GuoDunBackendAdapter, GuoDunPlatform, GuoDunTaskAdapter
@@ -24,7 +24,7 @@ def create_provider_runtime(*, provider: str, client: Any) -> ProviderRuntime:
     """Create a ``ProviderRuntime`` for the given provider name.
 
     Args:
-        provider (*str*): Platform provider name (``"quafu"``, ``"tianyan"``, ``"guodun"``, ``"tencent"``).
+        provider (*str*): Platform provider name (``"quafu"``, ``"tianyan"``, ``"guodun"``, ``"tencent"``, ``"simulator"``).
         client (*Any*): ``QuantumHardwareClient`` instance.
 
     Returns:
@@ -34,6 +34,12 @@ def create_provider_runtime(*, provider: str, client: Any) -> ProviderRuntime:
         ValueError: If *provider* is not one of the supported platform names.
     """
     provider_name = str(provider).lower()
+    if provider_name == "simulator":
+        return ProviderRuntime(
+            provider=provider_name,
+            backend_adapter=SimulatorBackendAdapter(),
+            task_adapter=None,
+        )
     if provider_name == "quafu":
         return ProviderRuntime(
             provider=provider_name,
@@ -58,7 +64,7 @@ def create_provider_runtime(*, provider: str, client: Any) -> ProviderRuntime:
             backend_adapter=TencentBackendAdapter(),
             task_adapter=TencentTaskAdapter(client=client),
         )
-    raise ValueError("provider must be one of: 'quafu', 'tianyan', 'guodun', or 'tencent'")
+    raise ValueError("provider must be one of: 'quafu', 'tianyan', 'guodun', 'tencent', or 'simulator'")
 
 
 __all__ = [
@@ -67,6 +73,7 @@ __all__ = [
     "ProviderRuntime",
     "create_provider_runtime",
     "list_available_hardware",
+    "SimulatorBackendAdapter",
     "QuafuPlatform",
     "QuafuBackendAdapter",
     "QuafuTaskAdapter",

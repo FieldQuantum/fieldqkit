@@ -12,6 +12,17 @@ import networkx as nx
 
 MIN_CONNECTED_COUPLER_FIDELITY = 0.9
 
+# ---------------------------------------------------------------------------
+# Canonical chip-name registry (single source of truth)
+# ---------------------------------------------------------------------------
+
+QUAFU_HARDWARE_NAMES = {"Baihua", "Dongling", "Haituo", "Yunmeng", "Miaofeng", "Yudu", "Hongluo"}
+TIANYAN_HARDWARE_NAMES = {"tianyan176", "tianyan176-2", "tianyan24", "tianyan504", "tianyan287"}
+GUODUN_HARDWARE_NAMES = {"gd_qc1", "chmy176", "gd_sim1"}
+CQLIB_HARDWARE_NAMES = TIANYAN_HARDWARE_NAMES | GUODUN_HARDWARE_NAMES
+TENCENT_HARDWARE_NAMES = {"tianji_s2", "tianji_m2", "tianxuan_s2"}
+SIMULATOR_HARDWARE_NAMES = {"Simulator", "simulator"}
+
 
 def _as_float_or_default(value: Any, default: float) -> float:
     """Convert *value* to float, returning *default* on failure.
@@ -125,19 +136,19 @@ class Backend:
         if isinstance(chip, dict):
             self.chip_name = chip.get("chip_name", " ")
             self.chip_info = chip
-        elif chip in ["Baihua", "Dongling", "Haituo", "Yunmeng", "Miaofeng", "Yudu", "Hongluo"]:
+        elif chip in QUAFU_HARDWARE_NAMES:
             from .quantum_platform.quafu import load_quafu_chip_info
             self.chip_name = str(chip)
             self.chip_info = load_quafu_chip_info(self.chip_name)
-        elif chip in ["tianyan176", "tianyan176-2", "tianyan24", "tianyan504", "tianyan287", "gd_qc1", "chmy176", "gd_sim1"]:
+        elif chip in CQLIB_HARDWARE_NAMES:
             from .quantum_platform.cqlib import load_cqlib_chip_info
             self.chip_name = str(chip)
             self.chip_info = load_cqlib_chip_info(self.chip_name)
-        elif chip in ["tianji_s2", "tianji_m2", "tianxuan_s2"]:
+        elif chip in TENCENT_HARDWARE_NAMES:
             from .quantum_platform.tencent import _load_tencent_chip_info
             self.chip_name = str(chip)
             self.chip_info = _load_tencent_chip_info(self.chip_name)
-        elif chip in ["Simulator", "simulator"]:
+        elif chip in SIMULATOR_HARDWARE_NAMES:
             self.chip_name = "Simulator"
             self.chip_info = _build_simulator_chip_info()
         else:
@@ -681,3 +692,98 @@ def list_available_hardware(provider: str) -> List[Dict[str, Any]]:
         return platform_obj.list_available_hardware()
 
     raise ValueError("provider must be one of: 'quafu', 'tianyan', 'guodun', or 'tencent'")
+
+
+# ---------------------------------------------------------------------------
+# Chip name → provider inference
+# ---------------------------------------------------------------------------
+
+_CHIP_PROVIDER_MAP: Dict[str, str] = {}
+
+def _register_chips(provider: str, names: Sequence[str]) -> None:
+    for n in names:
+        _CHIP_PROVIDER_MAP[n.lower()] = provider
+
+_register_chips("quafu", QUAFU_HARDWARE_NAMES)
+_register_chips("tianyan", TIANYAN_HARDWARE_NAMES)
+_register_chips("guodun", GUODUN_HARDWARE_NAMES)
+_register_chips("tencent", TENCENT_HARDWARE_NAMES)
+_register_chips("simulator", SIMULATOR_HARDWARE_NAMES)
+
+
+def infer_provider_from_chip(chip_name: str) -> Optional[str]:
+    """Infer the provider name from a chip/hardware name.
+
+    Args:
+        chip_name (*str*): Name of the chip or hardware.
+
+    Returns:
+        Provider name string, or ``None`` if the chip is unknown.
+    """
+    return _CHIP_PROVIDER_MAP.get(str(chip_name).lower())
+
+
+def resolve_provider(
+    provider: str,
+    prefer_chips: Optional[Sequence[str] | str] = None,
+) -> str:
+    """Resolve the effective provider from *prefer_chips* or fall back to *provider*.
+
+    If *prefer_chips* contains a single known chip name whose provider can be
+    inferred, that inferred provider is returned.  Otherwise *provider* is
+    returned as-is.
+
+    Args:
+        provider (*str*): Caller-supplied provider name.
+        prefer_chips (*Optional[Sequence[str] | str]*): Preferred chip names. Defaults to ``None``.
+
+    Returns:
+        Effective provider name string (lower-cased).
+    """
+    chips = normalize_hardware_preferences(prefer_chips)
+    if chips:
+        inferred = infer_provider_from_chip(chips[0])
+        if inferred:
+            return inferred
+    return str(provider).lower()
+
+
+# ---------------------------------------------------------------------------
+# Simulator-only backend adapter (no credentials required)
+# ---------------------------------------------------------------------------
+
+class SimulatorBackendAdapter(BackendAdapter):
+    """Lightweight backend adapter for the local simulator (no API token needed)."""
+
+    provider = "simulator"
+    default_hardware_name = "Simulator"
+
+    def __init__(self) -> None:
+        self._machine_name = "Simulator"
+
+    def list_available_hardware(self) -> List[Dict[str, Any]]:
+        return []
+
+    def discover_hardware(
+        self,
+        *,
+        num_qubits: int,
+        prefer_hardware: Optional[Sequence[str] | str] = None,
+    ) -> List[HardwareProfile]:
+        return [build_simulator_profile(provider=self.provider, num_qubits=num_qubits)]
+
+    def resolve_backend(
+        self,
+        *,
+        num_qubits: int,
+        prefer_hardware: Optional[Sequence[str] | str] = None,
+    ) -> ResolvedBackend:
+        backend_obj = Backend(_build_simulator_chip_info(nqubits=num_qubits))
+        profile = build_simulator_profile(provider=self.provider, num_qubits=num_qubits)
+        return ResolvedBackend(
+            provider=self.provider,
+            hardware_name="Simulator",
+            backend=backend_obj,
+            profile=profile,
+            metadata={},
+        )

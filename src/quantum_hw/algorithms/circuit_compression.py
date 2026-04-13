@@ -215,42 +215,31 @@ def _mps_inner(a: Sequence[torch.Tensor], b: Sequence[torch.Tensor]) -> torch.Te
     return env.squeeze()
 
 
-def _mps_relative_trunc_error(reference: Sequence[torch.Tensor], approx: Sequence[torch.Tensor]) -> float:
-    """Return the relative truncation error between two MPS.
+def _relative_trunc_error(
+    inner_fn,
+    reference: Sequence[torch.Tensor],
+    approx: Sequence[torch.Tensor],
+) -> float:
+    """Return the relative truncation error between two tensor networks.
+
+    Works for both MPS (using ``_mps_inner``) and MPO (using ``_mpo_inner``).
 
     Args:
-        reference (*Sequence[torch.Tensor]*): Reference (exact) MPS.
-        approx (*Sequence[torch.Tensor]*): Approximate (truncated) MPS.
+        inner_fn: Inner product function (``_mps_inner`` or ``_mpo_inner``).
+        reference (*Sequence[torch.Tensor]*): Reference (exact) tensor network.
+        approx (*Sequence[torch.Tensor]*): Approximate (truncated) tensor network.
 
     Returns:
         Relative truncation error ``1 − |⟨ref|approx⟩|²/(⟨ref|ref⟩⟨approx|approx⟩)``.
     """
-    num = torch.abs(_mps_inner(reference, approx)) ** 2
-    den = torch.real(_mps_inner(reference, reference) * _mps_inner(approx, approx))
+    num = torch.abs(inner_fn(reference, approx)) ** 2
+    den = torch.real(inner_fn(reference, reference) * inner_fn(approx, approx))
     den_val = float(den.detach().cpu().item())
     if den_val <= 0.0:
         return 0.0
     fidelity = float((num / den).real.detach().cpu().item())
     fidelity = max(0.0, min(1.0, fidelity))
     return float(1.0 - fidelity)
-
-
-def _mps_infidelity_tensor(reference: Sequence[torch.Tensor], approx: Sequence[torch.Tensor]) -> torch.Tensor:
-    """Return the infidelity tensor between two MPS.
-
-    Args:
-        reference (*Sequence[torch.Tensor]*): Reference (exact) MPS.
-        approx (*Sequence[torch.Tensor]*): Approximate (truncated) MPS.
-
-    Returns:
-        Differentiable scalar ``torch.Tensor`` with the infidelity ``1 − F``.
-    """
-    num = torch.abs(_mps_inner(reference, approx)) ** 2
-    den = torch.real(_mps_inner(reference, reference) * _mps_inner(approx, approx))
-    den = torch.clamp(den, min=1e-15)
-    fidelity = torch.real(num / den)
-    fidelity = torch.clamp(fidelity, min=0.0, max=1.0)
-    return 1.0 - fidelity
 
 
 def _mpo_inner(a: Sequence[torch.Tensor], b: Sequence[torch.Tensor]) -> torch.Tensor:
@@ -274,44 +263,6 @@ def _mpo_inner(a: Sequence[torch.Tensor], b: Sequence[torch.Tensor]) -> torch.Te
     for ta, tb in zip(a, b):
         env = torch.einsum("ab,apiq,bpjq->ij", env, torch.conj(ta), tb)
     return env.squeeze()
-
-
-def _mpo_relative_trunc_error(reference: Sequence[torch.Tensor], approx: Sequence[torch.Tensor]) -> float:
-    """Return the relative truncation error between two MPO.
-
-    Args:
-        reference (*Sequence[torch.Tensor]*): Reference (exact) MPO.
-        approx (*Sequence[torch.Tensor]*): Approximate (truncated) MPO.
-
-    Returns:
-        Relative truncation error ``1 − |Tr(A†B)|²/(Tr(A†A)Tr(B†B))``.
-    """
-    num = torch.abs(_mpo_inner(reference, approx)) ** 2
-    den = torch.real(_mpo_inner(reference, reference) * _mpo_inner(approx, approx))
-    den_val = float(den.detach().cpu().item())
-    if den_val <= 0.0:
-        return 0.0
-    fidelity = float((num / den).real.detach().cpu().item())
-    fidelity = max(0.0, min(1.0, fidelity))
-    return float(1.0 - fidelity)
-
-
-def _mpo_infidelity_tensor(reference: Sequence[torch.Tensor], approx: Sequence[torch.Tensor]) -> torch.Tensor:
-    """Return the infidelity tensor between two MPO.
-
-    Args:
-        reference (*Sequence[torch.Tensor]*): Reference (exact) MPO.
-        approx (*Sequence[torch.Tensor]*): Approximate (truncated) MPO.
-
-    Returns:
-        Differentiable scalar ``torch.Tensor`` with the process infidelity ``1 − F``.
-    """
-    num = torch.abs(_mpo_inner(reference, approx)) ** 2
-    den = torch.real(_mpo_inner(reference, reference) * _mpo_inner(approx, approx))
-    den = torch.clamp(den, min=1e-15)
-    fidelity = torch.real(num / den)
-    fidelity = torch.clamp(fidelity, min=0.0, max=1.0)
-    return 1.0 - fidelity
 
 
 def plan_hybrid_suffix_blocks(
@@ -371,7 +322,7 @@ def plan_hybrid_suffix_blocks(
         mps_full = simulate_mps(qc_prefix, max_bond_dim=2*int(bond_cap), device=device)
         mps_cap = simulate_mps(qc_prefix, max_bond_dim=int(bond_cap), device=device)
         trial_max_bond = _mps_max_bond(mps_cap)
-        trial_err = _mps_relative_trunc_error(mps_full, mps_cap)
+        trial_err = _relative_trunc_error(_mps_inner, mps_full, mps_cap)
 
         if trial_err <= float(trunc_tol):
             split_layer = end + 1
@@ -398,7 +349,7 @@ def plan_hybrid_suffix_blocks(
             mpo_full = simulate_mpo_process(qc_block, max_bond_dim=2*int(bond_cap), device=device)
             mpo_cap = simulate_mpo_process(qc_block, max_bond_dim=int(bond_cap), device=device)
             trial_bond = max(int(t.shape[2]) for t in mpo_cap) if mpo_cap else 1
-            trial_err = _mpo_relative_trunc_error(mpo_full, mpo_cap)
+            trial_err = _relative_trunc_error(_mpo_inner, mpo_full, mpo_cap)
 
             if trial_err <= float(trunc_tol):
                 best_end = end
@@ -433,6 +384,177 @@ def plan_hybrid_suffix_blocks(
     )
 
 
+def compile_tn_1d(
+    target_tn: List[torch.Tensor],
+    *,
+    num_qubits: int,
+    approx_layers: int,
+    optimizer_steps: int,
+    optimizer_lr: float,
+    objective_mode: Literal["mps", "mpo"] = "mps",
+    bond_cap: Optional[int] = None,
+    warm_start_params: Optional[np.ndarray] = None,
+    device: torch.device | str | None = None,
+) -> Tuple[QuantumCircuit, np.ndarray, Dict[str, object]]:
+    """Compile a 1-D tensor network (MPS or MPO) into a hardware-efficient ansatz circuit.
+
+    For ``objective_mode='mps'``, *target_tn* is a list of MPS site tensors
+    of shape ``(bond_l, 2, bond_r)``.
+    For ``objective_mode='mpo'``, *target_tn* is a list of MPO site tensors
+    of shape ``(bond_l, 2, bond_r, 2)``.
+
+    Optimization is two-stage:
+      1. Main: Adam with full *optimizer_lr* for *optimizer_steps* iterations.
+      2. Refine (only if ``best_loss > init_loss * 0.995``): lr × 0.2 for
+         ``max(4, ceil(optimizer_steps * 0.5))`` additional steps.
+
+    Args:
+        target_tn: Target TN as a list of site tensors.
+        num_qubits: Number of qubits.
+        approx_layers: Number of HEA layers.
+        optimizer_steps: Number of Adam steps.
+        optimizer_lr: Learning rate.
+        objective_mode: ``'mps'`` for state infidelity, ``'mpo'`` for process
+            infidelity. Defaults to ``'mps'``.
+        bond_cap: Bond dimension cap for the ansatz simulation.
+            ``None`` keeps all bond dimensions (no truncation). Defaults to ``None``.
+        warm_start_params: Optional initial parameter array.
+        device: Torch device. Defaults to ``None`` (CPU).
+
+    Returns:
+        Tuple of ``(compiled_circuit, optimized_params, summary_dict)``.
+
+    Raises:
+        ValueError: target_tn must be a non-empty list of site tensors
+        ValueError: approx_layers must be positive
+        ValueError: optimizer_steps must be positive
+        ValueError: optimizer_lr must be positive
+        ValueError: objective_mode must be 'mps' or 'mpo'
+    """
+    if not target_tn:
+        raise ValueError("target_tn must be a non-empty list of site tensors")
+    if approx_layers <= 0:
+        raise ValueError("approx_layers must be positive")
+    if optimizer_steps <= 0:
+        raise ValueError("optimizer_steps must be positive")
+    if optimizer_lr <= 0.0:
+        raise ValueError("optimizer_lr must be positive")
+    mode = str(objective_mode).lower()
+    if mode not in {"mps", "mpo"}:
+        raise ValueError("objective_mode must be 'mps' or 'mpo'")
+
+    device_obj = torch.device(device) if device is not None else torch.device("cpu")
+    dtype = torch.float64
+
+    target = [t.to(device=device_obj) for t in target_tn]
+
+    if mode == "mps":
+        _inner_fn = _mps_inner
+        _simulate_ansatz = lambda pv: simulate_mps(
+            he_symbolic_qc, param_values=pv,
+            max_bond_dim=bond_cap, device=device_obj,
+        )
+    else:
+        _inner_fn = _mpo_inner
+        _simulate_ansatz = lambda pv: simulate_mpo_process(
+            he_symbolic_qc, param_values=pv,
+            max_bond_dim=bond_cap, device=device_obj,
+        )
+
+    param_count = 2 * int(num_qubits) * (int(approx_layers) + 1)
+    he_param_names = [f"phi_{i}" for i in range(param_count)]
+    he_symbolic_qc = _build_hardware_efficient_ansatz_symbolic(
+        int(num_qubits), he_param_names, layers=int(approx_layers),
+    )
+
+    # --- seed selection ---
+    if warm_start_params is not None and np.asarray(warm_start_params).size == param_count:
+        init = np.asarray(warm_start_params, dtype=float).copy()
+    else:
+        rng = np.random.default_rng(7)
+        init = rng.uniform(-np.pi, np.pi, size=(param_count,)).astype(float)
+
+    # --- optimization ---
+    init_t = torch.tensor(init, dtype=dtype, device=device_obj)
+    active_t = torch.tensor(init, dtype=dtype, device=device_obj, requires_grad=True)
+    optimizer = torch.optim.Adam([active_t], lr=float(optimizer_lr))
+
+    # Precompute target norm (constant across all optimization steps)
+    with torch.no_grad():
+        _target_norm_sq = torch.real(_inner_fn(target, target))
+
+    def _objective(params_t: torch.Tensor) -> torch.Tensor:
+        pv = {name: params_t[i] for i, name in enumerate(he_param_names)}
+        approx = _simulate_ansatz(pv)
+        num = torch.abs(_inner_fn(target, approx)) ** 2
+        den = torch.clamp(_target_norm_sq * torch.real(_inner_fn(approx, approx)), min=1e-300)
+        fid = torch.clamp(num / den, min=1e-300, max=1.0)
+        return -torch.log(fid)
+
+    init_loss = float(_objective(init_t).detach().cpu().item())
+    best_loss = init_loss
+    best_params = init.copy()
+    loss_history: List[float] = [init_loss]
+
+    _total_main = int(optimizer_steps)
+    for _step in range(1, _total_main + 1):
+        optimizer.zero_grad()
+        loss = _objective(active_t)
+        loss.backward()
+        optimizer.step()
+
+        cur = float(loss.detach().cpu().item())
+        loss_history.append(cur)
+        if cur < best_loss:
+            best_loss = cur
+            best_params = active_t.detach().cpu().numpy().astype(float, copy=True)
+        if _step % 20 == 0 or _step == _total_main:
+            cur_fid = float(np.exp(-cur))
+            best_fid = float(np.exp(-best_loss))
+            print(f"    compile_tn_1d main {_step}/{_total_main}  fid={cur_fid:.8f}  best_fid={best_fid:.8f}  -logF={cur:.4f}", flush=True)
+
+    # Refinement if little improvement.
+    if best_loss > init_loss * 0.995:
+        refine_t = torch.tensor(best_params, dtype=dtype, device=device_obj, requires_grad=True)
+        refine_opt = torch.optim.Adam([refine_t], lr=float(optimizer_lr) * 0.2)
+        refine_steps = max(4, int(np.ceil(float(optimizer_steps) * 0.5)))
+        print(f"    compile_tn_1d entering refinement ({refine_steps} steps, lr={float(optimizer_lr)*0.2:.4f})", flush=True)
+        for _rstep in range(1, refine_steps + 1):
+            refine_opt.zero_grad()
+            loss = _objective(refine_t)
+            loss.backward()
+            refine_opt.step()
+
+            cur = float(loss.detach().cpu().item())
+            loss_history.append(cur)
+            if cur < best_loss:
+                best_loss = cur
+                best_params = refine_t.detach().cpu().numpy().astype(float, copy=True)
+            if _rstep % 100 == 0 or _rstep == refine_steps:
+                cur_fid = float(np.exp(-cur))
+                best_fid = float(np.exp(-best_loss))
+                print(f"    compile_tn_1d refine {_rstep}/{refine_steps}  fid={cur_fid:.8f}  best_fid={best_fid:.8f}  -logF={cur:.4f}", flush=True)
+
+    # --- build final circuit ---
+    compiled_qc = _build_hardware_efficient_ansatz(
+        int(num_qubits), best_params.tolist(), layers=int(approx_layers),
+    )
+
+    best_fid_final = float(np.exp(-best_loss))
+    objective_inf = 1.0 - best_fid_final
+    print(f"    compile_tn_1d done: infidelity={objective_inf:.6e}, fidelity={best_fid_final:.8f}", flush=True)
+
+    summary = {
+        "objective_mode": mode,
+        "objective_infidelity": objective_inf,
+        "init_loss": init_loss,
+        "best_loss": best_loss,
+        "loss_delta": init_loss - best_loss,
+        "loss_history": loss_history,
+    }
+    return compiled_qc, best_params, summary
+
+
 def compress_circuit_with_hybrid_objective(
     qc_bound: QuantumCircuit,
     *,
@@ -447,15 +569,8 @@ def compress_circuit_with_hybrid_objective(
 ) -> Tuple[QuantumCircuit, np.ndarray, Dict[str, object]]:
     """Fit a shallow hardware-efficient circuit to a bound circuit using MPS/MPO objectives.
 
-    Initialization: if *warm_start_params* is provided and matches the expected
-    parameter count, uses it directly as the initial point; otherwise creates
-    3 candidate seeds (1 small random, 2 Haar random) and selects the best
-    by initial MPS infidelity.
-
-    Optimization is two-stage:
-      1. Main: Adam with full *optimizer_lr* for *optimizer_steps* iterations.
-      2. Refine (only if ``best_loss > init_loss * 0.995``): lr × 0.2 for
-         ``max(4, ceil(optimizer_steps * 0.5))`` additional steps.
+    Simulates the target circuit as an MPS or MPO, then delegates to
+    :func:`compile_tn_1d` for the actual optimization.
 
     Args:
         qc_bound (*QuantumCircuit*): Target bound circuit to approximate.
@@ -470,193 +585,33 @@ def compress_circuit_with_hybrid_objective(
 
     Returns:
         Tuple of ``(QuantumCircuit, np.ndarray, dict)`` — the compressed circuit,
-        optimized parameters, and a metadata dictionary with keys:
-        ``objective_mode`` (str), ``objective_infidelity`` (float),
-        ``init_loss`` (float), ``best_loss`` (float), ``loss_delta`` (float),
-        ``loss_history`` (list[float]).
+        optimized parameters, and a metadata dictionary.
 
     Raises:
-        ValueError: approx_layers must be positive
-        ValueError: optimizer_steps must be positive
-        ValueError: optimizer_lr must be positive
         ValueError: objective_mode must be 'mps' or 'mpo'
     """
-    if approx_layers <= 0:
-        raise ValueError("approx_layers must be positive")
-    if optimizer_steps <= 0:
-        raise ValueError("optimizer_steps must be positive")
-    if optimizer_lr <= 0.0:
-        raise ValueError("optimizer_lr must be positive")
     mode = str(objective_mode).lower()
     if mode not in {"mps", "mpo"}:
         raise ValueError("objective_mode must be 'mps' or 'mpo'")
 
     device_obj = torch.device(device) if device is not None else torch.device("cpu")
-    dtype = torch.float64
 
-    param_count = 2 * int(num_qubits) * (int(approx_layers) + 1)
-    he_param_names = [f"phi_{i}" for i in range(param_count)]
-    he_symbolic_qc = _build_hardware_efficient_ansatz_symbolic(
-        int(num_qubits),
-        he_param_names,
-        layers=int(approx_layers),
-    )
-
-    if warm_start_params is not None and np.asarray(warm_start_params).size == param_count:
-        init = np.asarray(warm_start_params, dtype=float).copy()
-    else:
-        # Use a small random init and pick the best seed by initial MPS infidelity.
-        rng = np.random.default_rng(7)
-        init = rng.normal(loc=0.0, scale=0.5, size=(param_count,)).astype(float)
-
-    active_idx = np.arange(param_count, dtype=int)
-
-    target_mps: Optional[List[torch.Tensor]] = None
-    target_mpo: Optional[List[torch.Tensor]] = None
     if mode == "mps":
-        target_mps = simulate_mps(
-            qc_bound,
-            max_bond_dim=int(bond_cap),
-            device=device_obj,
-        )
+        target_tn = simulate_mps(qc_bound, max_bond_dim=int(bond_cap), device=device_obj)
     else:
-        target_mpo = simulate_mpo_process(
-            qc_bound,
-            max_bond_dim=int(bond_cap),
-            device=device_obj,
-        )
+        target_tn = simulate_mpo_process(qc_bound, max_bond_dim=int(bond_cap), device=device_obj)
 
-    def _objective_from_full_params(full_params_t: torch.Tensor) -> torch.Tensor:
-        """Compute the infidelity of the hardware-efficient ansatz with given full params against the target MPS/MPO.
-
-        Args:
-            full_params_t (*torch.Tensor*): 1-D tensor of all ansatz parameters.
-
-        Returns:
-            Differentiable scalar ``torch.Tensor`` with the infidelity loss.
-        """
-        param_values = {name: full_params_t[i] for i, name in enumerate(he_param_names)}
-        if mode == "mps":
-            assert target_mps is not None
-            approx_mps = simulate_mps(
-                he_symbolic_qc,
-                param_values=param_values,
-                max_bond_dim=int(bond_cap),
-                device=device_obj,
-            )
-            return _mps_infidelity_tensor(target_mps, approx_mps)
-        else:
-            assert target_mpo is not None
-            approx_mpo = simulate_mpo_process(
-                he_symbolic_qc,
-                param_values=param_values,
-                max_bond_dim=int(bond_cap),
-                device=device_obj,
-            )
-            return _mpo_infidelity_tensor(target_mpo, approx_mpo)
-
-    if warm_start_params is None:
-        candidates = [init]
-        rng = np.random.default_rng(17)
-        for _ in range(2):
-            candidates.append(rng.normal(loc=0.0, scale=0.12, size=(param_count,)).astype(float))
-
-        best_seed = candidates[0]
-        best_seed_loss = float("inf")
-        with torch.no_grad():
-            for cand in candidates:
-                cand_t = torch.tensor(cand, dtype=dtype, device=device_obj)
-                seed_loss = float(_objective_from_full_params(cand_t).detach().cpu().item())
-                if seed_loss < best_seed_loss:
-                    best_seed_loss = seed_loss
-                    best_seed = cand
-        init = best_seed
-
-    init_t = torch.tensor(init, dtype=dtype, device=device_obj)
-    active_t = torch.tensor(init[active_idx], dtype=dtype, device=device_obj, requires_grad=True)
-    optimizer = torch.optim.Adam([active_t], lr=float(optimizer_lr))
-
-    best_loss = float("inf")
-    best_params = init.copy()
-    loss_history: List[float] = []
-
-    init_full_params = init_t.clone()
-    init_loss = float(_objective_from_full_params(init_full_params).detach().cpu().item())
-    loss_history.append(float(init_loss))
-
-    for _ in range(int(optimizer_steps)):
-        optimizer.zero_grad()
-        full_params_t = init_t.clone()
-        full_params_t[active_idx] = active_t
-        loss = _objective_from_full_params(full_params_t)
-
-        loss.backward()
-        optimizer.step()
-
-        cur = float(loss.detach().cpu().item())
-        loss_history.append(float(cur))
-        if cur < best_loss:
-            best_loss = cur
-            best_params = init.copy()
-            best_params[active_idx] = active_t.detach().cpu().numpy().astype(float, copy=True)
-
-    # If Adam gives little improvement, run a conservative refinement pass.
-    if best_loss > init_loss * 0.995:
-        refine_t = torch.tensor(best_params[active_idx], dtype=dtype, device=device_obj, requires_grad=True)
-        refine_opt = torch.optim.Adam([refine_t], lr=float(optimizer_lr) * 0.2)
-        refine_steps = max(4, int(np.ceil(float(optimizer_steps) * 0.5)))
-        for _ in range(refine_steps):
-            refine_opt.zero_grad()
-            full_params_t = init_t.clone()
-            full_params_t[active_idx] = refine_t
-            refine_loss = _objective_from_full_params(full_params_t)
-            refine_loss.backward()
-            refine_opt.step()
-
-            cur = float(refine_loss.detach().cpu().item())
-            loss_history.append(float(cur))
-            if cur < best_loss:
-                best_loss = cur
-                best_params = init.copy()
-                best_params[active_idx] = refine_t.detach().cpu().numpy().astype(float, copy=True)
-
-    compressed_qc = _build_hardware_efficient_ansatz(
-        int(num_qubits),
-        best_params.tolist(),
-        layers=int(approx_layers),
+    return compile_tn_1d(
+        target_tn,
+        num_qubits=num_qubits,
+        approx_layers=approx_layers,
+        optimizer_steps=optimizer_steps,
+        optimizer_lr=optimizer_lr,
+        objective_mode=mode,
+        bond_cap=bond_cap,
+        warm_start_params=warm_start_params,
+        device=device,
     )
-
-    with torch.no_grad():
-        best_t = torch.tensor(best_params, dtype=dtype, device=device_obj)
-        best_map = {name: best_t[i] for i, name in enumerate(he_param_names)}
-        if mode == "mps":
-            assert target_mps is not None
-            approx_mps_best = simulate_mps(
-                he_symbolic_qc,
-                param_values=best_map,
-                max_bond_dim=int(bond_cap),
-                device=device_obj,
-            )
-            objective_inf = float(_mps_infidelity_tensor(target_mps, approx_mps_best).detach().cpu().item())
-        else:
-            assert target_mpo is not None
-            approx_mpo_best = simulate_mpo_process(
-                he_symbolic_qc,
-                param_values=best_map,
-                max_bond_dim=int(bond_cap),
-                device=device_obj,
-            )
-            objective_inf = float(_mpo_infidelity_tensor(target_mpo, approx_mpo_best).detach().cpu().item())
-
-    summary = {
-        "objective_mode": mode,
-        "objective_infidelity": float(objective_inf),
-        "init_loss": float(init_loss),
-        "best_loss": float(best_loss),
-        "loss_delta": float(init_loss - best_loss),
-        "loss_history": loss_history,
-    }
-    return compressed_qc, best_params, summary
 
 
 # ---------------------------------------------------------------------------
@@ -764,6 +719,7 @@ def build_compression_transform(
     compression_plot_loss: bool = False,
     tag: str = "compress",
     convert_single_qubit_gate_to_u: bool = True,
+    transpile: bool = True,
 ) -> dict:
     """Build a circuit compression transform callable and its associated templates.
 
@@ -792,6 +748,9 @@ def build_compression_transform(
         compression_plot_loss: Plot compression loss curves.
         tag: Log prefix for verbose output.
         convert_single_qubit_gate_to_u: Whether to convert single-qubit gates to U during transpilation.
+        transpile: Whether to transpile the compressed template on the client
+            side.  When ``False`` the template is used as-is and no layout
+            mapping is performed.  Defaults to ``True``.
 
     Returns:
         Dict with keys:
@@ -812,16 +771,20 @@ def build_compression_transform(
     compressed_symbolic_qc = _build_hardware_efficient_ansatz_symbolic(
         num_qubits, compressed_param_names, layers=int(compressed_layers),
     )
-    compressed_transpiled_template = client._transpile_with_backend(
-        compressed_symbolic_qc, backend,
-        target_qubits=target_qubits, use_dd=use_dd, use_gate_compressor=False,
-        convert_single_qubit_gate_to_u=convert_single_qubit_gate_to_u,
-    )
-    target_qubits_in_use = client._ordered_target_qubits_from_layout(
-        compiled_qc=compressed_transpiled_template,
-        original_qc=compressed_symbolic_qc,
-        num_qubits=num_qubits,
-    )
+    if transpile:
+        compressed_transpiled_template = client._transpile_with_backend(
+            compressed_symbolic_qc, backend,
+            target_qubits=target_qubits, use_dd=use_dd, use_gate_compressor=False,
+            convert_single_qubit_gate_to_u=convert_single_qubit_gate_to_u,
+        )
+        target_qubits_in_use = client._ordered_target_qubits_from_layout(
+            compiled_qc=compressed_transpiled_template,
+            original_qc=compressed_symbolic_qc,
+            num_qubits=num_qubits,
+        )
+    else:
+        compressed_transpiled_template = compressed_symbolic_qc
+        target_qubits_in_use = list(target_qubits) if target_qubits is not None else list(range(num_qubits))
 
     unified_bond_cap = int(planner_bond_cap)
     unified_trunc_tol = float(planner_trunc_tol)

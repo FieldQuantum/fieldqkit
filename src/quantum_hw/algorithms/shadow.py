@@ -10,6 +10,7 @@ logger = logging.getLogger(__name__)
 
 import numpy as np
 
+from ..api.backend import resolve_provider
 from ..api.quantum_platform import create_provider_runtime
 from ..circuit import QuantumCircuit
 from ..core.observables import pauli_basis_pattern
@@ -164,6 +165,7 @@ def run_shadow_with_backend(
     use_dd: bool = True,
     submit_options: Optional[Dict] = None,
     convert_single_qubit_gate_to_u: bool = True,
+    transpile: bool = True,
 ) -> ShadowResult:
     """Run classical shadow tomography on a specific backend.
 
@@ -186,6 +188,7 @@ def run_shadow_with_backend(
         use_dd (*bool*): Whether to apply dynamical decoupling. Defaults to ``True``.
         submit_options (*Optional[Dict]*): Extra provider-specific submission options. Defaults to ``None``.
         convert_single_qubit_gate_to_u (*bool*): Whether to convert single-qubit gates to U gates. Defaults to ``True``.
+        transpile (*bool*): Whether to transpile the circuit for hardware. Defaults to ``True``.
 
     Returns:
         ``ShadowResult`` containing shadow samples, bases, and observable estimates.
@@ -247,6 +250,7 @@ def run_shadow_with_backend(
         use_dd=use_dd,
         submit_options=submit_options,
         convert_single_qubit_gate_to_u=convert_single_qubit_gate_to_u,
+        transpile=transpile,
     )
     if res.task_ids:
         task_ids.extend([str(t) for t in res.task_ids])
@@ -333,6 +337,7 @@ class ShadowTomography:
         mom_groups: Optional[int] = None,
         target_qubits: Optional[Sequence[int]] = None,
         prefer_chips: Optional[Sequence[str] | str] = None,
+        transpile_on_client: bool = True,
 		max_wait_time: int = 3600,
 		sleep_time: int = 5,
     ) -> ShadowResult:
@@ -351,6 +356,7 @@ class ShadowTomography:
             mom_groups (*Optional[int]*): Number of groups for median-of-means. If ``None``, uses ``max(1, int(sqrt(nshots)))``. Defaults to ``None``.
             target_qubits (*Optional[Sequence[int]]*): Qubit indices for partial measurement. Defaults to ``None``.
             prefer_chips (*Optional[Sequence[str] | str]*): Preferred chip names for scheduling. Defaults to ``None``.
+            transpile_on_client (*bool*): Whether to transpile on the client side. Defaults to ``True``.
             max_wait_time (*int*): Maximum wait time in seconds. Defaults to ``3600``.
             sleep_time (*int*): Polling interval in seconds. Defaults to ``5``.
 
@@ -360,7 +366,7 @@ class ShadowTomography:
         Raises:
             RuntimeError: all candidate chips failed to run shadow tomography
         """
-        provider_name = str(provider).lower()
+        provider_name = resolve_provider(provider, prefer_chips)
         qasm_version = self.client._default_qasm_version_for_provider(provider_name)
         use_dd = provider_name not in {"tianyan", "guodun", "tencent"}
         convert_single_qubit_gate_to_u = provider_name not in {"tencent"}
@@ -433,6 +439,7 @@ class ShadowTomography:
                     use_dd=use_dd,
                     submit_options=submit_options,
                     convert_single_qubit_gate_to_u=convert_single_qubit_gate_to_u,
+                    transpile=bool(transpile_on_client),
                 )
             except Exception as exc:
                 last_error = exc

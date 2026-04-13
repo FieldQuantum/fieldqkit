@@ -22,10 +22,12 @@
 
 ```python
 class GateCompressor(TranspilerPass):
-    def __init__(self)
+    def __init__(self, convert_single_qubit_gate_to_u: bool = True)
 ```
 
-无参数。初始化以下内部属性：
+| 参数 | 类型 | 默认值 | 说明 |
+|---|---|---:|---|
+| `convert_single_qubit_gate_to_u` | `bool` | `True` | 合并后的单比特门是否输出为 `u` 门；为 `False` 时分解为 `rz`/`ry` 序列 |
 
 | 属性 | 类型 | 说明 |
 |---|---|---|

@@ -11,7 +11,7 @@ from pathlib import Path
 
 import numpy as np
 from .quantum_platform import create_provider_runtime
-from .backend import Backend
+from .backend import Backend, resolve_provider
 from .task import OpenQasmSubmitRequest, ProviderTaskHandle, TaskAdapter
 
 from ..circuit import QuantumCircuit
@@ -192,7 +192,6 @@ class QuantumHardwareClient:
 		Returns:
 			Constructed ``QuantumCircuit``.
 		"""
-
 		return Transpiler(backend, convert_single_qubit_gate_to_u=convert_single_qubit_gate_to_u).run(qc, target_qubits=list(target_qubits) if target_qubits is not None else None, use_dd=use_dd, use_three_qubit_decompose=use_three_qubit_decompose, use_sabre_routing=use_sabre_routing, use_translate_to_basis=use_translate_to_basis, use_gate_compressor=use_gate_compressor, noise_aware=noise_aware, routing_n_trials=routing_n_trials)
 
 	def _submit_openqasm_async(
@@ -439,6 +438,35 @@ class QuantumHardwareClient:
 			logger.info("which hardware: %s", chip_name)
 
 		use_simulator = str(chip_name).lower() == "simulator"
+
+		# Auto-provision runtime when the caller skipped the high-level entry
+		# points (run_auto / VQERunner / …) and jumped straight here.
+		if not use_simulator and self._active_task_adapter is None:
+			from .backend import infer_provider_from_chip, ResolvedBackend
+			inferred = infer_provider_from_chip(chip_name)
+			if inferred is None:
+				raise RuntimeError(
+					f"Cannot infer provider for chip '{chip_name}'. "
+					"Use run_auto() or set up runtime manually."
+				)
+			runtime = create_provider_runtime(provider=inferred, client=self)
+			# Reuse the caller-supplied Backend for transpilation.
+			# Only need platform_obj from the adapter (for task submission).
+			platform_obj = getattr(runtime.backend_adapter, '_platform', None)
+			if platform_obj is not None and hasattr(platform_obj, 'set_machine'):
+				platform_obj.set_machine(chip_name)
+			resolved = ResolvedBackend(
+				provider=inferred,
+				hardware_name=chip_name,
+				backend=backend,
+				metadata={"platform_obj": platform_obj} if platform_obj is not None else {},
+			)
+			self.chip_name = chip_name
+			self.chip_backend = backend
+			self._active_task_adapter = runtime.task_adapter
+			self._active_resolved_backend = resolved
+			self._active_num_qubits = num_qubits
+			logger.info("auto-provisioned runtime for provider=%s chip=%s", inferred, chip_name)
 
 		# Precompute observable support for local expectations and mitigation.
 		supports_by_obs = {obs: pauli_support(obs, num_qubits=num_qubits) for obs in observables}
@@ -758,7 +786,7 @@ class QuantumHardwareClient:
 		"""
 		# Normalize input circuit; strip measurements only when observables conflict.
 		qc = self._normalize_input_circuit(circuit, num_qubits, observables=observables)
-		provider = str(provider).lower()
+		provider = resolve_provider(provider, prefer_chips)
 		qasm_version = self._default_qasm_version_for_provider(provider)
 		use_dd = provider not in {"tianyan", "guodun", "tencent"}
 		# Tencent QOS parser doesn't understand u(...) gates; keep native h/rz/x/y/z.
@@ -790,36 +818,30 @@ class QuantumHardwareClient:
 				return int(default)
 
 		submit_options = {
-			"transpile_on_client": bool(transpile_on_client),
 			"max_wait_time": _as_int(max_wait_time, 3600),
 			"sleep_time": _as_int(sleep_time, 5),
 		}
 		self._active_task_adapter = runtime.task_adapter
 		self._active_resolved_backend = resolved_backend
 		self._active_num_qubits = num_qubits
-		try:
-			return self._run_with_backend(
-				qc,
-				name,
-				num_qubits,
-				backend=resolved_backend.backend,
-				chip_name=resolved_backend.hardware_name,
-				shots=shots,
-				zne=zne,
-				readout_mitigation=readout_mitigation,
-				readout_shots=readout_shots,
-				observables=observables,
-				return_probabilities=return_probabilities,
-				target_qubits=target_qubits,
-				qasm_version=qasm_version,
-				use_dd=use_dd,
-				print_true=print_true,
-				transpile=bool(submit_options["transpile_on_client"]),
-				submit_options=submit_options,
-				convert_single_qubit_gate_to_u=convert_single_qubit_gate_to_u,
-			)
-		finally:
-			self._active_task_adapter = None
-			self._active_resolved_backend = None
-			self._active_num_qubits = None
+		return self._run_with_backend(
+			qc,
+			name,
+			num_qubits,
+			backend=resolved_backend.backend,
+			chip_name=resolved_backend.hardware_name,
+			shots=shots,
+			zne=zne,
+			readout_mitigation=readout_mitigation,
+			readout_shots=readout_shots,
+			observables=observables,
+			return_probabilities=return_probabilities,
+			target_qubits=target_qubits,
+			qasm_version=qasm_version,
+			use_dd=use_dd,
+			print_true=print_true,
+			transpile=bool(transpile_on_client),
+			submit_options=submit_options,
+			convert_single_qubit_gate_to_u=convert_single_qubit_gate_to_u,
+		)
 

@@ -93,7 +93,7 @@ credentials:
 
 ### 3. 凭证查找优先级
 
-`.quantum_hw.yaml` → 环境变量 → 报错
+`.quantum_hw.yaml`（当前目录及父目录 / 包安装目录及父目录 / `QUANTUM_HW_CONFIG` 环境变量指定路径）→ 环境变量 → 报错
 
 也可以用传统的环境变量方式：
 
@@ -154,8 +154,9 @@ quantum_hw/                          入口 __init__.py（导出顶层 API）
 │   │                                parameter-shift / autograd 梯度, Adam 优化, Clifford fitting
 │   ├── qaoa.py                      QAOARunner — MaxCut / 自定义 Z/ZZ 代价项
 │   │                                parameter-shift / autograd 梯度, Adam 优化, Clifford fitting
-│   ├── qml.py                       QML — PQC 监督分类 + 无监督 QNN 分布学习
+│   ├── qml.py                       QML — PQC 监督分类 + 无监督 QNN + 条件 QNN
 │   │                                autograd / parameter-shift, Adam 优化
+│   ├── qml_runner.py                QMLRunner — 高层 QML 入口（自动 provider/芯片解析）
 │   ├── qml_encoding.py              编码线路模板：Angle / IQP（含符号参数版本）
 │   ├── optimizer_utils.py            共享优化工具（能量计算、参数移位梯度、Adam、
 │   │                                Clifford fitting、run_variational_loop 通用优化循环）
@@ -187,6 +188,7 @@ quantum_hw/                          入口 __init__.py（导出顶层 API）
 │   ├── matrix.py                    torch 门矩阵（支持梯度）
 │   ├── interface.py                 统一模拟入口 simulate_counts / expectation_pauli /
 │   │                                sample_probabilities / energy_and_expectations
+│   │                                + set_sim_config / get_sim_config（运行时调参）
 │   └── common.py                    参数解析工具
 │
 ```
@@ -228,9 +230,10 @@ QuantumHardwareClient.run_auto(provider="quafu", circuit=..., observables=...)
 - [Readout calibration + ZNE 专项](examples/demo_readout_zne.ipynb)
 - [VQE：顶层接口 + parameter-shift 手动梯度下降](examples/demo_vqe.ipynb)
 - [QAOA：MaxCut + 自定义哈密顿量 + VQE 对比](examples/demo_qaoa.ipynb)
-- [QML 分类：PQC 监督分类器](examples/demo_qml.ipynb)
 - [QML Iris：Iris 数据集多分类](examples/demo_qml_iris.ipynb)
+- [QNN BAS：Born Machine 分布学习](examples/demo_qnn_bas.ipynb)
 - [QNN 无监督：量子分布学习](examples/demo_qnn_unsupervised.ipynb)
+- [VQE H₂ 4-qubit：氢分子势能面扫描](examples/demo_vqe_h2_4q.ipynb)
 - [Backend 拓扑与芯片排序](examples/demo_backend.ipynb)
 
 ## 学习路径（入门 → 进阶 → 硬件 → 优化）
@@ -243,10 +246,11 @@ QuantumHardwareClient.run_auto(provider="quafu", circuit=..., observables=...)
     - [VQE：顶层接口 + parameter-shift 手动梯度下降](examples/demo_vqe.ipynb)
     - [QAOA：MaxCut + 自定义哈密顿量 + VQE 对比](examples/demo_qaoa.ipynb)
 5. 量子机器学习：按顺序学习
-    - [QML 分类：PQC 监督分类器](examples/demo_qml.ipynb)
     - [QML Iris：Iris 数据集多分类](examples/demo_qml_iris.ipynb)
+    - [QNN BAS：Born Machine 分布学习](examples/demo_qnn_bas.ipynb)
     - [QNN 无监督：量子分布学习](examples/demo_qnn_unsupervised.ipynb)
-6. 硬件拓扑补充：参考 [Backend 拓扑与芯片排序](examples/demo_backend.ipynb)
+6. VQE 进阶：[VQE H₂ 4-qubit：氢分子势能面扫描](examples/demo_vqe_h2_4q.ipynb)
+7. 硬件拓扑补充：参考 [Backend 拓扑与芯片排序](examples/demo_backend.ipynb)
 
 ## 文档 (Docs)
 
