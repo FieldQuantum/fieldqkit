@@ -674,15 +674,20 @@ def _compose_stage_circuits(
 ) -> QuantumCircuit:
     """Compose multiple stage sub-circuits into one circuit.
 
+    All stages must share the same ``nqubits`` *and* the same ``qubits`` list,
+    so the resulting circuit preserves the transpiler/layout ordering carried
+    by each stage.
+
     Args:
         stage_circuits (*Sequence[QuantumCircuit]*): Ordered sub-circuits to concatenate.
         num_qubits (*int*): Number of qubits.
 
     Returns:
-        Constructed ``QuantumCircuit``.
+        Constructed ``QuantumCircuit`` whose ``qubits`` list is taken from the
+        first stage and gates are concatenated in stage order.
 
     Raises:
-        ValueError: all stage circuits must have the same nqubits
+        ValueError: If stages disagree on ``nqubits`` or on the ``qubits`` layout.
     """
     if not stage_circuits:
         return QuantumCircuit(int(num_qubits))
@@ -695,6 +700,11 @@ def _compose_stage_circuits(
     for stage_qc in stage_circuits:
         if int(stage_qc.nqubits) != out_nqubits:
             raise ValueError("all stage circuits must have the same nqubits")
+        if list(stage_qc.qubits) != list(out.qubits):
+            raise ValueError(
+                "all stage circuits must share the same qubits layout to preserve "
+                "transpiler/physical-qubit mapping"
+            )
         merged.extend(list(stage_qc.gates))
     out.gates = merged
     return out

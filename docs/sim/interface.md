@@ -39,6 +39,14 @@ from quantum_hw.sim import set_sim_config
 set_sim_config(mps_threshold_qubits=20, max_bond_dim=512)
 ```
 
+### build_state_from_symbolic(symbolic_qc, *, params, param_names, max_bond_dim=MAX_BOND_DIM, device=None)
+
+- 从符号线路和可微 `params` 张量构建模拟器状态，按 qubit 数阈值分派到 statevector（flat tensor）或 MPS（site tensor list）。
+- 返回值可直接传入同层的 `expectation_pauli` 和 `sample_probabilities`。
+- `max_bond_dim`：MPS 后端的最大键维，默认 `MAX_BOND_DIM`（256）。statevector 后端忽略此参数。
+- `device`：torch 设备（`'cpu'` / `'cuda'`），默认 `None`（自动选择）。
+- **这是 autograd QML 路径构建态向量的统一入口**，替代了原 `statevector.build_state_from_symbolic`。
+
 ### simulate_counts(qc, shots, *, seed=None, param_values=None, max_bond_dim=MAX_BOND_DIM, device=None)
 
 - 返回 Dict[str, int]。
@@ -68,18 +76,19 @@ set_sim_config(mps_threshold_qubits=20, max_bond_dim=512)
 
 ## 包级导出
 
-quantum_hw.sim.__init__ 当前导出：
+`quantum_hw.sim.__init__` 当前导出：
 
-- get_sim_config
-- set_sim_config
-- simulate_counts
-- expectation_pauli
-- sample_probabilities
-- energy_and_expectations
-- simulate_statevector
-- simulate_mps
-- simulate_mpo_process
-- auto_sim_device
+- `get_sim_config`
+- `set_sim_config`
+- `build_state_from_symbolic`
+- `simulate_counts`
+- `expectation_pauli`
+- `sample_probabilities`
+- `energy_and_expectations`
+- `simulate_statevector`
+- `simulate_mps`
+- `simulate_mpo_process`
+- `auto_sim_device`
 
 ## 相关页面
 

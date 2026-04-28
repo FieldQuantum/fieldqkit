@@ -61,7 +61,7 @@ def test_parameter_binding_behaviour():
         if gate[0] == "cp":
             assert isinstance(gate[1], (float, int))
 
-    qasm = qc.to_openqasm2
+    qasm = qc.to_openqasm2()
     assert "theta" not in qasm
     assert "phi" not in qasm
     assert "gamma" not in qasm
@@ -73,7 +73,7 @@ def test_parameter_expression_binding_with_negative_symbol():
     qc.ry("-theta", 0)
 
     qc.apply_value({"theta": 0.25})
-    qasm = qc.to_openqasm2
+    qasm = qc.to_openqasm2()
 
     assert "ry(0.25) q[0];" in qasm
     assert "ry(-0.25) q[0];" in qasm
@@ -84,7 +84,7 @@ def test_parameter_expression_binding_with_division_symbol():
     qc.rx("theta/2", 0)
 
     qc.apply_value({"theta": np.pi})
-    qasm = qc.to_openqasm2
+    qasm = qc.to_openqasm2()
 
     assert f"rx({np.pi / 2}) q[0];" in qasm
 
@@ -165,7 +165,7 @@ def test_openqasm2_export_contains_expected_lines():
     qc.rz(0.25, 1)
     qc.measure([0, 1], [0, 1])
 
-    qasm = qc.to_openqasm2
+    qasm = qc.to_openqasm2()
     assert qasm.startswith("OPENQASM 2.0;")
     assert "qreg q[2];" in qasm
     assert "creg c[2];" in qasm

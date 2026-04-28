@@ -704,6 +704,7 @@ def run_variational_loop(
     qasm_version: str = "2.0",
     extra_info: str = "",
     convert_single_qubit_gate_to_u: bool = True,
+    device: "torch.device | str | None" = None,
 ) -> dict:
     """Core variational optimization loop shared by VQE, QAOA, etc.
 
@@ -757,11 +758,25 @@ def run_variational_loop(
     if gradient_param_template is None:
         gradient_param_template = transpiled_template
 
-    if method == "autograd":
+    if method == "autograd" and str(chip_name).lower() == "simulator":
         import torch
         from ..sim import energy_and_expectations as _energy_and_expectations
         if seed is not None:
             torch.manual_seed(int(seed))
+
+    _cloud_qasm_template: Optional[str] = None
+    _cloud_platform = None
+    _cloud_hamiltonian: Optional[List[Dict]] = None
+    if method == "autograd" and str(chip_name).lower() == "fieldquantum_sim":
+        _cloud_qasm_template = symbolic_qc.to_openqasm2(symbolic=True)
+        _cloud_platform = client._active_resolved_backend.metadata["platform_obj"]
+        _cloud_hamiltonian = [
+            {"coeff": float(c), "pauli": str(p)} for c, p in hamiltonian
+        ]
+        logger.info(
+            "[%s] cloud autograd via FieldQuantum server @ %s",
+            tag, _cloud_platform.base_url,
+        )
 
     cost_history: List[float] = []
     params_history: List[List[float]] = []
@@ -780,13 +795,27 @@ def run_variational_loop(
     logger.info("[%s] start optimization: %s", tag, info)
 
     for it in range(max_iters):
-        if method == "autograd":
+        if method == "autograd" and str(chip_name).lower() == "fieldquantum_sim":
+            # Single HTTP call: server runs sampling + parameter-shift internally
+            # and returns energy, per-Pauli expectations, and gradients.
+            result = _cloud_platform.run_expectation(
+                qasm=_cloud_qasm_template,
+                param_names=list(param_names),
+                param_values=params.tolist(),
+                hamiltonian=_cloud_hamiltonian,
+                shots=shots,
+            )
+            cost = float(result["energy"])
+            expectations = {k: float(v) for k, v in result.get("expectations", {}).items()}
+            grads = np.array(result["gradients"], dtype=float)
+        elif method == "autograd" and str(chip_name).lower() == "simulator":
             params_t = torch.tensor(params, dtype=torch.float64, requires_grad=True)
             cost_t, expectations = _energy_and_expectations(
                 symbolic_qc,
                 params=params_t,
                 param_names=param_names,
                 hamiltonian=hamiltonian,
+                device=device,
             )
             cost_t.backward()
             cost = float(cost_t.detach().cpu().item())

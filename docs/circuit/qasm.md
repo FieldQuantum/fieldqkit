@@ -117,7 +117,7 @@ __all__ = ["parse_openqasm3_to_gates"]
 |---------------------|--------|
 | `from_openqasm2(qasm)` | 校验 `OPENQASM 2.0` 头 → `parse_openqasm2_to_gates` → 回填属性 |
 | `from_openqasm3(qasm)` | 校验 `OPENQASM 3.0` 头 → `parse_openqasm3_to_gates` → 回填属性 |
-| `to_openqasm2` (property) | 将 gate tuple IR 导出为 QASM 2.0 字符串 |
+| `to_openqasm2(symbolic=False)` | 将 gate tuple IR 导出为 QASM 2.0 字符串；`symbolic=True` 保留字符串参数 |
 | `to_openqasm3` (property) | 将 gate tuple IR 导出为 QASM 3.0 字符串 |
 
 ## 行为说明

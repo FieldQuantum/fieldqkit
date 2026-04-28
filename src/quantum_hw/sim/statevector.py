@@ -211,28 +211,6 @@ def simulate_counts(
     return out
 
 
-def build_state_from_symbolic(
-    symbolic_qc: QuantumCircuit,
-    *,
-    params,
-    param_names: Sequence[str],
-    device: torch.device | str | None = None,
-):
-    """Build statevector from a symbolic circuit and differentiable param tensor.
-
-    Args:
-        symbolic_qc (*QuantumCircuit*): Symbolic (unbound) quantum circuit.
-        params (*torch.Tensor | Sequence[float]*): Parameter values.
-        param_names (*Sequence[str]*): Names of variational parameters.
-        device (*torch.device | str | None*): Torch device (``'cpu'`` or ``'cuda'``). Defaults to ``None``.
-
-    Returns:
-        ``torch.Tensor`` statevector of length ``2**n_qubits``.
-    """
-    param_values = build_param_values_from_tensor(params=params, param_names=param_names)
-    return simulate_statevector(symbolic_qc, param_values=param_values, device=device)
-
-
 def expectation_pauli(
     state,
     pauli: str,
@@ -315,7 +293,8 @@ def energy_and_expectations(
     sim_device = auto_sim_device(device)
     if params.device != sim_device:
         params = params.to(sim_device)
-    state = build_state_from_symbolic(symbolic_qc, params=params, param_names=param_names, device=sim_device)
+    param_values = build_param_values_from_tensor(params=params, param_names=param_names)
+    state = simulate_statevector(symbolic_qc, param_values=param_values, device=sim_device)
     energy = torch.zeros((), dtype=params.dtype, device=params.device)
     expectations: dict[str, float] = {}
     for coeff, obs in hamiltonian:

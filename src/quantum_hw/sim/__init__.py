@@ -17,6 +17,7 @@ except ModuleNotFoundError as _exc:
 
 from .common import auto_sim_device
 from .interface import get_sim_config
+from .interface import build_state_from_symbolic
 from .interface import sample_probabilities
 from .interface import energy_and_expectations
 from .interface import expectation_pauli
@@ -30,6 +31,7 @@ from .mps import simulate_mps
 __all__ = [
     "auto_sim_device",
     "get_sim_config",
+    "build_state_from_symbolic",
     "sample_probabilities",
     "energy_and_expectations",
     "expectation_pauli",

@@ -571,7 +571,7 @@ class QuantumHardwareClient:
 				group_counts[gi]["1"] = simulate_counts(qct_sim, shots)
 			else:
 				# Hardware: submit async task and collect later.
-				qasm_1 = qct.to_openqasm2 if qasm_version == "2.0" else qct.to_openqasm3
+				qasm_1 = qct.to_openqasm2() if qasm_version == "2.0" else qct.to_openqasm3
 				task_id_1 = self._submit_openqasm_async(
 					name=f"{name}_g{gi}",
 					qasm=qasm_1,
@@ -598,7 +598,7 @@ class QuantumHardwareClient:
 					# ZNE scale=3 path runs as an extra hardware task.
 					task_id_3 = self._submit_openqasm_async(
 						name=f"{name}_g{gi}_zne3",
-						qasm=qct.to_openqasm2 if qasm_version == "2.0" else qct.to_openqasm3,
+						qasm=qct.to_openqasm2() if qasm_version == "2.0" else qct.to_openqasm3,
 						shots=shots,
 						chip_name=chip_name,
 						submit_options=submit_options,
@@ -788,9 +788,9 @@ class QuantumHardwareClient:
 		qc = self._normalize_input_circuit(circuit, num_qubits, observables=observables)
 		provider = resolve_provider(provider, prefer_chips)
 		qasm_version = self._default_qasm_version_for_provider(provider)
-		use_dd = provider not in {"tianyan", "guodun", "tencent"}
+		use_dd = provider not in {"tianyan", "guodun", "tencent", "simulator", "fieldquantum"}
 		# Tencent QOS parser doesn't understand u(...) gates; keep native h/rz/x/y/z.
-		convert_single_qubit_gate_to_u = provider not in {"tencent"}
+		convert_single_qubit_gate_to_u = provider not in {"tencent", "fieldquantum"}
 
 		runtime = create_provider_runtime(provider=provider, client=self)
 

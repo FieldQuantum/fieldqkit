@@ -247,6 +247,14 @@ class TestPauliBasisPattern:
         pattern = pauli_basis_pattern("XYIZ", num_qubits=4)
         assert pattern == ["X", "Y", "I", "Z"]
 
+    def test_num_qubits_must_be_int(self):
+        with pytest.raises(TypeError):
+            pauli_basis_pattern("XYIZ", num_qubits=None)  # type: ignore[arg-type]
+
+    def test_num_qubits_negative_raises(self):
+        with pytest.raises(ValueError):
+            pauli_basis_pattern("X0", num_qubits=-1)
+
 
 class TestGroupObservables:
     def test_compatible_grouped_together(self):

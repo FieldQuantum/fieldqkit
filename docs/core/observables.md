@@ -8,7 +8,6 @@
 
 - `pauli_support`
 - `shift_pauli_string`
-- `append_pauli_measurement`
 - `append_measurement_basis`
 - `group_observables`
 - `pauli_expectation`
@@ -35,11 +34,6 @@
 
 - 作用：将 Pauli 字符串中的所有比特索引平移 `offset`。
 - 返回索引形式的字符串，例如 `shift_pauli_string("X0 Z1", 3) -> "X3 Z4"`。
-
-### `append_pauli_measurement(qc, pauli: str) -> None`
-
-- 作用：根据 Pauli 字符串附加基变换旋转和测量。
-- 行为：先调用 `apply_measurement_basis_rotations`，再添加 barrier 和 measure。
 
 ### `pauli_basis_pattern(pauli: str, num_qubits: int) -> List[str]`
 

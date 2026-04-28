@@ -473,12 +473,8 @@ def run_vqe_with_backend(
     target_qubits_in_use: Optional[Sequence[int]] = target_qubits
     circuit_transform_fn = None
     if method == "autograd":
-        if str(chip_name).lower() != "simulator":
+        if (str(chip_name).lower() not in ["simulator", "fieldquantum_sim"]):
             raise ValueError("autograd mode is only supported on Simulator backend")
-        import torch
-        from ..sim import energy_and_expectations as _energy_and_expectations
-        if seed is not None:
-            torch.manual_seed(int(seed))
     else:
         if not enable_circuit_compression:
             if transpile:
@@ -639,7 +635,7 @@ class VQERunner:
     planner_max_layers_per_block: int = 6
     enable_circuit_compression: bool = False
     compression_block_layers: Optional[int] = None
-    compression_optimizer_steps: int = 50
+    compression_optimizer_steps: int = 20
     compression_optimizer_lr: float = 0.05
     compression_verbose: bool = False
     compression_plot_loss: bool = False
@@ -709,8 +705,8 @@ class VQERunner:
 
         provider_name = resolve_provider(provider, prefer_chips)
         qasm_version = self.client._default_qasm_version_for_provider(provider_name)
-        use_dd = provider_name not in {"tianyan", "guodun", "tencent"}
-        convert_single_qubit_gate_to_u = provider_name not in {"tencent"}
+        use_dd = provider_name not in {"tianyan", "guodun", "tencent", "simulator", "fieldquantum"}
+        convert_single_qubit_gate_to_u = provider_name not in {"tencent", "fieldquantum"}
         runtime = create_provider_runtime(provider=provider_name, client=self.client)
         profiles = runtime.backend_adapter.discover_hardware(
             num_qubits=num_qubits,

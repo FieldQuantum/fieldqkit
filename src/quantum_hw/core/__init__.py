@@ -17,7 +17,6 @@ __all__ = [
     # observables
     "pauli_support",
     "shift_pauli_string",
-    "append_pauli_measurement",
     "pauli_basis_pattern",
     "apply_measurement_basis_rotations",
     "append_measurement_basis",

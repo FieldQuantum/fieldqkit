@@ -368,8 +368,8 @@ class ShadowTomography:
         """
         provider_name = resolve_provider(provider, prefer_chips)
         qasm_version = self.client._default_qasm_version_for_provider(provider_name)
-        use_dd = provider_name not in {"tianyan", "guodun", "tencent"}
-        convert_single_qubit_gate_to_u = provider_name not in {"tencent"}
+        use_dd = provider_name not in {"tianyan", "guodun", "tencent", "simulator", "fieldquantum"}
+        convert_single_qubit_gate_to_u = provider_name not in {"tencent", "fieldquantum"}
         logger.info("read hardware information and select provider=%s", provider_name)
         if not observables:
             raise ValueError("shadow tomography requires at least one observable")

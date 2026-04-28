@@ -227,7 +227,7 @@ class NativeTwoQubitTomographyManager:
 							probs = mitigate_readout(probs, local_cm)
 						meas_cache[idx][(basis_a, basis_b)] = probs
 					else:
-						qasm = qct.to_openqasm2 if qasm_version == "2.0" else qct.to_openqasm3
+						qasm = qct.to_openqasm2() if qasm_version == "2.0" else qct.to_openqasm3
 						task_id = self._submit_openqasm_async(
 							name=f"tomo_2q_{key}_{prep_a}{prep_b}_{basis_a}{basis_b}",
 							qasm=qasm,

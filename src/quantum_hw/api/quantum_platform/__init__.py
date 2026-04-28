@@ -11,6 +11,12 @@ from .quafu import QuafuBackendAdapter, QuafuPlatform, QuafuTaskAdapter
 from .tianyan import TianYanBackendAdapter, TianYanPlatform, TianYanTaskAdapter
 from .guodun import GuoDunBackendAdapter, GuoDunPlatform, GuoDunTaskAdapter
 from .tencent import TencentBackendAdapter, TencentPlatform, TencentTaskAdapter
+from .fieldquantum import (
+    FieldQuantumPlatform,
+    FieldQuantumBackendAdapter,
+    FieldQuantumTaskAdapter,
+    FIELDQUANTUM_DEFAULT_URL,
+)
 
 
 @dataclass
@@ -64,7 +70,19 @@ def create_provider_runtime(*, provider: str, client: Any) -> ProviderRuntime:
             backend_adapter=TencentBackendAdapter(),
             task_adapter=TencentTaskAdapter(client=client),
         )
-    raise ValueError("provider must be one of: 'quafu', 'tianyan', 'guodun', 'tencent', or 'simulator'")
+    if provider_name == "fieldquantum":
+        import os
+        from .fieldquantum import (  # noqa: PLC0415
+            FieldQuantumBackendAdapter,
+            FieldQuantumTaskAdapter,
+        )
+        base_url = os.environ.get("FIELDQUANTUM_SERVER_URL", "http://localhost:8765")
+        return ProviderRuntime(
+            provider=provider_name,
+            backend_adapter=FieldQuantumBackendAdapter(base_url=base_url),
+            task_adapter=FieldQuantumTaskAdapter(client=client, base_url=base_url),
+        )
+    raise ValueError("provider must be one of: 'quafu', 'tianyan', 'guodun', 'tencent', 'simulator', or 'fieldquantum'")
 
 
 __all__ = [
@@ -86,4 +104,8 @@ __all__ = [
     "TencentPlatform",
     "TencentBackendAdapter",
     "TencentTaskAdapter",
+    "FieldQuantumPlatform",
+    "FieldQuantumBackendAdapter",
+    "FieldQuantumTaskAdapter",
+    "FIELDQUANTUM_DEFAULT_URL",
 ]

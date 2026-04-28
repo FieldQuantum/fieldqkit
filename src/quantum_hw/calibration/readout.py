@@ -148,7 +148,7 @@ class ReadoutCalibrationManager:
 				else:
 					task_id = self._submit_openqasm_async(
 						name=f"readout_cal_q{q}_{bits}",
-						qasm=qct.to_openqasm2 if qasm_version == "2.0" else qct.to_openqasm3,
+						qasm=qct.to_openqasm2() if qasm_version == "2.0" else qct.to_openqasm3,
 						shots=shots,
 						chip_name=chip_name,
 					)

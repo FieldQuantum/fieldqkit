@@ -182,7 +182,7 @@ class NativeTwoQubitRBManager:
 							probs = mitigate_readout(probs, local_cm)
 						survival_samples[length].append(float(probs[0]))
 					else:
-						qasm = qct.to_openqasm2 if qasm_version == "2.0" else qct.to_openqasm3
+						qasm = qct.to_openqasm2() if qasm_version == "2.0" else qct.to_openqasm3
 						task_id = self._submit_openqasm_async(
 							name=f"rb_2q_{key}_L{length}_batch{m}",
 							qasm=qasm,

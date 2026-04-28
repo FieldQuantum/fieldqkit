@@ -121,6 +121,33 @@ def test_three_qubit_mps_matches_statevector(gate_name, num_qubits, gate_args):
 
 
 @pytest.mark.parametrize(
+    ("gate_name", "gate_args"),
+    [
+        # Non-ascending qubit orders for 2-qubit and 3-qubit gates exercise
+        # the gate-matrix permutation in _apply_k_qubit_gate_with_mpo.
+        ("cx", (3, 0)),
+        ("cx", (2, 1)),
+        ("cz", (3, 1)),
+        ("rzz", (0.61, 3, 0)),
+        ("ccx", (3, 0, 1)),
+        ("ccx", (2, 0, 3)),
+        ("ccz", (3, 1, 0)),
+        ("cswap", (3, 0, 2)),
+        ("cswap", (2, 1, 3)),
+    ],
+)
+def test_unsorted_qubits_mps_matches_statevector(gate_name, gate_args):
+    qc = _build_reference_circuit(4)
+    getattr(qc, gate_name)(*gate_args)
+
+    expected = simulate_statevector(qc)
+    actual = _mps_to_statevector(simulate_mps(qc))
+    actual = _align_global_phase(expected, actual)
+
+    assert torch.allclose(actual, expected, atol=1e-12, rtol=1e-12)
+
+
+@pytest.mark.parametrize(
     ("qubit", "expected_bitstring"),
     [
         (0, "100"),

@@ -14,7 +14,7 @@
 
 - 线路前向演化：`simulate_statevector(...)`
 - 采样计数：`simulate_counts(...)`
-- 可微分能量评估：`build_state_from_symbolic(...)`、`expectation_pauli(...)`、`energy_and_expectations(...)`
+- 可微分能量评估：`expectation_pauli(...)`、`energy_and_expectations(...)`
 - 样本概率计算：`sample_probabilities(...)`——用于无监督 QNN 的 NLL 损失
 
 ## 关键函数
@@ -32,13 +32,6 @@
 - `device`：torch 设备（`'cpu'` / `'cuda'`），默认 `None`（自动选择）。
 - bitstring 输出采用大端序（qubit 0 对应字符串最左位）。
 
-### `build_state_from_symbolic(symbolic_qc, *, params, param_names, device=None) -> torch.Tensor`
-
-- 输入符号参数线路和可微 `params` 张量。
-- `device`：torch 设备（`'cpu'` / `'cuda'`），默认 `None`（自动选择）。
-- 将 `param_names[i] -> params[i]` 映射为 `param_values`，再复用 `simulate_statevector(...)`。
-- 这是 autograd 路径构建态向量的统一入口。
-
 ### `expectation_pauli(state, pauli, *, num_qubits) -> torch.Tensor`
 
 - 计算 `⟨psi|P|psi⟩`，其中 `P` 是 Pauli string。
@@ -54,7 +47,7 @@
 
 ### `energy_and_expectations(symbolic_qc, *, params, param_names, hamiltonian, device=None)`
 
-- 先调用 `build_state_from_symbolic(...)` 得到当前态。
+- 先调用 `build_param_values_from_tensor(...)` 得到参数绑定，再调用 `simulate_statevector(...)` 得到当前态。
 - `device`：torch 设备（`'cpu'` / `'cuda'`），默认 `None`（自动选择）。
 - 遍历哈密顿量项，调用 `expectation_pauli(...)` 计算每个可观测量期望。
 - 返回：
@@ -74,7 +67,6 @@
 import torch
 from quantum_hw.circuit import QuantumCircuit
 from quantum_hw.sim.statevector import (
-    build_state_from_symbolic,
     energy_and_expectations,
     simulate_counts,
     simulate_statevector,

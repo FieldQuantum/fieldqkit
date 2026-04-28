@@ -81,7 +81,8 @@
 ### `to_openqasm2` / `to_openqasm3`
 
 - 导出 OpenQASM 2/3 程序字符串。
-- 参数门会先解析到数值再输出。
+- `to_openqasm2(symbolic=False)`：`symbolic=True` 时保留字符串参数原样输出（用于生成服务端参数模板）；默认行为先解析到数值再输出。
+- `to_openqasm3`：property，无参数，直接输出 QASM 3.0。
 
 ## 门操作接口
 
@@ -197,7 +198,7 @@ qc.rx("theta", 0)
 qc.apply_value({"theta": 0.25}, deep=True)
 qc.measure([0, 1], [0, 1])
 
-print(qc.to_openqasm2)
+print(qc.to_openqasm2())
 ```
 
 ## 示例 2：参数化模板复用

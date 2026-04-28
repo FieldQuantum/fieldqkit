@@ -87,30 +87,24 @@ def shift_pauli_string(pauli: str, offset: int) -> str:
 	return " ".join(f"{op}{idx + offset}" for idx, op in terms)
 
 
-def append_pauli_measurement(qc, pauli: str) -> None:
-	"""Append basis rotations and final measurements for a Pauli string.
-
-	Args:
-		qc: Quantum circuit.
-		pauli (*str*): Pauli string specifying measurement basis per qubit.
-	"""
-	num_qubits = qc.num_qubits if hasattr(qc, "num_qubits") else None
-	basis_pattern = pauli_basis_pattern(pauli, num_qubits=num_qubits)
-	apply_measurement_basis_rotations(qc, basis_pattern)
-	qc.barrier()
-	qc.measure_all()
-
-
 def pauli_basis_pattern(pauli: str, num_qubits: int) -> List[str]:
 	"""Return basis pattern (I/X/Y/Z) per qubit for a Pauli string.
 
 	Args:
 		pauli (*str*): Pauli string in compact or indexed form.
-		num_qubits (*int*): Number of qubits.
+		num_qubits (*int*): Number of qubits. Must be a non-negative integer.
 
 	Returns:
 		List of ``'I'``/``'X'``/``'Y'``/``'Z'`` strings, one per qubit.
+
+	Raises:
+		TypeError: If ``num_qubits`` is not an ``int``.
+		ValueError: If ``num_qubits`` is negative.
 	"""
+	if not isinstance(num_qubits, int) or isinstance(num_qubits, bool):
+		raise TypeError("num_qubits must be an int")
+	if num_qubits < 0:
+		raise ValueError("num_qubits must be non-negative")
 	pattern = ["I"] * num_qubits
 	terms = _parse_pauli_string(pauli, num_qubits=num_qubits)
 	for idx, op in terms:

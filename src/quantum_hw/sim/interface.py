@@ -15,7 +15,9 @@ from .mps import energy_and_expectations as _energy_and_expectations_mps
 from .mps import expectation_pauli as _expectation_pauli_mps
 from .mps import sample_probabilities as _sample_probabilities_mps
 from .mps import simulate_counts as _simulate_counts_mps
+from .mps import simulate_mps as _simulate_mps
 from .statevector import energy_and_expectations as _energy_and_expectations_statevector
+from .statevector import simulate_statevector as _simulate_statevector
 from .statevector import expectation_pauli as _expectation_pauli_statevector
 from .statevector import sample_probabilities as _sample_probabilities_statevector
 from .statevector import simulate_counts as _simulate_counts_statevector
@@ -41,17 +43,18 @@ def get_sim_config() -> dict:
 
 def set_sim_config(
     *,
-    mps_threshold_qubits: int | None = None,
-    max_bond_dim: int | None = ...,
+    mps_threshold_qubits: Optional[int] = None,
+    max_bond_dim: Optional[int] = _UNSET,  # type: ignore[assignment]
 ) -> None:
     """Update simulator hyper-parameters at runtime.
 
     Args:
         mps_threshold_qubits (*int | None*): Qubit count above which MPS is
-            used instead of statevector.  ``None`` leaves the value unchanged.
-        max_bond_dim (*int | None*): Maximum MPS bond dimension.  ``None``
-            means no truncation.  The sentinel ``...`` (default) leaves the
-            value unchanged.
+            used instead of statevector.  ``None`` (default) leaves the value
+            unchanged.
+        max_bond_dim (*int | None*): Maximum MPS bond dimension.  Pass ``None``
+            to disable truncation.  Omitting the argument (internal sentinel)
+            leaves the value unchanged.
 
     Example::
 
@@ -66,7 +69,7 @@ def set_sim_config(
             raise ValueError("mps_threshold_qubits must be a positive integer")
         MPS_THRESHOLD_QUBITS = mps_threshold_qubits
 
-    if max_bond_dim is not ...:
+    if max_bond_dim is not _UNSET:
         if max_bond_dim is not None:
             if not isinstance(max_bond_dim, int) or max_bond_dim < 1:
                 raise ValueError("max_bond_dim must be a positive integer or None")
@@ -264,3 +267,48 @@ def energy_and_expectations(
         hamiltonian=hamiltonian,
         device=device,
     )
+
+
+def build_state_from_symbolic(
+    symbolic_qc: QuantumCircuit,
+    *,
+    params,
+    param_names: Sequence[str],
+    max_bond_dim: int | None | object = _UNSET,
+    device: torch.device | str | None = None,
+):
+    """Build a simulator state from a symbolic circuit and a differentiable param tensor.
+
+    Dispatches to statevector (flat tensor) or MPS (list of tensors) based on
+    qubit count vs ``MPS_THRESHOLD_QUBITS``.  The returned state object can be
+    passed directly to the interface-layer :func:`expectation_pauli` and
+    :func:`sample_probabilities`, which perform the same dispatch.
+
+    Args:
+        symbolic_qc (*QuantumCircuit*): Symbolic (unbound) quantum circuit.
+        params (*torch.Tensor*): 1-D differentiable parameter tensor.
+        param_names (*Sequence[str]*): Names corresponding to *params* elements.
+        max_bond_dim (*int | None*): MPS bond dimension cap (MPS backend only).
+            ``None`` means no truncation.  Defaults to current ``mps.MAX_BOND_DIM``.
+        device (*torch.device | str | None*): Torch device. Defaults to ``None``.
+
+    Returns:
+        Flat complex statevector tensor of length ``2**n`` (statevector backend)
+        or list of MPS site tensors (MPS backend).
+    """
+    from .common import build_param_values_from_tensor
+    from . import mps as _mps_mod
+
+    if max_bond_dim is _UNSET:
+        max_bond_dim = _mps_mod.MAX_BOND_DIM
+
+    nqubits = int(getattr(symbolic_qc, "nqubits", 0) or 0)
+    param_values = build_param_values_from_tensor(params=params, param_names=param_names)
+    if nqubits > MPS_THRESHOLD_QUBITS:
+        return _simulate_mps(
+            symbolic_qc,
+            param_values=param_values,
+            max_bond_dim=max_bond_dim,
+            device=device,
+        )
+    return _simulate_statevector(symbolic_qc, param_values=param_values, device=device)

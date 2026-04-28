@@ -533,6 +533,42 @@ def _move_canonical_center_to_span_left(
     return l
 
 
+def _permute_gate_to_sorted_qubits(
+    gate_matrix: torch.Tensor,
+    qubits: Sequence[int],
+) -> torch.Tensor:
+    """Permute a k-qubit unitary so axis ``i`` corresponds to the i-th smallest qubit.
+
+    The input ``gate_matrix`` is in user order: matrix axis ``i`` corresponds to
+    ``qubits[i]``. The MPO decomposition assigns site ``i`` to the i-th smallest
+    qubit, so when ``qubits`` is not already sorted ascending, the unitary needs
+    to be re-indexed accordingly to preserve gate semantics.
+
+    Args:
+        gate_matrix (*torch.Tensor*): Unitary of shape ``(2**k, 2**k)`` in user
+            qubit order.
+        qubits (*Sequence[int]*): Target qubit indices in user order.
+
+    Returns:
+        Unitary of shape ``(2**k, 2**k)`` whose axes are in ascending qubit
+        order. If ``qubits`` is already ascending, returns ``gate_matrix``
+        unchanged.
+    """
+    k = len(qubits)
+    if k <= 1:
+        return gate_matrix
+    order = sorted(range(k), key=lambda i: int(qubits[i]))
+    if order == list(range(k)):
+        return gate_matrix
+    perm = list(order) + [k + o for o in order]
+    return (
+        gate_matrix.reshape([2] * (2 * k))
+        .permute(*perm)
+        .reshape(2**k, 2**k)
+        .contiguous()
+    )
+
+
 def _apply_k_qubit_gate_with_mpo(
     mps: List[torch.Tensor],
     qubits: Sequence[int],
@@ -544,11 +580,15 @@ def _apply_k_qubit_gate_with_mpo(
 
     For single-qubit gates, directly updates the site tensor. For multi-qubit
     gates, decomposes the unitary into an MPO (filling identity bridges for
-    non-contiguous qubits) and contracts it into the MPS segment.
+    non-contiguous qubits) and contracts it into the MPS segment. When
+    ``qubits`` is not already in ascending order, the gate matrix is permuted
+    to match the sorted qubit layout used by the MPO so the applied unitary
+    matches the user-specified qubit-to-axis mapping.
 
     Args:
         mps (*List[torch.Tensor]*): MPS site tensor list (modified in-place).
-        qubits (*Sequence[int]*): Target qubit indices for the gate.
+        qubits (*Sequence[int]*): Target qubit indices for the gate, in the
+            order matching the gate matrix axes.
         gate_matrix (*torch.Tensor*): Unitary gate matrix of shape ``(2**k, 2**k)``.
         max_bond_dim (*int | None*): Maximum bond dimension for MPO decomposition.
 
@@ -560,26 +600,29 @@ def _apply_k_qubit_gate_with_mpo(
         ValueError: If gate qubits are not distinct.
     """
 
-    acted = sorted(int(q) for q in qubits)
-    if len(set(acted)) != len(acted):
+    qubits_int = [int(q) for q in qubits]
+    if len(set(qubits_int)) != len(qubits_int):
         raise ValueError("gate qubits must be distinct")
-    if not acted:
+    if not qubits_int:
         return None
+    acted = sorted(qubits_int)
     if len(acted) == 1:
         _apply_one_qubit_gate(mps, acted[0], gate_matrix.reshape(2, 2))
         return None
 
+    sorted_gate_matrix = _permute_gate_to_sorted_qubits(gate_matrix, qubits_int)
+
     if len(acted) == 2:
-        left_mpo, right_mpo = _two_qubit_unitary_to_mpo(gate_matrix, max_bond_dim=max_bond_dim)
+        left_mpo, right_mpo = _two_qubit_unitary_to_mpo(sorted_gate_matrix, max_bond_dim=max_bond_dim)
         acted_mpo = [left_mpo, right_mpo]
     else:
-        acted_mpo = _unitary_to_mpo(gate_matrix, len(acted), max_bond_dim=max_bond_dim)
+        acted_mpo = _unitary_to_mpo(sorted_gate_matrix, len(acted), max_bond_dim=max_bond_dim)
 
     mpo_span, qmin, _ = _expand_sparse_gate_mpo_to_span(
         acted_mpo,
         acted,
-        dtype=gate_matrix.dtype,
-        device=gate_matrix.device,
+        dtype=sorted_gate_matrix.dtype,
+        device=sorted_gate_matrix.device,
     )
     _apply_mpo_to_segment(
         mps,

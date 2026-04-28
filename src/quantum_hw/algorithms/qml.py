@@ -333,7 +333,7 @@ def run_pqc_classifier(
 
     if method == "autograd":
         import torch
-        from ..sim.statevector import (
+        from ..sim import (
             build_state_from_symbolic as _build_state,
             expectation_pauli as _expectation_pauli,
         )
@@ -762,7 +762,7 @@ def run_qnn_unsupervised(
 
     if method == "autograd":
         import torch
-        from ..sim.statevector import (
+        from ..sim import (
             build_state_from_symbolic as _build_state,
             sample_probabilities as _sample_probs_sv,
         )
@@ -854,7 +854,7 @@ def run_qnn_unsupervised(
             state = _build_state(
                 ansatz_qc, params=params_t, param_names=ansatz_param_names,
             )
-            probs = _sample_probs_sv(state, unique_train)
+            probs = _sample_probs_sv(state, unique_train, num_qubits=num_qubits)
             weights_t = torch.tensor(train_weights, dtype=torch.float64, device=probs.device)
             nll = -(weights_t * torch.log(probs + 1e-10)).sum()
             nll.backward()
@@ -908,7 +908,7 @@ def run_qnn_unsupervised(
                     state_eval = _build_state(
                         ansatz_qc, params=params_eval, param_names=ansatz_param_names,
                     )
-                    probs_test = _sample_probs_sv(state_eval, unique_test)
+                    probs_test = _sample_probs_sv(state_eval, unique_test, num_qubits=num_qubits)
                     test_weights_t = torch.tensor(test_weights, dtype=torch.float64, device=probs_test.device)
                     test_loss_val = float(-(test_weights_t * torch.log(probs_test + 1e-10)).sum().cpu().item())
             else:
@@ -1049,7 +1049,7 @@ def run_qnn_conditional(
 
     if method == "autograd":
         import torch
-        from ..sim.statevector import (
+        from ..sim import (
             build_state_from_symbolic as _build_state,
             sample_probabilities as _sample_probs_sv,
         )
@@ -1133,7 +1133,7 @@ def run_qnn_conditional(
                 full_qc = _compose_circuits(prep_qc, ansatz_qc)
                 state = _build_state(full_qc, params=params_t, param_names=ansatz_param_names)
                 yi_2d = torch.tensor(yi, dtype=torch.int64).unsqueeze(0)
-                prob = _sample_probs_sv(state, yi_2d.numpy())
+                prob = _sample_probs_sv(state, yi_2d.numpy(), num_qubits=num_qubits)
                 loss_t = loss_t - torch.log(prob[0] + 1e-10)
             loss_t = loss_t / len(x_list)
 

@@ -235,7 +235,7 @@ def run_qaoa_with_backend(
     transpiled_template: Optional[QuantumCircuit] = None
 
     if method == "autograd":
-        if str(chip_name).lower() != "simulator":
+        if str(chip_name).lower() not in ["simulator", "fieldquantum_sim"]:
             raise ValueError("autograd mode is only supported on Simulator backend")
     else:
         if transpile:
@@ -401,8 +401,8 @@ class QAOARunner:
 
         provider_name = resolve_provider(provider, prefer_chips)
         qasm_version = self.client._default_qasm_version_for_provider(provider_name)
-        use_dd = provider_name not in {"tianyan", "guodun", "tencent"}
-        convert_single_qubit_gate_to_u = provider_name not in {"tencent"}
+        use_dd = provider_name not in {"tianyan", "guodun", "tencent", "simulator", "fieldquantum"}
+        convert_single_qubit_gate_to_u = provider_name not in {"tencent", "fieldquantum"}
         runtime = create_provider_runtime(provider=provider_name, client=self.client)
         profiles = runtime.backend_adapter.discover_hardware(
             num_qubits=num_qubits,

@@ -52,7 +52,13 @@ class QuantumCircuit:
     This class allows you to create quantum circuits with a specified number of quantum and classical bits. 
     The circuit can be customized using various quantum gates, and additional features (such as simulation support, 
     circuit summary, and more) will be added in future versions.
-    
+
+    Note:
+        All gate-appending methods (e.g. ``h``, ``x``, ``cx``, ``u``, ``rx``,
+        ``barrier``, ``delay``, ``measure``, ``measure_all``, …) mutate the
+        circuit in place **and** return ``self``, so calls can be chained:
+        ``qc.h(0).cx(0, 1).measure_all()``.
+
     Attributes:
         nqubits (int or None): Number of quantum bits in the circuit.
         ncbits (int or None): Number of classical bits in the circuit.
@@ -224,6 +230,21 @@ class QuantumCircuit:
         """
         return [self._resolve_param(param) for param in params]
 
+    def _fmt_param(self, p, symbolic: bool) -> str:
+        """Format a gate parameter as a string for OpenQASM output.
+
+        Args:
+            p: Parameter value — numeric or symbolic string.
+            symbolic: When ``True`` and *p* is a string, return it verbatim
+                without attempting numeric resolution.
+
+        Returns:
+            String representation of the parameter.
+        """
+        if symbolic and isinstance(p, str):
+            return p
+        return str(self._resolve_param(p))
+
     def _eval_param_expression(self, expr: str, *, symbol_resolver=None):
         """Safely evaluate a parameter expression.
 
@@ -322,7 +343,7 @@ Indexed format examples: "X1 Y2 Z3 Z4".
             num_qubits (*Optional[int]*): Number of qubits. Defaults to ``None``.
 
         Returns:
-            List of ``(pauli_op, qubit_index)`` tuples.
+            List of ``(qubit_index, pauli_op)`` tuples, omitting identity entries.
 
         Raises:
             TypeError: pauli must be a string
@@ -1474,14 +1495,18 @@ Indexed format examples: "X1 Y2 Z3 Z4".
         """
         raise NotImplementedError("to_latex is not implemented yet")
 
-    @property
-    def to_openqasm2(self) -> str:
+    def to_openqasm2(self, symbolic: bool = False) -> str:
         """Export the quantum circuit to an OpenQASM 2 program in a string.
+
+        Args:
+            symbolic: When ``True``, unbound string parameters are emitted
+                verbatim instead of being resolved numerically.  Use this to
+                produce a QASM *template* for later parameter substitution.
 
         Returns:
             str: An OpenQASM 2 string representing the circuit.
         """
-        return self._to_openqasm(version="2.0")
+        return self._to_openqasm(version="2.0", symbolic=symbolic)
 
     @property
     def to_openqasm3(self) -> str:
@@ -1492,7 +1517,7 @@ Indexed format examples: "X1 Y2 Z3 Z4".
         """
         return self._to_openqasm(version="3.0")
 
-    def _to_openqasm(self, version: str) -> str:
+    def _to_openqasm(self, version: str, symbolic: bool = False) -> str:
         """Serialize the circuit to an OpenQASM string.
 
         Args:
@@ -1503,7 +1528,7 @@ Indexed format examples: "X1 Y2 Z3 Z4".
         """
         lines = self._openqasm_header(version)
         for gate_info in self.gates:
-            lines.extend(self._openqasm_gate_lines(gate_info, version))
+            lines.extend(self._openqasm_gate_lines(gate_info, version, symbolic=symbolic))
         return "\n".join(lines)
 
     def _openqasm_header(self, version: str) -> list[str]:
@@ -1542,7 +1567,7 @@ Indexed format examples: "X1 Y2 Z3 Z4".
             raise ValueError(f"Unsupported OpenQASM version: {version}")
         return lines
 
-    def _openqasm_gate_lines(self, gate_info, version: str) -> list[str]:
+    def _openqasm_gate_lines(self, gate_info, version: str, symbolic: bool = False) -> list[str]:
         """Convert a single gate tuple to OpenQASM instruction lines.
 
         Args:
@@ -1563,16 +1588,19 @@ Indexed format examples: "X1 Y2 Z3 Z4".
         if gate in three_qubit_gates_available.keys():
             return [f"{gate} q[{gate_info[1]}],q[{gate_info[2]}],q[{gate_info[3]}];"]
         if gate in two_qubit_parameter_gates_available.keys():
-            theta = self._resolve_param(gate_info[1])
+            theta = self._fmt_param(gate_info[1], symbolic)
             return [f"{gate}({theta}) q[{gate_info[2]}],q[{gate_info[3]}];"]
         if gate in one_qubit_parameter_gates_available.keys():
             if gate == 'u':
-                theta, phi, lamda = self._resolve_param_list(gate_info[1:4])
+                theta = self._fmt_param(gate_info[1], symbolic)
+                phi = self._fmt_param(gate_info[2], symbolic)
+                lamda = self._fmt_param(gate_info[3], symbolic)
                 return [f"{gate}({theta},{phi},{lamda}) q[{gate_info[-1]}];"]
             if gate == 'r':
-                theta, phi = self._resolve_param_list(gate_info[1:3])
+                theta = self._fmt_param(gate_info[1], symbolic)
+                phi = self._fmt_param(gate_info[2], symbolic)
                 return [f"{gate}({theta},{phi}) q[{gate_info[-1]}];"]
-            param_value = self._resolve_param(gate_info[1])
+            param_value = self._fmt_param(gate_info[1], symbolic)
             return [f"{gate}({param_value}) q[{gate_info[2]}];"]
         if gate in ['reset']:
             return [f"{gate} q[{gate_info[1]}];"]

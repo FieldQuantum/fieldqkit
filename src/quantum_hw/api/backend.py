@@ -22,6 +22,7 @@ GUODUN_HARDWARE_NAMES = {"gd_qc1", "chmy176", "gd_sim1"}
 CQLIB_HARDWARE_NAMES = TIANYAN_HARDWARE_NAMES | GUODUN_HARDWARE_NAMES
 TENCENT_HARDWARE_NAMES = {"tianji_s2", "tianji_m2", "tianxuan_s2"}
 SIMULATOR_HARDWARE_NAMES = {"Simulator", "simulator"}
+FIELDQUANTUM_HARDWARE_NAMES = {"fieldquantum_sim"}
 
 
 def _as_float_or_default(value: Any, default: float) -> float:
@@ -108,8 +109,8 @@ def _build_simulator_chip_info(nqubits: int = 16) -> dict:
         "two_qubit_gate_basis": "cz",
         "nqubits_available": nqubits,
         "error_rate_2q": 0.0,
-        "one_qubit_gate_length": 0.01,
-        "two_qubit_gate_length": 0.01,
+        "one_qubit_gate_length": 1e-8,
+        "two_qubit_gate_length": 5e-8,
     }
     return {
         "chip_name": "Simulator",
@@ -151,6 +152,10 @@ class Backend:
         elif chip in SIMULATOR_HARDWARE_NAMES:
             self.chip_name = "Simulator"
             self.chip_info = _build_simulator_chip_info()
+        elif chip in FIELDQUANTUM_HARDWARE_NAMES:
+            self.chip_name = "fieldquantum_sim"
+            self.chip_info = _build_simulator_chip_info()
+            self.chip_info["chip_name"] = "fieldquantum_sim"
         else:
             raise ValueError(f"Wrong chip name! {chip}")
 
@@ -709,6 +714,7 @@ _register_chips("tianyan", TIANYAN_HARDWARE_NAMES)
 _register_chips("guodun", GUODUN_HARDWARE_NAMES)
 _register_chips("tencent", TENCENT_HARDWARE_NAMES)
 _register_chips("simulator", SIMULATOR_HARDWARE_NAMES)
+_register_chips("fieldquantum", FIELDQUANTUM_HARDWARE_NAMES)
 
 
 def infer_provider_from_chip(chip_name: str) -> Optional[str]:

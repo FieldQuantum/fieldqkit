@@ -90,7 +90,7 @@ class QMLRunner:
         """
         provider_name = resolve_provider(provider, prefer_chips)
         qasm_version = self.client._default_qasm_version_for_provider(provider_name)
-        convert_u = provider_name not in {"tencent"} and self.convert_single_qubit_gate_to_u
+        convert_u = provider_name not in {"tencent", "fieldquantum"} and self.convert_single_qubit_gate_to_u
         runtime = create_provider_runtime(provider=provider_name, client=self.client)
         profiles = runtime.backend_adapter.discover_hardware(
             num_qubits=num_qubits,

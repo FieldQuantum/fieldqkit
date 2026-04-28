@@ -38,7 +38,7 @@ VQERunner(
   planner_max_layers_per_block=6,
   enable_circuit_compression=False,
   compression_block_layers=None,
-  compression_optimizer_steps=50,
+  compression_optimizer_steps=20,
   compression_optimizer_lr=0.05,
   compression_verbose=False,
   compression_plot_loss=False,
@@ -89,7 +89,7 @@ run_model(
 | `planner_max_layers_per_block` | `int` | `6` | 否 | 规划时每个后缀块最多层数。 |
 | `enable_circuit_compression` | `bool` | `False` | 否 | 是否启用每次能量/梯度评估前的线路压缩。 |
 | `compression_block_layers` | `Optional[int]` | `None` | 条件必填 | 启用压缩时必填，必须是单个正整数 `k`（压缩 ansatz 层数）。 |
-| `compression_optimizer_steps` | `int` | `50` | 否 | 每次压缩优化步数。 |
+| `compression_optimizer_steps` | `int` | `20` | 否 | 每次压缩优化步数。 |
 | `compression_optimizer_lr` | `float` | `0.05` | 否 | 压缩优化学习率。 |
 | `compression_verbose` | `bool` | `False` | 否 | 是否打印压缩统计。 |
 | `compression_plot_loss` | `bool` | `False` | 否 | 是否绘制压缩 loss 曲线。 |
@@ -97,7 +97,7 @@ run_model(
 | `sleep_time` | `int` | `5` | 否 | `VQERunner` 初始化参数：查询轮询间隔（秒）。 |
 | `target_qubits` | `Optional[Sequence[int]]` | `None` | 否 | 指定物理比特映射。 |
 | `seed` | `Optional[int]` | `None` | 否 | `VQERunner` 初始化参数：参数初始化随机种子。 |
-| `gradient_method` | `Literal["parameter-shift", "autograd"]` | `"parameter-shift"` | 否 | 梯度计算方式。`autograd` 仅支持 `chip_name="Simulator"`，并调用 sim 接口层的可微分能量入口。 |
+| `gradient_method` | `Literal["parameter-shift", "autograd"]` | `"parameter-shift"` | 否 | 梯度计算方式。`autograd` 支持两种后端：`Simulator`（本地 torch 自动微分）和 `fieldquantum_sim`（单次 HTTP 调用服务端完成参数移位 + 梯度计算，需配置 `FIELDQUANTUM_SERVER_URL`）。 |
 | `init_params` | `Optional[Sequence[float]]` | `None` | 否 | 显式初始参数；长度必须等于 `2 * num_qubits * (layers + 1)`。 |
 | `callback` | `Optional[Callable[[int, float, np.ndarray], None]]` | `None` | 否 | 每轮回调，参数为 `(iter_idx, energy, params)`。 |
 | `prefer_chips` | `Optional[Sequence[str] \| str]` | `None` | 否 | 候选芯片限制（可传 `"Simulator"`）。 |

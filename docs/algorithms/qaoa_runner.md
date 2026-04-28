@@ -62,7 +62,7 @@ run_model(
 | `readout_mitigation` | `bool` | `False` | 否 | `QAOARunner` 初始化参数：是否启用 readout 缓解。 |
 | `clifford_fitting` | `bool` | `False` | 否 | `QAOARunner` 初始化参数：是否启用 Clifford fitting。 |
 | `seed` | `Optional[int]` | `None` | 否 | `QAOARunner` 初始化参数：RNG 种子。 |
-| `gradient_method` | `Literal["parameter-shift", "autograd"]` | `"parameter-shift"` | 否 | 梯度计算方式。`autograd` 仅限 Simulator。 |
+| `gradient_method` | `Literal["parameter-shift", "autograd"]` | `"parameter-shift"` | 否 | 梯度计算方式。`autograd` 支持 `Simulator`（本地 torch）和 `fieldquantum_sim`（服务端 HTTP 梯度接口）。 |
 | `max_wait_time` | `int` | `3600` | 否 | `QAOARunner` 初始化参数：任务查询最大等待时间（秒）。 |
 | `sleep_time` | `int` | `5` | 否 | `QAOARunner` 初始化参数：查询轮询间隔（秒）。 |
 | `target_qubits` | `Optional[Sequence[int]]` | `None` | 否 | 物理比特映射。 |

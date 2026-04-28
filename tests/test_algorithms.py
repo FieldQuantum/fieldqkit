@@ -338,6 +338,40 @@ def test_hybrid_suffix_planner_rejects_invalid_thresholds(kwargs):
         plan_hybrid_suffix_blocks(qc, **kwargs)
 
 
+def test_compose_stage_circuits_rejects_inconsistent_qubits_layout():
+    """Stages with mismatched qubits ordering must raise to preserve transpiler layout."""
+    from quantum_hw.algorithms.circuit_compression import _compose_stage_circuits
+
+    qc1 = QuantumCircuit(3)
+    qc1.ry(0.1, 0)
+    qc1.cx(0, 1)
+    qc1.qubits = [0, 1, 2]
+
+    qc2 = QuantumCircuit(3)
+    qc2.rx(0.2, 0)
+    qc2.qubits = [2, 0, 1]  # different physical-qubit layout
+
+    with pytest.raises(ValueError, match="qubits layout"):
+        _compose_stage_circuits([qc1, qc2], num_qubits=3)
+
+
+def test_compose_stage_circuits_preserves_qubits_layout():
+    """When all stages share the same qubits list, composition keeps it intact."""
+    from quantum_hw.algorithms.circuit_compression import _compose_stage_circuits
+
+    qc1 = QuantumCircuit(3)
+    qc1.ry(0.1, 0)
+    qc1.qubits = [2, 0, 1]
+
+    qc2 = QuantumCircuit(3)
+    qc2.rx(0.2, 1)
+    qc2.qubits = [2, 0, 1]
+
+    out = _compose_stage_circuits([qc1, qc2], num_qubits=3)
+    assert out.qubits == [2, 0, 1]
+    assert len(out.gates) == 2
+
+
 def test_compress_circuit_returns_shallow_hardware_efficient_circuit():
     qc = QuantumCircuit(3)
     qc.ry(0.15, 0)
