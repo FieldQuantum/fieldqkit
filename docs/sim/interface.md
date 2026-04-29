@@ -45,7 +45,6 @@ set_sim_config(mps_threshold_qubits=20, max_bond_dim=512)
 - 返回值可直接传入同层的 `expectation_pauli` 和 `sample_probabilities`。
 - `max_bond_dim`：MPS 后端的最大键维，默认 `MAX_BOND_DIM`（256）。statevector 后端忽略此参数。
 - `device`：torch 设备（`'cpu'` / `'cuda'`），默认 `None`（自动选择）。
-- **这是 autograd QML 路径构建态向量的统一入口**，替代了原 `statevector.build_state_from_symbolic`。
 
 ### simulate_counts(qc, shots, *, seed=None, param_values=None, max_bond_dim=MAX_BOND_DIM, device=None)
 

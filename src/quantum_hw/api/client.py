@@ -18,7 +18,15 @@ from ..circuit import QuantumCircuit
 
 from ..compile import Transpiler
 from ..compile.translate import TranslateToBasisGates
-from ..core.circuits import build_cluster, build_ghz, build_ising_time_evolution, build_qft
+from ..core.circuits import (
+	build_cluster,
+	build_ghz,
+	build_heisenberg_time_evolution,
+	build_ising_time_evolution,
+	build_qft,
+	build_xxz_time_evolution,
+	build_xy_time_evolution,
+)
 from ..core.observables import (
 	append_measurement_basis,
 	group_observables,
@@ -140,7 +148,9 @@ class QuantumHardwareClient:
 		"""Build a predefined circuit by name.
 
 		Args:
-			kind (*str*): Circuit type (``"ghz"``, ``"cluster"``, ``"qft"``, ``"ising"``).
+			kind (*str*): Circuit type. One of ``"ghz"``, ``"cluster"``, ``"qft"``,
+				``"ising"`` (transverse-field Ising Trotter evolution),
+				``"heisenberg"``, ``"xxz"``, ``"xy"``.
 			**kwargs: Circuit-specific keyword arguments.
 
 		Returns:
@@ -158,6 +168,12 @@ class QuantumHardwareClient:
 			return build_qft(**kwargs)
 		if kind in {"ising", "ising_time_evolution", "ising_time"}:
 			return build_ising_time_evolution(**kwargs)
+		if kind in {"heisenberg", "heisenberg_time_evolution"}:
+			return build_heisenberg_time_evolution(**kwargs)
+		if kind in {"xxz", "xxz_time_evolution"}:
+			return build_xxz_time_evolution(**kwargs)
+		if kind in {"xy", "xy_time_evolution"}:
+			return build_xy_time_evolution(**kwargs)
 		raise ValueError(f"unsupported circuit kind: {kind}")
 
 	def _transpile_with_backend(

@@ -14,6 +14,9 @@ __all__ = [
     "build_cluster",
     "build_qft",
     "build_ising_time_evolution",
+    "build_heisenberg_time_evolution",
+    "build_xxz_time_evolution",
+    "build_xy_time_evolution",
     # observables
     "pauli_support",
     "shift_pauli_string",

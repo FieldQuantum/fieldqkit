@@ -8,6 +8,9 @@ from quantum_hw.core.circuits import (
     build_cluster,
     build_qft,
     build_ising_time_evolution,
+    build_heisenberg_time_evolution,
+    build_xxz_time_evolution,
+    build_xy_time_evolution,
 )
 from quantum_hw.core.observables import (
     _parse_pauli_string,
@@ -142,8 +145,7 @@ class TestBuildIsingTimeEvolution:
         qc = build_ising_time_evolution(3, j=1.0, h=0.5, t=1.0)
         assert qc.nqubits == 3
         gate_names = [g[0] for g in qc.gates]
-        assert "cx" in gate_names
-        assert "rz" in gate_names
+        assert "rzz" in gate_names
         assert "rx" in gate_names
 
     def test_multiple_steps(self):
@@ -154,13 +156,66 @@ class TestBuildIsingTimeEvolution:
     def test_single_qubit_no_zz_interaction(self):
         qc = build_ising_time_evolution(1, j=1.0, h=1.0, t=1.0)
         gate_names = [g[0] for g in qc.gates]
-        assert "cx" not in gate_names
+        assert "rzz" not in gate_names
         assert "rx" in gate_names
 
     def test_zero_coupling_still_has_rx(self):
         qc = build_ising_time_evolution(2, j=0.0, h=1.0, t=1.0)
         gate_names = [g[0] for g in qc.gates]
         assert "rx" in gate_names
+
+
+class TestBuildHeisenbergTimeEvolution:
+    def test_basic_circuit(self):
+        qc = build_heisenberg_time_evolution(3, t=1.0, jx=1.0, jy=1.0, jz=0.5, hz=0.1)
+        assert qc.nqubits == 3
+        gate_names = [g[0] for g in qc.gates]
+        assert "rxx" in gate_names
+        assert "ryy" in gate_names
+        assert "rzz" in gate_names
+        assert "rz" in gate_names  # from hz term
+
+    def test_zero_couplings_skip_blocks(self):
+        qc = build_heisenberg_time_evolution(2, t=1.0, jx=0.0, jy=0.0, jz=0.0, hz=0.0)
+        # All couplings zero => no two-qubit gates and no rotations.
+        gate_names = [g[0] for g in qc.gates]
+        assert "rxx" not in gate_names
+        assert "ryy" not in gate_names
+        assert "rzz" not in gate_names
+        assert "rz" not in gate_names
+
+    def test_more_steps_more_gates(self):
+        qc1 = build_heisenberg_time_evolution(2, t=1.0, steps=1)
+        qc2 = build_heisenberg_time_evolution(2, t=1.0, steps=3)
+        assert len(qc2.gates) > len(qc1.gates)
+
+
+class TestBuildXxzTimeEvolution:
+    def test_basic_circuit(self):
+        qc = build_xxz_time_evolution(3, t=1.0, jxy=1.0, jz=0.5, hz=0.0)
+        assert qc.nqubits == 3
+        gate_names = [g[0] for g in qc.gates]
+        assert "rxx" in gate_names
+        assert "ryy" in gate_names
+        assert "rzz" in gate_names
+
+
+class TestBuildXyTimeEvolution:
+    def test_basic_circuit(self):
+        qc = build_xy_time_evolution(3, t=1.0, jx=1.0, jy=1.0, hz=0.0)
+        assert qc.nqubits == 3
+        gate_names = [g[0] for g in qc.gates]
+        assert "rxx" in gate_names
+        assert "ryy" in gate_names
+        assert "rzz" not in gate_names  # XY has no ZZ coupling
+
+    def test_no_zz_block(self):
+        qc = build_xy_time_evolution(2, t=1.0, jx=1.0, jy=1.0, hz=0.0)
+        gate_names = [g[0] for g in qc.gates]
+        # 1 step * 1 pair * (rxx + ryy) = 2 two-qubit gates per step.
+        assert gate_names.count("rxx") == 1
+        assert gate_names.count("ryy") == 1
+        assert "rzz" not in gate_names
 
 
 # ═══════════════════════════════════════════════════════════

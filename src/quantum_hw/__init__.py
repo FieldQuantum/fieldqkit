@@ -4,7 +4,15 @@ __version__ = "0.1.0"
 
 from .api import QuantumHardwareClient
 from .circuit import QuantumCircuit
-from .core.circuits import build_ghz, build_cluster, build_qft, build_ising_time_evolution
+from .core.circuits import (
+    build_ghz,
+    build_cluster,
+    build_qft,
+    build_ising_time_evolution,
+    build_heisenberg_time_evolution,
+    build_xxz_time_evolution,
+    build_xy_time_evolution,
+)
 from .core.observables import pauli_expectation
 from .core.readout import mitigate_readout
 from .calibration import ReadoutCalibrationManager, NativeTwoQubitRBManager, NativeTwoQubitTomographyManager
@@ -43,6 +51,9 @@ __all__ = [
     "build_cluster",
     "build_qft",
     "build_ising_time_evolution",
+    "build_heisenberg_time_evolution",
+    "build_xxz_time_evolution",
+    "build_xy_time_evolution",
     "pauli_expectation",
     "mitigate_readout",
     "ReadoutCalibrationManager",
