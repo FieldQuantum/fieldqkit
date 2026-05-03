@@ -66,6 +66,8 @@ class ReadoutCalibrationManager:
 		self._get_task_result = get_task_result
 		self._compact_for_sim = compact_for_sim
 		self._simulate_counts = simulate_counts
+		# Internal tracking for sequential submission (tianyan provider)
+		self._last_pending_task_id: Optional[object] = None
 
 	def calibrate_readout(
 		self,
@@ -146,12 +148,20 @@ class ReadoutCalibrationManager:
 						qct_sim = qct_sim[0]
 					res_map[q][bits] = self._simulate_counts(qct_sim, shots)
 				else:
+					# For sequential submission mode (tianyan provider), wait for previous calibration task.
+					if self._last_pending_task_id is not None:
+						status = self._wait_task(self._last_pending_task_id)
+						if status != "Finished":
+							raise RuntimeError(f"previous calibration task {self._last_pending_task_id} ended with status {status}")
+						self._last_pending_task_id = None
 					task_id = self._submit_openqasm_async(
 						name=f"readout_cal_q{q}_{bits}",
 						qasm=qct.to_openqasm2() if qasm_version == "2.0" else qct.to_openqasm3,
 						shots=shots,
 						chip_name=chip_name,
+						submit_options={"num_qubits": 1},
 					)
+					self._last_pending_task_id = task_id
 					pending.append((task_id, q, bits))
 
 		if not use_simulator:

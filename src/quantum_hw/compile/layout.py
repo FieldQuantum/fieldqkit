@@ -17,7 +17,6 @@ from typing import Literal
 
 logger = logging.getLogger(__name__)
 from itertools import combinations, zip_longest, product
-from multiprocessing import Pool
 from functools import partial
 from ..api.backend import Backend
 
@@ -42,7 +41,10 @@ class Layout:
         self.graph = chip_backend.edge_filtered_graph(thres=0.6)
         self.ncore = os.cpu_count() // 2
         self.fidelity_mean_threshold = 0.9
-        self.edge_fidelitys = nx.get_edge_attributes(self.graph, "fidelity")
+        self.edge_fidelitys = {
+            (min(u, v), max(u, v)): fidelity
+            for (u, v), fidelity in nx.get_edge_attributes(self.graph, "fidelity").items()
+        }
         self.algorithm_switch_threshold = 10
 
     # ---- circuit interaction analysis ----
@@ -217,7 +219,16 @@ Lower is better.
         return list(set(collect))
 
     def collect_all_subgraph_in_parallel(self, nqubits):
-        """Enumerate connected subgraphs of size *nqubits* from every node using multiprocessing.
+        """Enumerate connected subgraphs of size *nqubits* from every node.
+
+        Despite the legacy name, this runs sequentially. Earlier versions
+        used ``multiprocessing.Pool`` which on Windows / macOS re-imports
+        the caller's ``__main__`` module and so re-submitted the user's
+        whole pipeline once per worker. A thread pool also caused issues
+        because matplotlib's TkAgg backend runs object finalizers that
+        must execute on the main thread. The graph traversal here is
+        cheap (pure NetworkX, GIL-bound), so a plain Python loop is the
+        safest choice.
 
         Args:
             nqubits (*int*): Number of qubits.
@@ -226,13 +237,8 @@ Lower is better.
             List of subgraph tuples (sorted qubit index tuples).
         """
         collect_all = []
-        try:
-            with Pool(processes=self.ncore) as pool:
-                res = pool.map(partial(self.get_one_node_subgraph, nqubits=nqubits), self.graph.nodes())
-        except Exception:
-            res = [self.get_one_node_subgraph(node, nqubits) for node in self.graph.nodes()]
-        for collect in res:
-            collect_all += collect
+        for node in self.graph.nodes():
+            collect_all += self.get_one_node_subgraph(node, nqubits)
         return collect_all
 
     def get_one_subgraph_info(self, nodes: tuple | list):
@@ -255,7 +261,11 @@ Lower is better.
         return None
 
     def collect_all_subgraph_info_in_parallel(self, nqubits: int):
-        """Compute fidelity statistics for all enumerated subgraphs using multiprocessing.
+        """Compute fidelity statistics for all enumerated subgraphs.
+
+        Runs sequentially; see ``collect_all_subgraph_in_parallel`` for
+        rationale (multiprocessing re-imports the user script, and a
+        thread pool interacts badly with matplotlib's TkAgg finalizers).
 
         Args:
             nqubits (*int*): Number of qubits.
@@ -264,12 +274,7 @@ Lower is better.
             List of subgraph info tuples (or ``None`` entries for below-threshold subgraphs).
         """
         all_subgraph = self.collect_all_subgraph_in_parallel(nqubits)
-        try:
-            with Pool(processes=self.ncore) as pool:
-                res = pool.map(partial(self.get_one_subgraph_info), all_subgraph)
-        except Exception:
-            res = [self.get_one_subgraph_info(sg) for sg in all_subgraph]
-        return res
+        return [self.get_one_subgraph_info(sg) for sg in all_subgraph]
 
     def classify_all_subgraph_according_topology(self, nqubits: int):
         """Classify qualifying subgraphs into linear (chain) and nonlinear topology groups.

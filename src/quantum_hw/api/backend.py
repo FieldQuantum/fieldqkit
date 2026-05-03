@@ -18,7 +18,7 @@ MIN_CONNECTED_COUPLER_FIDELITY = 0.9
 
 QUAFU_HARDWARE_NAMES = {"Baihua", "Dongling", "Haituo", "Yunmeng", "Miaofeng", "Yudu", "Hongluo"}
 TIANYAN_HARDWARE_NAMES = {"tianyan176", "tianyan176-2", "tianyan24", "tianyan504", "tianyan287"}
-GUODUN_HARDWARE_NAMES = {"gd_qc1", "chmy176", "gd_sim1"}
+GUODUN_HARDWARE_NAMES = {"gd_qc1", "chmy176", "gd_sim1", "gd_test"}
 CQLIB_HARDWARE_NAMES = TIANYAN_HARDWARE_NAMES | GUODUN_HARDWARE_NAMES
 TENCENT_HARDWARE_NAMES = {"tianji_s2", "tianji_m2", "tianxuan_s2"}
 SIMULATOR_HARDWARE_NAMES = {"Simulator", "simulator"}

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import time
 from typing import Dict, List, Optional, Sequence, Tuple, Union
 
 logger = logging.getLogger(__name__)
@@ -57,6 +58,8 @@ class QuantumHardwareClient:
 		self._active_task_adapter: Optional[TaskAdapter] = None
 		self._active_resolved_backend = None
 		self._active_num_qubits: Optional[int] = None
+		# For sequential task submission (tianyan provider does not support batch submission)
+		self._last_pending_task_id: Optional[object] = None
 
 	@staticmethod
 	def _is_openqasm2(source: str) -> bool:
@@ -238,6 +241,10 @@ class QuantumHardwareClient:
 		if "num_qubits" not in options and self._active_num_qubits is not None:
 			options["num_qubits"] = self._active_num_qubits
 
+		# Add timestamp suffix to avoid task name collision
+		timestamp = int(time.time() * 1000)
+		task_name = f"{name}_{timestamp}"
+
 		adapter = self._active_task_adapter
 		backend = self._active_resolved_backend
 		if adapter is None or backend is None:
@@ -245,7 +252,7 @@ class QuantumHardwareClient:
 
 		handle = adapter.submit_openqasm(
 			OpenQasmSubmitRequest(
-				name=name,
+				name=task_name,
 				qasm=qasm,
 				shots=shots,
 				chip_name=resolved_chip_name,
@@ -272,6 +279,34 @@ class QuantumHardwareClient:
 		if self.chip_name is not None:
 			return self.chip_name
 		raise RuntimeError("chip_name is not set; use run_auto or provide chip_name")
+
+	def _needs_sequential_submission(self) -> bool:
+		"""Check if the current provider requires sequential task submission.
+
+		TianYan provider does not support batch submission, so tasks must be
+		submitted one at a time, waiting for each to complete before submitting the next.
+
+		Returns:
+			``True`` if sequential submission is required.
+		"""
+		resolved = self._active_resolved_backend
+		if resolved is None:
+			return False
+		provider = getattr(resolved, "provider", None)
+		return provider is not None and provider.lower() == "tianyan"
+
+	def _wait_for_last_task(self) -> None:
+		"""Wait for the previously submitted task to complete.
+
+		This is used for sequential submission mode (tianyan provider).
+		Does nothing if no task was previously submitted.
+		"""
+		import time
+		if self._last_pending_task_id is not None:
+			status = self._wait_task(self._last_pending_task_id)
+			if status != "Finished":
+				raise RuntimeError(f"previous task {self._last_pending_task_id} ended with status {status}")
+			self._last_pending_task_id = None
 
 	def _wait_task(self, task_id):
 		"""Wait for a task to finish and return its final status.
@@ -587,6 +622,9 @@ class QuantumHardwareClient:
 				group_counts[gi]["1"] = simulate_counts(qct_sim, shots)
 			else:
 				# Hardware: submit async task and collect later.
+				# For tianyan provider, wait for previous task to complete before submitting next.
+				if self._needs_sequential_submission():
+					self._wait_for_last_task()
 				qasm_1 = qct.to_openqasm2() if qasm_version == "2.0" else qct.to_openqasm3
 				task_id_1 = self._submit_openqasm_async(
 					name=f"{name}_g{gi}",
@@ -595,6 +633,8 @@ class QuantumHardwareClient:
 					chip_name=chip_name,
 					submit_options=submit_options,
 				)
+				if self._needs_sequential_submission():
+					self._last_pending_task_id = task_id_1
 				if print_true:
 					logger.info("compile and run circuit: %s", f"{name}_g{gi}")
 				pending.append((gi, "1", task_id_1))
@@ -612,6 +652,9 @@ class QuantumHardwareClient:
 					group_counts[gi]["3"] = simulate_counts(qct_sim, shots)
 				else:
 					# ZNE scale=3 path runs as an extra hardware task.
+					# For tianyan provider, wait for previous task to complete before submitting next.
+					if self._needs_sequential_submission():
+						self._wait_for_last_task()
 					task_id_3 = self._submit_openqasm_async(
 						name=f"{name}_g{gi}_zne3",
 						qasm=qct.to_openqasm2() if qasm_version == "2.0" else qct.to_openqasm3,
@@ -619,8 +662,8 @@ class QuantumHardwareClient:
 						chip_name=chip_name,
 						submit_options=submit_options,
 					)
-					if print_true:
-						logger.info("run circuit: zero-noise extrapolation")
+					if self._needs_sequential_submission():
+						self._last_pending_task_id = task_id_3
 					pending.append((gi, "3", task_id_3))
 					task_ids.append(task_id_3)
 
@@ -639,6 +682,8 @@ class QuantumHardwareClient:
 				raise ValueError(
 					f"num_qubits ({num_qubits}) must match len(target_qubits) ({len(target_qubits_group)}) for readout mitigation"
 				)
+			if self._needs_sequential_submission():
+				self._wait_for_last_task()
 			calibration_manager = ReadoutCalibrationManager(
 				cache_dir=Path(__file__).resolve().parent / ".cache",
 				submit_openqasm_async=self._submit_openqasm_async,
