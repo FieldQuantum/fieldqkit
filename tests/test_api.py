@@ -2,6 +2,7 @@
 
 import json
 import math
+import os
 import types
 
 import pytest
@@ -21,6 +22,7 @@ from quantum_hw.api.client import QuantumHardwareClient
 from quantum_hw.api.quantum_platform import ProviderRuntime
 from quantum_hw.api.quantum_platform import cqlib as cq
 from quantum_hw.api.quantum_platform import guodun as gd
+from quantum_hw.api.quantum_platform import origin as og
 from quantum_hw.api.quantum_platform import quafu as qf
 from quantum_hw.api.quantum_platform import tencent as tc
 from quantum_hw.api.quantum_platform import tianyan as ty
@@ -179,6 +181,15 @@ def test_api_exports_include_tencent_symbols():
     assert api.TencentPlatform is not None
 
 
+def test_api_exports_include_origin_symbols():
+    assert "OriginPlatform" in api.__all__
+    assert "OriginBackendAdapter" in api.__all__
+    assert "OriginTaskAdapter" in api.__all__
+    assert api.OriginPlatform is og.OriginPlatform
+    assert api.OriginBackendAdapter is og.OriginBackendAdapter
+    assert api.OriginTaskAdapter is og.OriginTaskAdapter
+
+
 # ═══════════════════════════════════════════════════════════
 #  Provider runtime creation
 # ═══════════════════════════════════════════════════════════
@@ -282,6 +293,32 @@ def test_create_provider_runtime_tencent_case_insensitive(monkeypatch):
 
     runtime = module.create_provider_runtime(provider="Tencent", client=_DummyClient())
     assert runtime.provider == "tencent"
+
+
+def test_create_provider_runtime_for_origin(monkeypatch):
+    import quantum_hw.api.quantum_platform as module
+
+    dummy_backend = object()
+    dummy_task = object()
+    monkeypatch.setattr(module, "OriginBackendAdapter", lambda: dummy_backend)
+    monkeypatch.setattr(module, "OriginTaskAdapter", lambda client: dummy_task)
+
+    runtime = module.create_provider_runtime(provider="origin", client=_DummyClient())
+    assert runtime.provider == "origin"
+    assert runtime.backend_adapter is dummy_backend
+    assert runtime.task_adapter is dummy_task
+
+
+def test_create_provider_runtime_origin_case_insensitive(monkeypatch):
+    import quantum_hw.api.quantum_platform as module
+
+    dummy_backend = object()
+    dummy_task = object()
+    monkeypatch.setattr(module, "OriginBackendAdapter", lambda: dummy_backend)
+    monkeypatch.setattr(module, "OriginTaskAdapter", lambda client: dummy_task)
+
+    runtime = module.create_provider_runtime(provider="Origin", client=_DummyClient())
+    assert runtime.provider == "origin"
 
 
 def test_provider_runtime_dataclass_fields_accessible():
@@ -1513,3 +1550,352 @@ class TestNormalizeMeasurements:
         )
 
         assert result.observable_values["ZZZ"] == pytest.approx(1.0)
+
+
+# ═══════════════════════════════════════════════════════════
+#  OriginQ (本源量子) provider — fixtures + tests
+# ═══════════════════════════════════════════════════════════
+
+
+class _OriginFakeJobStatus:
+    def __init__(self, name: str) -> None:
+        self.name = name
+
+
+class _OriginFakeQubitInfo:
+    def __init__(self, qid: int) -> None:
+        self._qid = qid
+
+    def get_qubit_id(self) -> str:
+        return str(self._qid)
+
+    def get_frequency(self) -> float:
+        return 4000.0 + self._qid
+
+    def get_readout_fidelity(self) -> float:
+        return 0.95
+
+    def get_single_gate_fidelity(self) -> float:
+        return 0.999
+
+    def get_t1(self) -> float:
+        return 30.0
+
+    def get_t2(self) -> float:
+        return 5.0
+
+
+class _OriginFakeDoubleQubitsInfo:
+    def __init__(self, a: int, b: int, fidelity: float = 0.97) -> None:
+        self._pair = [a, b]
+        self._fid = fidelity
+
+    def get_qubits(self):
+        return list(self._pair)
+
+    def get_fidelity(self) -> float:
+        return self._fid
+
+
+class _OriginFakeChipInfo:
+    def __init__(self, *, nq: int = 4, edges=((0, 1), (1, 2), (2, 3))):
+        self._nq = nq
+        self._edges = list(edges)
+
+    def chip_id(self) -> str:
+        return "FAKE_CHIP"
+
+    def qubits_num(self) -> int:
+        return self._nq
+
+    def available_qubits(self):
+        return list(range(self._nq))
+
+    def get_basic_gates(self):
+        return ["RPhi", "CZ"]
+
+    def get_chip_topology(self, qubits=None):
+        return [list(e) for e in self._edges]
+
+    def single_qubit_info(self):
+        return [_OriginFakeQubitInfo(i) for i in range(self._nq)]
+
+    def double_qubits_info(self):
+        return [_OriginFakeDoubleQubitsInfo(a, b) for a, b in self._edges]
+
+    def get_single_gate_timing(self) -> int:
+        return 30
+
+    def get_double_gate_timing(self) -> int:
+        return 40
+
+    def high_frequency_qubits(self):
+        return []
+
+
+class _OriginFakeQCloudResult:
+    def __init__(self, counts, status="FINISHED", err=""):
+        self._counts = dict(counts)
+        self._status = _OriginFakeJobStatus(status)
+        self._err = err
+
+    def get_counts(self):
+        return dict(self._counts)
+
+    def job_status(self):
+        return self._status
+
+    def error_message(self) -> str:
+        return self._err
+
+
+class _OriginFakeQCloudJob:
+    _registry: dict = {}
+
+    def __init__(self, job_id: str) -> None:
+        self._jid = str(job_id)
+
+    def job_id(self) -> str:
+        return self._jid
+
+    def status(self):
+        prog = self._registry.get(self._jid, {}).get("statuses", ["FINISHED"])
+        if len(prog) > 1:
+            prog.pop(0)
+        return _OriginFakeJobStatus(prog[0])
+
+    def result(self):
+        return self._registry[self._jid]["result"]
+
+
+class _OriginFakeQCloudOptions:
+    def set_amend(self, _):
+        pass
+    def set_mapping(self, _):
+        pass
+    def set_optimization(self, _):
+        pass
+    def set_is_prob_counts(self, _):
+        pass
+
+
+class _OriginFakeQCloudBackend:
+    last_run = None
+
+    def __init__(self, name: str) -> None:
+        self._name = name
+        self._chip = _OriginFakeChipInfo()
+
+    def name(self) -> str:
+        return self._name
+
+    def chip_info(self) -> _OriginFakeChipInfo:
+        return self._chip
+
+    def run(self, prog, shots, options=None, *args, **kwargs):
+        type(self).last_run = {
+            "prog": prog,
+            "shots": int(shots),
+            "options": options,
+            "args": args,
+            "kwargs": kwargs,
+        }
+        jid = f"FAKEJOB-{int(shots)}"
+        _OriginFakeQCloudJob._registry[jid] = {
+            "statuses": ["WAITING", "COMPUTING", "FINISHED"],
+            "result": _OriginFakeQCloudResult({"00": int(shots) // 2, "11": int(shots) // 2}),
+        }
+        return _OriginFakeQCloudJob(jid)
+
+
+class _OriginFakeQCloudService:
+    def __init__(self, api_key: str, url: str = "fake://"):
+        self._key = api_key
+        self._url = url
+
+    def backends(self):
+        return {
+            "PQPUMESH8": True,
+            "WK_C180": True,
+            "HanYuan_01": False,
+            "full_amplitude": True,
+        }
+
+    def backend(self, name: str) -> _OriginFakeQCloudBackend:
+        return _OriginFakeQCloudBackend(name)
+
+
+def _build_origin_fake_qcloud_module():
+    return types.SimpleNamespace(
+        QCloudService=_OriginFakeQCloudService,
+        QCloudBackend=_OriginFakeQCloudBackend,
+        QCloudJob=_OriginFakeQCloudJob,
+        QCloudResult=_OriginFakeQCloudResult,
+        QCloudOptions=_OriginFakeQCloudOptions,
+        JobStatus=_OriginFakeJobStatus,
+    )
+
+
+@pytest.fixture
+def fake_origin_sdk(monkeypatch):
+    """Patch the lazy SDK loaders so origin tests are fully offline."""
+    fake_mod = _build_origin_fake_qcloud_module()
+    monkeypatch.setattr(og, "_import_qcloud", lambda: fake_mod)
+    monkeypatch.setattr(og, "_import_qasm_to_qprog", lambda: (lambda s: s))
+    monkeypatch.setattr(og, "_get_origin_token", lambda: "fake-token")
+    yield fake_mod
+
+
+def test_origin_chip_names_registered_in_provider_inference():
+    from quantum_hw.api.backend import infer_provider_from_chip
+    assert infer_provider_from_chip("PQPUMESH8") == "origin"
+    assert infer_provider_from_chip("WK_C180") == "origin"
+    assert infer_provider_from_chip("HanYuan_01") == "origin"
+
+
+def test_origin_credential_helper_reads_yaml(monkeypatch, tmp_path):
+    from quantum_hw.api import platform_credentials as pc
+
+    cfg = tmp_path / ".quantum_hw.yaml"
+    cfg.write_text(
+        "credentials:\n  origin:\n    api_token: 'my-origin-token'\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("QUANTUM_HW_CONFIG", str(cfg))
+    pc.reload_config()
+    try:
+        assert pc.get_origin_api_token() == "my-origin-token"
+    finally:
+        pc.reload_config()
+
+
+def test_origin_platform_list_available_hardware_filters_simulators(fake_origin_sdk):
+    p = og.OriginPlatform(token="fake-token")
+    rows = p.list_available_hardware()
+    names = {r["hardware_name"] for r in rows}
+    assert "PQPUMESH8" in names
+    assert "WK_C180" in names
+    assert "HanYuan_01" in names
+    assert "full_amplitude" not in names
+    statuses = {r["hardware_name"]: r["status"] for r in rows}
+    assert statuses["PQPUMESH8"] == "online"
+    assert statuses["HanYuan_01"] == "offline"
+
+
+def test_load_origin_chip_info_normalizes_unified_layout(fake_origin_sdk):
+    info = og.load_origin_chip_info("PQPUMESH8", token="fake-token")
+    assert info["chip_name"] == "PQPUMESH8"
+    assert info["global_info"]["two_qubit_gate_basis"] == "cz"
+    assert info["global_info"]["nqubits_available"] == 4
+    assert set(info["qubits_info"].keys()) == {"Q0", "Q1", "Q2", "Q3"}
+    pairs = sorted(tuple(c["qubits_index"]) for c in info["couplers_info"].values())
+    assert pairs == [(0, 1), (1, 2), (2, 3)]
+    fid = next(iter(info["couplers_info"].values()))["fidelity"]
+    assert 0.0 < fid <= 1.0
+
+
+def test_backend_loads_origin_chip_via_sdk(fake_origin_sdk):
+    from quantum_hw.api.backend import Backend
+    b = Backend("PQPUMESH8")
+    assert b.chip_name == "PQPUMESH8"
+    assert b.two_qubit_gate_basis == "cz"
+    assert len(b.qubits_with_attributes) == 4
+    assert len(b.couplers_with_attributes) == 3
+
+
+def test_origin_status_map():
+    assert og._map_status(_OriginFakeJobStatus("FINISHED")) == "Finished"
+    assert og._map_status(_OriginFakeJobStatus("FAILED")) == "Failed"
+    assert og._map_status(_OriginFakeJobStatus("WAITING")) == "Running"
+    assert og._map_status(_OriginFakeJobStatus("COMPUTING")) == "Running"
+    assert og._map_status(_OriginFakeJobStatus("QUEUING")) == "Running"
+    assert og._map_status(_OriginFakeJobStatus("BOGUS")) == "Running"
+
+
+def test_origin_platform_submit_query_and_fetch(fake_origin_sdk):
+    p = og.OriginPlatform(token="fake-token")
+    qasm = (
+        'OPENQASM 2.0;\nincludeXX "qelib1.inc";\nqreg q[2];\ncreg c[2];\n'
+        "h q[0];\ncx q[0],q[1];\nmeasure q[0]->c[0];\nmeasure q[1]->c[1];\n"
+    ).replace("includeXX", "include")
+    job_id = p.submit_task(source=qasm, device_name="PQPUMESH8", shots=64)
+    assert job_id == "FAKEJOB-64"
+
+    seen = [p.query_task_state(job_id, "PQPUMESH8") for _ in range(3)]
+    assert seen[0] == "Running"
+    assert seen[-1] == "Finished"
+    assert "Finished" in seen
+
+    counts = p.fetch_task_result(job_id, "PQPUMESH8")
+    assert counts == {"00": 32, "11": 32}
+
+
+def test_origin_platform_fetch_raises_when_failed(fake_origin_sdk):
+    p = og.OriginPlatform(token="fake-token")
+    _OriginFakeQCloudJob._registry["FAILJOB"] = {
+        "statuses": ["FAILED"],
+        "result": _OriginFakeQCloudResult({}, status="FAILED", err="reason"),
+    }
+    with pytest.raises(RuntimeError, match="not finished"):
+        p.fetch_task_result("FAILJOB", "PQPUMESH8")
+
+
+def test_origin_task_adapter_submit_and_query(fake_origin_sdk):
+    from quantum_hw.api.task import OpenQasmSubmitRequest
+
+    platform_obj = og.OriginPlatform(token="fake-token")
+    resolved = ResolvedBackend(
+        provider="origin",
+        hardware_name="PQPUMESH8",
+        backend=object(),
+        metadata={"platform_obj": platform_obj},
+    )
+    adapter = og.OriginTaskAdapter(client=None, token="fake-token")
+
+    req = OpenQasmSubmitRequest(
+        name="t",
+        qasm='OPENQASM 2.0;\ninclude "qelib1.inc";\nqreg q[1];\ncreg c[1];\nh q[0];\nmeasure q[0]->c[0];\n',
+        shots=128,
+        chip_name="PQPUMESH8",
+        submit_options={"num_qubits": 1},
+    )
+    handle = adapter.submit_openqasm(req, resolved)
+    assert handle.provider == "origin"
+    assert handle.task_id == "FAKEJOB-128"
+    assert handle.payload["device_name"] == "PQPUMESH8"
+    assert handle.payload["platform_obj"] is platform_obj
+
+    statuses = [adapter.query_status(handle) for _ in range(3)]
+    assert statuses[-1] == "Finished"
+    out = adapter.fetch_result(handle)
+    assert out == {"count": {"00": 64, "11": 64}}
+
+
+def test_origin_task_adapter_creates_platform_when_missing(fake_origin_sdk):
+    from quantum_hw.api.task import OpenQasmSubmitRequest
+
+    resolved = ResolvedBackend(
+        provider="origin",
+        hardware_name="PQPUMESH8",
+        backend=object(),
+        metadata={},
+    )
+    adapter = og.OriginTaskAdapter(client=None, token="fake-token")
+    req = OpenQasmSubmitRequest(name="t", qasm="qasm", shots=8, chip_name="PQPUMESH8", submit_options={})
+    handle = adapter.submit_openqasm(req, resolved)
+    assert handle.task_id == "FAKEJOB-8"
+
+
+def test_origin_cancel_task_logs_warning(fake_origin_sdk, caplog):
+    handle = api.ProviderTaskHandle(provider="origin", task_id="X")
+    adapter = og.OriginTaskAdapter(client=None, token="fake-token")
+    with caplog.at_level("WARNING", logger=og.__name__):
+        adapter.cancel_task(handle)
+    assert any("does not support task cancellation" in m for m in caplog.messages)
+
+
+def test_list_available_hardware_dispatches_to_origin(monkeypatch, fake_origin_sdk):
+    from quantum_hw.api import backend as bmod
+    rows = bmod.list_available_hardware("origin")
+    names = {r["hardware_name"] for r in rows}
+    assert {"PQPUMESH8", "WK_C180", "HanYuan_01"} <= names

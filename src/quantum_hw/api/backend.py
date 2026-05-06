@@ -21,6 +21,7 @@ TIANYAN_HARDWARE_NAMES = {"tianyan176", "tianyan176-2", "tianyan24", "tianyan504
 GUODUN_HARDWARE_NAMES = {"gd_qc1", "chmy176", "gd_sim1", "gd_test"}
 CQLIB_HARDWARE_NAMES = TIANYAN_HARDWARE_NAMES | GUODUN_HARDWARE_NAMES
 TENCENT_HARDWARE_NAMES = {"tianji_s2", "tianji_m2", "tianxuan_s2"}
+ORIGIN_HARDWARE_NAMES = {"PQPUMESH8", "WK_C180", "HanYuan_01"}
 SIMULATOR_HARDWARE_NAMES = {"Simulator", "simulator"}
 FIELDQUANTUM_HARDWARE_NAMES = {"fieldquantum_sim"}
 
@@ -149,6 +150,10 @@ class Backend:
             from .quantum_platform.tencent import _load_tencent_chip_info
             self.chip_name = str(chip)
             self.chip_info = _load_tencent_chip_info(self.chip_name)
+        elif chip in ORIGIN_HARDWARE_NAMES:
+            from .quantum_platform.origin import load_origin_chip_info
+            self.chip_name = str(chip)
+            self.chip_info = load_origin_chip_info(self.chip_name)
         elif chip in SIMULATOR_HARDWARE_NAMES:
             self.chip_name = "Simulator"
             self.chip_info = _build_simulator_chip_info()
@@ -696,7 +701,15 @@ def list_available_hardware(provider: str) -> List[Dict[str, Any]]:
         platform_obj = TencentPlatform()
         return platform_obj.list_available_hardware()
 
-    raise ValueError("provider must be one of: 'quafu', 'tianyan', 'guodun', or 'tencent'")
+    if provider_name == "origin":
+        from .platform_credentials import get_origin_api_token
+        from .quantum_platform.origin import OriginPlatform
+
+        api_token = get_origin_api_token()
+        platform_obj = OriginPlatform(token=api_token)
+        return platform_obj.list_available_hardware()
+
+    raise ValueError("provider must be one of: 'quafu', 'tianyan', 'guodun', 'tencent', or 'origin'")
 
 
 # ---------------------------------------------------------------------------
@@ -713,6 +726,7 @@ _register_chips("quafu", QUAFU_HARDWARE_NAMES)
 _register_chips("tianyan", TIANYAN_HARDWARE_NAMES)
 _register_chips("guodun", GUODUN_HARDWARE_NAMES)
 _register_chips("tencent", TENCENT_HARDWARE_NAMES)
+_register_chips("origin", ORIGIN_HARDWARE_NAMES)
 _register_chips("simulator", SIMULATOR_HARDWARE_NAMES)
 _register_chips("fieldquantum", FIELDQUANTUM_HARDWARE_NAMES)
 

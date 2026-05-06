@@ -17,6 +17,12 @@ from .fieldquantum import (
     FieldQuantumTaskAdapter,
     FIELDQUANTUM_DEFAULT_URL,
 )
+from .origin import (
+    OriginPlatform,
+    OriginBackendAdapter,
+    OriginTaskAdapter,
+    ORIGIN_DEFAULT_URL,
+)
 
 
 @dataclass
@@ -82,7 +88,13 @@ def create_provider_runtime(*, provider: str, client: Any) -> ProviderRuntime:
             backend_adapter=FieldQuantumBackendAdapter(base_url=base_url),
             task_adapter=FieldQuantumTaskAdapter(client=client, base_url=base_url),
         )
-    raise ValueError("provider must be one of: 'quafu', 'tianyan', 'guodun', 'tencent', 'simulator', or 'fieldquantum'")
+    if provider_name == "origin":
+        return ProviderRuntime(
+            provider=provider_name,
+            backend_adapter=OriginBackendAdapter(),
+            task_adapter=OriginTaskAdapter(client=client),
+        )
+    raise ValueError("provider must be one of: 'quafu', 'tianyan', 'guodun', 'tencent', 'simulator', 'fieldquantum', or 'origin'")
 
 
 __all__ = [
@@ -108,4 +120,8 @@ __all__ = [
     "FieldQuantumBackendAdapter",
     "FieldQuantumTaskAdapter",
     "FIELDQUANTUM_DEFAULT_URL",
+    "OriginPlatform",
+    "OriginBackendAdapter",
+    "OriginTaskAdapter",
+    "ORIGIN_DEFAULT_URL",
 ]

@@ -117,13 +117,15 @@ _CREDENTIAL_MAP: Dict[str, tuple[str, str, str]] = {
     "tianyan":  ("tianyan",  "api_token",  "TIANYAN_API_TOKEN"),
     "guodun":  ("guodun",  "api_token",  "GUODUN_API_TOKEN"),
     "tencent": ("tencent", "api_token",  "TENCENT_API_TOKEN"),
+    "origin":  ("origin",  "api_token",  "ORIGIN_API_TOKEN"),
 }
 
 _PLATFORM_LABELS: Dict[str, str] = {
     "quafu":   "Quafu (夸父)  – https://quafu-sqc.baqis.ac.cn/",
-    "tianyan":  "TianYan (天衍) – https://qc.zdxlz.com/",
+    "tianyan":  "TianYan (天衢) – https://qc.zdxlz.com/",
     "guodun":  "GuoDun (国盾)  – https://quantumctek-cloud.com/",
     "tencent": "Tencent (腾讯) – https://quantum.tencent.com/cloud/",
+    "origin":  "Origin (本源) – https://qcloud.originqc.com.cn/",
 }
 
 
@@ -210,3 +212,15 @@ def get_tencent_api_token() -> str:
         ValueError: If no credential is found.
     """
     return _get_credential("tencent")
+
+
+def get_origin_api_token() -> str:
+    """Return Origin (本源) API token (config file → ``ORIGIN_API_TOKEN`` env var).
+
+    Returns:
+        API token string.
+
+    Raises:
+        ValueError: If no credential is found.
+    """
+    return _get_credential("origin")
