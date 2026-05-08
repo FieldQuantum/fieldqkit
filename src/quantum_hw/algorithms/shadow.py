@@ -364,6 +364,7 @@ class ShadowTomography:
             ``ShadowResult`` containing shadow samples, bases, and observable estimates.
 
         Raises:
+            ValueError: If *observables* is empty.
             RuntimeError: all candidate chips failed to run shadow tomography
         """
         provider_name = resolve_provider(provider, prefer_chips)

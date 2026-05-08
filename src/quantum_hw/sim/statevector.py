@@ -225,7 +225,8 @@ def expectation_pauli(
         num_qubits (*int*): Number of qubits.
 
     Returns:
-        Scalar expectation value ``<psi|P|psi>``.
+        ``torch.Tensor`` scalar (complex) expectation value ``<psi|P|psi>``.
+        For real Hamiltonians take ``.real``.
     """
     pattern = pauli_basis_pattern(pauli, num_qubits=num_qubits)
     acted = state

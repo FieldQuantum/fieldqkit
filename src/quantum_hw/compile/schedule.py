@@ -30,6 +30,8 @@ class DynamicalDecoupling(TranspilerPass):
         """
         self.t1g = t1g
         self.t2g = t2g
+        # Start counter above 0 to avoid accidental collision with qubit-index
+        # node names (which are small non-negative integers) in the DAG.
         self._count = 86751
 
     def counter(self):

@@ -53,7 +53,7 @@ class ReadoutCalibrationManager:
 
 		Args:
 			cache_dir (*Path*): Directory for cache files.
-			submit_openqasm_async (*Callable[[str, str, int, Optional[str]], object]*): Callback to submit an OpenQASM circuit asynchronously and return a task handle.
+			submit_openqasm_async (*Callable[[str, str, int, Optional[str], Optional[Dict[str, object]]], object]*): Callback to submit an OpenQASM circuit asynchronously and return a task handle.
 			wait_task (*Callable[[object], str]*): Callback to block until a task completes and return its status.
 			get_task_result (*Callable[[object], Dict[str, object]]*): Callback to retrieve measurement results from a completed task.
 			compact_for_sim (*Callable[[QuantumCircuit], object]*): Callback to prepare a circuit for local simulation.

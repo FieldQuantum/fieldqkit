@@ -119,7 +119,14 @@ def dag2qc(dag: nx.DiGraph, nqubits: int | None = None, ncbits: int | None = Non
     if nqubits is None:
         nqubits = max(current_qubits) + 1
     if ncbits is None:
-        ncbits = nqubits
+        # Infer ncbits from the highest classical bit index used in measure gates.
+        cbit_indices = [
+            c
+            for g in new
+            if g[0] == "measure"
+            for c in g[2]
+        ]
+        ncbits = max(cbit_indices) + 1 if cbit_indices else nqubits
     qc = QuantumCircuit(nqubits, ncbits)
     qc.gates = new
     qc.qubits = dag.graph["qubits"]

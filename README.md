@@ -83,25 +83,6 @@ cp .quantum_hw.example.yaml .quantum_hw.yaml
 credentials:
   quafu:
     api_token: "your-quafu-token-here"
-  tianyan:
-    api_token: "your-tianyan-token-here"
-  guodun:
-    api_token: "your-guodun-token-here"
-  tencent:
-    api_token: "your-tencent-token-here"
-```
-
-### 3. 凭证查找优先级
-
-`.quantum_hw.yaml`（当前目录及父目录 / 包安装目录及父目录 / `QUANTUM_HW_CONFIG` 环境变量指定路径）→ 环境变量 → 报错
-
-也可以用传统的环境变量方式：
-
-```bash
-export QUAFU_API_TOKEN="<token>"
-export TIANYAN_API_TOKEN="<token>"
-export GUODUN_API_TOKEN="<token>"
-export TENCENT_API_TOKEN="<token>"
 ```
 
 ### 各平台链接
@@ -110,6 +91,7 @@ export TENCENT_API_TOKEN="<token>"
 - 天衍量子云： https://qc.zdxlz.com/
 - 国盾量子云： https://quantumctek-cloud.com/
 - 腾讯量子云： https://quantum.tencent.com/cloud/
+- 本源量子云： https://qcloud.originqc.com.cn/
 
 各平台政策不同，优先推荐使用夸父量子云的免费资源（不限时）进行体验和学习。
 
@@ -127,6 +109,7 @@ quantum_hw/                          入口 __init__.py（导出顶层 API）
 │       ├── tianyan.py               天衍
 │       ├── guodun.py                国盾
 │       ├── tencent.py               腾讯
+│       ├── origin.py                本源
 │       └── cqlib.py                 cqlib 公共 HTTP 客户端 + QASM↔QCIS 转换
 │
 ├── circuit/                         线路表示

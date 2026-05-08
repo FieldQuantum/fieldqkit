@@ -25,3 +25,7 @@ credentials:
   # 腾讯量子云 — https://quantum.tencent.com/cloud/
   tencent:
     api_token: ""
+
+  # 本源量子云 - https://qcloud.originqc.com.cn/
+  origin:
+    api_token: ""

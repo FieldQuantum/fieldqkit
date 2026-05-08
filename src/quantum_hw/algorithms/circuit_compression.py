@@ -422,7 +422,11 @@ def compile_tn_1d(
         device: Torch device. Defaults to ``None`` (CPU).
 
     Returns:
-        Tuple of ``(compiled_circuit, optimized_params, summary_dict)``.
+        Tuple of ``(compiled_circuit, optimized_params, summary_dict)`` where
+        *summary_dict* contains keys: ``'objective_mode'`` (*str*),
+        ``'objective_infidelity'`` (*float*), ``'init_loss'`` (*float*),
+        ``'best_loss'`` (*float*), ``'loss_delta'`` (*float*),
+        ``'loss_history'`` (*List[float]*).
 
     Raises:
         ValueError: target_tn must be a non-empty list of site tensors
