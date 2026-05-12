@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ast
+import inspect
 import logging
 from dataclasses import dataclass
 from typing import Callable, Dict, List, Literal, Optional, Sequence, Tuple
@@ -688,14 +689,20 @@ class VQERunner:
         )
         model = model.lower()
         params = model_params or {}
+
+        def _filter(fn):
+            """Return only the kwargs accepted by *fn*."""
+            sig = inspect.signature(fn)
+            return {k: v for k, v in params.items() if k in sig.parameters}
+
         if model == "ising":
-            hamiltonian = build_ising_hamiltonian(num_qubits, **params)
+            hamiltonian = build_ising_hamiltonian(num_qubits, **_filter(build_ising_hamiltonian))
         elif model == "heisenberg":
-            hamiltonian = build_heisenberg_hamiltonian(num_qubits, **params)
+            hamiltonian = build_heisenberg_hamiltonian(num_qubits, **_filter(build_heisenberg_hamiltonian))
         elif model == "xxz":
-            hamiltonian = build_xxz_hamiltonian(num_qubits, **params)
+            hamiltonian = build_xxz_hamiltonian(num_qubits, **_filter(build_xxz_hamiltonian))
         elif model == "xy":
-            hamiltonian = build_xy_hamiltonian(num_qubits, **params)
+            hamiltonian = build_xy_hamiltonian(num_qubits, **_filter(build_xy_hamiltonian))
         elif model == "custom":
             if hamiltonian is None:
                 raise ValueError("custom model requires hamiltonian")

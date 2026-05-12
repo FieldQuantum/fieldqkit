@@ -296,7 +296,6 @@ class FieldQuantumTaskAdapter(TaskAdapter):
             "mode": "sample",
             "qasm": submit_request.qasm,
             "shots": submit_request.shots,
-            "chip_name": submit_request.chip_name,
         })
         logger.info("FieldQuantum: task submitted, task_id=%s", task_id)
         return ProviderTaskHandle(
