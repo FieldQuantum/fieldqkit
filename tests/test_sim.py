@@ -14,6 +14,7 @@ from quantum_hw.circuit.quantumcircuit_helpers import (
     two_qubit_parameter_gates_available,
 )
 from quantum_hw.sim.common import materialize_gate_matrix, resolve_param
+import quantum_hw.sim.common as sim_common
 from quantum_hw.sim.mpo import simulate_mpo_process
 from quantum_hw.sim.mps import simulate_mps
 from quantum_hw.sim.mps import simulate_counts as simulate_counts_mps
@@ -503,6 +504,37 @@ class TestAutoSimDevice:
     def test_none_returns_device(self):
         d = auto_sim_device(None)
         assert isinstance(d, torch.device)
+
+    def test_prefers_mps_when_available(self, monkeypatch):
+        monkeypatch.setattr(sim_common, "_mps_is_available", lambda: True)
+        monkeypatch.setattr(torch.cuda, "is_available", lambda: True)
+
+        d = auto_sim_device(None)
+
+        assert d == torch.device("mps")
+
+    def test_picks_least_used_cuda_device(self, monkeypatch):
+        monkeypatch.setattr(sim_common, "_mps_is_available", lambda: False)
+        monkeypatch.setattr(torch.cuda, "is_available", lambda: True)
+        monkeypatch.setattr(torch.cuda, "device_count", lambda: 3)
+
+        utilization_by_device = {0: 30, 1: 80, 2: 10}
+        free_by_device = {0: 50, 1: 10, 2: 50}
+
+        monkeypatch.setattr(
+            sim_common,
+            "_cuda_utilization_percent",
+            lambda device_index: utilization_by_device[device_index],
+        )
+        monkeypatch.setattr(
+            sim_common,
+            "_cuda_free_memory_bytes",
+            lambda device_index: free_by_device[device_index],
+        )
+
+        d = auto_sim_device(None)
+
+        assert d == torch.device("cuda:2")
 
 
 class TestSinglePauli:

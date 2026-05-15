@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from contextlib import suppress
+from functools import lru_cache
 from typing import Dict, Sequence
 
 import torch
@@ -11,19 +13,92 @@ from .matrix import gate_matrix_dict
 
 
 def auto_sim_device(device: torch.device | str | None = None) -> torch.device:
-    """Resolve simulation device: explicit > CUDA > CPU.
+    """Resolve simulation device: explicit > MPS > least-utilized CUDA > CPU.
 
     Args:
         device (*torch.device | str | None*): Torch device (``'cpu'`` or ``'cuda'``). Defaults to ``None``.
 
     Returns:
-        Resolved ``torch.device`` —explicit choice, CUDA if available, else CPU.
+        Resolved ``torch.device``.
     """
     if device is not None:
         return torch.device(device)
-    if torch.cuda.is_available():
-        return torch.device("cuda")
+    if _mps_is_available():
+        return torch.device("mps")
+    cuda_device = _least_used_cuda_device()
+    if cuda_device is not None:
+        return cuda_device
     return torch.device("cpu")
+
+
+@lru_cache(maxsize=1)
+def _mps_is_available() -> bool:
+    """Return whether PyTorch can run on Apple Metal Performance Shaders."""
+    backends = getattr(torch, "backends", None)
+    if backends is None or not hasattr(backends, "mps"):
+        return False
+    with suppress(Exception):
+        return bool(backends.mps.is_available()) and bool(backends.mps.is_built())
+    return False
+
+
+@lru_cache(maxsize=1)
+def _pynvml_module():
+    """Return an initialized ``pynvml`` module, or ``None`` if unavailable."""
+    try:
+        import pynvml  # type: ignore
+    except Exception:
+        return None
+    with suppress(Exception):
+        pynvml.nvmlInit()
+        return pynvml
+    return None
+
+
+def _cuda_utilization_percent(device_index: int) -> int | None:
+    """Return current GPU compute utilization (0-100) via NVML, or ``None``."""
+    pynvml = _pynvml_module()
+    if pynvml is None:
+        return None
+    with suppress(Exception):
+        handle = pynvml.nvmlDeviceGetHandleByIndex(device_index)
+        return int(pynvml.nvmlDeviceGetUtilizationRates(handle).gpu)
+    return None
+
+
+def _cuda_free_memory_bytes(device_index: int) -> int | None:
+    """Return free CUDA memory for a device, or ``None`` if unavailable."""
+    with suppress(Exception):
+        free_bytes, _total_bytes = torch.cuda.mem_get_info(device_index)
+        return int(free_bytes)
+    return None
+
+
+def _least_used_cuda_device() -> torch.device | None:
+    """Pick the CUDA device with the lowest GPU utilization, if CUDA is available.
+
+    Ranks by NVML compute utilization (lower is better); ties (and the case where
+    NVML is unavailable) are broken by largest free memory.
+    """
+    if not torch.cuda.is_available():
+        return None
+
+    device_count = int(torch.cuda.device_count())
+    if device_count <= 0:
+        return None
+
+    best_device_index = 0
+    best_key: tuple[int, int] | None = None
+    for device_index in range(device_count):
+        util = _cuda_utilization_percent(device_index)
+        free_bytes = _cuda_free_memory_bytes(device_index)
+        util_key = 101 if util is None else util  # push unknowns to the back
+        free_key = -1 if free_bytes is None else free_bytes
+        key = (util_key, -free_key)
+        if best_key is None or key < best_key:
+            best_key = key
+            best_device_index = device_index
+    return torch.device(f"cuda:{best_device_index}")
 
 
 def resolve_param(
