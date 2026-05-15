@@ -570,6 +570,7 @@ class QuantumHardwareClient:
 			if basis_pattern is not None:
 				append_measurement_basis(qct, basis_pattern, target_qubits=target_qubits_in_use)
 			elif not self._has_measurements(qct):
+				qct.barrier()
 				qct.measure(target_qubits_in_use, list(range(len(target_qubits_in_use))))
 			if basis_pattern is not None or not self._has_measurements(qct):
 				qct = _translate_to_basis(qct)
@@ -821,6 +822,10 @@ class QuantumHardwareClient:
 		max_wait_time: int = 3600,
 		sleep_time: int = 5,
 		print_true: bool = True,
+		clifford_fitting: bool = False,
+		clifford_fitting_num_samples: int = 8,
+		clifford_fitting_num_non_clifford_gates: int = 0,
+		clifford_fitting_seed: Optional[int] = None,
 	) -> RunResult:
 		"""Automatically select hardware, run, and return results.
 
@@ -841,6 +846,10 @@ class QuantumHardwareClient:
 			max_wait_time (*int*): Maximum wait time in seconds. Defaults to ``3600``.
 			sleep_time (*int*): Polling interval in seconds. Defaults to ``5``.
 			print_true (*bool*): Whether to print progress information. Defaults to ``True``.
+			clifford_fitting (*bool*): Whether to apply Clifford-randomized affine correction to ``observables``. No effect if *observables* is empty. Defaults to ``False``.
+			clifford_fitting_num_samples (*int*): Number of Clifford-randomized calibration circuits. Defaults to ``8``.
+			clifford_fitting_num_non_clifford_gates (*int*): Per-circuit count of single-qubit gates replaced with Haar-random unitaries (instead of random Cliffords). Defaults to ``0``.
+			clifford_fitting_seed (*Optional[int]*): RNG seed for reproducible calibration sampling. Defaults to ``None``.
 
 		Returns:
 			``RunResult`` containing counts, expectations, and metadata.
@@ -885,6 +894,85 @@ class QuantumHardwareClient:
 		self._active_task_adapter = runtime.task_adapter
 		self._active_resolved_backend = resolved_backend
 		self._active_num_qubits = num_qubits
+
+		# When Clifford fitting is requested with observables, transpile once
+		# on the client and reuse the same template for both the main run
+		# and the calibration jobs (mirrors the run_vqe / run_qaoa pattern).
+		observables_list: List[str] = []
+		if observables is not None:
+			observables_list = [observables] if isinstance(observables, str) else list(observables)
+		do_clifford_fitting = bool(clifford_fitting) and bool(observables_list) and int(clifford_fitting_num_samples) > 0
+
+		transpiled_qc: Optional[QuantumCircuit] = None
+		target_qubits_in_use = target_qubits
+		if do_clifford_fitting:
+			if transpile_on_client:
+				transpiled_qc = self._transpile_with_backend(
+					deepcopy(qc),
+					resolved_backend.backend,
+					target_qubits=target_qubits,
+					use_dd=use_dd,
+					convert_single_qubit_gate_to_u=convert_single_qubit_gate_to_u,
+				)
+				target_qubits_in_use = self._ordered_target_qubits_from_layout(
+					compiled_qc=transpiled_qc,
+					original_qc=qc,
+					num_qubits=num_qubits,
+				)
+			else:
+				transpiled_qc = deepcopy(qc)
+				if target_qubits is not None:
+					target_qubits_in_use = list(target_qubits)
+				else:
+					used = list(transpiled_qc.qubits)
+					target_qubits_in_use = used if used else list(range(num_qubits))
+
+			result = self._run_with_backend(
+				transpiled_qc,
+				name,
+				num_qubits,
+				backend=resolved_backend.backend,
+				chip_name=resolved_backend.hardware_name,
+				shots=shots,
+				zne=zne,
+				readout_mitigation=readout_mitigation,
+				readout_shots=readout_shots,
+				observables=observables,
+				return_probabilities=return_probabilities,
+				target_qubits=target_qubits_in_use,
+				qasm_version=qasm_version,
+				use_dd=use_dd,
+				print_true=print_true,
+				transpile=False,
+				submit_options=submit_options,
+				convert_single_qubit_gate_to_u=convert_single_qubit_gate_to_u,
+			)
+
+			from ..algorithms.optimizer_utils import (
+				apply_clifford_fit,
+				build_clifford_fit_map,
+			)
+			fit_map = build_clifford_fit_map(
+				self,
+				name=f"{name}_cfit",
+				num_qubits=num_qubits,
+				backend=resolved_backend.backend,
+				chip_name=resolved_backend.hardware_name,
+				observables=observables_list,
+				shots=shots,
+				zne=zne,
+				readout_mitigation=readout_mitigation,
+				transpiled_template=transpiled_qc,
+				num_samples=int(clifford_fitting_num_samples),
+				num_non_clifford_gates=int(clifford_fitting_num_non_clifford_gates),
+				seed=clifford_fitting_seed,
+				target_qubits=target_qubits_in_use,
+				qasm_version=qasm_version,
+				convert_single_qubit_gate_to_u=convert_single_qubit_gate_to_u,
+			)
+			result.observable_values = apply_clifford_fit(result.observable_values, fit_map)
+			return result
+
 		return self._run_with_backend(
 			qc,
 			name,

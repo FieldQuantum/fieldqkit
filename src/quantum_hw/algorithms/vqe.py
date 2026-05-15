@@ -543,7 +543,7 @@ def run_vqe_with_backend(
             num_qubits=num_qubits,
             backend=backend,
             chip_name=chip_name,
-            hamiltonian=hamiltonian,
+            observables=list(dict.fromkeys(obs for _, obs in hamiltonian)),
             shots=shots,
             zne=zne,
             readout_mitigation=readout_mitigation,

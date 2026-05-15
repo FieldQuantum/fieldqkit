@@ -27,6 +27,10 @@ run_auto(
     target_qubits: Sequence[int] | None = None,
     prefer_chips: Sequence[str] | str | None = None,
     transpile_on_client: bool = True,
+    clifford_fitting: bool = False,
+    clifford_fitting_num_samples: int = 8,
+    clifford_fitting_num_non_clifford_gates: int = 0,
+    clifford_fitting_seed: int | None = None,
     max_wait_time: int = 3600,
     sleep_time: int = 5,
     print_true: bool = True,
@@ -49,7 +53,11 @@ run_auto(
 | `return_probabilities` | `bool` | `False` | 否 | 是否返回概率向量。 |
 | `target_qubits` | `Optional[Sequence[int]]` | `None` | 否 | 指定物理比特映射。 |
 | `prefer_chips` | `Optional[Sequence[str] \| str]` | `None` | 否 | 候选芯片白名单，可显式传 `"Simulator"`。 |
-| `transpile_on_client` | `bool` | `True` | 否 | `True` 时客户端先编译再提交。 |
+| `transpile_on_client` | `bool` | `True` | 否 | `True` 时客户端先编译再提交。开启 `clifford_fitting` 时该编译被框架层复用为校准线路的模板。 |
+| `clifford_fitting` | `bool` | `False` | 否 | 是否在框架层对 `observables` 启用 Clifford-随机化仿射校正（仅在 `observables` 非空时生效）。流程与 `run_vqe` / `run_qaoa` 对齐：先在客户端一次性编译模板，然后用该模板在硬件上提交主任务及 `clifford_fitting_num_samples` 条校准线路；理想期望由 `sim.clifford`（Heisenberg picture，$O(g\cdot n)$）计算，非 Clifford 门部分回退到 `sim.clifford_t` 的分支展开，最终落到 statevector。 |
+| `clifford_fitting_num_samples` | `int` | `8` | 否 | 校准线路条数。 |
+| `clifford_fitting_num_non_clifford_gates` | `int` | `0` | 否 | 每条校准线路中替换为 Haar 随机 U3 的单比特门个数（其余替换为 24 个 Clifford U3 之一）。 |
+| `clifford_fitting_seed` | `Optional[int]` | `None` | 否 | 校准采样的 RNG 种子。 |
 | `max_wait_time` | `int` | `3600` | 否 | 任务查询最大等待时间（秒），透传到 provider task adapter。 |
 | `sleep_time` | `int` | `5` | 否 | 查询轮询间隔（秒），透传到 provider task adapter。 |
 | `print_true` | `bool` | `True` | 否 | 是否打印运行日志。 |

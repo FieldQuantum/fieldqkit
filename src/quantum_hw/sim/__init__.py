@@ -26,16 +26,36 @@ from .interface import simulate_counts
 from .statevector import simulate_statevector
 from .mpo import simulate_mpo_process
 from .mps import simulate_mps
+from .clifford import (
+    CliffordError,
+    is_clifford_circuit,
+    simulate_clifford_expectation,
+    simulate_clifford_expectations,
+)
+from .clifford_t import (
+    count_non_clifford_gates,
+    count_t_gates,
+    simulate_clifford_t_expectation,
+    simulate_clifford_t_expectations,
+)
 
 
 __all__ = [
     "auto_sim_device",
+    "CliffordError",
+    "count_non_clifford_gates",
+    "count_t_gates",
     "get_sim_config",
     "build_state_from_symbolic",
+    "is_clifford_circuit",
     "sample_probabilities",
     "energy_and_expectations",
     "expectation_pauli",
     "set_sim_config",
+    "simulate_clifford_expectation",
+    "simulate_clifford_expectations",
+    "simulate_clifford_t_expectation",
+    "simulate_clifford_t_expectations",
     "simulate_counts",
     "simulate_mpo_process",
     "simulate_mps",

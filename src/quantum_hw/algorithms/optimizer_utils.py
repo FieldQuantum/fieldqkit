@@ -214,37 +214,24 @@ _CLIFFORD_U3_PARAMS: Tuple[Tuple[float, float, float], ...] = (
 )
 
 
-def build_parameterized_single_qubit_gate_list(transpiled_template: QuantumCircuit) -> List[Tuple[int, str]]:
-    """Collect ``(gate_index, gate_name)`` for parameterized single-qubit gates.
+def build_single_qubit_rotation_gate_list(transpiled_template: QuantumCircuit) -> List[Tuple[int, str]]:
+    """Collect ``(gate_index, gate_name)`` for every single-qubit rotation gate.
 
-    Scans the gate list of *transpiled_template* and returns entries whose
-    parameters contain unresolved symbolic expressions.
+    Used as the set of randomization sites for Clifford fitting.  Returns
+    every ``p``/``r``/``u``/``u3``/``rx``/``ry``/``rz`` occurrence,
+    regardless of whether its parameters are concrete or still symbolic.
 
     Args:
-        transpiled_template: A transpiled circuit potentially containing
-            symbolic parameter expressions.
+        transpiled_template: A transpiled circuit.
 
     Returns:
-        List of ``(gate_index, gate_name)`` tuples for gates that still
-        carry symbolic parameters.
+        List of ``(gate_index, gate_name)`` tuples.
     """
-    from .vqe import _extract_names_from_expr
-
     one_qubit_param_gates = {"p", "r", "u", "u3", "rx", "ry", "rz"}
     out: List[Tuple[int, str]] = []
     for gate_index, gate_info in enumerate(transpiled_template.gates):
         gate = str(gate_info[0]).lower()
-        if gate not in one_qubit_param_gates:
-            continue
-        gate_params = gate_info[1:-1]
-        has_symbol = False
-        for param in gate_params:
-            if not isinstance(param, str):
-                continue
-            if len(_extract_names_from_expr(param)) > 0:
-                has_symbol = True
-                break
-        if has_symbol:
+        if gate in one_qubit_param_gates:
             out.append((gate_index, gate))
     return out
 
@@ -263,7 +250,7 @@ def randomize_single_qubit_gates_to_clifford(
     Args:
         transpiled_template: Template circuit to randomize.
         rng: NumPy random generator.
-        single_qubit_gates: Output of :func:`build_parameterized_single_qubit_gate_list`.
+        single_qubit_gates: Output of :func:`build_single_qubit_rotation_gate_list`.
         num_non_clifford_gates: Number of gates to replace with Haar-random
             unitaries instead of Cliffords (for mixed calibration).
 
@@ -274,7 +261,7 @@ def randomize_single_qubit_gates_to_clifford(
     qc = transpiled_template.deepcopy()
     signature: List[tuple] = []
     if not single_qubit_gates:
-        raise ValueError("clifford fitting requires at least one parameterized single-qubit gate")
+        raise ValueError("clifford fitting requires at least one single-qubit rotation gate")
 
     n_total = len(single_qubit_gates)
     n_non_clifford = int(max(0, min(int(num_non_clifford_gates), n_total)))
@@ -328,7 +315,7 @@ def sample_unique_randomized_clifford_circuits(
         rng: NumPy random generator.
         num_samples: Desired number of unique calibration circuits.
         single_qubit_gates: Parameterized gate indices from
-            :func:`build_parameterized_single_qubit_gate_list`.
+            :func:`build_single_qubit_rotation_gate_list`.
         num_non_clifford_gates: Haar-random gates per circuit.
 
     Returns:
@@ -406,6 +393,43 @@ def apply_clifford_fit(expectations: Dict[str, float], fit_map: Optional[Cliffor
     return corrected
 
 
+def _ideal_expectations_clifford_aware(
+    client,
+    ideal_qc: QuantumCircuit,
+    *,
+    observables: Sequence[str],
+    num_qubits: int,
+    target_qubits: Optional[Sequence[int]],
+) -> Optional[Dict[str, float]]:
+    """Compute ideal expectations via the scalable Heisenberg-picture path.
+
+    Args:
+        client: ``QuantumHardwareClient`` instance.
+        ideal_qc: Bound (parameter-free) calibration circuit on physical qubits.
+        observables: Pauli-string labels to evaluate.
+        num_qubits: Number of logical qubits (length of each Pauli string).
+        target_qubits: Logical→physical qubit mapping.  ``None`` means the
+            circuit already uses dense logical indices.
+
+    Returns:
+        ``{observable: expectation}`` dict, or ``None`` if the scalable
+        path is not applicable (unsupported gate or branch-count
+        explosion); callers should then fall back to statevector.
+    """
+    from ..sim.clifford import CliffordError, simulate_clifford_expectations
+    from ..sim.clifford_t import simulate_clifford_t_expectations
+
+    qc_sim, _mapping = client._compact_for_sim(ideal_qc, target_qubits=target_qubits)
+    try:
+        return simulate_clifford_expectations(qc_sim, observables, num_qubits=int(num_qubits))
+    except CliffordError:
+        pass
+    try:
+        return simulate_clifford_t_expectations(qc_sim, observables, num_qubits=int(num_qubits))
+    except (CliffordError, RuntimeError):
+        return None
+
+
 def build_clifford_fit_map(
     client,
     *,
@@ -413,7 +437,7 @@ def build_clifford_fit_map(
     num_qubits: int,
     backend: Backend,
     chip_name: str,
-    hamiltonian: Hamiltonian,
+    observables: Sequence[str],
     shots: int,
     zne: bool,
     readout_mitigation: bool,
@@ -429,7 +453,9 @@ def build_clifford_fit_map(
 
     Generates *num_samples* Clifford-randomized circuits, runs each on
     both the noisy *backend* and a noise-free simulator, and fits an
-    affine model per observable.
+    affine model per observable.  Every single-qubit rotation in
+    *transpiled_template* is treated as a randomization site (regardless
+    of whether its parameters are symbolic or concrete).
 
     Args:
         client: ``QuantumHardwareClient`` instance.
@@ -437,33 +463,41 @@ def build_clifford_fit_map(
         num_qubits: Number of logical qubits.
         backend: Target hardware backend.
         chip_name: Hardware chip identifier.
-        hamiltonian: Cost Hamiltonian terms.
+        observables: Pauli-string labels to calibrate.
         shots: Shots per calibration circuit.
-        zne: Enable ZNE during calibration.
-        readout_mitigation: Enable readout mitigation during calibration.
-        transpiled_template: Pre-compiled symbolic circuit template used to
-            locate parameterized gates.
+        zne: Enable ZNE during calibration (should match the main run).
+        readout_mitigation: Enable readout mitigation during calibration
+            (should match the main run).
+        transpiled_template: Pre-compiled circuit template whose
+            single-qubit rotations will be randomized.
         num_samples: Number of calibration circuits to generate.
-        num_non_clifford_gates: Haar-random gates per circuit.
+        num_non_clifford_gates: Per-circuit count of single-qubit gates
+            replaced with Haar-random unitaries instead of random Cliffords.
         seed: Optional RNG seed for reproducibility.
         target_qubits: Physical qubit mapping.
         qasm_version: OpenQASM version.
-        convert_single_qubit_gate_to_u: Whether to convert single-qubit gates to U during transpilation.
+        convert_single_qubit_gate_to_u: Whether to convert single-qubit
+            gates to ``U`` during downstream transpilation passes.
 
     Returns:
         ``CliffordFitMap`` — ``{observable: (a, b)}`` affine coefficients.
+        Returns ``{}`` when there is nothing to do (``num_samples <= 0``
+        or empty *observables*), and an identity-like map when
+        *transpiled_template* has no rotation sites to randomize.
     """
-    if num_samples <= 0:
+    if num_samples <= 0 or not observables:
         return {}
-    observables = list(dict.fromkeys(obs for _, obs in hamiltonian))
+    observables = list(dict.fromkeys(observables))
+    single_qubit_gates = build_single_qubit_rotation_gate_list(transpiled_template)
+    if not single_qubit_gates:
+        return {obs: (1.0, 0.0) for obs in observables}
+
+    fake_hamiltonian: Hamiltonian = [(1.0, obs) for obs in observables]
     fit_inputs_noisy: Dict[str, List[float]] = {obs: [] for obs in observables}
     fit_inputs_ideal: Dict[str, List[float]] = {obs: [] for obs in observables}
 
     rng = np.random.default_rng(seed)
     sim_backend = Backend("Simulator")
-    single_qubit_gates = build_parameterized_single_qubit_gate_list(transpiled_template)
-    if not single_qubit_gates:
-        raise ValueError("clifford fitting requires at least one parameterized single-qubit gate")
 
     sampled_clifford_circuits = sample_unique_randomized_clifford_circuits(
         transpiled_template,
@@ -484,7 +518,7 @@ def build_clifford_fit_map(
             backend=backend,
             chip_name=chip_name,
             shots=shots,
-            hamiltonian=hamiltonian,
+            hamiltonian=fake_hamiltonian,
             zne=zne,
             readout_mitigation=readout_mitigation,
             target_qubits=target_qubits,
@@ -492,20 +526,33 @@ def build_clifford_fit_map(
             convert_single_qubit_gate_to_u=convert_single_qubit_gate_to_u,
         )
 
-        _, ideal_expectations = evaluate_energy_with_backend(
+        # Prefer the scalable Heisenberg-picture simulator for the ideal
+        # branch.  It is exact (no shot noise) and scales as O(g · n) for
+        # pure-Clifford circuits, O(4^k · g · n) when k non-Clifford
+        # rotations are present (k = num_non_clifford_gates).  Falls back
+        # to the dense statevector path on unsupported gates.
+        ideal_expectations = _ideal_expectations_clifford_aware(
             client,
             ideal_qc,
-            name=f"{name}_clifford_ideal_{si}",
+            observables=observables,
             num_qubits=num_qubits,
-            backend=sim_backend,
-            chip_name="Simulator",
-            shots=shots * 10,
-            hamiltonian=hamiltonian,
-            zne=False,
-            readout_mitigation=False,
             target_qubits=target_qubits,
-            qasm_version=qasm_version,
         )
+        if ideal_expectations is None:
+            _, ideal_expectations = evaluate_energy_with_backend(
+                client,
+                ideal_qc,
+                name=f"{name}_clifford_ideal_{si}",
+                num_qubits=num_qubits,
+                backend=sim_backend,
+                chip_name="Simulator",
+                shots=shots * 10,
+                hamiltonian=fake_hamiltonian,
+                zne=False,
+                readout_mitigation=False,
+                target_qubits=target_qubits,
+                qasm_version=qasm_version,
+            )
 
         for obs in observables:
             fit_inputs_noisy[obs].append(float(noisy_expectations.get(obs, 0.0)))

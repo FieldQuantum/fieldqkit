@@ -339,8 +339,9 @@ result = runner.run_model(
   - stage 目标模式固定为：prefix 使用 `objective_mode="mps"`，suffix block 使用 `objective_mode="mpo"`。
 - 当 `clifford_fitting=True` 时：
   - 当前仅支持 `gradient_method="parameter-shift"`。
-  - 会在可训练单比特参数门上进行 Clifford 随机化采样。
+  - 会对编译后模板中**所有**单比特旋转门（`p`/`r`/`u`/`u3`/`rx`/`ry`/`rz`，无论参数是否仍为符号）进行 Clifford 随机化采样；与 `run_auto` 路径使用同一 `optimizer_utils.build_clifford_fit_map` 函数。
   - 拟合粒度为“每个 observable 一组 `(a,b)`”，不再是单一哈密顿量级别系数。
+  - 校准电路的理想期望优先走 `sim.clifford`（Heisenberg picture，$O(g\cdot n)$），含 Haar 随机 U3 时回退到 `sim.clifford_t` 分支扩展，仍不可行时退回 statevector。
 
 ## 相关页面
 

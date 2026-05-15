@@ -543,3 +543,210 @@ class TestResolveParam:
         qc = QuantumCircuit(1)
         with pytest.raises(TypeError, match="unsupported"):
             resolve_param(qc, [1, 2, 3])
+
+
+# �T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T
+#  Clifford & Clifford+T Heisenberg-picture simulators
+# �T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T
+
+import numpy as np
+
+from quantum_hw.core.observables import pauli_basis_pattern
+from quantum_hw.sim.clifford import (
+    CliffordError,
+    is_clifford_circuit,
+    simulate_clifford_expectation,
+    simulate_clifford_expectations,
+)
+from quantum_hw.sim.clifford_t import (
+    count_non_clifford_gates,
+    count_t_gates,
+    simulate_clifford_t_expectation,
+    simulate_clifford_t_expectations,
+)
+
+
+def _statevector_expectations(qc: QuantumCircuit, observables):
+    """Reference statevector expectation values for a list of Pauli strings."""
+    psi = simulate_statevector(qc).reshape(-1).cpu().numpy().astype(np.complex128)
+    pauli_mats = {
+        "I": np.eye(2, dtype=np.complex128),
+        "X": np.array([[0, 1], [1, 0]], dtype=np.complex128),
+        "Y": np.array([[0, -1j], [1j, 0]], dtype=np.complex128),
+        "Z": np.diag([1.0, -1.0]).astype(np.complex128),
+    }
+    out = {}
+    for obs in observables:
+        pat = pauli_basis_pattern(obs, qc.nqubits)
+        op = np.array([[1.0 + 0j]], dtype=np.complex128)
+        for char in pat:
+            op = np.kron(op, pauli_mats[char])
+        out[obs] = float(np.real(psi.conj() @ op @ psi))
+    return out
+
+
+class TestStabilizerClifford:
+    def test_h_cx_bell_pair(self):
+        qc = QuantumCircuit(2)
+        qc.h(0)
+        qc.cx(0, 1)
+        assert is_clifford_circuit(qc)
+        expectations = simulate_clifford_expectations(qc, ["ZZ", "XX", "YY", "IZ", "ZI"])
+        assert expectations["ZZ"] == pytest.approx(1.0)
+        assert expectations["XX"] == pytest.approx(1.0)
+        assert expectations["YY"] == pytest.approx(-1.0)
+        assert expectations["IZ"] == pytest.approx(0.0)
+        assert expectations["ZI"] == pytest.approx(0.0)
+
+    def test_single_qubit_paulis(self):
+        qc = QuantumCircuit(1)
+        qc.h(0)
+        qc.s(0)
+        qc.h(0)
+        # H S H |0? = (|0? + i|1?)/��2  �� ?X?=0, ?Y?=1, ?Z?=0.
+        assert simulate_clifford_expectation(qc, "X") == pytest.approx(0.0)
+        assert simulate_clifford_expectation(qc, "Y") == pytest.approx(-1.0)
+        assert simulate_clifford_expectation(qc, "Z") == pytest.approx(0.0)
+
+    def test_rotation_pi_over_two_is_clifford(self):
+        qc = QuantumCircuit(1)
+        qc.rz(np.pi / 2, 0)  # equivalent to S up to phase
+        qc.h(0)
+        qc.rx(np.pi / 2, 0)
+        assert is_clifford_circuit(qc)
+        # Sanity-cross-check with statevector.
+        ref = _statevector_expectations(qc, ["X", "Y", "Z"])
+        got = simulate_clifford_expectations(qc, ["X", "Y", "Z"])
+        for key in ["X", "Y", "Z"]:
+            assert got[key] == pytest.approx(ref[key], abs=1e-9)
+
+    def test_non_clifford_t_raises(self):
+        qc = QuantumCircuit(1)
+        qc.h(0)
+        qc.t(0)
+        assert not is_clifford_circuit(qc)
+        with pytest.raises(CliffordError):
+            simulate_clifford_expectation(qc, "Z")
+
+    def test_arbitrary_rotation_raises(self):
+        qc = QuantumCircuit(1)
+        qc.rz(0.3, 0)
+        with pytest.raises(CliffordError):
+            simulate_clifford_expectation(qc, "Z")
+
+    def test_matches_statevector_random_clifford(self):
+        rng = np.random.default_rng(0)
+        qc = QuantumCircuit(3)
+        clifford_gates = ["h", "s", "sdg", "x", "y", "z", "sx", "sxdg"]
+        for _ in range(40):
+            kind = rng.integers(0, 3)
+            if kind == 0:
+                getattr(qc, clifford_gates[rng.integers(0, len(clifford_gates))])(int(rng.integers(0, 3)))
+            elif kind == 1:
+                a, b = rng.choice(3, size=2, replace=False)
+                getattr(qc, ["cx", "cz", "swap"][rng.integers(0, 3)])(int(a), int(b))
+            else:
+                axis = ["rx", "ry", "rz"][rng.integers(0, 3)]
+                k = int(rng.integers(0, 4))
+                getattr(qc, axis)(k * np.pi / 2.0, int(rng.integers(0, 3)))
+        observables = ["ZZZ", "XXX", "XYZ", "YZX", "IZI", "IZX"]
+        got = simulate_clifford_expectations(qc, observables)
+        ref = _statevector_expectations(qc, observables)
+        for obs in observables:
+            assert got[obs] == pytest.approx(ref[obs], abs=1e-9)
+
+
+class TestCliffordTBranching:
+    def test_pure_clifford_matches_stabilizer(self):
+        qc = QuantumCircuit(2)
+        qc.h(0)
+        qc.cx(0, 1)
+        cliff = simulate_clifford_expectations(qc, ["ZZ", "XX", "ZI"])
+        branch = simulate_clifford_t_expectations(qc, ["ZZ", "XX", "ZI"])
+        for key in cliff:
+            assert branch[key] == pytest.approx(cliff[key], abs=1e-12)
+
+    def test_single_t_gate(self):
+        qc = QuantumCircuit(1)
+        qc.h(0)
+        qc.t(0)
+        # State (|0? + e^{i��/4}|1?)/��2 �� ?X? = cos(��/4), ?Y? = sin(��/4), ?Z? = 0.
+        assert simulate_clifford_t_expectation(qc, "X") == pytest.approx(np.cos(np.pi / 4), abs=1e-9)
+        assert simulate_clifford_t_expectation(qc, "Y") == pytest.approx(np.sin(np.pi / 4), abs=1e-9)
+        assert simulate_clifford_t_expectation(qc, "Z") == pytest.approx(0.0, abs=1e-9)
+
+    def test_count_helpers(self):
+        qc = QuantumCircuit(2)
+        qc.h(0)
+        qc.t(0)
+        qc.cx(0, 1)
+        qc.tdg(1)
+        qc.rz(0.3, 0)
+        assert count_t_gates(qc) == 2
+        assert count_non_clifford_gates(qc) == 3
+
+    def test_matches_statevector_with_rotations(self):
+        qc = QuantumCircuit(3)
+        qc.h(0); qc.h(1); qc.h(2)
+        qc.rx(0.3, 0)
+        qc.ry(0.7, 1)
+        qc.rz(1.1, 2)
+        qc.cx(0, 1)
+        qc.rzz(0.5, 1, 2)
+        qc.t(0)
+        qc.u(0.4, -0.6, 0.9, 1)
+        observables = ["ZZZ", "XXX", "YYY", "XYZ", "IZX", "IIY"]
+        got = simulate_clifford_t_expectations(qc, observables)
+        ref = _statevector_expectations(qc, observables)
+        for obs in observables:
+            assert got[obs] == pytest.approx(ref[obs], abs=1e-7)
+
+    def test_random_circuit_matches_statevector(self):
+        rng = np.random.default_rng(123)
+        qc = QuantumCircuit(3)
+        choices = ["h", "s", "sdg", "x", "y", "z", "t", "tdg", "cx", "cz", "rx", "ry", "rz"]
+        for _ in range(15):
+            g = choices[int(rng.integers(0, len(choices)))]
+            if g in {"rx", "ry", "rz"}:
+                getattr(qc, g)(float(rng.uniform(-np.pi, np.pi)), int(rng.integers(0, 3)))
+            elif g in {"cx", "cz"}:
+                a, b = rng.choice(3, size=2, replace=False)
+                getattr(qc, g)(int(a), int(b))
+            else:
+                getattr(qc, g)(int(rng.integers(0, 3)))
+        observables = ["ZZZ", "XYZ", "IZI", "YXI", "ZIX"]
+        got = simulate_clifford_t_expectations(qc, observables)
+        ref = _statevector_expectations(qc, observables)
+        for obs in observables:
+            assert got[obs] == pytest.approx(ref[obs], abs=1e-7)
+
+    def test_max_terms_guard(self):
+        # Several T gates spread across qubits with entangling layers prevent
+        # dedup from collapsing the Pauli sum, blowing past max_terms.
+        qc = QuantumCircuit(3)
+        qc.h(0); qc.h(1); qc.h(2)
+        for _ in range(3):
+            qc.t(0); qc.t(1); qc.t(2)
+            qc.cx(0, 1); qc.cx(1, 2)
+        with pytest.raises(RuntimeError, match="max_terms"):
+            simulate_clifford_t_expectation(qc, "XXX", max_terms=4)
+
+    def test_qubit_mapping_via_compact(self):
+        """Sparse physical layout reproduces the dense statevector result."""
+        from quantum_hw.api.client import QuantumHardwareClient
+
+        client = QuantumHardwareClient()
+        # Logical 0,1,2 mapped to physical 3,5,7.
+        qc_phys = QuantumCircuit(8)
+        qc_phys.h(3); qc_phys.cx(3, 5); qc_phys.t(5)
+        qc_phys.cz(5, 7); qc_phys.rx(0.7, 7); qc_phys.cx(3, 7)
+
+        qc_sim, _mapping = client._compact_for_sim(qc_phys, target_qubits=[3, 5, 7])
+        got = simulate_clifford_t_expectations(qc_sim, ["XYZ", "ZZZ"], num_qubits=3)
+
+        qc_ref = QuantumCircuit(3)
+        qc_ref.h(0); qc_ref.cx(0, 1); qc_ref.t(1)
+        qc_ref.cz(1, 2); qc_ref.rx(0.7, 2); qc_ref.cx(0, 2)
+        ref = _statevector_expectations(qc_ref, ["XYZ", "ZZZ"])
+        for obs in ["XYZ", "ZZZ"]:
+            assert got[obs] == pytest.approx(ref[obs], abs=1e-7)

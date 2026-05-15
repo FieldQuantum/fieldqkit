@@ -540,7 +540,6 @@ class RemotePlatformClient:
                     return query_exp
             except Exception as exc:
                 logger.error(exc)
-            logger.info("waiting for %d seconds", sleep_time)
             time.sleep(sleep_time)
         raise CqlibRequestError("Failed to query the experimental result.")
 
