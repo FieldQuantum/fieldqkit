@@ -4,7 +4,7 @@
 
 - **模块**：`quantum_hw.algorithms.vqe`
 - **作用**：支持参数移位或 `torch autograd` 梯度，并用 Adam 做能量最小化。
-- **ansatz 支持**：`hardwareefficient` / `ucc` / `custom`
+- **ansatz 支持**：`hardwareefficient` / `custom`
 - **当前推荐入口**：`VQERunner.run_model(...)`
 - **Simulator 自动微分入口**：`quantum_hw.sim.energy_and_expectations`（由 sim 接口层按 qubit 数在 statevector/MPS 间分发）。
 - **压缩能力（parameter-shift 路径）**：支持后缀分块规划 + stage 级压缩（prefix 用 `mps` 目标，suffix block 用 `mpo` 目标）。
@@ -101,7 +101,7 @@ run_model(
 | `init_params` | `Optional[Sequence[float]]` | `None` | 否 | 显式初始参数；长度必须等于 `2 * num_qubits * (layers + 1)`。 |
 | `callback` | `Optional[Callable[[int, float, np.ndarray], None]]` | `None` | 否 | 每轮回调，参数为 `(iter_idx, energy, params)`。 |
 | `prefer_chips` | `Optional[Sequence[str] \| str]` | `None` | 否 | 候选芯片限制（可传 `"Simulator"`）。 |
-| `ansatz` | `Literal["hardwareefficient", "ucc", "custom"]` | `"hardwareefficient"` | 否 | 变分线路类型。 |
+| `ansatz` | `Literal["hardwareefficient", "custom"]` | `"hardwareefficient"` | 否 | 变分线路类型。 |
 | `custom_ansatz_circuit` | `Optional[QuantumCircuit]` | `None` | 否 | 当 `ansatz="custom"` 时必填；线路中的未解析字符串参数会被自动识别并优化。 |
 
 ## 低层接口（手动指定后端）
@@ -155,8 +155,6 @@ run_vqe_with_backend(
 
 - `hardwareefficient`：默认 ansatz，参数个数为
   $$2 \times \text{num\_qubits} \times (\text{layers}+1)$$
-- `ucc`：轻量 UCC-inspired ansatz，参数个数为
-  $$\text{layers} \times (\text{num\_qubits} + \text{num\_qubits} - 1)$$
 - `custom`：由用户提供 `QuantumCircuit`，框架从 `params_value` 中自动提取仍未解析的字符串参数名作为优化变量。
 
 ## 私有方法（进阶拆解）
@@ -328,7 +326,7 @@ result = runner.run_model(
 
 ## 行为细节 / 注意事项
 
-- 参数维度随 ansatz 不同而变化：`hardwareefficient`、`ucc` 与 `custom` 不同。
+- 参数维度随 ansatz 不同而变化：`hardwareefficient` 与 `custom` 不同。
 - 每个参数梯度需要两次移位评估（`+shift/-shift`）；单轮理论评估次数约为 `1 + 2 * num_params` 次。
 - 当 `gradient_method="autograd"` 且使用 `Simulator` 时，梯度由 `energy_t.backward()` 回传，不再执行 parameter-shift 线路采样。
 - 当 `gradient_method="parameter-shift"` 时，VQE 会先在内部对参数化 ansatz 做一次预编译，然后每次迭代/移位只替换参数值并提交，避免重复 transpile。

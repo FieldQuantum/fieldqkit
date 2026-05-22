@@ -144,7 +144,7 @@ quantum_hw/                          入口 __init__.py（导出顶层 API）
 │   ├── optimizer_utils.py            共享优化工具（能量计算、参数移位梯度、Adam、
 │   │                                Clifford fitting、run_variational_loop 通用优化循环）
 │   ├── shadow.py                    ShadowTomography — classical shadow 协议
-│   ├── ansatz_templates.py          Hardware-efficient / UCC ansatz 构建
+│   ├── ansatz_templates.py          Hardware-efficient ansatz 构建
 │   └── circuit_compression.py       MPS/MPO 混合后缀压缩（降低线路深度）
 │                                    + build_compression_transform（可复用压缩变换工厂）
 │

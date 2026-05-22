@@ -19,8 +19,6 @@ from ..circuit import QuantumCircuit
 from ..core.observables import pauli_support
 from ..core.types import VQEResult
 from .ansatz_templates import build_hardware_efficient_ansatz_symbolic
-from .ansatz_templates import build_ucc_ansatz_symbolic, build_ucc_ansatz
-from .ansatz_templates import build_ucc_num_params
 from .optimizer_utils import (
     Hamiltonian,
     CliffordFitMap,
@@ -28,7 +26,7 @@ from .optimizer_utils import (
     run_variational_loop as _run_variational_loop,
 )
 
-AnsatzKind = Literal["hardwareefficient", "ucc", "custom"]
+AnsatzKind = Literal["hardwareefficient", "custom"]
 
 
 def build_ising_hamiltonian(num_qubits: int, j: float = 1.0, h: float = 1.0) -> Hamiltonian:
@@ -264,7 +262,6 @@ def _resolve_ansatz_layout(
     Supported kinds:
 
     - ``"hardwareefficient"``: RX/RY + CZ entangling layers.
-    - ``"ucc"``: Unitary Coupled Cluster.
     - ``"custom"``: User-supplied ``QuantumCircuit`` with symbolic params.
 
     Args:
@@ -289,15 +286,6 @@ def _resolve_ansatz_layout(
             layers=layers,
         )
         return param_names, symbolic_qc
-    if ansatz_name == "ucc":
-        num_params = build_ucc_num_params(num_qubits, layers)
-        param_names = [f"theta_{i}" for i in range(num_params)]
-        symbolic_qc = build_ucc_ansatz_symbolic(
-            num_qubits,
-            param_names,
-            layers=layers,
-        )
-        return param_names, symbolic_qc
     if ansatz_name == "custom":
         if custom_ansatz_circuit is None:
             raise ValueError("custom ansatz requires custom_ansatz_circuit")
@@ -309,7 +297,7 @@ def _resolve_ansatz_layout(
         if not param_names:
             raise ValueError("custom ansatz circuit has no unresolved symbolic parameters")
         return param_names, custom_ansatz_circuit.deepcopy()
-    raise ValueError("ansatz must be 'hardwareefficient', 'ucc', or 'custom'")
+    raise ValueError("ansatz must be 'hardwareefficient' or 'custom'")
 
 
 
@@ -387,7 +375,7 @@ def run_vqe_with_backend(
         init_params: Explicit initial parameter values.
         callback: Per-iteration callback ``(iter, energy, params)``.
         gradient_method: ``"parameter-shift"`` or ``"autograd"``.
-        ansatz: Ansatz kind (``"hardwareefficient"`` / ``"ucc"`` / ``"custom"``).
+        ansatz: Ansatz kind (``"hardwareefficient"`` / ``"custom"``).
         custom_ansatz_circuit: Required when *ansatz* is ``"custom"``.
         clifford_fitting: Enable Clifford-based noise mitigation.
         clifford_fitting_num_samples: Calibration circuit count.
