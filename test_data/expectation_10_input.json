@@ -1,0 +1,30 @@
+{
+  "mode": "expectation",
+  "qasm": "OPENQASM 2.0;\ninclude \"qelib1.inc\";\nqreg q[4];\nry(theta_0) q[0];\nry(theta_1) q[1];\ncx q[0],q[1];\nrz(theta_0*theta_1) q[0];\nry(-theta_2) q[1];\ncx q[1],q[2];\nrx(theta_2+theta_3) q[2];\ncx q[2],q[3];\nry(theta_3) q[3];",
+  "param_names": [
+    "theta_0",
+    "theta_1",
+    "theta_2",
+    "theta_3"
+  ],
+  "param_values": [
+    0.5,
+    0.8,
+    1.2,
+    0.3
+  ],
+  "hamiltonian": [
+    {
+      "coeff": -1.0,
+      "pauli": "Z0 Z1"
+    },
+    {
+      "coeff": -1.0,
+      "pauli": "Z1 Z2"
+    },
+    {
+      "coeff": -1.0,
+      "pauli": "Z2 Z3"
+    }
+  ]
+}

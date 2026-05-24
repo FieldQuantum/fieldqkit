@@ -1,0 +1,70 @@
+{
+  "mode": "expectation",
+  "qasm": "OPENQASM 2.0;\ninclude \"qelib1.inc\";\nqreg q[12];\nh q[0];\nh q[1];\nh q[2];\nh q[3];\nh q[4];\nh q[5];\nh q[6];\nh q[7];\nh q[8];\nh q[9];\nh q[10];\nh q[11];\ncx q[0],q[1];\nrz(gamma_0) q[1];\ncx q[0],q[1];\ncx q[1],q[2];\nrz(gamma_0) q[2];\ncx q[1],q[2];\ncx q[2],q[3];\nrz(gamma_0) q[3];\ncx q[2],q[3];\ncx q[3],q[4];\nrz(gamma_0) q[4];\ncx q[3],q[4];\ncx q[4],q[5];\nrz(gamma_0) q[5];\ncx q[4],q[5];\ncx q[5],q[6];\nrz(gamma_0) q[6];\ncx q[5],q[6];\ncx q[6],q[7];\nrz(gamma_0) q[7];\ncx q[6],q[7];\ncx q[7],q[8];\nrz(gamma_0) q[8];\ncx q[7],q[8];\ncx q[8],q[9];\nrz(gamma_0) q[9];\ncx q[8],q[9];\ncx q[9],q[10];\nrz(gamma_0) q[10];\ncx q[9],q[10];\ncx q[10],q[11];\nrz(gamma_0) q[11];\ncx q[10],q[11];\ncx q[11],q[0];\nrz(gamma_0) q[0];\ncx q[11],q[0];\nrx(beta_0) q[0];\nrx(beta_0) q[1];\nrx(beta_0) q[2];\nrx(beta_0) q[3];\nrx(beta_0) q[4];\nrx(beta_0) q[5];\nrx(beta_0) q[6];\nrx(beta_0) q[7];\nrx(beta_0) q[8];\nrx(beta_0) q[9];\nrx(beta_0) q[10];\nrx(beta_0) q[11];\ncx q[0],q[1];\nrz(gamma_1) q[1];\ncx q[0],q[1];\ncx q[1],q[2];\nrz(gamma_1) q[2];\ncx q[1],q[2];\ncx q[2],q[3];\nrz(gamma_1) q[3];\ncx q[2],q[3];\ncx q[3],q[4];\nrz(gamma_1) q[4];\ncx q[3],q[4];\ncx q[4],q[5];\nrz(gamma_1) q[5];\ncx q[4],q[5];\ncx q[5],q[6];\nrz(gamma_1) q[6];\ncx q[5],q[6];\ncx q[6],q[7];\nrz(gamma_1) q[7];\ncx q[6],q[7];\ncx q[7],q[8];\nrz(gamma_1) q[8];\ncx q[7],q[8];\ncx q[8],q[9];\nrz(gamma_1) q[9];\ncx q[8],q[9];\ncx q[9],q[10];\nrz(gamma_1) q[10];\ncx q[9],q[10];\ncx q[10],q[11];\nrz(gamma_1) q[11];\ncx q[10],q[11];\ncx q[11],q[0];\nrz(gamma_1) q[0];\ncx q[11],q[0];\nrx(beta_1) q[0];\nrx(beta_1) q[1];\nrx(beta_1) q[2];\nrx(beta_1) q[3];\nrx(beta_1) q[4];\nrx(beta_1) q[5];\nrx(beta_1) q[6];\nrx(beta_1) q[7];\nrx(beta_1) q[8];\nrx(beta_1) q[9];\nrx(beta_1) q[10];\nrx(beta_1) q[11];\ncx q[0],q[1];\nrz(gamma_2) q[1];\ncx q[0],q[1];\ncx q[1],q[2];\nrz(gamma_2) q[2];\ncx q[1],q[2];\ncx q[2],q[3];\nrz(gamma_2) q[3];\ncx q[2],q[3];\ncx q[3],q[4];\nrz(gamma_2) q[4];\ncx q[3],q[4];\ncx q[4],q[5];\nrz(gamma_2) q[5];\ncx q[4],q[5];\ncx q[5],q[6];\nrz(gamma_2) q[6];\ncx q[5],q[6];\ncx q[6],q[7];\nrz(gamma_2) q[7];\ncx q[6],q[7];\ncx q[7],q[8];\nrz(gamma_2) q[8];\ncx q[7],q[8];\ncx q[8],q[9];\nrz(gamma_2) q[9];\ncx q[8],q[9];\ncx q[9],q[10];\nrz(gamma_2) q[10];\ncx q[9],q[10];\ncx q[10],q[11];\nrz(gamma_2) q[11];\ncx q[10],q[11];\ncx q[11],q[0];\nrz(gamma_2) q[0];\ncx q[11],q[0];\nrx(beta_2) q[0];\nrx(beta_2) q[1];\nrx(beta_2) q[2];\nrx(beta_2) q[3];\nrx(beta_2) q[4];\nrx(beta_2) q[5];\nrx(beta_2) q[6];\nrx(beta_2) q[7];\nrx(beta_2) q[8];\nrx(beta_2) q[9];\nrx(beta_2) q[10];\nrx(beta_2) q[11];",
+  "param_names": [
+    "gamma_0",
+    "beta_0",
+    "gamma_1",
+    "beta_1",
+    "gamma_2",
+    "beta_2"
+  ],
+  "param_values": [
+    0.5,
+    0.8,
+    0.4,
+    1.0,
+    0.3,
+    0.9
+  ],
+  "hamiltonian": [
+    {
+      "coeff": -1.0,
+      "pauli": "Z0 Z1"
+    },
+    {
+      "coeff": -1.0,
+      "pauli": "Z1 Z2"
+    },
+    {
+      "coeff": -1.0,
+      "pauli": "Z2 Z3"
+    },
+    {
+      "coeff": -1.0,
+      "pauli": "Z3 Z4"
+    },
+    {
+      "coeff": -1.0,
+      "pauli": "Z4 Z5"
+    },
+    {
+      "coeff": -1.0,
+      "pauli": "Z5 Z6"
+    },
+    {
+      "coeff": -1.0,
+      "pauli": "Z6 Z7"
+    },
+    {
+      "coeff": -1.0,
+      "pauli": "Z7 Z8"
+    },
+    {
+      "coeff": -1.0,
+      "pauli": "Z8 Z9"
+    },
+    {
+      "coeff": -1.0,
+      "pauli": "Z9 Z10"
+    },
+    {
+      "coeff": -1.0,
+      "pauli": "Z10 Z11"
+    },
+    {
+      "coeff": -1.0,
+      "pauli": "Z11 Z0"
+    }
+  ]
+}

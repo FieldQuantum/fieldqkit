@@ -1,0 +1,142 @@
+{
+  "mode": "expectation",
+  "qasm": "OPENQASM 2.0;\ninclude \"qelib1.inc\";\nqreg q[16];\nry(theta_0+theta_1) q[0];\nry(theta_1+theta_2) q[1];\nry(theta_2+theta_3) q[2];\nry(theta_3+theta_0) q[3];\nry(theta_0+theta_1) q[4];\nry(theta_1+theta_2) q[5];\nry(theta_2+theta_3) q[6];\nry(theta_3+theta_0) q[7];\nry(theta_0+theta_1) q[8];\nry(theta_1+theta_2) q[9];\nry(theta_2+theta_3) q[10];\nry(theta_3+theta_0) q[11];\nry(theta_0+theta_1) q[12];\nry(theta_1+theta_2) q[13];\nry(theta_2+theta_3) q[14];\nry(theta_3+theta_0) q[15];\ncx q[0],q[1];\ncx q[1],q[2];\ncx q[2],q[3];\ncx q[3],q[4];\ncx q[4],q[5];\ncx q[5],q[6];\ncx q[6],q[7];\ncx q[7],q[8];\ncx q[8],q[9];\ncx q[9],q[10];\ncx q[10],q[11];\ncx q[11],q[12];\ncx q[12],q[13];\ncx q[13],q[14];\ncx q[14],q[15];\nrz(theta_0-theta_2) q[0];\nrz(theta_1-theta_3) q[1];\nrz(theta_2-theta_0) q[2];\nrz(theta_3-theta_1) q[3];\nrz(theta_0-theta_2) q[4];\nrz(theta_1-theta_3) q[5];\nrz(theta_2-theta_0) q[6];\nrz(theta_3-theta_1) q[7];\nrz(theta_0-theta_2) q[8];\nrz(theta_1-theta_3) q[9];\nrz(theta_2-theta_0) q[10];\nrz(theta_3-theta_1) q[11];\nrz(theta_0-theta_2) q[12];\nrz(theta_1-theta_3) q[13];\nrz(theta_2-theta_0) q[14];\nrz(theta_3-theta_1) q[15];\ncx q[1],q[2];\ncx q[3],q[4];\ncx q[5],q[6];\ncx q[7],q[8];\ncx q[9],q[10];\ncx q[11],q[12];\ncx q[13],q[14];\nrx(2*theta_0) q[0];\nrx(2*theta_1) q[1];\nrx(2*theta_2) q[2];\nrx(2*theta_3) q[3];\nrx(2*theta_0) q[4];\nrx(2*theta_1) q[5];\nrx(2*theta_2) q[6];\nrx(2*theta_3) q[7];\nrx(2*theta_0) q[8];\nrx(2*theta_1) q[9];\nrx(2*theta_2) q[10];\nrx(2*theta_3) q[11];\nrx(2*theta_0) q[12];\nrx(2*theta_1) q[13];\nrx(2*theta_2) q[14];\nrx(2*theta_3) q[15];",
+  "param_names": [
+    "theta_0",
+    "theta_1",
+    "theta_2",
+    "theta_3"
+  ],
+  "param_values": [
+    0.5,
+    0.8,
+    1.2,
+    0.3
+  ],
+  "hamiltonian": [
+    {
+      "coeff": -1.0,
+      "pauli": "Z0 Z1"
+    },
+    {
+      "coeff": -1.0,
+      "pauli": "Z1 Z2"
+    },
+    {
+      "coeff": -1.0,
+      "pauli": "Z2 Z3"
+    },
+    {
+      "coeff": -1.0,
+      "pauli": "Z3 Z4"
+    },
+    {
+      "coeff": -1.0,
+      "pauli": "Z4 Z5"
+    },
+    {
+      "coeff": -1.0,
+      "pauli": "Z5 Z6"
+    },
+    {
+      "coeff": -1.0,
+      "pauli": "Z6 Z7"
+    },
+    {
+      "coeff": -1.0,
+      "pauli": "Z7 Z8"
+    },
+    {
+      "coeff": -1.0,
+      "pauli": "Z8 Z9"
+    },
+    {
+      "coeff": -1.0,
+      "pauli": "Z9 Z10"
+    },
+    {
+      "coeff": -1.0,
+      "pauli": "Z10 Z11"
+    },
+    {
+      "coeff": -1.0,
+      "pauli": "Z11 Z12"
+    },
+    {
+      "coeff": -1.0,
+      "pauli": "Z12 Z13"
+    },
+    {
+      "coeff": -1.0,
+      "pauli": "Z13 Z14"
+    },
+    {
+      "coeff": -1.0,
+      "pauli": "Z14 Z15"
+    },
+    {
+      "coeff": -0.4,
+      "pauli": "X0"
+    },
+    {
+      "coeff": -0.4,
+      "pauli": "X1"
+    },
+    {
+      "coeff": -0.4,
+      "pauli": "X2"
+    },
+    {
+      "coeff": -0.4,
+      "pauli": "X3"
+    },
+    {
+      "coeff": -0.4,
+      "pauli": "X4"
+    },
+    {
+      "coeff": -0.4,
+      "pauli": "X5"
+    },
+    {
+      "coeff": -0.4,
+      "pauli": "X6"
+    },
+    {
+      "coeff": -0.4,
+      "pauli": "X7"
+    },
+    {
+      "coeff": -0.4,
+      "pauli": "X8"
+    },
+    {
+      "coeff": -0.4,
+      "pauli": "X9"
+    },
+    {
+      "coeff": -0.4,
+      "pauli": "X10"
+    },
+    {
+      "coeff": -0.4,
+      "pauli": "X11"
+    },
+    {
+      "coeff": -0.4,
+      "pauli": "X12"
+    },
+    {
+      "coeff": -0.4,
+      "pauli": "X13"
+    },
+    {
+      "coeff": -0.4,
+      "pauli": "X14"
+    },
+    {
+      "coeff": -0.4,
+      "pauli": "X15"
+    }
+  ]
+}

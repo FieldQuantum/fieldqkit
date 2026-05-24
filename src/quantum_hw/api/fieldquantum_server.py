@@ -31,7 +31,8 @@ REST API
 
         {"counts": {"0000": 512, "0011": 302, ...}}
 
-    *Expectation mode* — returns energy + per-Pauli expectations + gradients::
+    *Expectation mode* — returns energy + per-Pauli expectations + gradients via
+    automatic differentiation (exact statevector/MPS, no shots)::
 
         {
             "mode": "expectation",
@@ -41,8 +42,7 @@ REST API
             "hamiltonian": [
                 {"coeff": -1.0, "pauli": "Z0 Z1"},
                 {"coeff": -0.5, "pauli": "X0"}
-            ],
-            "shots": 8192
+            ]
         }
 
     Response::
@@ -58,14 +58,11 @@ from __future__ import annotations
 
 import json
 import logging
-import math
 import re
 import traceback
 import uuid
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from typing import Any, Dict, List
-
-import numpy as np
 
 logger = logging.getLogger(__name__)
 
@@ -103,23 +100,6 @@ def _substitute_params(
     return qasm
 
 
-def _num_qubits_from_qasm(qasm: str) -> int:
-    """Extract the total qubit count declared in *qasm* via ``qreg``.
-
-    Falls back to 1 when no ``qreg`` declaration is found.
-
-    Args:
-        qasm: OpenQASM 2.0 source string.
-
-    Returns:
-        Total number of qubits (sum over all ``qreg`` declarations).
-    """
-    total = 0
-    for m in re.finditer(r"qreg\s+\w+\[(\d+)\]", qasm):
-        total += int(m.group(1))
-    return max(total, 1)
-
-
 # ---------------------------------------------------------------------------
 # Request handlers
 # ---------------------------------------------------------------------------
@@ -153,10 +133,10 @@ def _handle_sample(data: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def _handle_expectation(data: Dict[str, Any]) -> Dict[str, Any]:
-    """Execute an *expectation* mode request.
+    """Execute an *expectation* mode request via automatic differentiation.
 
-    Computes Pauli expectation values via basis-rotated sampling and returns
-    parameter-shift gradients (2N+1 circuit evaluations for N parameters).
+    Uses exact statevector/MPS simulation with PyTorch autograd — no shots
+    required.  Gradients are computed in a single backward pass.
 
     Args:
         data: Parsed JSON request body. Must contain ``"qasm"``,
@@ -165,110 +145,38 @@ def _handle_expectation(data: Dict[str, Any]) -> Dict[str, Any]:
     Returns:
         ``{"energy": float, "expectations": {pauli: float, ...}, "gradients": [float, ...]}``
     """
+    import torch  # noqa: PLC0415
     from ..circuit import QuantumCircuit  # noqa: PLC0415
-    from ..sim import simulate_counts  # noqa: PLC0415
-    from ..core.observables import (  # noqa: PLC0415
-        group_observables,
-        pauli_expectation,
-        append_measurement_basis,
-    )
-    from ..core.utils import get_samples  # noqa: PLC0415
+    from ..sim import energy_and_expectations  # noqa: PLC0415
 
     qasm_template: str = data["qasm"]
     param_names: List[str] = data.get("param_names", [])
     param_values: List[float] = list(data.get("param_values", []))
-    hamiltonian: List[Dict[str, Any]] = data.get("hamiltonian", [])
-    shots: int = int(data.get("shots", 8192))
+    hamiltonian_raw: List[Dict[str, Any]] = data.get("hamiltonian", [])
 
-    # Determine num_qubits from the QASM header (substitute any params first)
-    qasm_concrete = _substitute_params(qasm_template, param_names, param_values)
-    num_qubits = _num_qubits_from_qasm(qasm_concrete)
-
-    # Separate identity term (constant energy offset)
-    identity_energy = sum(
-        float(term["coeff"])
-        for term in hamiltonian
-        if str(term.get("pauli", "")).strip().upper() == "I"
-    )
-    pauli_terms = [
+    hamiltonian = [
         (float(term["coeff"]), str(term["pauli"]))
-        for term in hamiltonian
-        if str(term.get("pauli", "")).strip().upper() != "I"
+        for term in hamiltonian_raw
     ]
 
-    # Unique observable strings needed for measurement grouping
-    unique_obs = list({p for _, p in pauli_terms})
+    symbolic_qc = QuantumCircuit().from_openqasm2(qasm_template)
 
-    def _eval_energy(values: List[float]) -> float:
-        """Evaluate energy at *values* by sampling each measurement group."""
-        qasm = _substitute_params(qasm_template, param_names, values)
-        qc_base = QuantumCircuit().from_openqasm2(qasm)
+    params = torch.tensor(param_values, dtype=torch.float64, requires_grad=bool(param_names))
 
-        if not unique_obs:
-            return identity_energy
+    energy_tensor, expectations = energy_and_expectations(
+        symbolic_qc,
+        params=params,
+        param_names=param_names,
+        hamiltonian=hamiltonian,
+    )
 
-        groups = group_observables(unique_obs, num_qubits=num_qubits)
-        obs_vals: Dict[str, float] = {}
-
-        for group in groups:
-            basis_pattern = group["basis"]
-            qct = qc_base.deepcopy()
-            # Remove any pre-existing measurements — the ansatz should not have them.
-            qct.remove_gate("measure")
-            target_qubits = list(range(num_qubits))
-            if basis_pattern is not None:
-                append_measurement_basis(qct, basis_pattern, target_qubits=target_qubits)
-            else:
-                qct.measure(target_qubits, list(range(num_qubits)))
-
-            counts = simulate_counts(qct, shots)
-            sample_key = next(iter(counts), "")
-            num_bits = len(sample_key) if sample_key else num_qubits
-            samples = get_samples(counts, num_bits)
-            for obs in group["observables"]:
-                obs_vals[obs] = float(pauli_expectation(samples, obs))
-
-        energy = identity_energy + sum(c * obs_vals.get(p, 0.0) for c, p in pauli_terms)
-        return energy
-
-    # Forward pass at the requested parameter values
-    energy = _eval_energy(param_values)
-
-    # Collect per-Pauli expectations at the current parameter values
-    # (reuse evaluations from the same grouped runs)
-    qasm_cur = _substitute_params(qasm_template, param_names, param_values)
-    qc_cur = QuantumCircuit().from_openqasm2(qasm_cur)
-    expectations: Dict[str, float] = {"I": 1.0}  # Identity always 1
-
-    if unique_obs:
-        groups_cur = group_observables(unique_obs, num_qubits=num_qubits)
-        for group in groups_cur:
-            basis_pattern = group["basis"]
-            qct = qc_cur.deepcopy()
-            qct.remove_gate("measure")
-            target_qubits = list(range(num_qubits))
-            if basis_pattern is not None:
-                append_measurement_basis(qct, basis_pattern, target_qubits=target_qubits)
-            else:
-                qct.measure(target_qubits, list(range(num_qubits)))
-            counts = simulate_counts(qct, shots)
-            sample_key = next(iter(counts), "")
-            num_bits = len(sample_key) if sample_key else num_qubits
-            samples_cur = get_samples(counts, num_bits)
-            for obs in group["observables"]:
-                expectations[obs] = float(pauli_expectation(samples_cur, obs))
-
-    # Parameter-shift gradients: grad_i = (E(θ + π/2 e_i) − E(θ − π/2 e_i)) / 2
     gradients: List[float] = []
-    for i in range(len(param_names)):
-        vp = list(param_values)
-        vp[i] += math.pi / 2.0
-        vm = list(param_values)
-        vm[i] -= math.pi / 2.0
-        gradients.append(float((_eval_energy(vp) - _eval_energy(vm)) / 2.0))
+    if param_names:
+        (grads,) = torch.autograd.grad(energy_tensor, params)
+        gradients = grads.tolist()
 
     return {
-        "energy": float(energy),
+        "energy": float(energy_tensor.detach().cpu().item()),
         "expectations": expectations,
         "gradients": gradients,
     }

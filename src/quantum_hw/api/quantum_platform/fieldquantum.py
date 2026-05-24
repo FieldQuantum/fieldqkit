@@ -79,12 +79,11 @@ class FieldQuantumPlatform:
         param_names: List[str],
         param_values: List[float],
         hamiltonian: List[Dict[str, Any]],
-        shots: int = 8192,
     ) -> Dict[str, Any]:
         """Submit an *expectation* request and return energy + gradients.
 
-        The server computes Pauli expectation values via sampling and returns
-        parameter-shift gradients.
+        The server computes exact Pauli expectation values via automatic
+        differentiation (no shots required).
 
         Args:
             qasm: OpenQASM 2.0 circuit template with symbolic parameter names
@@ -92,7 +91,6 @@ class FieldQuantumPlatform:
             param_names: Ordered list of symbolic parameter names.
             param_values: Numeric values corresponding to *param_names*.
             hamiltonian: List of ``{"coeff": float, "pauli": str}`` dicts.
-            shots: Shots per expectation evaluation.
 
         Returns:
             Dict with keys ``"energy"``, ``"expectations"``, and ``"gradients"``.
@@ -103,7 +101,6 @@ class FieldQuantumPlatform:
             "param_names": param_names,
             "param_values": list(param_values),
             "hamiltonian": hamiltonian,
-            "shots": shots,
         })
         return self.fetch_task_result(task_id)
 

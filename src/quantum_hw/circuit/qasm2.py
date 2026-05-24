@@ -21,6 +21,20 @@ __all__ = [
 ]
 
 
+def _parse_gate_param(p: str):
+    """Parse a gate parameter: return a float if fully numeric, else keep as str.
+
+    Symbolic expressions (e.g. ``"-theta_1"``, ``"theta_1*theta_2"``) are
+    preserved as strings so that ``resolve_param`` / ``_eval_param_expression``
+    can evaluate them at simulation time with concrete (possibly differentiable)
+    values.
+    """
+    try:
+        return parse_expression(p)
+    except (ValueError, SyntaxError):
+        return p.strip()
+
+
 def _record_qubits(qubit_used: list, *qubits: int) -> None:
     """Append qubit indices to the tracking list for register inference.
 
@@ -288,7 +302,7 @@ def parse_openqasm2_to_gates(openqasm2_str):
         line_clear = line.split("//")[0].strip()
         gate, params_str, qregs_str = sparse_gate_params_qregs(line_clear)
         if params_str is not None:
-            params = [parse_expression(p) for p in params_str.split(",")]
+            params = [_parse_gate_param(p) for p in params_str.split(",")]
         else:
             params = []
         positions = get_positions_list(gate, qregs_str, qreg_map, creg_map)

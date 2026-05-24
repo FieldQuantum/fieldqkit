@@ -37,9 +37,8 @@ dependencies = [
 sim = [
   "torch>=2.1",
 ]
-full = [
-  "torch>=2.1",
-  "ipython>=8.0",
+origin = [
+  "pyqpanda3",
 ]
 test = [
   "pytest>=7.4",

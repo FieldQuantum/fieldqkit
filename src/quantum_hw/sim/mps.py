@@ -759,8 +759,8 @@ def _sample_bits_from_mps(
         bits = torch.multinomial(probs, num_samples=1, replacement=True, generator=generator).squeeze(1)
         bits_all[:, i] = bits
 
-        left0 = torch.einsum("sab,api,bqj,pq->sij", left, torch.conj(t), t, proj0)
-        left1 = torch.einsum("sab,api,bqj,pq->sij", left, torch.conj(t), t, proj1)
+        left0 = torch.einsum("sab,api,bqj,pq->sij", left, t, torch.conj(t), proj0)
+        left1 = torch.einsum("sab,api,bqj,pq->sij", left, t, torch.conj(t), proj1)
         selector = bits.view(-1, 1, 1) == 0
         left = torch.where(selector, left0, left1)
 

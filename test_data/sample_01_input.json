@@ -1,0 +1,5 @@
+{
+  "mode": "sample",
+  "qasm": "OPENQASM 2.0;\ninclude \"qelib1.inc\";\nqreg q[1];\ncreg c[1];\nmeasure q -> c;",
+  "shots": 256
+}

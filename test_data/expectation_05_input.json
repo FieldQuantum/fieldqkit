@@ -1,0 +1,16 @@
+{
+  "mode": "expectation",
+  "qasm": "OPENQASM 2.0;\ninclude \"qelib1.inc\";\nqreg q[1];\nrx(2*theta_0) q[0];",
+  "param_names": [
+    "theta_0"
+  ],
+  "param_values": [
+    0.7853981633974483
+  ],
+  "hamiltonian": [
+    {
+      "coeff": -1.0,
+      "pauli": "Z0"
+    }
+  ]
+}
