@@ -19,6 +19,15 @@ class OpenQasmSubmitRequest:
 
 
 @dataclass
+class QcisSubmitRequest:
+    name: str
+    qcis: str
+    shots: int
+    chip_name: str
+    submit_options: Dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass
 class ProviderTaskHandle:
     provider: str
     task_id: str
@@ -27,6 +36,7 @@ class ProviderTaskHandle:
 
 class TaskAdapter(ABC):
     provider: str
+    qcis_native: bool = False
 
     def submit_openqasm(self, submit_request: OpenQasmSubmitRequest, backend: ResolvedBackend) -> ProviderTaskHandle:
         """Submit an OpenQASM program and return a task handle.
@@ -70,6 +80,21 @@ class TaskAdapter(ABC):
             NotImplementedError: f'{self.provider} fetch_result is not implemented'
         """
         raise NotImplementedError(f"{self.provider} fetch_result is not implemented")
+
+    def submit_qcis(self, submit_request: "QcisSubmitRequest", backend: ResolvedBackend) -> ProviderTaskHandle:
+        """Submit a QCIS program and return a task handle.
+
+        Args:
+            submit_request (*QcisSubmitRequest*): Submission request descriptor.
+            backend (*ResolvedBackend*): Hardware backend descriptor.
+
+        Returns:
+            ``ProviderTaskHandle`` for tracking the submitted task.
+
+        Raises:
+            NotImplementedError: f'{self.provider} submit_qcis is not implemented'
+        """
+        raise NotImplementedError(f"{self.provider} submit_qcis is not implemented")
 
     def cancel_task(self, handle: ProviderTaskHandle) -> None:
         """Cancel a running task.

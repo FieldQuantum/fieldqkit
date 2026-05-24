@@ -27,7 +27,8 @@ from quantum_hw.api.quantum_platform import quafu as qf
 from quantum_hw.api.quantum_platform import tencent as tc
 from quantum_hw.api.quantum_platform import tianyan as ty
 from quantum_hw.circuit import QuantumCircuit
-from quantum_hw.circuit.qasm_to_qcis import QasmToQcis
+from quantum_hw.circuit.qcis import circuit_to_qcis
+from quantum_hw.compile.translate import TranslateToBasisGates
 from quantum_hw.core.types import RunResult
 
 
@@ -816,14 +817,7 @@ def test_quafu_task_adapter_submit_query_fetch_cancel_lifecycle():
     assert client.canceled == 123
 
 
-def test_vendored_adapter_submit_openqasm_submit_job_and_fetch_result(monkeypatch):
-    class _FakeConverter:
-        def convert_to_qcis(self, qasm):
-            return f"QCIS::{qasm}"
-
-    import quantum_hw.circuit.qasm_to_qcis as _qcis_mod
-    monkeypatch.setattr(_qcis_mod, "QasmToQcis", _FakeConverter)
-
+def test_tianyan_adapter_submit_qcis_submit_job_and_fetch_result():
     class _Platform:
         def __init__(self):
             self.last_submit = None
@@ -848,11 +842,16 @@ def test_vendored_adapter_submit_openqasm_submit_job_and_fetch_result(monkeypatc
         metadata={"platform_obj": platform},
     )
 
+    qc = QuantumCircuit(1, 1)
+    qc.h(0).measure_all()
+    translated = TranslateToBasisGates().run(qc)
+    qcis = circuit_to_qcis(translated)
+
     adapter = ty.TianYanTaskAdapter(client=_DummyClient(), api_token="k")
-    handle = adapter.submit_openqasm(
-        ut.OpenQasmSubmitRequest(
+    handle = adapter.submit_qcis(
+        ut.QcisSubmitRequest(
             name="exp",
-            qasm="OPENQASM 2.0;",
+            qcis=qcis,
             shots=20,
             chip_name="m",
             submit_options={"num_qubits": 1},
@@ -862,7 +861,7 @@ def test_vendored_adapter_submit_openqasm_submit_job_and_fetch_result(monkeypatc
 
     assert handle.task_id == "qid1"
     assert platform.last_submit["exp_name"] == "exp"
-    assert platform.last_submit["circuit"].startswith("QCIS::")
+    assert platform.last_submit["circuit"] == qcis
 
     status = adapter.query_status(handle)
     assert status == "Finished"
@@ -884,14 +883,7 @@ def test_guodun_adapter_provider_value():
     assert adapter.provider == "guodun"
 
 
-def test_guodun_task_adapter_submit_query_fetch_cancel_lifecycle(monkeypatch):
-    class _FakeConverter:
-        def convert_to_qcis(self, qasm):
-            return f"QCIS::{qasm}"
-
-    import quantum_hw.circuit.qasm_to_qcis as _qcis_mod
-    monkeypatch.setattr(_qcis_mod, "QasmToQcis", _FakeConverter)
-
+def test_guodun_task_adapter_submit_query_fetch_cancel_lifecycle():
     class _Platform:
         def __init__(self):
             self.last_submit = None
@@ -915,11 +907,16 @@ def test_guodun_task_adapter_submit_query_fetch_cancel_lifecycle(monkeypatch):
         metadata={"platform_obj": platform},
     )
 
+    qc = QuantumCircuit(1, 1)
+    qc.h(0).measure_all()
+    translated = TranslateToBasisGates().run(qc)
+    qcis = circuit_to_qcis(translated)
+
     adapter = gd.GuoDunTaskAdapter(client=_DummyClient(), api_token="k")
-    handle = adapter.submit_openqasm(
-        ut.OpenQasmSubmitRequest(
+    handle = adapter.submit_qcis(
+        ut.QcisSubmitRequest(
             name="gd_exp",
-            qasm="OPENQASM 2.0;",
+            qcis=qcis,
             shots=50,
             chip_name="gd_qc1",
             submit_options={"num_qubits": 1},
@@ -930,7 +927,7 @@ def test_guodun_task_adapter_submit_query_fetch_cancel_lifecycle(monkeypatch):
     assert handle.provider == "guodun"
     assert handle.task_id == "gd_qid1"
     assert platform.last_submit["exp_name"] == "gd_exp"
-    assert platform.last_submit["circuit"].startswith("QCIS::")
+    assert platform.last_submit["circuit"] == qcis
 
     status = adapter.query_status(handle)
     assert status == "Finished"
@@ -943,14 +940,7 @@ def test_guodun_task_adapter_submit_query_fetch_cancel_lifecycle(monkeypatch):
     assert platform.stopped == "gd_qid1"
 
 
-def test_tianyan_task_adapter_submit_query_fetch_lifecycle(monkeypatch):
-    class _FakeConverter:
-        def convert_to_qcis(self, qasm):
-            return f"QCIS::{qasm}"
-
-    import quantum_hw.circuit.qasm_to_qcis as _qcis_mod
-    monkeypatch.setattr(_qcis_mod, "QasmToQcis", _FakeConverter)
-
+def test_tianyan_task_adapter_submit_query_fetch_lifecycle():
     class _Platform:
         def __init__(self):
             self.last_submit = None
@@ -977,11 +967,16 @@ def test_tianyan_task_adapter_submit_query_fetch_lifecycle(monkeypatch):
         metadata={"platform_obj": platform},
     )
 
+    qc = QuantumCircuit(2, 2)
+    qc.h(0).cx(0, 1).measure_all()
+    translated = TranslateToBasisGates().run(qc)
+    qcis = circuit_to_qcis(translated)
+
     adapter = ty.TianYanTaskAdapter(client=_DummyClient(), api_token="k")
-    handle = adapter.submit_openqasm(
-        ut.OpenQasmSubmitRequest(
+    handle = adapter.submit_qcis(
+        ut.QcisSubmitRequest(
             name="ty_exp",
-            qasm="OPENQASM 2.0;",
+            qcis=qcis,
             shots=100,
             chip_name="tianyan176",
             submit_options={"num_qubits": 1},
@@ -1098,49 +1093,20 @@ def test_tencent_task_adapter_failed_maps_to_failed(monkeypatch):
 
 
 # ═══════════════════════════════════════════════════════════
-#  QASM / QCIS conversion
+#  QCIS conversion (circuit_to_qcis)
 # ═══════════════════════════════════════════════════════════
 
 
-def test_qasm3_delay_can_convert_to_qcis_idle_instruction():
-    qasm = """
-OPENQASM 3.0;
-include \"stdgates.inc\";
-qubit[1] q;
-bit[1] c;
-delay[5] q[0];
-c[0] = measure q[0];
-"""
-    qcis = QasmToQcis().convert_to_qcis(qasm)
-    lines = [line.strip().upper() for line in qcis.splitlines() if line.strip()]
-    assert any(line.startswith("I Q0 ") for line in lines)
-    assert any(line == "M Q0" for line in lines)
-
-
-def test_qasm3_generated_with_defcalgrammar_and_delay_can_convert_to_qcis():
+def test_circuit_with_delay_converts_to_qcis_idle_instruction():
     qc = QuantumCircuit(1, 1)
     qc.h(0)
-    qc.delay(2e-6, 0)
+    qc.delay(5, 0)
     qc.measure([0], [0])
-
-    qcis = QasmToQcis().convert_to_qcis(qc.to_openqasm3)
+    translated = TranslateToBasisGates().run(qc)
+    qcis = circuit_to_qcis(translated)
     lines = [line.strip().upper() for line in qcis.splitlines() if line.strip()]
-
     assert any(line.startswith("I Q0 ") for line in lines)
     assert any(line == "M Q0" for line in lines)
-
-
-def test_qasm3_duration_literal_ns_converts_to_seconds_in_qcis_delay():
-    qasm = """
-OPENQASM 3.0;
-include "stdgates.inc";
-qubit[1] q;
-delay[5ns] q[0];
-"""
-    qcis = QasmToQcis().convert_to_qcis(qasm)
-    first_line = [line.strip() for line in qcis.splitlines() if line.strip()][0]
-    duration = float(first_line.split()[-1])
-    assert math.isclose(duration, 5e-9, rel_tol=0.0, abs_tol=1e-15)
 
 
 def test_quantumcircuit_delay_unit_argument_is_normalized_to_seconds():
@@ -1151,15 +1117,12 @@ def test_quantumcircuit_delay_unit_argument_is_normalized_to_seconds():
     assert math.isclose(gate[1], 5e-9, rel_tol=0.0, abs_tol=1e-15)
 
 
-def test_qasm_to_qcis_basic_conversion():
-    qasm = """
-OPENQASM 2.0;
-include "qelib1.inc";
-qreg q[2];
-h q[0];
-cx q[0], q[1];
-"""
-    qcis = QasmToQcis().convert_to_qcis(qasm)
+def test_circuit_to_qcis_basic_conversion():
+    qc = QuantumCircuit(2)
+    qc.h(0)
+    qc.cx(0, 1)
+    translated = TranslateToBasisGates().run(qc)
+    qcis = circuit_to_qcis(translated)
     lines = [line.strip().upper() for line in qcis.splitlines() if line.strip()]
     assert any("Q0" in line for line in lines)
     assert any("CZ" in line for line in lines)
@@ -1217,7 +1180,6 @@ def test_run_auto_quafu_routes_to_quafu_adapters(monkeypatch):
     assert seen["provider"] == "quafu"
     assert backend_adapter.calls[0]["prefer_hardware"] == ["A", "B"]
     assert run_seen["name"] == "n1"
-    assert run_seen["kwargs"]["qasm_version"] == "2.0"
     assert run_seen["kwargs"]["use_dd"] is True
 
 
@@ -1234,7 +1196,6 @@ def test_run_auto_tianyan_routes_to_tianyan_runtime(monkeypatch):
 
     assert seen["provider"] == "tianyan"
     assert backend_adapter.calls[0]["num_qubits"] == 2
-    assert run_seen["kwargs"]["qasm_version"] == "3.0"
     assert run_seen["kwargs"]["use_dd"] is False
 
 
@@ -1251,7 +1212,6 @@ def test_run_auto_guodun_routes_to_guodun_runtime(monkeypatch):
 
     assert seen["provider"] == "guodun"
     assert backend_adapter.calls[0]["num_qubits"] == 2
-    assert run_seen["kwargs"]["qasm_version"] == "3.0"
     assert run_seen["kwargs"]["use_dd"] is False
 
 

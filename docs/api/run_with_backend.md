@@ -52,7 +52,7 @@ _run_with_backend(
 | `return_probabilities` | `bool` | `False` | 否 | 是否返回概率向量。 |
 | `target_qubits` | `Optional[Sequence[int]]` | `None` | 否 | 指定目标物理比特。 |
 | `merge_groups` | `bool` | `True` | 否 | 是否按可共测规则合并 observable 组。 |
-| `qasm_version` | `str` | `"2.0"` | 否 | 硬件提交时导出 OpenQASM 版本（`2.0/3.0`）。 |
+| `qasm_version` | `str` | `"2.0"` | 否 | 硬件提交时导出 OpenQASM 版本。仅支持 `"2.0"`；传入其他值会抛出 `ValueError`。 |
 | `use_dd` | `bool` | `True` | 否 | transpile 时是否启用 DD。 |
 | `print_true` | `bool` | `False` | 否 | 是否打印日志。 |
 | `transpile` | `bool` | `True` | 否 | 是否先在客户端编译。 |

@@ -2,12 +2,12 @@
 
 ## 概览
 
-- **模块**：`quantum_hw.circuit.qasm2`、`quantum_hw.circuit.qasm3`
-- **源文件**：`qasm2.py`（约410 行）、`qasm3.py`（约490 行）
-- **作用**：将 OpenQASM 2/3 程序解析为统一的 gate tuple IR
-- **调用入口**：`QuantumCircuit.from_openqasm2`、`QuantumCircuit.from_openqasm3`
+- **模块**：`quantum_hw.circuit.qasm2`
+- **源文件**：`qasm2.py`（约410 行）
+- **作用**：将 OpenQASM 2.0 程序解析为统一的 gate tuple IR
+- **调用入口**：`QuantumCircuit.from_openqasm2`
 
-> QASM → QCIS 的转换见 [QASM-to-QCIS 转换器](./qasm_to_qcis.md)。
+> `QuantumCircuit` → QCIS 的转换见 [QCIS 原生指令](./qcis.md)。
 
 ---
 
@@ -84,41 +84,12 @@ __all__ = [
 
 ---
 
-## qasm3 模块
-
-### 导出接口
-
-```python
-__all__ = ["parse_openqasm3_to_gates"]
-```
-
-### `parse_openqasm3_to_gates(openqasm3_str: str) -> tuple[list, set, set]`
-
-将 OpenQASM 3.0 程序解析为与 qasm2 一致的 IR 结构。
-
-| 参数 | 类型 | 说明 |
-|------|------|------|
-| `openqasm3_str` | `str` | 完整 OpenQASM 3.0 程序 |
-
-**依赖**：需要 `openqasm3` Python 库。缺失时抛出 `ImportError`。
-
-**实现方式**：
-- 使用 `openqasm3.parse()` 构建 AST
-- 遍历 AST 语句，递归处理门操作、寄存器声明、自定义门定义
-- 内部定义嵌套函数处理各语句类型（`QuantumGate`、`QuantumMeasurement`、`QuantumBarrier` 等）
-- 支持自定义 `gate` 定义的递归展开
-- 兼容 `openqasm3` 库不同版本的 AST 字段名
-
----
-
 ## 与 QuantumCircuit 的关系
 
 | QuantumCircuit 方法 | 调用链 |
 |---------------------|--------|
 | `from_openqasm2(qasm)` | 校验 `OPENQASM 2.0` 头 → `parse_openqasm2_to_gates` → 回填属性 |
-| `from_openqasm3(qasm)` | 校验 `OPENQASM 3.0` 头 → `parse_openqasm3_to_gates` → 回填属性 |
 | `to_openqasm2(symbolic=False)` | 将 gate tuple IR 导出为 QASM 2.0 字符串；`symbolic=True` 保留字符串参数 |
-| `to_openqasm3` (property) | 将 gate tuple IR 导出为 QASM 3.0 字符串 |
 
 ## 行为说明
 
@@ -149,4 +120,4 @@ print(new)
 
 - [QuantumCircuit](./quantumcircuit.md)
 - [Helpers 与渲染](./helpers_render.md)
-- [QASM-to-QCIS 转换器](./qasm_to_qcis.md)
+- [QCIS 原生指令](./qcis.md)

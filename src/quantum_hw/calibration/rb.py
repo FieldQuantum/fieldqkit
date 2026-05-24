@@ -38,7 +38,7 @@ class NativeTwoQubitRBManager:
 		self,
 		*,
 		cache_dir: Path,
-		submit_openqasm_async: Callable[[str, str, int, Optional[str]], object],
+		submit_circuit_async: Callable,
 		wait_task: Callable[[object], str],
 		get_task_result: Callable[[object], Dict[str, object]],
 		compact_for_sim: Callable[[QuantumCircuit], object],
@@ -48,7 +48,7 @@ class NativeTwoQubitRBManager:
 
 		Args:
 			cache_dir (*Path*): Directory for cache files.
-			submit_openqasm_async (*Callable[[str, str, int, Optional[str], Optional[Dict[str, object]]], object]*): Callback to submit an OpenQASM circuit asynchronously and return a task handle.
+			submit_circuit_async (*Callable[[str, QuantumCircuit, int, Optional[str], Optional[Dict]], object]*): Callback ``(name, circuit, shots, chip_name, submit_options)`` that submits a circuit and returns a task handle.
 			wait_task (*Callable[[object], str]*): Callback to block until a task completes and return its status.
 			get_task_result (*Callable[[object], Dict[str, object]]*): Callback to retrieve measurement results from a completed task.
 			compact_for_sim (*Callable[[QuantumCircuit], object]*): Callback to prepare a circuit for local simulation.
@@ -56,7 +56,7 @@ class NativeTwoQubitRBManager:
 		"""
 		self._cache_dir = cache_dir
 		self._cache_dir.mkdir(parents=True, exist_ok=True)
-		self._submit_openqasm_async = submit_openqasm_async
+		self._submit_circuit_async = submit_circuit_async
 		self._wait_task = wait_task
 		self._get_task_result = get_task_result
 		self._compact_for_sim = compact_for_sim
@@ -71,7 +71,6 @@ class NativeTwoQubitRBManager:
 		shots: int = 1024,
 		chip_name: Optional[str] = None,
 		backend: Optional[Backend] = None,
-		qasm_version: str = "2.0",
 		readout_mitigation: bool = True,
 		readout_shots: Optional[int] = None,
 		seed: Optional[int] = None,
@@ -86,7 +85,6 @@ class NativeTwoQubitRBManager:
 			shots (*int*): Number of measurement shots. Defaults to ``1024``.
 			chip_name (*Optional[str]*): Name of the target chip. Defaults to ``None``.
 			backend (*Optional[Backend]*): Hardware backend descriptor. Defaults to ``None``.
-			qasm_version (*str*): OpenQASM version (``'2.0'`` or ``'3.0'``). Defaults to ``'2.0'``.
 			readout_mitigation (*bool*): Whether to apply readout error mitigation. Defaults to ``True``.
 			readout_shots (*Optional[int]*): Number of shots for readout calibration. Defaults to ``None``.
 			seed (*Optional[int]*): Random seed for reproducibility. Defaults to ``None``.
@@ -120,7 +118,7 @@ class NativeTwoQubitRBManager:
 			# Reuse readout cache to mitigate measured probabilities for RB survival.
 			readout_manager = ReadoutCalibrationManager(
 				cache_dir=self._cache_dir,
-				submit_openqasm_async=self._submit_openqasm_async,
+				submit_circuit_async=self._submit_circuit_async,
 				wait_task=self._wait_task,
 				get_task_result=self._get_task_result,
 				compact_for_sim=self._compact_for_sim,
@@ -132,7 +130,6 @@ class NativeTwoQubitRBManager:
 				shots=readout_shots,
 				chip_name=chip_name,
 				backend=backend,
-				qasm_version=qasm_version,
 				print_true=print_true,
 			)
 			per_qubit_confusion = {k: np.asarray(v) for k, v in cal.per_qubit_confusion.items()}
@@ -182,10 +179,9 @@ class NativeTwoQubitRBManager:
 							probs = mitigate_readout(probs, local_cm)
 						survival_samples[length].append(float(probs[0]))
 					else:
-						qasm = qct.to_openqasm2() if qasm_version == "2.0" else qct.to_openqasm3
-						task_id = self._submit_openqasm_async(
+						task_id = self._submit_circuit_async(
 							name=f"rb_2q_{key}_L{length}_batch{m}",
-							qasm=qasm,
+							circuit=qct,
 							shots=shots,
 							chip_name=chip_name,
 						)

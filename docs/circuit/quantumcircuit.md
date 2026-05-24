@@ -73,16 +73,10 @@
 - 校验 `OPENQASM 2.0` 头。
 - 调用 `parse_openqasm2_to_gates` 解析。
 
-### `from_openqasm3(openqasm3_str: str) -> QuantumCircuit`
+### `to_openqasm2(symbolic=False)`
 
-- 校验 `OPENQASM 3.0` 头。
-- 调用 `parse_openqasm3_to_gates` 解析。
-
-### `to_openqasm2` / `to_openqasm3`
-
-- 导出 OpenQASM 2/3 程序字符串。
-- `to_openqasm2(symbolic=False)`：`symbolic=True` 时保留字符串参数原样输出（用于生成服务端参数模板）；默认行为先解析到数值再输出。
-- `to_openqasm3`：property，无参数，直接输出 QASM 3.0。
+- 导出 OpenQASM 2.0 程序字符串。
+- `symbolic=True` 时保留字符串参数原样输出（用于生成服务端参数模板）；默认行为先解析到数值再输出。
 
 ## 门操作接口
 
@@ -235,7 +229,7 @@ cx q[0],q[1];
 qc = QuantumCircuit().from_openqasm2(qasm)
 qc.barrier(0, 1)
 qc.measure([0, 1], [0, 1])
-print(qc.to_openqasm3)
+print(qc.to_openqasm2())
 ```
 
 ## 示例 4：子线路拼接前做索引平移
@@ -309,6 +303,6 @@ print("gates:", len(qc.gates))
 ## 相关页面
 
 - [OpenQASM 解析](./qasm.md)
-- [QASM-to-QCIS 转换器](./qasm_to_qcis.md)
+- [QCIS 原生指令](./qcis.md)
 - [helpers 与渲染](./helpers_render.md)
 - [matrix 与 utils](./matrix_utils.md)

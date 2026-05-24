@@ -11,7 +11,7 @@
 NativeTwoQubitRBManager(
 		*,
 		cache_dir: Path,
-		submit_openqasm_async: Callable[[str, str, int, Optional[str]], object],
+		submit_circuit_async: Callable[[str, QuantumCircuit, int, Optional[str], Optional[Dict]], object],
 		wait_task: Callable[[object], str],
 		get_task_result: Callable[[object], Dict[str, object]],
 		compact_for_sim: Callable[[QuantumCircuit], object],
@@ -36,7 +36,6 @@ calibrate_native_two_qubit_rb(
 		shots: int = 1024,
 		chip_name: Optional[str] = None,
 		backend: Optional[Backend] = None,
-		qasm_version: str = "2.0",
 		readout_mitigation: bool = True,
 		readout_shots: Optional[int] = None,
 		seed: Optional[int] = None,
@@ -92,7 +91,7 @@ client.chip_backend = Backend(chip_name)
 
 rb = NativeTwoQubitRBManager(
 		cache_dir=Path("src/quantum_hw/api/.cache"),
-		submit_openqasm_async=client._submit_openqasm_async,
+		submit_circuit_async=client._submit_circuit_async,
 		wait_task=client._wait_task,
 		get_task_result=client.tmgr.result,
 		compact_for_sim=client._compact_for_sim,

@@ -4,11 +4,11 @@
 
 - **模块路径**：`quantum_hw.circuit`
 - **模块定位**：量子线路表示与转换能力
-- **源文件**：`quantumcircuit.py`、`quantumcircuit_helpers.py`、`matrix.py`、`utils.py`、`qasm2.py`、`qasm3.py`、`qasm_to_qcis.py`、`render.py`
+- **源文件**：`quantumcircuit.py`、`quantumcircuit_helpers.py`、`matrix.py`、`utils.py`、`qasm2.py`、`qcis.py`、`render.py`
 - **主要能力**：
   - `QuantumCircuit` 线路构建与编辑
-  - OpenQASM 2/3 导入解析与导出
-  - OpenQASM → QCIS 原生指令转换
+  - OpenQASM 2 导入解析与导出
+  - `QuantumCircuit` → QCIS 原生指令转换
   - 文本线路渲染（完整/简洁）
   - 门矩阵与分解工具（u3/zyz/kak）
 
@@ -16,7 +16,7 @@
 
 - [QuantumCircuit](./quantumcircuit.md) — 核心线路类、门操作 API、参数绑定、分析与可视化
 - [OpenQASM 解析](./qasm.md) — OpenQASM 2/3 解析器
-- [QASM-to-QCIS 转换器](./qasm_to_qcis.md) — QASM 到 QCIS 原生指令的转换
+- [QCIS 原生指令](./qcis.md) — `QuantumCircuit` 到 QCIS 原生指令的转换
 - [Helpers 与渲染](./helpers_render.md) — 门集合常量、参数格式化、DAG 转换、ASCII 渲染管线
 - [matrix 与 utils](./matrix_utils.md) — 门矩阵表示、分解算法、幺正等价判定
 

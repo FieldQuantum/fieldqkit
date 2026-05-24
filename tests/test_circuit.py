@@ -171,24 +171,6 @@ def test_openqasm2_export_contains_expected_lines():
     assert "measure q[1] -> c[1];" in qasm
 
 
-def test_openqasm3_export_contains_expected_lines():
-    qc = QuantumCircuit(2, 2)
-    qc.h(0)
-    qc.cx(0, 1)
-    qc.rz(0.25, 1)
-    qc.delay(1e-6, 0)
-    qc.barrier(0, 1)
-    qc.measure([0, 1], [0, 1])
-
-    qasm = qc.to_openqasm3
-    assert qasm.startswith("OPENQASM 3.0;")
-    assert "qubit[2] q;" in qasm
-    assert "bit[2] c;" in qasm
-    assert "c[0] = measure q[0];" in qasm
-    assert "c[1] = measure q[1];" in qasm
-    assert "delay[" in qasm
-
-
 # ═══════════════════════════════════════════════════════════
 #  OpenQASM import
 # ═══════════════════════════════════════════════════════════
@@ -208,24 +190,10 @@ measure q[0] -> c[0];
     qc2 = QuantumCircuit().from_openqasm2(qasm2)
     assert qc2.qubits == [0, 2]
 
-    qasm3 = """
-OPENQASM 3.0;
-qubit[3] q;
-bit[3] c;
-h q[2];
-x q[0];
-c[2] = measure q[2];
-c[0] = measure q[0];
-""".strip()
-    qc3 = QuantumCircuit().from_openqasm3(qasm3)
-    assert qc3.qubits == [0, 2]
-
 
 def test_openqasm_header_validation_raises_value_error():
     with pytest.raises(ValueError, match="OpenQASM 2.0"):
         QuantumCircuit().from_openqasm2("OPENQASM 3.0;\nqubit[1] q;")
-    with pytest.raises(ValueError, match="OpenQASM 3.0"):
-        QuantumCircuit().from_openqasm3("OPENQASM 2.0;\nqreg q[1];")
 
 
 # ═══════════════════════════════════════════════════════════

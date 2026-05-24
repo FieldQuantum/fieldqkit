@@ -43,7 +43,7 @@ class ReadoutCalibrationManager:
 		self,
 		*,
 		cache_dir: Path,
-		submit_openqasm_async: Callable[[str, str, int, Optional[str]], object],
+		submit_circuit_async: Callable,
 		wait_task: Callable[[object], str],
 		get_task_result: Callable[[object], Dict[str, object]],
 		compact_for_sim: Callable[[QuantumCircuit], object],
@@ -53,7 +53,7 @@ class ReadoutCalibrationManager:
 
 		Args:
 			cache_dir (*Path*): Directory for cache files.
-			submit_openqasm_async (*Callable[[str, str, int, Optional[str], Optional[Dict[str, object]]], object]*): Callback to submit an OpenQASM circuit asynchronously and return a task handle.
+			submit_circuit_async (*Callable[[str, QuantumCircuit, int, Optional[str], Optional[Dict]], object]*): Callback ``(name, circuit, shots, chip_name, submit_options)`` that submits a circuit and returns a task handle. The implementation handles QCIS or QASM dispatch transparently.
 			wait_task (*Callable[[object], str]*): Callback to block until a task completes and return its status.
 			get_task_result (*Callable[[object], Dict[str, object]]*): Callback to retrieve measurement results from a completed task.
 			compact_for_sim (*Callable[[QuantumCircuit], object]*): Callback to prepare a circuit for local simulation.
@@ -61,7 +61,7 @@ class ReadoutCalibrationManager:
 		"""
 		self._cache_dir = cache_dir
 		self._cache_dir.mkdir(parents=True, exist_ok=True)
-		self._submit_openqasm_async = submit_openqasm_async
+		self._submit_circuit_async = submit_circuit_async
 		self._wait_task = wait_task
 		self._get_task_result = get_task_result
 		self._compact_for_sim = compact_for_sim
@@ -76,7 +76,6 @@ class ReadoutCalibrationManager:
 		*,
 		chip_name: Optional[str] = None,
 		backend: Optional[Backend] = None,
-		qasm_version: str = "2.0",
 		print_true: bool = False,
 	) -> CalibrationResult:
 		"""Calibrate readout error for selected qubits with caching.
@@ -86,7 +85,6 @@ class ReadoutCalibrationManager:
 			shots (*Optional[int]*): Number of measurement shots. Defaults to ``1024`` if not provided.
 			chip_name (*Optional[str]*): Name of the target chip. Defaults to ``None``.
 			backend (*Optional[Backend]*): Hardware backend descriptor. Defaults to ``None``.
-			qasm_version (*str*): OpenQASM version (``'2.0'`` or ``'3.0'``). Defaults to ``'2.0'``.
 			print_true (*bool*): Whether to print progress information. Defaults to ``False``.
 
 		Returns:
@@ -154,9 +152,9 @@ class ReadoutCalibrationManager:
 						if status != "Finished":
 							raise RuntimeError(f"previous calibration task {self._last_pending_task_id} ended with status {status}")
 						self._last_pending_task_id = None
-					task_id = self._submit_openqasm_async(
+					task_id = self._submit_circuit_async(
 						name=f"readout_cal_q{q}_{bits}",
-						qasm=qct.to_openqasm2() if qasm_version == "2.0" else qct.to_openqasm3,
+						circuit=qct,
 						shots=shots,
 						chip_name=chip_name,
 						submit_options={"num_qubits": 1},
@@ -236,33 +234,6 @@ class ReadoutCalibrationManager:
 		path = self._readout_cache_path(chip_name=chip_name)
 		timestamps, per_qubit = load_timestamped_payload(path, payload_key="per_qubit_confusion")
 		return {"timestamps": timestamps, "per_qubit_confusion": per_qubit}
-
-	# def _load_readout_cache(
-	# 	self,
-	# 	target_qubits: Sequence[int],
-	# 	*,
-	# 	chip_name: Optional[str],
-	# ) -> Optional[CalibrationResult]:
-	# 	"""Load cached readout data and validate freshness."""
-	# 	raw = self._load_readout_cache_raw(chip_name=chip_name)
-	# 	timestamps = raw.get("timestamps", {})
-	# 	per_qubit = raw.get("per_qubit_confusion", {})
-	# 	if not isinstance(timestamps, dict) or not isinstance(per_qubit, dict):
-	# 		return None
-	# 	now = datetime.now(timezone.utc)
-	# 	selected_confusion: Dict[int, List[List[float]]] = {}
-	# 	for q in target_qubits:
-	# 		ts_str = timestamps.get(str(q))
-	# 		if not cache_is_fresh(ts_str, now=now):
-	# 			return None
-	# 		mat = per_qubit.get(str(q))
-	# 		if mat is None:
-	# 			return None
-	# 		selected_confusion[int(q)] = mat
-	# 	return CalibrationResult(
-	# 		target_qubits=list(target_qubits),
-	# 		per_qubit_confusion=selected_confusion,
-	# 	)
 
 	def _save_readout_cache(self, result: CalibrationResult, *, chip_name: Optional[str]) -> None:
 		"""Persist readout calibration data to cache.

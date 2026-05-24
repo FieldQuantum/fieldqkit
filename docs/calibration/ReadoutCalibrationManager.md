@@ -11,7 +11,7 @@
 ReadoutCalibrationManager(
 		*,
 		cache_dir: Path,
-		submit_openqasm_async: Callable[[str, str, int, Optional[str]], object],
+		submit_circuit_async: Callable[[str, QuantumCircuit, int, Optional[str], Optional[Dict]], object],
 		wait_task: Callable[[object], str],
 		get_task_result: Callable[[object], Dict[str, object]],
 		compact_for_sim: Callable[[QuantumCircuit], object],
@@ -35,7 +35,6 @@ calibrate_readout(
 		*,
 		chip_name: Optional[str] = None,
 		backend: Optional[Backend] = None,
-		qasm_version: str = "2.0",
 		print_true: bool = False,
 ) -> CalibrationResult
 ```
@@ -43,7 +42,6 @@ calibrate_readout(
 - **参数要点**
 	- `target_qubits=None`：会自动从 `backend.qubits_with_attributes` 推导，并过滤 fidelity 为 0 的比特。
 	- `shots=None`：默认使用 `1024`。
-	- `qasm_version`：硬件提交时 `"2.0"` 走 `to_openqasm2`，否则走 `to_openqasm3`。
 	- `chip_name="Simulator"`：走本地模拟分支，不发硬件任务。
 
 - **返回值 `CalibrationResult`**
@@ -78,7 +76,7 @@ client.chip_backend = Backend(chip_name)
 
 manager = ReadoutCalibrationManager(
 		cache_dir=Path("src/quantum_hw/api/.cache"),
-		submit_openqasm_async=client._submit_openqasm_async,
+		submit_circuit_async=client._submit_circuit_async,
 		wait_task=client._wait_task,
 		get_task_result=client._get_task_result,
 		compact_for_sim=client._compact_for_sim,

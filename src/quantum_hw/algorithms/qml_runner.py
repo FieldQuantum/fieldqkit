@@ -89,7 +89,6 @@ class QMLRunner:
             RuntimeError: If all candidate chips fail.
         """
         provider_name = resolve_provider(provider, prefer_chips)
-        qasm_version = self.client._default_qasm_version_for_provider(provider_name)
         convert_u = provider_name not in {"tencent", "fieldquantum"} and self.convert_single_qubit_gate_to_u
         runtime = create_provider_runtime(provider=provider_name, client=self.client)
         profiles = runtime.backend_adapter.discover_hardware(
@@ -131,7 +130,6 @@ class QMLRunner:
                     zne=self.zne,
                     readout_mitigation=self.readout_mitigation,
                     target_qubits=target_qubits,
-                    qasm_version=qasm_version,
                     convert_single_qubit_gate_to_u=convert_u,
                     **extra_kwargs,
                 )

@@ -11,7 +11,7 @@
 NativeTwoQubitTomographyManager(
 		*,
 		cache_dir: Path,
-		submit_openqasm_async: Callable[[str, str, int, Optional[str]], object],
+		submit_circuit_async: Callable[[str, QuantumCircuit, int, Optional[str], Optional[Dict]], object],
 		wait_task: Callable[[object], str],
 		get_task_result: Callable[[object], Dict[str, object]],
 		compact_for_sim: Callable[[QuantumCircuit], object],
@@ -34,7 +34,6 @@ calibrate_native_two_qubit_tomography(
 		shots: int = 1024,
 		chip_name: Optional[str] = None,
 		backend: Optional[Backend] = None,
-		qasm_version: str = "2.0",
 		readout_mitigation: bool = True,
 		readout_shots: Optional[int] = None,
 		print_true: bool = False,
@@ -45,7 +44,6 @@ calibrate_native_two_qubit_tomography(
 	- `couplers=None`：自动选择 `fidelity>0` 的 coupler。
 	- `shots`：每个“输入态 × 测量基”实验配置的采样数。
 	- `readout_mitigation=True`：会先校准并构造 2 比特局部 confusion matrix。
-	- `qasm_version`：硬件提交时选择 QASM2/3 序列化。
 
 - **实验规模**
 	- 输入态：每比特 6 个（`0/1/+/−/+i/−i`），共 $6\times6=36$ 组。
@@ -85,7 +83,7 @@ client.chip_backend = Backend(chip_name)
 
 tomo = NativeTwoQubitTomographyManager(
 		cache_dir=Path("src/quantum_hw/api/.cache"),
-		submit_openqasm_async=client._submit_openqasm_async,
+		submit_circuit_async=client._submit_circuit_async,
 		wait_task=client._wait_task,
 		get_task_result=client.tmgr.result,
 		compact_for_sim=client._compact_for_sim,

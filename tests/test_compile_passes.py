@@ -1153,7 +1153,7 @@ def test_backend_couplers_normalize_qubit_indices():
 def test_qcis_rz_at_positive_pi_is_clamped():
     """RZ at exactly +π is clamped to slightly less than π."""
     import math
-    from quantum_hw.circuit.qasm_to_qcis import Instruction
+    from quantum_hw.circuit.qcis import Instruction
     inst = Instruction("rz", [0], [math.pi])
     s = str(inst)
     # Should contain a value slightly less than π
@@ -1165,7 +1165,7 @@ def test_qcis_rz_at_positive_pi_is_clamped():
 def test_qcis_rz_at_negative_pi_is_clamped():
     """RZ at exactly -π is clamped to slightly greater than -π."""
     import math
-    from quantum_hw.circuit.qasm_to_qcis import Instruction
+    from quantum_hw.circuit.qcis import Instruction
     inst = Instruction("rz", [0], [-math.pi])
     s = str(inst)
     val = float(s.split()[-1])
@@ -1176,7 +1176,7 @@ def test_qcis_rz_at_negative_pi_is_clamped():
 def test_qcis_rz_not_at_pi_unchanged():
     """RZ values not at ±π boundary are not modified."""
     import math
-    from quantum_hw.circuit.qasm_to_qcis import Instruction
+    from quantum_hw.circuit.qcis import Instruction
     for angle in [0.0, 0.5, -0.5, math.pi / 4, -math.pi / 3, 2.0, -2.0]:
         inst = Instruction("rz", [0], [angle])
         s = str(inst)
@@ -1187,7 +1187,7 @@ def test_qcis_rz_not_at_pi_unchanged():
 def test_qcis_rz_near_pi_but_not_exact_unchanged():
     """RZ values near but not exactly at ±π are unchanged."""
     import math
-    from quantum_hw.circuit.qasm_to_qcis import Instruction
+    from quantum_hw.circuit.qcis import Instruction
     # Just outside the 1e-12 tolerance
     angle = math.pi - 1e-11
     inst = Instruction("rz", [0], [angle])
@@ -1199,7 +1199,7 @@ def test_qcis_rz_near_pi_but_not_exact_unchanged():
 def test_qcis_non_rz_gates_not_clamped():
     """Non-RZ gates with angle arguments are not affected by clamping."""
     import math
-    from quantum_hw.circuit.qasm_to_qcis import Instruction
+    from quantum_hw.circuit.qcis import Instruction
     inst = Instruction("x2p", [0], [math.pi])
     s = str(inst)
     val = float(s.split()[-1])
@@ -1209,7 +1209,7 @@ def test_qcis_non_rz_gates_not_clamped():
 def test_qcis_rz_clamped_value_within_strict_interval():
     """The clamped value must be strictly in the open interval (-π, π)."""
     import math
-    from quantum_hw.circuit.qasm_to_qcis import Instruction
+    from quantum_hw.circuit.qcis import Instruction
     for angle in [math.pi, -math.pi]:
         inst = Instruction("rz", [0], [angle])
         s = str(inst)
@@ -1217,16 +1217,16 @@ def test_qcis_rz_clamped_value_within_strict_interval():
         assert -math.pi < val < math.pi, f"Clamped {angle} to {val}, not in (-π, π)"
 
 
-def test_qcis_full_circuit_rz_pi_in_qasm_conversion():
-    """End-to-end: QASM with RZ(π) → QCIS output has clamped value."""
+def test_qcis_full_circuit_rz_pi_clamped():
+    """End-to-end: circuit with RZ(π) → circuit_to_qcis output has clamped value."""
     import math
-    from quantum_hw.circuit.qasm_to_qcis import QasmToQcis
-    qasm = f"""OPENQASM 2.0;
-include "qelib1.inc";
-qreg q[1];
-rz({math.pi}) q[0];
-"""
-    qcis = QasmToQcis().convert_to_qcis(qasm)
+    from quantum_hw.circuit import QuantumCircuit
+    from quantum_hw.circuit.qcis import circuit_to_qcis
+    from quantum_hw.compile.translate import TranslateToBasisGates
+    qc = QuantumCircuit(1)
+    qc.rz(math.pi, 0)
+    translated = TranslateToBasisGates().run(qc)
+    qcis = circuit_to_qcis(translated)
     for line in qcis.strip().splitlines():
         if "RZ" in line.upper():
             val = float(line.strip().split()[-1])

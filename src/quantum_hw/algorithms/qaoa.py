@@ -400,7 +400,6 @@ class QAOARunner:
         hamiltonian = build_maxcut_hamiltonian(edges, num_qubits)
 
         provider_name = resolve_provider(provider, prefer_chips)
-        qasm_version = self.client._default_qasm_version_for_provider(provider_name)
         use_dd = provider_name not in {"tianyan", "guodun", "tencent", "simulator", "fieldquantum"}
         convert_single_qubit_gate_to_u = provider_name not in {"tencent", "fieldquantum"}
         runtime = create_provider_runtime(provider=provider_name, client=self.client)
@@ -454,7 +453,6 @@ class QAOARunner:
                     clifford_fitting=self.clifford_fitting,
                     clifford_fitting_num_samples=self.clifford_fitting_num_samples,
                     clifford_fitting_num_non_clifford_gates=self.clifford_fitting_num_non_clifford_gates,
-                    qasm_version=qasm_version,
                     use_dd=use_dd,
                     convert_single_qubit_gate_to_u=convert_single_qubit_gate_to_u,
                     transpile=bool(self.transpile_on_client),

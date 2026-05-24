@@ -7,7 +7,7 @@ from typing import Any, Dict, List, Optional
 from .cqlib import QuantumLanguage, RemotePlatformClient, extract_counts_from_result_items, normalize_hardware_rows, records_from_platform_list_query
 from ..platform_credentials import get_guodun_api_token
 from ..backend import BackendAdapter, ResolvedBackend
-from ..task import OpenQasmSubmitRequest, ProviderTaskHandle, TaskAdapter
+from ..task import QcisSubmitRequest, ProviderTaskHandle, TaskAdapter
 
 
 class GuoDunPlatform(RemotePlatformClient):
@@ -146,8 +146,17 @@ class GuoDunBackendAdapter(BackendAdapter):
         self._platform = GuoDunPlatform(login_key=self._api_token, auto_login=True, machine_name=machine_name)
 
 
+def _as_int(value: Any, default: int) -> int:
+    """Convert *value* to ``int``, falling back to *default*."""
+    try:
+        return int(value)
+    except Exception:
+        return int(default)
+
+
 class GuoDunTaskAdapter(TaskAdapter):
     provider = "guodun"
+    qcis_native = True
 
     def __init__(self, *, client: Any, api_token: Optional[str] = None) -> None:
         """Initialize GuoDun task adapter with quantum hardware client and credentials.
@@ -160,11 +169,11 @@ class GuoDunTaskAdapter(TaskAdapter):
         self._api_token = api_token or get_guodun_api_token()
         self._handle_cache: Dict[str, Dict[str, Any]] = {}
 
-    def submit_openqasm(self, submit_request: OpenQasmSubmitRequest, backend: ResolvedBackend) -> ProviderTaskHandle:
-        """Submit an OpenQASM circuit to the GuoDun backend and return a task handle.
+    def submit_qcis(self, submit_request: QcisSubmitRequest, backend: ResolvedBackend) -> ProviderTaskHandle:
+        """Submit a pre-converted QCIS string to the GuoDun backend.
 
         Args:
-            submit_request (*OpenQasmSubmitRequest*): Submission request descriptor.
+            submit_request (*QcisSubmitRequest*): Submission request descriptor.
             backend (*ResolvedBackend*): Hardware backend descriptor.
 
         Returns:
@@ -173,32 +182,13 @@ class GuoDunTaskAdapter(TaskAdapter):
         Raises:
             RuntimeError: platform_obj is missing in backend metadata
         """
-        from ...circuit.qasm_to_qcis import QasmToQcis
-
         platform_obj = backend.metadata.get("platform_obj")
         if platform_obj is None:
             raise RuntimeError("platform_obj is missing in backend metadata")
         options = dict(submit_request.submit_options or {})
-
-        def _as_int(value: Any, default: int) -> int:
-            """Convert *value* to ``int``, falling back to *default*.
-
-            Args:
-                value (*Any*): Value to convert.
-                default (*int*): Fallback value.
-
-            Returns:
-                ``int`` converted value.
-            """
-            try:
-                return int(value)
-            except Exception:
-                return int(default)
-
         max_wait_time = _as_int(options.get("max_wait_time", 3600), 3600)
         sleep_time = _as_int(options.get("sleep_time", 5), 5)
-        qcis = QasmToQcis().convert_to_qcis(submit_request.qasm)
-        submitted_task_ids = platform_obj.submit_job(circuit=qcis, exp_name=submit_request.name, num_shots=submit_request.shots, language=QuantumLanguage.QCIS, is_verify=True)
+        submitted_task_ids = platform_obj.submit_job(circuit=submit_request.qcis, exp_name=submit_request.name, num_shots=submit_request.shots, language=QuantumLanguage.QCIS, is_verify=True)
         task_ids = [submitted_task_ids] if isinstance(submitted_task_ids, str) else [str(q) for q in submitted_task_ids]
         task_id = task_ids[0] if len(task_ids) == 1 else ",".join(task_ids)
         payload = {"task_ids": task_ids, "platform_obj": platform_obj, "max_wait_time": max_wait_time, "sleep_time": sleep_time, "num_qubits": submit_request.submit_options.get("num_qubits", 0)}

@@ -24,7 +24,6 @@ from .quantumcircuit_helpers import (
     add_gates_to_lines,
     )
 from .qasm2 import parse_openqasm2_to_gates
-from .qasm3 import parse_openqasm3_to_gates
 from .render import draw_circuit, draw_circuit_simply
 from .utils import u3_decompose, zyz_decompose, kak_decompose
 from .matrix import h_mat
@@ -401,26 +400,7 @@ Indexed format examples: "X1 Y2 Z3 Z4".
         self.qubits = sorted(qubit_used)
         self.gates = new_gates
         return self
-    
-    def from_openqasm3(self, openqasm3_str: str) -> 'QuantumCircuit':
-        r"""
-        Initializes the QuantumCircuit object based on the given OpenQASM 3 string.
 
-        Args:
-            openqasm3_str (str): A string representing a quantum circuit in OpenQASM 3 format.
-
-        Returns:
-            This ``QuantumCircuit`` instance, populated from the parsed program.
-        """
-        if 'OPENQASM 3.0' not in openqasm3_str:
-            raise ValueError("Input is not a valid OpenQASM 3.0 program")
-        new_gates, qubit_used, cbit_used = parse_openqasm3_to_gates(openqasm3_str)
-        self.nqubits = max(qubit_used) + 1 if qubit_used else 0
-        self.ncbits = max(cbit_used) + 1 if cbit_used else 0
-        self.qubits = sorted(qubit_used)
-        self.gates = new_gates
-        return self
-    
     def id(self, qubit: int) -> 'QuantumCircuit':
         r"""
         Add a Identity gate.
@@ -1111,7 +1091,6 @@ Indexed format examples: "X1 Y2 Z3 Z4".
             return temp_qc._eval_param_expression(param)
         except ValueError:
             return param
-        return param
 
     def apply_value(self, params_dic: dict, *, deep: bool = False) -> 'QuantumCircuit':
         """Apply parameter values to the circuit.
@@ -1402,73 +1381,56 @@ Indexed format examples: "X1 Y2 Z3 Z4".
         """
         return self._to_openqasm(version="2.0", symbolic=symbolic)
 
-    @property
-    def to_openqasm3(self) -> str:
-        """Export the quantum circuit to an OpenQASM 3 program in a string.
-
-        Returns:
-            str: An OpenQASM 3 string representing the circuit.
-        """
-        return self._to_openqasm(version="3.0")
-
-    def _to_openqasm(self, version: str, symbolic: bool = False) -> str:
-        """Serialize the circuit to an OpenQASM string.
+    def _to_openqasm(self, version: str = "2.0", symbolic: bool = False) -> str:
+        """Serialize the circuit to an OpenQASM 2.0 string.
 
         Args:
-            version (*str*): OpenQASM version (``"2.0"`` or ``"3.0"``).
+            version (*str*): Must be ``"2.0"``.
 
         Returns:
-            Complete OpenQASM program string.
+            Complete OpenQASM 2.0 program string.
         """
         lines = self._openqasm_header(version)
         for gate_info in self.gates:
-            lines.extend(self._openqasm_gate_lines(gate_info, version, symbolic=symbolic))
+            lines.extend(self._openqasm_gate_lines(gate_info, symbolic=symbolic))
         return "\n".join(lines)
 
-    def _openqasm_header(self, version: str) -> list[str]:
-        """Generate OpenQASM header lines (version, includes, register declarations).
+    def _openqasm_header(self, version: str = "2.0") -> list[str]:
+        """Generate OpenQASM 2.0 header lines (version, includes, register declarations).
 
         Args:
-            version (*str*): OpenQASM version (``"2.0"`` or ``"3.0"``).
+            version (*str*): Must be ``"2.0"``.
 
         Returns:
             List of header line strings.
 
         Raises:
-            ValueError: f'Unsupported OpenQASM version: {version}'
+            ValueError: If *version* is not ``"2.0"``.
         """
-        gates0 = [gate[0] for gate in self.gates]
-        lines = []
-        if version == "2.0":
-            lines.append("OPENQASM 2.0;")
-            lines.append("include \"qelib1.inc\";")
-            if 'delay' in gates0:
-                lines.append("opaque delay(param0) q0;")
-            lines.append(f"qreg q[{self.nqubits}];")
-            lines.append(f"creg c[{self.ncbits}];")
-        elif version == "3.0":
-            lines.append("OPENQASM 3.0;")
-            lines.append("include \"stdgates.inc\";")
-            if 'delay' in gates0:
-                lines.append("defcalgrammar \"openpulse\";")
-            lines.append(f"qubit[{self.nqubits}] q;")
-            lines.append(f"bit[{self.ncbits}] c;")
-        else:
+        if version != "2.0":
             raise ValueError(f"Unsupported OpenQASM version: {version}")
+        gates0 = [gate[0] for gate in self.gates]
+        lines = [
+            "OPENQASM 2.0;",
+            "include \"qelib1.inc\";",
+        ]
+        if 'delay' in gates0:
+            lines.append("opaque delay(param0) q0;")
+        lines.append(f"qreg q[{self.nqubits}];")
+        lines.append(f"creg c[{self.ncbits}];")
         return lines
 
-    def _openqasm_gate_lines(self, gate_info, version: str, symbolic: bool = False) -> list[str]:
-        """Convert a single gate tuple to OpenQASM instruction lines.
+    def _openqasm_gate_lines(self, gate_info, symbolic: bool = False) -> list[str]:
+        """Convert a single gate tuple to OpenQASM 2.0 instruction lines.
 
         Args:
             gate_info: Gate tuple from ``self.gates``.
-            version (*str*): OpenQASM version (``"2.0"`` or ``"3.0"``).
 
         Returns:
             List of gate instruction line strings.
 
         Raises:
-            ValueError: f'Unsupported gate for OpenQASM {version}: {gate}'
+            ValueError: If the gate is not supported in OpenQASM 2.0.
         """
         gate = gate_info[0]
         if gate in one_qubit_gates_available.keys():
@@ -1491,29 +1453,18 @@ Indexed format examples: "X1 Y2 Z3 Z4".
         if gate in ['reset']:
             return [f"{gate} q[{gate_info[1]}];"]
         if gate in ['delay']:
-            lines = []
-            for qubit in gate_info[2]:
-                if version == "2.0":
-                    lines.append(f"{gate}({gate_info[1]}) q[{qubit}];")
-                else:
-                    lines.append(f"{gate}[{gate_info[1]}] q[{qubit}];")
-            return lines
+            return [f"{gate}({gate_info[1]}) q[{qubit}];" for qubit in gate_info[2]]
         if gate in ['barrier']:
             line = f"{gate} q[{gate_info[1][0]}]"
             for idx in gate_info[1][1:]:
                 line += f",q[{idx}]"
             return [line + ";"]
         if gate in ['measure']:
-            lines = []
-            for idx in range(len(gate_info[1])):
-                if version == "2.0":
-                    lines.append(f"measure q[{gate_info[1][idx]}] -> c[{gate_info[2][idx]}];")
-                else:
-                    lines.append(f"c[{gate_info[2][idx]}] = measure q[{gate_info[1][idx]}];")
-            return lines
-        raise ValueError(
-            f"Unsupported gate for OpenQASM {version}: {gate}"
-        )
+            return [
+                f"measure q[{gate_info[1][idx]}] -> c[{gate_info[2][idx]}];"
+                for idx in range(len(gate_info[1]))
+            ]
+        raise ValueError(f"Unsupported gate for OpenQASM 2.0: {gate}")
 
     @property
     def depth(self) -> int:

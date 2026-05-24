@@ -184,7 +184,7 @@ def run_shadow_with_backend(
         target_qubits (*Optional[Sequence[int]]*): Qubit indices for partial measurement. Defaults to ``None``.
         zne (*bool*): Whether to apply zero-noise extrapolation. Defaults to ``False``.
         seed (*Optional[int]*): Random seed for reproducibility. Defaults to ``None``.
-        qasm_version (*str*): OpenQASM version (``'2.0'`` or ``'3.0'``). Defaults to ``'2.0'``.
+        qasm_version (*str*): OpenQASM version. Only ``'2.0'`` is supported. Defaults to ``'2.0'``.
         use_dd (*bool*): Whether to apply dynamical decoupling. Defaults to ``True``.
         submit_options (*Optional[Dict]*): Extra provider-specific submission options. Defaults to ``None``.
         convert_single_qubit_gate_to_u (*bool*): Whether to convert single-qubit gates to U gates. Defaults to ``True``.
@@ -368,7 +368,6 @@ class ShadowTomography:
             RuntimeError: all candidate chips failed to run shadow tomography
         """
         provider_name = resolve_provider(provider, prefer_chips)
-        qasm_version = self.client._default_qasm_version_for_provider(provider_name)
         use_dd = provider_name not in {"tianyan", "guodun", "tencent", "simulator", "fieldquantum"}
         convert_single_qubit_gate_to_u = provider_name not in {"tencent", "fieldquantum"}
         logger.info("read hardware information and select provider=%s", provider_name)
@@ -436,7 +435,6 @@ class ShadowTomography:
                     estimator=estimator,
                     mom_groups=mom_groups,
                     seed=self.seed,
-                    qasm_version=qasm_version,
                     use_dd=use_dd,
                     submit_options=submit_options,
                     convert_single_qubit_gate_to_u=convert_single_qubit_gate_to_u,

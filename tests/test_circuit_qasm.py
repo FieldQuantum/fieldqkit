@@ -1,4 +1,4 @@
-"""Tests for OpenQASM 2/3 parsing, custom gates, and circuit rendering helpers."""
+"""Tests for OpenQASM 2 parsing, custom gates, and circuit rendering helpers."""
 
 import numpy as np
 
@@ -7,7 +7,6 @@ from quantum_hw.circuit.qasm2 import (
     parse_openqasm2_to_gates,
     parse_openqasm2_custom_gates,
 )
-from quantum_hw.circuit.qasm3 import parse_openqasm3_to_gates
 from quantum_hw.circuit.quantumcircuit_helpers import (
     add_gates_to_lines,
     format_gates_layerd,
@@ -154,76 +153,6 @@ measure a[1] -> c[2];
     assert gates[1][1] == pytest.approx(np.pi / 2)
     assert gates[2] == ("rx", pytest.approx(np.pi), 1)
     assert gates[3] == ("measure", [1], [2])
-
-
-# ═══════════════════════════════════════════════════════════
-#  QASM3 parsing
-# ═══════════════════════════════════════════════════════════
-
-
-def test_qasm3_basic_parse():
-    qasm = """
-    OPENQASM 3.0;
-    qubit[2] q;
-    bit[2] c;
-    h q[0];
-    cx q[0], q[1];
-    c[0] = measure q[0];
-    """
-    gates, qubits, cbits = parse_openqasm3_to_gates(qasm)
-    assert ("h", 0) in gates
-    assert ("cx", 0, 1) in gates
-    assert ("measure", [0], [0]) in gates
-    assert qubits == {0, 1}
-    assert cbits == {0}
-
-
-def test_qasm3_delay_reset_barrier():
-    qasm = """
-    OPENQASM 3.0;
-    qubit[2] q;
-    bit[2] c;
-    delay[5ns] q[0];
-    reset q[1];
-    barrier q[0], q[1];
-    c[1] = measure q[1];
-    """
-    gates, qubits, cbits = parse_openqasm3_to_gates(qasm)
-    delay_gate = _find_gate(gates, "delay")[0]
-    assert np.isclose(delay_gate[1], 5e-9)
-    assert ("reset", 1) in gates
-    assert ("barrier", (0, 1)) in gates
-    assert ("measure", [1], [1]) in gates
-    assert qubits == {0, 1}
-    assert cbits == {1}
-
-
-def test_qasm3_custom_gate_and_param():
-    qasm = """
-    OPENQASM 3.0;
-    qubit[1] q;
-    gate g a { x a; }
-    g q[0];
-    rx(pi/4) q[0];
-    """
-    gates, qubits, _ = parse_openqasm3_to_gates(qasm)
-    assert _find_gate(gates, "x")
-    rx_gate = _find_gate(gates, "rx")[0]
-    assert np.isclose(rx_gate[1], np.pi / 4)
-    assert 0 in qubits
-
-
-def test_qasm3_measurement_statement_variant():
-    qasm = """
-    OPENQASM 3.0;
-    qubit[1] q;
-    bit[1] c;
-    c[0] = measure q[0];
-    """
-    gates, qubits, cbits = parse_openqasm3_to_gates(qasm)
-    assert ("measure", [0], [0]) in gates
-    assert qubits == {0}
-    assert cbits == {0}
 
 
 # ═══════════════════════════════════════════════════════════

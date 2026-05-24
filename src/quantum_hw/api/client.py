@@ -13,7 +13,7 @@ from pathlib import Path
 import numpy as np
 from .quantum_platform import create_provider_runtime
 from .backend import Backend, resolve_provider
-from .task import OpenQasmSubmitRequest, ProviderTaskHandle, TaskAdapter
+from .task import OpenQasmSubmitRequest, QcisSubmitRequest, ProviderTaskHandle, TaskAdapter
 
 from ..circuit import QuantumCircuit
 
@@ -74,18 +74,6 @@ class QuantumHardwareClient:
 		return source.strip().upper().startswith("OPENQASM 2.0")
 	
 	@staticmethod
-	def _is_openqasm3(source: str) -> bool:
-		"""Return True when the string looks like an OpenQASM3 program.
-
-		Args:
-			source (*str*): OpenQASM source string.
-
-		Returns:
-			``True`` if the condition is satisfied.
-		"""
-		return source.strip().upper().startswith("OPENQASM 3.0")
-
-	@staticmethod
 	def _has_measurements(qc: QuantumCircuit) -> bool:
 		"""Check whether the circuit already contains measurement operations.
 
@@ -125,8 +113,6 @@ class QuantumHardwareClient:
 			qc = circuit.deepcopy()
 		elif self._is_openqasm2(circuit):
 			qc = QuantumCircuit().from_openqasm2(openqasm2_str=circuit)
-		elif self._is_openqasm3(circuit):
-			qc = QuantumCircuit().from_openqasm3(openqasm3_str=circuit)
 		else:
 			qc = self.build_circuit(circuit, num_qubits=num_qubits)
 		has_obs = observables is not None and len(observables) > 0
@@ -280,6 +266,44 @@ class QuantumHardwareClient:
 			return self.chip_name
 		raise RuntimeError("chip_name is not set; use run_auto or provide chip_name")
 
+	def _submit_circuit_async(
+		self,
+		name: str,
+		circuit,
+		shots: int,
+		chip_name: Optional[str] = None,
+		submit_options: Optional[Dict[str, object]] = None,
+	):
+		"""Submit a circuit and return its task handle, dispatching to QCIS or OpenQASM 2.0.
+
+		Args:
+			name (*str*): Experiment name or job label.
+			circuit (*QuantumCircuit*): Quantum circuit to submit.
+			shots (*int*): Number of measurement shots.
+			chip_name (*Optional[str]*): Name of the target chip. Defaults to ``None``.
+			submit_options (*Optional[Dict[str, object]]*): Extra provider-specific submission options. Defaults to ``None``.
+
+		Returns:
+			``ProviderTaskHandle`` for tracking the submitted task.
+		"""
+		adapter = self._active_task_adapter
+		if adapter is not None and bool(getattr(adapter, "qcis_native", False)):
+			from ..circuit.qcis import circuit_to_qcis
+			return self._submit_qcis_async(
+				name=name,
+				qcis=circuit_to_qcis(circuit),
+				shots=shots,
+				chip_name=chip_name,
+				submit_options=submit_options,
+			)
+		return self._submit_openqasm_async(
+			name=name,
+			qasm=circuit.to_openqasm2(),
+			shots=shots,
+			chip_name=chip_name,
+			submit_options=submit_options,
+		)
+
 	def _needs_sequential_submission(self) -> bool:
 		"""Check if the current provider requires sequential task submission.
 
@@ -294,6 +318,54 @@ class QuantumHardwareClient:
 			return False
 		provider = getattr(resolved, "provider", None)
 		return provider is not None and provider.lower() == "tianyan"
+
+	def _submit_qcis_async(
+		self,
+		name: str,
+		qcis: str,
+		shots: int,
+		chip_name: Optional[str] = None,
+		submit_options: Optional[Dict[str, object]] = None,
+	):
+		"""Submit an asynchronous QCIS task and return its task handle.
+
+		Args:
+			name (*str*): Experiment name or job label.
+			qcis (*str*): QCIS instruction string.
+			shots (*int*): Number of measurement shots.
+			chip_name (*Optional[str]*): Name of the target chip. Defaults to ``None``.
+			submit_options (*Optional[Dict[str, object]]*): Extra provider-specific submission options. Defaults to ``None``.
+
+		Returns:
+			``ProviderTaskHandle`` for tracking the submitted task.
+
+		Raises:
+			RuntimeError: active task adapter is required before submitting QCIS
+		"""
+		resolved_chip_name = self._resolve_chip_name(chip_name)
+		options = dict(submit_options or {})
+		if "num_qubits" not in options and self._active_num_qubits is not None:
+			options["num_qubits"] = self._active_num_qubits
+
+		timestamp = int(time.time() * 1000)
+		task_name = f"{name}_{timestamp}"
+
+		adapter = self._active_task_adapter
+		backend = self._active_resolved_backend
+		if adapter is None or backend is None:
+			raise RuntimeError("active task adapter is required before submitting QCIS")
+
+		handle = adapter.submit_qcis(
+			QcisSubmitRequest(
+				name=task_name,
+				qcis=qcis,
+				shots=shots,
+				chip_name=resolved_chip_name,
+				submit_options=options,
+			),
+			backend,
+		)
+		return handle
 
 	def _wait_for_last_task(self) -> None:
 		"""Wait for the previously submitted task to complete.
@@ -411,21 +483,6 @@ class QuantumHardwareClient:
 			return used[:num_qubits]
 		return list(range(num_qubits))
 
-	@staticmethod
-	def _default_qasm_version_for_provider(provider: str) -> str:
-		"""Return the default OpenQASM version for a given provider.
-
-		Args:
-			provider (*str*): Platform provider name (``"quafu"``, ``"tianyan"``, ``"guodun"``, ``"tencent"``).
-
-		Returns:
-			``"3.0"`` for TianYan/GuoDun, ``"2.0"`` otherwise.
-		"""
-		provider_name = str(provider).lower()
-		if provider_name in {"tianyan", "guodun"}:
-			return "3.0"
-		return "2.0"
-	
 	def _run_with_backend(
 		self,
 		qc: QuantumCircuit,
@@ -465,7 +522,7 @@ class QuantumHardwareClient:
 			return_probabilities (*bool*): Whether to return probability distributions. Defaults to ``False``.
 			target_qubits (*Optional[Sequence[int]]*): Qubit indices for partial measurement. Defaults to ``None``.
 			merge_groups (*bool*): Whether to batch observables by compatible measurement bases. Defaults to ``True``.
-			qasm_version (*str*): OpenQASM version (``'2.0'`` or ``'3.0'``). Defaults to ``'2.0'``.
+			qasm_version (*str*): OpenQASM version. Only ``'2.0'`` is supported; passing any other value raises ``ValueError``. Defaults to ``'2.0'``.
 			use_dd (*bool*): Whether to insert dynamical decoupling sequences. Defaults to ``True``.
 			print_true (*bool*): Whether to print progress information. Defaults to ``False``.
 			transpile (*bool*): Whether to transpile the circuit for hardware. Defaults to ``True``.
@@ -477,8 +534,11 @@ class QuantumHardwareClient:
 
 		Raises:
 			ValueError: If *num_qubits* doesn't match *target_qubits* length.
+			ValueError: If *qasm_version* is not ``'2.0'``.
 			RuntimeError: If the submitted task ends with a non-success status.
 		"""
+		if qasm_version != "2.0":
+			raise ValueError(f"Only OpenQASM 2.0 is supported; got qasm_version={qasm_version!r}")
 		if isinstance(observables, str):
 			observables = [observables]
 		if observables is None:
@@ -626,10 +686,9 @@ class QuantumHardwareClient:
 				# For tianyan provider, wait for previous task to complete before submitting next.
 				if self._needs_sequential_submission():
 					self._wait_for_last_task()
-				qasm_1 = qct.to_openqasm2() if qasm_version == "2.0" else qct.to_openqasm3
-				task_id_1 = self._submit_openqasm_async(
+				task_id_1 = self._submit_circuit_async(
 					name=f"{name}_g{gi}",
-					qasm=qasm_1,
+					circuit=qct,
 					shots=shots,
 					chip_name=chip_name,
 					submit_options=submit_options,
@@ -652,13 +711,11 @@ class QuantumHardwareClient:
 					qct_sim, _ = self._compact_for_sim(qct, target_qubits_in_use)
 					group_counts[gi]["3"] = simulate_counts(qct_sim, shots)
 				else:
-					# ZNE scale=3 path runs as an extra hardware task.
-					# For tianyan provider, wait for previous task to complete before submitting next.
 					if self._needs_sequential_submission():
 						self._wait_for_last_task()
-					task_id_3 = self._submit_openqasm_async(
+					task_id_3 = self._submit_circuit_async(
 						name=f"{name}_g{gi}_zne3",
-						qasm=qct.to_openqasm2() if qasm_version == "2.0" else qct.to_openqasm3,
+						circuit=qct,
 						shots=shots,
 						chip_name=chip_name,
 						submit_options=submit_options,
@@ -671,7 +728,6 @@ class QuantumHardwareClient:
 			meta = {
 				"basis": basis_pattern,
 				"observables": group["observables"],
-				"qasm_1": qasm_1 if not use_simulator else None,
 			}
 			group_meta.append(meta)
 
@@ -687,7 +743,7 @@ class QuantumHardwareClient:
 				self._wait_for_last_task()
 			calibration_manager = ReadoutCalibrationManager(
 				cache_dir=Path(__file__).resolve().parent / ".cache",
-				submit_openqasm_async=self._submit_openqasm_async,
+				submit_circuit_async=self._submit_circuit_async,
 				wait_task=self._wait_task,
 				get_task_result=self._get_task_result,
 				compact_for_sim=self._compact_for_sim,
@@ -698,7 +754,6 @@ class QuantumHardwareClient:
 				shots=readout_shots,
 				chip_name=chip_name,
 				backend=backend,
-				qasm_version=qasm_version,
 				print_true=print_true,
 			)
 			per_qubit = {k: np.asarray(v) for k, v in cal.per_qubit_confusion.items()}
@@ -857,7 +912,6 @@ class QuantumHardwareClient:
 		# Normalize input circuit; strip measurements only when observables conflict.
 		qc = self._normalize_input_circuit(circuit, num_qubits, observables=observables)
 		provider = resolve_provider(provider, prefer_chips)
-		qasm_version = self._default_qasm_version_for_provider(provider)
 		use_dd = provider not in {"tianyan", "guodun", "tencent", "simulator", "fieldquantum"}
 		# Tencent QOS parser doesn't understand u(...) gates; keep native h/rz/x/y/z.
 		convert_single_qubit_gate_to_u = provider not in {"tencent", "fieldquantum"}
@@ -940,7 +994,6 @@ class QuantumHardwareClient:
 				observables=observables,
 				return_probabilities=return_probabilities,
 				target_qubits=target_qubits_in_use,
-				qasm_version=qasm_version,
 				use_dd=use_dd,
 				print_true=print_true,
 				transpile=False,
@@ -967,7 +1020,6 @@ class QuantumHardwareClient:
 				num_non_clifford_gates=int(clifford_fitting_num_non_clifford_gates),
 				seed=clifford_fitting_seed,
 				target_qubits=target_qubits_in_use,
-				qasm_version=qasm_version,
 				convert_single_qubit_gate_to_u=convert_single_qubit_gate_to_u,
 			)
 			result.observable_values = apply_clifford_fit(result.observable_values, fit_map)
@@ -986,7 +1038,6 @@ class QuantumHardwareClient:
 			observables=observables,
 			return_probabilities=return_probabilities,
 			target_qubits=target_qubits,
-			qasm_version=qasm_version,
 			use_dd=use_dd,
 			print_true=print_true,
 			transpile=bool(transpile_on_client),

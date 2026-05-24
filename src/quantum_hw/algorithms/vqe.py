@@ -699,7 +699,6 @@ class VQERunner:
             raise ValueError(f"unsupported model: {model}")
 
         provider_name = resolve_provider(provider, prefer_chips)
-        qasm_version = self.client._default_qasm_version_for_provider(provider_name)
         use_dd = provider_name not in {"tianyan", "guodun", "tencent", "simulator", "fieldquantum"}
         convert_single_qubit_gate_to_u = provider_name not in {"tencent", "fieldquantum"}
         runtime = create_provider_runtime(provider=provider_name, client=self.client)
@@ -762,7 +761,6 @@ class VQERunner:
                     compression_optimizer_lr=self.compression_optimizer_lr,
                     compression_verbose=self.compression_verbose,
                     compression_plot_loss=self.compression_plot_loss,
-                    qasm_version=qasm_version,
                     use_dd=use_dd,
                     convert_single_qubit_gate_to_u=convert_single_qubit_gate_to_u,
                     transpile=bool(self.transpile_on_client),
