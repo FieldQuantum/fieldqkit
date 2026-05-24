@@ -325,6 +325,11 @@ def parse_openqasm3_to_gates(openqasm3_str: str) -> tuple[list, set, set]:
 		"""
 		gate = gate_name.lower()
 		qubits = [_qubit_index(q) for q in _as_qargs(qargs)]
+		# --- Compatibility aliases: map to canonical internal gate names ---
+		if gate == 'cnot':
+			gate = 'cx'
+		elif gate == 'u3':
+			gate = 'u'
 		if gate in one_qubit_gates_available.keys():
 			for q in qubits:
 				new.append((gate, q))
@@ -342,13 +347,56 @@ def parse_openqasm3_to_gates(openqasm3_str: str) -> tuple[list, set, set]:
 		elif gate in one_qubit_parameter_gates_available.keys():
 			params = [_expr_to_float(arg) for arg in args]
 			for q in qubits:
-				if gate == "u" or gate == "u3":
+				if gate == "u":
 					new.append(("u", params[0], params[1], params[2], q))
-				elif gate == "r":
-					new.append((gate, params[0], params[1], q))
 				else:
 					new.append((gate, params[0], q))
 				_record_qubits(qubit_used, q)
+		elif gate in ['u1', 'p']:
+			# u1(λ)/p(λ) → u(0, 0, λ)
+			params = [_expr_to_float(arg) for arg in args]
+			for q in qubits:
+				new.append(("u", 0.0, 0.0, params[0], q))
+				_record_qubits(qubit_used, q)
+		elif gate == 'u2':
+			# u2(φ,λ) → u(π/2, φ, λ)
+			params = [_expr_to_float(arg) for arg in args]
+			for q in qubits:
+				new.append(("u", np.pi / 2, params[0], params[1], q))
+				_record_qubits(qubit_used, q)
+		elif gate == 'r':
+			# r(θ, φ) → u(θ, φ - π/2, π/2 - φ)
+			params = [_expr_to_float(arg) for arg in args]
+			for q in qubits:
+				phi = params[1]
+				new.append(("u", params[0], phi - np.pi / 2, np.pi / 2 - phi, q))
+				_record_qubits(qubit_used, q)
+		elif gate in ['cu1', 'cp']:
+			# cu1(λ)/cp(λ) = controlled-phase: decompose into cx + rz
+			params = [_expr_to_float(arg) for arg in args]
+			if len(qubits) != 2:
+				raise ValueError(f"{gate} takes 2 qubits, got {len(qubits)}")
+			q0, q1 = qubits[0], qubits[1]
+			lam = params[0]
+			new.append(("rz", lam / 2, q0))
+			new.append(("cx", q0, q1))
+			new.append(("rz", -lam / 2, q1))
+			new.append(("cx", q0, q1))
+			new.append(("rz", lam / 2, q1))
+			_record_qubits(qubit_used, q0, q1)
+		elif gate in ['cswap', 'ccnot']:
+			# cswap → CX+CCX+CX decomposition (Fredkin); ccnot → ccx
+			if len(qubits) != 3:
+				raise ValueError(f"{gate} takes 3 qubits, got {len(qubits)}")
+			c, t1, t2 = qubits[0], qubits[1], qubits[2]
+			if gate == 'cswap':
+				# CSWAP(c, t1, t2) = CX(t2,t1) · CCX(c,t1,t2) · CX(t2,t1)
+				new.append(('cx', t2, t1))
+				new.append(('ccx', c, t1, t2))
+				new.append(('cx', t2, t1))
+			else:
+				new.append(('ccx', c, t1, t2))
+			_record_qubits(qubit_used, c, t1, t2)
 		elif gate in two_qubit_parameter_gates_available.keys():
 			params = [_expr_to_float(arg) for arg in args]
 			if len(qubits) != 2:

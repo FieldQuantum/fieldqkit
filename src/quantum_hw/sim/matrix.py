@@ -148,15 +148,7 @@ cx_mat = torch.tensor(
     dtype=torch.complex128,
 )
 
-xc_mat = torch.tensor(
-    [
-        [1.0, 0.0, 0.0, 0.0],
-        [0.0, 0.0, 0.0, 1.0],
-        [0.0, 0.0, 1.0, 0.0],
-        [0.0, 1.0, 0.0, 0.0],
-    ],
-    dtype=torch.complex128,
-)
+
 
 cy_mat = torch.tensor(
     [
@@ -168,15 +160,7 @@ cy_mat = torch.tensor(
     dtype=torch.complex128,
 )
 
-yc_mat = torch.tensor(
-    [
-        [1.0, 0.0, 0.0, 0.0],
-        [0.0, 0.0, 0.0, -1.0j],
-        [0.0, 1.0j, 0.0, 0.0],
-        [0.0, 0.0, 1.0, 0.0],
-    ],
-    dtype=torch.complex128,
-)
+
 
 cz_mat = torch.tensor(
     [
@@ -204,72 +188,9 @@ ccx_mat = torch.tensor(
     dtype=torch.complex128,
 )
 
-cxc_mat = torch.tensor(
-    [
-        [1, 0, 0, 0, 0, 0, 0, 0],
-        [0, 1, 0, 0, 0, 0, 0, 0],
-        [0, 0, 1, 0, 0, 0, 0, 0],
-        [0, 0, 0, 0, 0, 0, 0, 1],
-        [0, 0, 0, 0, 1, 0, 0, 0],
-        [0, 0, 0, 0, 0, 1, 0, 0],
-        [0, 0, 0, 0, 0, 0, 1, 0],
-        [0, 0, 0, 1, 0, 0, 0, 0],
-    ],
-    dtype=torch.complex128,
-)
-
-cswap_mat = torch.tensor(
-    [
-        [1, 0, 0, 0, 0, 0, 0, 0],
-        [0, 1, 0, 0, 0, 0, 0, 0],
-        [0, 0, 1, 0, 0, 0, 0, 0],
-        [0, 0, 0, 1, 0, 0, 0, 0],
-        [0, 0, 0, 0, 1, 0, 0, 0],
-        [0, 0, 0, 0, 0, 0, 1, 0],
-        [0, 0, 0, 0, 0, 1, 0, 0],
-        [0, 0, 0, 0, 0, 0, 0, 1],
-    ],
-    dtype=torch.complex128,
-)
-
-swapc_mat = torch.tensor(
-    [
-        [1, 0, 0, 0, 0, 0, 0, 0],
-        [0, 1, 0, 0, 0, 0, 0, 0],
-        [0, 0, 1, 0, 0, 0, 0, 0],
-        [0, 0, 0, 0, 0, 1, 0, 0],
-        [0, 0, 0, 0, 1, 0, 0, 0],
-        [0, 0, 0, 1, 0, 0, 0, 0],
-        [0, 0, 0, 0, 0, 0, 1, 0],
-        [0, 0, 0, 0, 0, 0, 0, 1],
-    ],
-    dtype=torch.complex128,
-)
 
 
-def r_mat(theta, phi, *, device: torch.device | None = None, dtype: torch.dtype | None = None):
-    """Construct the single-qubit R(θ,φ) rotation gate matrix.
 
-    Args:
-        theta: Rotation angle in radians.
-        phi: Phase angle in radians.
-        device (*torch.device | None*): Torch device (``'cpu'`` or ``'cuda'``). Defaults to ``None``.
-        dtype (*torch.dtype | None*): Torch data type. Defaults to ``None``.
-
-    Returns:
-        2×2 complex ``torch.Tensor``.
-    """
-    cdtype = _complex_dtype(dtype)
-    t = _as_angle(theta, device=device)
-    p = _as_angle(phi, device=device)
-    c = torch.cos(t / 2)
-    s = torch.sin(t / 2)
-    out = torch.zeros((2, 2), dtype=cdtype, device=device)
-    out[0, 0] = c
-    out[0, 1] = -1j * torch.exp(-1j * p) * s
-    out[1, 0] = -1j * torch.exp(1j * p) * s
-    out[1, 1] = c
-    return out
 
 
 def rx_mat(theta, *, device: torch.device | None = None, dtype: torch.dtype | None = None):
@@ -337,25 +258,6 @@ def rz_mat(theta, *, device: torch.device | None = None, dtype: torch.dtype | No
     return out
 
 
-def p_mat(theta, *, device: torch.device | None = None, dtype: torch.dtype | None = None):
-    """Construct the single-qubit Phase(θ) gate matrix.
-
-    Args:
-        theta: Rotation angle in radians.
-        device (*torch.device | None*): Torch device (``'cpu'`` or ``'cuda'``). Defaults to ``None``.
-        dtype (*torch.dtype | None*): Torch data type. Defaults to ``None``.
-
-    Returns:
-        2×2 complex ``torch.Tensor``.
-    """
-    cdtype = _complex_dtype(dtype)
-    t = _as_angle(theta, device=device)
-    out = torch.zeros((2, 2), dtype=cdtype, device=device)
-    out[0, 0] = 1.0
-    out[1, 1] = torch.exp(1.0j * t)
-    return out
-
-
 def u_mat(theta, phi, lamda, *, device: torch.device | None = None, dtype: torch.dtype | None = None):
     """Construct the single-qubit U(θ,φ,λ) general unitary gate matrix.
 
@@ -379,35 +281,6 @@ def u_mat(theta, phi, lamda, *, device: torch.device | None = None, dtype: torch
     out[1, 0] = torch.exp(1.0j * p) * torch.sin(t / 2)
     out[1, 1] = torch.exp(1.0j * (p + l)) * torch.cos(t / 2)
     return out
-
-
-def u1_mat(lamda, *, device: torch.device | None = None, dtype: torch.dtype | None = None):
-    """Construct the U1(λ) gate matrix, equivalent to U(0, 0, λ).
-
-    Args:
-        lamda: Lambda angle in radians.
-        device (*torch.device | None*): Torch device (``'cpu'`` or ``'cuda'``). Defaults to ``None``.
-        dtype (*torch.dtype | None*): Torch data type. Defaults to ``None``.
-
-    Returns:
-        2×2 complex ``torch.Tensor``.
-    """
-    return u_mat(0.0, 0.0, lamda, device=device, dtype=dtype)
-
-
-def u2_mat(phi, lamda, *, device: torch.device | None = None, dtype: torch.dtype | None = None):
-    """Construct the U2(φ,λ) gate matrix, equivalent to U(π/2, φ, λ).
-
-    Args:
-        phi: Phase angle in radians.
-        lamda: Lambda angle in radians.
-        device (*torch.device | None*): Torch device (``'cpu'`` or ``'cuda'``). Defaults to ``None``.
-        dtype (*torch.dtype | None*): Torch data type. Defaults to ``None``.
-
-    Returns:
-        2×2 complex ``torch.Tensor``.
-    """
-    return u_mat(math.pi / 2.0, phi, lamda, device=device, dtype=dtype)
 
 
 def rxx_mat(theta, *, device: torch.device | None = None, dtype: torch.dtype | None = None):
@@ -485,27 +358,6 @@ def rzz_mat(theta, *, device: torch.device | None = None, dtype: torch.dtype | N
     return out
 
 
-def cp_mat(theta, *, device: torch.device | None = None, dtype: torch.dtype | None = None):
-    """Construct the two-qubit Controlled-Phase CP(θ) gate matrix.
-
-    Args:
-        theta: Rotation angle in radians.
-        device (*torch.device | None*): Torch device (``'cpu'`` or ``'cuda'``). Defaults to ``None``.
-        dtype (*torch.dtype | None*): Torch data type. Defaults to ``None``.
-
-    Returns:
-        4×4 complex ``torch.Tensor``.
-    """
-    cdtype = _complex_dtype(dtype)
-    t = _as_angle(theta, device=device)
-    out = torch.zeros((4, 4), dtype=cdtype, device=device)
-    out[0, 0] = 1.0
-    out[1, 1] = 1.0
-    out[2, 2] = 1.0
-    out[3, 3] = torch.exp(1j * t)
-    return out
-
-
 gate_matrix_dict = {
     "id": id_mat,
     "x": x_mat,
@@ -522,20 +374,15 @@ gate_matrix_dict = {
     "iswap": iswap_mat,
     "ecr": ecr_mat,
     "cx": cx_mat,
-    "cnot": cx_mat,
     "cy": cy_mat,
     "cz": cz_mat,
     "rx": rx_mat,
     "ry": ry_mat,
     "rz": rz_mat,
-    "p": p_mat,
     "u": u_mat,
-    "r": r_mat,
     "rxx": rxx_mat,
     "ryy": ryy_mat,
     "rzz": rzz_mat,
-    "cp": cp_mat,
     "ccz": ccz_mat,
     "ccx": ccx_mat,
-    "cswap": cswap_mat,
 }

@@ -19,9 +19,9 @@ ONE_QUBIT_GATES = {
     "sx",
     "sxdg",
 }
-ONE_QUBIT_PARAM_GATES = {"rx", "ry", "rz", "p", "u"}
+ONE_QUBIT_PARAM_GATES = {"rx", "ry", "rz", "u"}
 TWO_QUBIT_GATES = {"cx", "cy", "cz", "swap", "iswap", "ecr"}
-TWO_QUBIT_PARAM_GATES = {"rxx", "ryy", "rzz", "cp"}
+TWO_QUBIT_PARAM_GATES = {"rxx", "ryy", "rzz"}
 
 
 def _bits_from_index(idx: int, nqubits: int) -> list[int]:
@@ -198,15 +198,6 @@ def test_rzz_decompose_matrix(basis, convert):
     assert is_equiv_unitary(unitary, gate_matrix_dict["rzz"](theta))
 
 
-@pytest.mark.parametrize("basis", ["cz", "cx", "iswap", "ecr"])
-@pytest.mark.parametrize("convert", [False, True])
-def test_cp_decompose_matrix(basis, convert):
-    theta = -1.1
-    gates = decompose.cp_decompose(theta, 0, 1, convert, basis)
-    unitary = _circuit_unitary(2, gates)
-    assert is_equiv_unitary(unitary, gate_matrix_dict["cp"](theta))
-
-
 def test_ccx_decompose_matrix():
     gates = decompose.ccx_decompose(0, 1, 2)
     unitary = _circuit_unitary(3, gates)
@@ -218,8 +209,3 @@ def test_ccz_decompose_matrix():
     unitary = _circuit_unitary(3, gates)
     assert is_equiv_unitary(unitary, gate_matrix_dict["ccz"])
 
-
-def test_cswap_decompose_matrix():
-    gates = decompose.cswap_decompose(0, 1, 2)
-    unitary = _circuit_unitary(3, gates)
-    assert is_equiv_unitary(unitary, gate_matrix_dict["cswap"])

@@ -43,7 +43,7 @@ def test_parameter_binding_behaviour():
     qc = QuantumCircuit(2, 2)
     qc.rx("theta", 0)
     qc.rz("phi", 1)
-    qc.cp("gamma", 0, 1)
+    qc.rzz("gamma", 0, 1)
 
     qc.apply_value({"theta": 0.1, "phi": -0.2})
     assert qc.params_value["theta"] == 0.1
@@ -56,9 +56,7 @@ def test_parameter_binding_behaviour():
     assert qc.params_value["gamma"] == 0.5
 
     for gate in qc.gates:
-        if gate[0] in {"rx", "rz"}:
-            assert isinstance(gate[1], (float, int))
-        if gate[0] == "cp":
+        if gate[0] in {"rx", "rz", "rzz"}:
             assert isinstance(gate[1], (float, int))
 
     qasm = qc.to_openqasm2()
@@ -133,7 +131,7 @@ def test_mutating_methods_return_self_for_chaining():
 def test_adjust_index_preserves_all_gate_kinds_and_offsets():
     qc = QuantumCircuit(4, 4)
     qc.ccz(0, 1, 2)
-    qc.cp("theta", 1, 3)
+    qc.rz("theta", 1)
     qc.delay(2e-6, 0, 3)
     qc.barrier(0, 1, 2, 3)
     qc.measure([0, 3], [1, 2])
@@ -146,7 +144,7 @@ def test_adjust_index_preserves_all_gate_kinds_and_offsets():
     assert qc.qubits == [2, 3, 4, 5]
     assert qc.gates == [
         ("ccz", 2, 3, 4),
-        ("cp", "theta", 3, 5),
+        ("rz", "theta", 3),
         ("delay", 2e-6, (2, 5)),
         ("barrier", (2, 3, 4, 5)),
         ("measure", [2, 5], [6, 7]),

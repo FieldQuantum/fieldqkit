@@ -15,11 +15,11 @@ one_qubit_gates_available = {
     'h':'H', 'sx':'√X','sxdg':'√Xdg',
     }
 two_qubit_gates_available = {
-    'cx':'●X', 'cnot':'●X', 'cy':'●Y', 'cz':'●Z', 'swap':'XX', 'iswap':'✶✶', 'ecr':'╬╬'
-    } 
-three_qubit_gates_available = {'ccz':'●●●','ccx':'●●X','cswap':'●XX'} 
-one_qubit_parameter_gates_available = {'rx':'Rx', 'ry':'Ry', 'rz':'Rz', 'p':'P', 'u':'U', 'u3':'U', 'r':'R'}
-two_qubit_parameter_gates_available = {'rxx':'Rxx', 'ryy':'Ryy', 'rzz':'Rzz','cp':'●P'} # CPhase
+    'cx':'●X', 'cy':'●Y', 'cz':'●Z', 'swap':'XX', 'iswap':'✶✶', 'ecr':'╬╬'
+    }
+three_qubit_gates_available = {'ccz':'●●●','ccx':'●●X'}
+one_qubit_parameter_gates_available = {'rx':'Rx', 'ry':'Ry', 'rz':'Rz', 'u':'U'}
+two_qubit_parameter_gates_available = {'rxx':'Rxx', 'ryy':'Ryy', 'rzz':'Rzz'}
 functional_gates_available = {'barrier':'░', 'measure':'M', 'reset':'|0>','delay':'Delay'}
 
 def convert_gate_info_to_dag_info(nqubits:int,qubits:list,gates:list,show_qubits:bool=True) -> tuple[list,list]:
@@ -71,11 +71,7 @@ def convert_gate_info_to_dag_info(nqubits:int,qubits:list,gates:list,show_qubits
                 qubits = [gate_info[-1]]
                 params = list(gate_info[1:4])
                 node_info = (gate+'_'+str(idx)+'_'+str(qubits),{'qubits':qubits, 'params':params})
-            elif gate == 'r':
-                qubits = [gate_info[-1]]
-                params = list(gate_info[1:3])
-                node_info = (gate+'_'+str(idx)+'_'+str(qubits),{'qubits':qubits, 'params':params})                
-            else: # one params
+            else: # one param (rx/ry/rz)
                 qubits = [gate_info[-1]]
                 params = [gate_info[1]]
                 node_info = (gate+'_'+str(idx)+'_'+str(qubits),{'qubits':qubits, 'params':params})      
@@ -408,57 +404,33 @@ def generate_gates_layerd(nqubits:int,ncbits:int,gates:list,params_value:dict) -
                         gates_layerd[idx+1][i] = '│'
                     break
         elif gate in two_qubit_parameter_gates_available:
-            if gate in ['cp']:
-                pos0 = min(gate_info[2],gate_info[3])
-                pos1 = max(gate_info[2],gate_info[3])
-                theta0_str = _format_param_token(gate_info[1], params_value)
-                gate_express = two_qubit_parameter_gates_available[gate][1]+f'({theta0_str})'
-                if len(gate_express) % 2 == 0:
-                    gate_express = two_qubit_parameter_gates_available[gate][1]+f'({theta0_str})─'
-                for idx in range(len(gates_layerd)-1,-1,-1):
-                    if gates_layerd[idx][2*pos0:2*pos1+1] != list('─ ')*(pos1-pos0)+['─']:
-                        gates_layerd[idx+1][2*gate_info[2]] = (len(gate_express)//2)*'─' + two_qubit_parameter_gates_available[gate][0] + (len(gate_express)//2)*'─'
-                        gates_layerd[idx+1][2*gate_info[3]] = gate_express
+            pos0 = min(gate_info[2],gate_info[3])
+            pos1 = max(gate_info[2],gate_info[3])
+            theta0_str = _format_param_token(gate_info[1], params_value)
+            gate_express = two_qubit_parameter_gates_available[gate]+f'({theta0_str})'
+            if len(gate_express)%2 == 0:
+                gate_express += ' '
+            for idx in range(len(gates_layerd)-1,-1,-1):
+                if gates_layerd[idx][2*pos0:2*pos1+1] != list('─ ')*(pos1-pos0)+['─']:
+                    dif0 = (len(gate_express) - 1)//2
+                    if pos0 == gate_info[2]: 
+                        gates_layerd[idx+1][2*pos0] = '┌' + '─'*dif0 +'0'+'─'*dif0 + '┐'
+                        gates_layerd[idx+1][2*pos1] = '└' + '─'*dif0 +'1'+'─'*dif0 + '┘'
                         lines_use.append(2*pos0)
-                        lines_use.append(2*pos0+1)
+                        lines_use.append(2*pos0 + 1)
                         lines_use.append(2*pos1)
-                        lines_use.append(2*pos1+1)
-                        for i in range(2*pos0+1,2*pos1):
-                            if i % 2 == 0:
-                                gates_layerd[idx+1][i] = (len(gate_express)//2)*'─' + '│' + (len(gate_express)//2)*'─'
-                            else:
-                                gates_layerd[idx+1][i] = (len(gate_express)//2)*' ' + '│' + (len(gate_express)//2)*' '
-
-                        break
-
-            else:
-                pos0 = min(gate_info[2],gate_info[3])
-                pos1 = max(gate_info[2],gate_info[3])
-                theta0_str = _format_param_token(gate_info[1], params_value)
-                gate_express = two_qubit_parameter_gates_available[gate]+f'({theta0_str})'
-                if len(gate_express)%2 == 0:
-                    gate_express += ' '
-                for idx in range(len(gates_layerd)-1,-1,-1):
-                    if gates_layerd[idx][2*pos0:2*pos1+1] != list('─ ')*(pos1-pos0)+['─']:
-                        dif0 = (len(gate_express) - 1)//2
-                        if pos0 == gate_info[2]: 
-                            gates_layerd[idx+1][2*pos0] = '┌' + '─'*dif0 +'0'+'─'*dif0 + '┐'
-                            gates_layerd[idx+1][2*pos1] = '└' + '─'*dif0 +'1'+'─'*dif0 + '┘'
-                            lines_use.append(2*pos0)
-                            lines_use.append(2*pos0 + 1)
-                            lines_use.append(2*pos1)
-                            lines_use.append(2*pos1 + 1)
-                        elif pos0 == gate_info[3]:
-                            gates_layerd[idx+1][2*pos0] = '┌' + '─'*dif0 +'1'+'─'*dif0 + '┐'
-                            gates_layerd[idx+1][2*pos1] = '└' + '─'*dif0 +'0'+'─'*dif0 + '┘'
-                            lines_use.append(2*pos0)
-                            lines_use.append(2*pos0 + 1)
-                            lines_use.append(2*pos1)
-                            lines_use.append(2*pos1 + 1)
-                        for i in range(2*pos0+1,2*pos1):
-                            gates_layerd[idx+1][i] = '│' + ' '*len(gate_express) + '│'
-                        gates_layerd[idx+1][2*pos0 + (pos1-pos0)] = '│' + gate_express + '│'
-                        break
+                        lines_use.append(2*pos1 + 1)
+                    elif pos0 == gate_info[3]:
+                        gates_layerd[idx+1][2*pos0] = '┌' + '─'*dif0 +'1'+'─'*dif0 + '┐'
+                        gates_layerd[idx+1][2*pos1] = '└' + '─'*dif0 +'0'+'─'*dif0 + '┘'
+                        lines_use.append(2*pos0)
+                        lines_use.append(2*pos0 + 1)
+                        lines_use.append(2*pos1)
+                        lines_use.append(2*pos1 + 1)
+                    for i in range(2*pos0+1,2*pos1):
+                        gates_layerd[idx+1][i] = '│' + ' '*len(gate_express) + '│'
+                    gates_layerd[idx+1][2*pos0 + (pos1-pos0)] = '│' + gate_express + '│'
+                    break
         elif gate in one_qubit_parameter_gates_available:
             if gate == 'u':
                 theta0_str = _format_param_token(gate_info[1], params_value)
@@ -471,18 +443,7 @@ def generate_gates_layerd(nqubits:int,ncbits:int,gates:list,params_value:dict) -
                         gates_layerd[idx+1][2*pos0] = one_qubit_parameter_gates_available[gate] + params_str
                         lines_use.append(2*pos0)
                         lines_use.append(2*pos0 + 1)
-                        break      
-            elif gate == 'r':      
-                theta0_str = _format_param_token(gate_info[1], params_value)
-                phi0_str = _format_param_token(gate_info[2], params_value)
-                pos0 = gate_info[-1]
-                for idx in range(len(gates_layerd)-1,-1,-1):
-                    if gates_layerd[idx][2*pos0] != '─':
-                        params_str = '(' + theta0_str + ',' + phi0_str + ')'
-                        gates_layerd[idx+1][2*pos0] = one_qubit_parameter_gates_available[gate] + params_str
-                        lines_use.append(2*pos0)
-                        lines_use.append(2*pos0 + 1)
-                        break    
+                        break
             else:
                 theta0_str = _format_param_token(gate_info[1], params_value)
                 pos0 = gate_info[2]

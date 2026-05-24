@@ -218,8 +218,8 @@ def build_single_qubit_rotation_gate_list(transpiled_template: QuantumCircuit) -
     """Collect ``(gate_index, gate_name)`` for every single-qubit rotation gate.
 
     Used as the set of randomization sites for Clifford fitting.  Returns
-    every ``p``/``r``/``u``/``u3``/``rx``/``ry``/``rz`` occurrence,
-    regardless of whether its parameters are concrete or still symbolic.
+    every ``u``/``rx``/``ry``/``rz`` occurrence, regardless of whether
+    its parameters are concrete or still symbolic.
 
     Args:
         transpiled_template: A transpiled circuit.
@@ -227,7 +227,7 @@ def build_single_qubit_rotation_gate_list(transpiled_template: QuantumCircuit) -
     Returns:
         List of ``(gate_index, gate_name)`` tuples.
     """
-    one_qubit_param_gates = {"p", "r", "u", "u3", "rx", "ry", "rz"}
+    one_qubit_param_gates = {"u", "rx", "ry", "rz"}
     out: List[Tuple[int, str]] = []
     for gate_index, gate_info in enumerate(transpiled_template.gates):
         gate = str(gate_info[0]).lower()

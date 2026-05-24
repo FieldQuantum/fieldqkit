@@ -102,6 +102,11 @@ def parse_openqasm2_custom_gates(openqasm2_str: str):
         if not m:
             return None
         name = m.group(1)
+        # Compatibility aliases — silently accepted inside custom-gate bodies
+        _compat = {
+            'cnot', 'u3', 'u1', 'u2', 'p', 'r', 'cu1', 'ch', 'crz', 'cp',
+            'cswap', 'ccnot',
+        }
         if name in one_qubit_gates_available:
             pass
         elif name in two_qubit_gates_available:
@@ -113,6 +118,8 @@ def parse_openqasm2_custom_gates(openqasm2_str: str):
         elif name in two_qubit_parameter_gates_available:
             pass
         elif name in functional_gates_available:
+            pass
+        elif name in _compat:
             pass
         else:
             raise (ValueError(f"parse error {name} !"))
@@ -311,6 +318,15 @@ def parse_openqasm2_to_gates(openqasm2_str):
             for q in qubits:
                 new.append((gate, q))
                 _record_qubits(qubit_used, q)
+        elif gate in ['cnot']:
+            # cnot is an alias for cx
+            if len(positions) != 2:
+                raise ValueError(f"{gate} takes 2 quantum arguments, but got {len(positions)}.")
+            if len(positions[0]) != len(positions[1]):
+                raise ValueError(f"{gate} takes 2 different quantum arguments length.")
+            for idx in range(len(positions[0])):
+                new.append(('cx', positions[0][idx], positions[1][idx]))
+                _record_qubits(qubit_used, positions[0][idx], positions[1][idx])
         elif gate in two_qubit_gates_available:
             if len(positions) != 2:
                 raise ValueError(f"{gate} takes 2 quantum arguments, but got {len(positions)}.")
@@ -327,23 +343,37 @@ def parse_openqasm2_to_gates(openqasm2_str):
             for idx in range(len(positions[0])):
                 new.append((gate, positions[0][idx], positions[1][idx], positions[2][idx]))
                 _record_qubits(qubit_used, positions[0][idx], positions[1][idx], positions[2][idx])
+        elif gate in ['cswap', 'ccnot']:
+            # cswap → CX+CCX+CX decomposition (Fredkin); ccnot → ccx
+            if len(positions) != 3:
+                raise ValueError(f"{gate} takes 3 quantum arguments, but got {len(positions)}.")
+            if len(positions[0]) != len(positions[1]) or len(positions[0]) != len(positions[2]):
+                raise ValueError(f"{gate} takes 3 different quantum arguments length.")
+            for idx in range(len(positions[0])):
+                c, t1, t2 = positions[0][idx], positions[1][idx], positions[2][idx]
+                if gate == 'cswap':
+                    # CSWAP(c, t1, t2) = CX(t2,t1) · CCX(c,t1,t2) · CX(t2,t1)
+                    new.append(('cx', t2, t1))
+                    new.append(('ccx', c, t1, t2))
+                    new.append(('cx', t2, t1))
+                    _record_qubits(qubit_used, c, t1, t2)
+                else:
+                    new.append(('ccx', c, t1, t2))
+                    _record_qubits(qubit_used, c, t1, t2)
         elif gate in one_qubit_parameter_gates_available:
             qubits = [p for pp in positions for p in pp]
             if gate == "u" or gate == "u3":
                 for q in qubits:
                     new.append(("u", params[0], params[1], params[2], q))
                     _record_qubits(qubit_used, q)
-            elif gate == "r":
-                for q in qubits:
-                    new.append((gate, params[0], params[1], q))
-                    _record_qubits(qubit_used, q)
             else:
                 for q in qubits:
                     new.append((gate, *params, q))
                     _record_qubits(qubit_used, q)
-        elif gate in ["u1", "u2"]:
+        elif gate in ["u1", "u2", "p"]:
+            # u1(λ) → u(0, 0, λ);  u2(φ,λ) → u(π/2, φ, λ);  p(λ) → u(0, 0, λ)
             qubits = [p for pp in positions for p in pp]
-            if gate == "u1":
+            if gate == "u1" or gate == "p":
                 for q in qubits:
                     new.append(("u", 0, 0, params[0], q))
                     _record_qubits(qubit_used, q)
@@ -351,6 +381,13 @@ def parse_openqasm2_to_gates(openqasm2_str):
                 for q in qubits:
                     new.append(("u", np.pi / 2, params[0], params[1], q))
                     _record_qubits(qubit_used, q)
+        elif gate in ["r"]:
+            # r(θ, φ) → u(θ, φ - π/2, π/2 - φ)
+            qubits = [p for pp in positions for p in pp]
+            for q in qubits:
+                phi = params[1]
+                new.append(("u", params[0], phi - np.pi / 2, np.pi / 2 - phi, q))
+                _record_qubits(qubit_used, q)
         elif gate in two_qubit_parameter_gates_available:
             if len(positions) != 2:
                 raise ValueError(f"{gate} takes 2 quantum arguments, but got {len(positions)}.")
@@ -359,14 +396,22 @@ def parse_openqasm2_to_gates(openqasm2_str):
             for idx in range(len(positions[0])):
                 new.append((gate, *params, positions[0][idx], positions[1][idx]))
                 _record_qubits(qubit_used, positions[0][idx], positions[1][idx])
-        elif gate in ["cu1"]:
+        elif gate in ["cu1", "cp"]:
+            # cu1(λ)/cp(λ) = controlled-phase: decompose into cx + rz
             if len(positions) != 2:
                 raise ValueError(f"{gate} takes 2 quantum arguments, but got {len(positions)}.")
             if len(positions[0]) != len(positions[1]):
                 raise ValueError(f"{gate} takes 2 different quantum arguments length.")
             for idx in range(len(positions[0])):
-                new.append(("cp", *params, positions[0][idx], positions[1][idx]))
-                _record_qubits(qubit_used, positions[0][idx], positions[1][idx])
+                q0, q1 = positions[0][idx], positions[1][idx]
+                lam = params[0]
+                # CP(λ) = rz(λ/2,q0) · CX · rz(-λ/2,q1) · CX · rz(λ/2,q1)
+                new.append(("rz", lam / 2, q0))
+                new.append(("cx", q0, q1))
+                new.append(("rz", -lam / 2, q1))
+                new.append(("cx", q0, q1))
+                new.append(("rz", lam / 2, q1))
+                _record_qubits(qubit_used, q0, q1)
         elif gate in ["delay"]:
             qubits = [p for pp in positions for p in pp]
             for q in qubits:

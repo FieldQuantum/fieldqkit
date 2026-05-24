@@ -109,7 +109,7 @@ class TestBaihuaFullPipeline:
         qc.u(0.4, 0.5, 0.6, 10)
         qc.cx(0, 11); qc.cz(1, 10); qc.swap(3, 8)
         qc.iswap(2, 9)
-        qc.rxx(0.7, 0, 7); qc.cp(0.8, 4, 11)
+        qc.rxx(0.7, 0, 7); qc.rzz(0.8, 4, 11)
         qc.ccx(0, 6, 11)
         qc.barrier(*range(12))
         qc.measure(list(range(12)), list(range(12)))

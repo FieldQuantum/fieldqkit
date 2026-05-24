@@ -234,7 +234,7 @@ def test_qasm3_measurement_statement_variant():
 def test_add_gates_to_lines_formats_mixed_parameter_tokens():
     gates = [
         ("u", "theta", "phi", "lam", 0),
-        ("cp", "alpha", 0, 1),
+        ("rz", "alpha", 0),
         ("rz", "beta", 1),
     ]
     params_value = {
@@ -258,7 +258,7 @@ def test_add_gates_to_lines_formats_mixed_parameter_tokens():
 def test_format_gates_layerd_normalizes_row_cell_widths():
     gates = [
         ("h", 0),
-        ("cp", np.pi / 2, 0, 1),
+        ("rzz", np.pi / 2, 0, 1),
         ("measure", [0], [0]),
     ]
 

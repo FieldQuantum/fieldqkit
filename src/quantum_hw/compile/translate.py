@@ -26,7 +26,6 @@ from .decompose import (
     rxx_decompose,
     ryy_decompose,
     rzz_decompose,
-    cp_decompose,
     u3_decompose,
 )
 from .basepasses import TranspilerPass
@@ -78,17 +77,15 @@ class TranslateToBasisGates(TranspilerPass):
                 if self.convert_single_qubit_gate_to_u:
                     if gate == "u":
                         new.append(gate_info)
-                    elif gate == "r":
-                        theta, phi, qubit = gate_info[1:]
-                        new.append(("u", theta, phi - np.pi / 2, np.pi / 2 - phi, qubit))
-                    elif isinstance(gate_info[1], str) and gate in {"rx", "ry", "rz", "p"}:
+                    elif isinstance(gate_info[1], str) and gate in {"rx", "ry", "rz"}:
+                        # Symbolic parameter: keep structural form, express as u
                         theta = gate_info[1]
                         qubit = gate_info[-1]
                         if gate == "rx":
                             new.append(("u", theta, -np.pi / 2, np.pi / 2, qubit))
                         elif gate == "ry":
                             new.append(("u", theta, 0.0, 0.0, qubit))
-                        else:  # rz / p
+                        else:  # rz
                             new.append(("u", 0.0, 0.0, theta, qubit))
                     else:
                         gate_matrix = gate_matrix_dict[gate](*gate_info[1:-1])
@@ -105,7 +102,7 @@ class TranslateToBasisGates(TranspilerPass):
                         self.two_qubit_gate_basis,
                     )
                     new += _cz
-                elif gate in ["cx", "cnot"]:
+                elif gate in ["cx"]:
                     _cx = cx_decompose(
                         gate_info[1],
                         gate_info[2],
@@ -154,8 +151,6 @@ class TranslateToBasisGates(TranspilerPass):
                     new += ryy_decompose(*gate_info[1:], self.convert_single_qubit_gate_to_u, self.two_qubit_gate_basis)
                 elif gate == "rzz":
                     new += rzz_decompose(*gate_info[1:], self.convert_single_qubit_gate_to_u, self.two_qubit_gate_basis)
-                elif gate == "cp":
-                    new += cp_decompose(*gate_info[1:], self.convert_single_qubit_gate_to_u, self.two_qubit_gate_basis)
             elif gate in functional_gates_available.keys():
                 new.append(gate_info)
             else:

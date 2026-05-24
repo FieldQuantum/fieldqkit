@@ -86,14 +86,7 @@ cx_mat = np.array(
     ],dtype=complex,
 )
 
-xc_mat = np.array(
-    [
-        [1.0, 0.0, 0.0, 0.0],
-        [0.0, 1.0, 0.0, 0.0],
-        [0.0, 0.0, 0.0, 1.0],
-        [0.0, 0.0, 1.0, 0.0],
-    ],dtype=complex,
-)
+
 
 cy_mat = np.array(
     [
@@ -104,14 +97,7 @@ cy_mat = np.array(
     ],dtype=complex,
 )
 
-yc_mat = np.array(
-    [
-        [1.0, 0.0, 0.0, 0.0],
-        [0.0, 1.0, 0.0, 0.0],
-        [0.0, 0.0, 0.0, -1.0j],
-        [0.0, 0.0, 1.0j, 0.0],
-    ],dtype=complex,
-)
+
 
 cz_mat = np.array(
     [
@@ -148,62 +134,9 @@ ccx_mat = np.array(
     ],dtype=complex,
 )
 
-cxc_mat = np.array(
-    [
-        [1, 0, 0, 0, 0, 0, 0, 0],
-        [0, 1, 0, 0, 0, 0, 0, 0],
-        [0, 0, 1, 0, 0, 0, 0, 0],
-        [0, 0, 0, 1, 0, 0, 0, 0],
-        [0, 0, 0, 0, 1, 0, 0, 0],
-        [0, 0, 0, 0, 0, 1, 0, 0],
-        [0, 0, 0, 0, 0, 0, 0, 1],
-        [0, 0, 0, 0, 0, 0, 1, 0],
-    ],dtype=complex,
-)
 
-cswap_mat = np.array(
-    [
-        [1, 0, 0, 0, 0, 0, 0, 0],
-        [0, 1, 0, 0, 0, 0, 0, 0],
-        [0, 0, 1, 0, 0, 0, 0, 0],
-        [0, 0, 0, 0, 0, 1, 0, 0],
-        [0, 0, 0, 0, 1, 0, 0, 0],
-        [0, 0, 0, 1, 0, 0, 0, 0],
-        [0, 0, 0, 0, 0, 0, 1, 0],
-        [0, 0, 0, 0, 0, 0, 0, 1],
-    ],dtype=complex,
-)
 
-swapc_mat = np.array(
-    [
-        [1, 0, 0, 0, 0, 0, 0, 0],
-        [0, 1, 0, 0, 0, 0, 0, 0],
-        [0, 0, 1, 0, 0, 0, 0, 0],
-        [0, 0, 0, 1, 0, 0, 0, 0],
-        [0, 0, 0, 0, 1, 0, 0, 0],
-        [0, 0, 0, 0, 0, 0, 1, 0],
-        [0, 0, 0, 0, 0, 1, 0, 0],
-        [0, 0, 0, 0, 0, 0, 0, 1],
-    ],dtype=complex,
-)
 
-def r_mat(theta,phi):
-    """Generate the matrix for the R gate.
-
-    Args:
-        theta: Rotation angle in radians.
-        phi: Phase angle in radians.
-
-    Returns:
-        2×2 complex-valued unitary matrix.
-    """
-    return np.array(
-        [
-            [np.cos(theta/2), -1j*np.exp(-1j*phi)*np.sin(theta/2)],
-            [-1j*np.exp(1j*phi)*np.sin(theta/2), np.cos(theta/2)]
-        ],
-        dtype=complex,
-    )
 
 def rx_mat(theta: float) -> np.ndarray:
     r"""Generate the rotation matrix for the RX gate.
@@ -254,22 +187,6 @@ def rz_mat(theta: float) -> np.ndarray:
             [0.0, np.exp(0.5j * theta)]], dtype=complex
     )
 
-def p_mat(theta: float) -> np.ndarray:
-    r"""Generate the matrix for the phase gate.
-
-    Args:
-        theta (float): The phase shift angle in radians.
-
-    Returns:
-        np.ndarray: A 2×2 complex-valued unitary matrix representing the phase gate.
-    """
-    return np.array(
-        [
-            [1.0, 0.0], 
-            [0.0, np.exp(1.0j * theta)]
-        ], dtype=complex
-    )
-
 def u_mat(theta: float, phi: float, lamda: float) -> np.ndarray:
     r"""Generate the matrix for the U3 gate.
 
@@ -287,29 +204,6 @@ def u_mat(theta: float, phi: float, lamda: float) -> np.ndarray:
             [np.exp(1.0j*phi)*np.sin(theta/2), np.exp(1.0j * (phi + lamda))*np.cos(theta/2)]
         ], dtype=complex
     )
-
-def u1_mat(lamda:float):
-    """Generate the matrix for the U1 (phase) gate: ``diag(1, exp(i*lambda))``.
-
-    Args:
-        lamda (*float*): Phase angle in radians.
-
-    Returns:
-        2×2 complex-valued unitary matrix.
-    """
-    return u_mat(0., 0., lamda)
-
-def u2_mat(phi:float, lamda:float):
-    """Generate the matrix for the U2 gate: ``U(pi/2, phi, lambda)``.
-
-    Args:
-        phi (*float*): First phase angle in radians.
-        lamda (*float*): Second phase angle in radians.
-
-    Returns:
-        2×2 complex-valued unitary matrix.
-    """
-    return u_mat(np.pi/2, phi, lamda)
 
 def rxx_mat(theta: float) -> np.ndarray:
     """Generate the matrix for the RXX (Ising XX) gate.
@@ -365,31 +259,13 @@ def rzz_mat(theta: float) -> np.ndarray:
         ], dtype=complex
     )
 
-def cp_mat(theta: float) -> np.ndarray:
-    """Generate the matrix for the controlled-phase (CP) gate.
-
-    Args:
-        theta (*float*): Phase angle in radians.
-
-    Returns:
-        np.ndarray: 4×4 complex-valued unitary matrix.
-    """
-    return np.array(
-        [
-            [1, 0, 0, 0],
-            [0, 1, 0, 0],
-            [0, 0, 1, 0],
-            [0, 0, 0, np.exp(1j*theta)]
-        ], dtype=complex
-    )
-
 gate_matrix_dict = {
     'id':id_mat, 'x':x_mat, 'y':y_mat, 'z':z_mat, 'h':h_mat,
     's':s_mat, 'sdg':sdg_mat, 't':t_mat, 'tdg':tdg_mat, 'sx':sx_mat, 'sxdg':sxdg_mat,
     'swap':swap_mat, 'iswap':iswap_mat, 'ecr':ecr_mat,
-    'cx':cx_mat, 'cnot':cx_mat, 'cy':cy_mat, 'cz':cz_mat,
+    'cx':cx_mat, 'cy':cy_mat, 'cz':cz_mat,
     'rx':rx_mat, 'ry':ry_mat, 'rz':rz_mat,
-    'p':p_mat, 'u':u_mat,'r':r_mat,
-    'rxx':rxx_mat,'ryy':ryy_mat,'rzz':rzz_mat, 'cp':cp_mat,
-    'ccz':ccz_mat,'ccx':ccx_mat,'cswap':cswap_mat,
+    'u':u_mat,
+    'rxx':rxx_mat,'ryy':ryy_mat,'rzz':rzz_mat,
+    'ccz':ccz_mat,'ccx':ccx_mat,
     }

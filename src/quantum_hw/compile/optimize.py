@@ -22,7 +22,7 @@ from ..circuit.matrix import u_mat, gate_matrix_dict
 from .basepasses import TranspilerPass
 
 # Gates that are diagonal in the computational basis.
-_DIAGONAL_1Q_GATES = frozenset({'id', 'z', 's', 'sdg', 't', 'tdg', 'rz', 'p'})
+_DIAGONAL_1Q_GATES = frozenset({'id', 'z', 's', 'sdg', 't', 'tdg', 'rz'})
 # Functional / non-unitary instructions that must never be reordered.
 _NON_REORDERABLE = frozenset({'barrier', 'measure', 'reset', 'delay'})
 
@@ -39,28 +39,38 @@ class GateCompressor(TranspilerPass):
         """
         super().__init__()
         self.convert_single_qubit_gate_to_u = convert_single_qubit_gate_to_u
+        # DAG-based adjacent-gate cancellation/merging list.
+        # Gates fall into two categories:
+        #
+        # Self-inverse (G·G = I) — handler just removes the pair:
+        #   1q: x, y, z, h
+        #   2q: cx, cy, cz, swap, ecr  (iswap is NOT self-inverse)
+        #   3q: ccx, ccz
+        #
+        # Parametric 2q Ising gates — handler sums parameters, then removes if identity:
+        #   rxx, ryy, rzz  (rxx(a)·rxx(b) = rxx(a+b), correct to merge when strictly adjacent)
+        #
+        # Single-qubit parametric gates (rx, ry, rz, u) are intentionally excluded:
+        # merge_single_qubit_runs handles arbitrary-length single-qubit runs by matrix
+        # composition, which is strictly more powerful than the DAG pairwise pass.
+        #
+        # Non-self-inverse 1q gates (s, sdg, t, tdg, sx, sxdg) are also excluded:
+        # they are correctly handled by merge_single_qubit_runs.
         self.compressible_gates = [
-            "id",
             "x",
             "y",
             "z",
             "h",
             "cx",
-            "cnot",
             "cy",
             "cz",
             "swap",
-            "rx",
-            "ry",
-            "rz",
-            "p",
-            "u",
+            "ecr",
+            "ccx",
+            "ccz",
             "rxx",
             "ryy",
             "rzz",
-            "ccx",
-            "ccz",
-            "cswap",
         ]
         self._idx = 1000000
         self._single_qubit_gates = (
@@ -200,7 +210,9 @@ class GateCompressor(TranspilerPass):
     # ---- commutation-based gate reordering ----
 
     # Two-qubit gates that are self-inverse: G·G = I.
-    _SELF_INVERSE_2Q = frozenset({'cx', 'cnot', 'cy', 'cz', 'swap'})
+    # ecr^2 = I as well; including it here lets cancel_two_qubit_pairs handle
+    # ECR·ECR pairs separated by commuting gates (same as CX/CZ/SWAP treatment).
+    _SELF_INVERSE_2Q = frozenset({'cx', 'cy', 'cz', 'swap', 'ecr'})
 
     def commutation_reorder(self, qc: QuantumCircuit) -> QuantumCircuit:
         """Bubble single-qubit gates past commuting gates to form longer single-qubit runs on the same qubit, enabling more merges.
@@ -432,12 +444,18 @@ class GateCompressor(TranspilerPass):
             gate = gate_info[0]
             if gate in one_qubit_parameter_gates_available.keys():
                 params = gate_info[1:-1]
+                if any(isinstance(p, str) for p in params):
+                    new.append(gate_info)
+                    continue
                 mat = gate_matrix_dict[gate](*params)
                 idm = np.eye(mat.shape[0])
                 if np.allclose(mat, idm) is False:
                     new.append(gate_info)
             elif gate in two_qubit_parameter_gates_available.keys():
                 params = gate_info[1:-2]
+                if any(isinstance(p, str) for p in params):
+                    new.append(gate_info)
+                    continue
                 mat = gate_matrix_dict[gate](*params)
                 idm = np.eye(mat.shape[0])
                 if np.allclose(mat, idm) is False:
@@ -482,7 +500,12 @@ class GateCompressor(TranspilerPass):
         return False
 
     def compress_adjacent_single_qubit_gates(self, node1: str, node2: str):
-        """Remove two adjacent identical single-qubit gates from the DAG, reconnecting surrounding edges.
+        """Cancel two adjacent identical self-inverse single-qubit gates (G·G = I) from the DAG.
+
+        Only called for gates in ``compressible_gates`` that are self-inverse
+        (``x``, ``y``, ``z``, ``h``).  Non-self-inverse 1-qubit gates such as
+        ``s``, ``t``, ``sx`` are handled earlier by ``merge_single_qubit_runs``
+        via matrix composition and never reach this path.
 
         Args:
             node1 (*str*): First DAG node identifier.
@@ -752,21 +775,45 @@ class GateCompressor(TranspilerPass):
         qubits = qc.qubits
         qc1 = self.remove_identity_gates(qc)
         qc1 = self.commutation_reorder(qc1)
-        qc1 = self.merge_single_qubit_runs(qc1)
-        qc1 = self.cancel_two_qubit_pairs(qc1)
-        self.dag = qc2dag(qc1)
 
-        compress = self.has_adjacent_gates()
-        while compress:
-            for edge in self.dag.edges():
-                node1, node2 = edge
-                if self.is_adjacent_gates(node1, node2):
-                    nodes_remove, nodes_added, edges_added = self.run_compress_once(node1, node2)
-                    self.dag.remove_nodes_from(nodes_remove)
-                    self.dag.add_nodes_from(nodes_added)
-                    self.dag.add_edges_from(edges_added)
+        # Outer loop: iterate until the full pipeline produces no further reduction.
+        # Each inner step can expose new opportunities for the others:
+        #   - cancel_two_qubit_pairs removes 2q self-inverse pairs (possibly non-adjacent,
+        #     with commuting gates in between), which may expose new adjacent 1q runs.
+        #   - merge_single_qubit_runs collapses those runs, which may expose new 2q pairs.
+        #   - The DAG pass cancels self-inverse 2q/3q gate pairs that are strictly adjacent
+        #     in the DAG after the linear passes have converged.
+        prev_len = -1
+        while True:
+            # ── Step 1: iterate merge+cancel until convergence ──────────────────────
+            inner_prev = -1
+            while True:
+                qc1 = self.merge_single_qubit_runs(qc1)
+                qc1 = self.cancel_two_qubit_pairs(qc1)
+                cur = len(qc1.gates)
+                if cur == inner_prev:
                     break
+                inner_prev = cur
+
+            # ── Step 2: one DAG-based compression sweep ──────────────────────────────
+            self.dag = qc2dag(qc1)
             compress = self.has_adjacent_gates()
-        new_qc = dag2qc(self.dag, qc1.nqubits, qc1.ncbits)
-        new_qc.qubits = qubits
-        return new_qc
+            while compress:
+                for edge in self.dag.edges():
+                    node1, node2 = edge
+                    if self.is_adjacent_gates(node1, node2):
+                        nodes_remove, nodes_added, edges_added = self.run_compress_once(node1, node2)
+                        self.dag.remove_nodes_from(nodes_remove)
+                        self.dag.add_nodes_from(nodes_added)
+                        self.dag.add_edges_from(edges_added)
+                        break
+                compress = self.has_adjacent_gates()
+            qc1 = dag2qc(self.dag, qc1.nqubits, qc1.ncbits)
+
+            cur_len = len(qc1.gates)
+            if cur_len == prev_len:
+                break  # Converged — no more reductions.
+            prev_len = cur_len
+
+        qc1.qubits = qubits
+        return qc1

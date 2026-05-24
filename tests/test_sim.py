@@ -76,7 +76,6 @@ def _build_reference_circuit(num_qubits: int) -> QuantumCircuit:
         ("rxx", (0.31, 0, 2)),
         ("ryy", (-0.52, 0, 2)),
         ("rzz", (0.77, 0, 2)),
-        ("cp", (0.19, 0, 2)),
         ("swap", (1, 3)),
         ("cx", (1, 3)),
         ("rzz", (-0.45, 1, 3)),
@@ -98,10 +97,8 @@ def test_nonadjacent_two_qubit_mps_matches_statevector(gate_name, gate_args):
     [
         ("ccx", 3, (0, 1, 2)),
         ("ccz", 3, (0, 1, 2)),
-        ("cswap", 3, (0, 1, 2)),
         ("ccx", 4, (0, 2, 3)),
         ("ccz", 4, (0, 2, 3)),
-        ("cswap", 4, (0, 2, 3)),
     ],
 )
 def test_three_qubit_mps_matches_statevector(gate_name, num_qubits, gate_args):
@@ -133,8 +130,6 @@ def test_three_qubit_mps_matches_statevector(gate_name, num_qubits, gate_args):
         ("ccx", (3, 0, 1)),
         ("ccx", (2, 0, 3)),
         ("ccz", (3, 1, 0)),
-        ("cswap", (3, 0, 2)),
-        ("cswap", (2, 1, 3)),
     ],
 )
 def test_unsorted_qubits_mps_matches_statevector(gate_name, gate_args):

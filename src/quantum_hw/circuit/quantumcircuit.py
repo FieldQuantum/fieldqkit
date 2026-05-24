@@ -798,78 +798,6 @@ Indexed format examples: "X1 Y2 Z3 Z4".
         else:
             raise ValueError("Qubit index out of range")
         
-    def cswap(self,control_qubit:int,target_qubit1:int,target_qubit2:int) -> 'QuantumCircuit':
-        """Add CSWAP gate.
-
-        Args:
-            control_qubit (int): The qubit used as control.
-            target_qubit1 (int): The qubit targeted by the gate.
-            target_qubit2 (int): The qubit targeted by the gate.
-
-        Raises:
-            ValueError: If qubit out of circuit range.
-        """
-        qubits0 = [control_qubit,target_qubit1,target_qubit2]
-        if max(qubits0) < self.nqubits:
-            if len(set(qubits0)) == 3:
-                self.gates.append(('cswap',control_qubit,target_qubit1,target_qubit2))
-                self._add_qubits(*qubits0)
-                return self
-            else:
-                raise ValueError(f"Qubit index conflict: control_qubit {control_qubit} target_qubit1 {target_qubit1} target_qubit2 {target_qubit2}")
-        else:
-            raise ValueError("Qubit index out of range")
-        
-    def p(self, theta: float, qubit: int) -> 'QuantumCircuit':
-        r"""
-        Add a Phase gate.
-
-        Args:
-            theta (float): The rotation angle of the gate.
-            qubit (int): The qubit to apply the gate to.
-
-        Raises:
-            ValueError: If qubit out of circuit range.
-        """
-        if qubit < self.nqubits:
-            self.gates.append(('p', theta, qubit))
-            self._add_qubits(qubit)
-            if isinstance(theta,str):
-                self.params_value[theta] = theta
-            return self
-        else:
-            raise ValueError("Qubit index out of range")
-        
-    def r(self, theta: float, phi:float, qubit: int) -> 'QuantumCircuit':
-        r"""
-        Add a R gate.
-
-        $$
-        R(\theta,\phi) = e^{-i\frac{\theta}{2}(\cos{\phi x}+\sin{\phi y})} = \begin{bmatrix}
-         \cos(\frac{\theta}{2})             & -i e^{-i\phi}\sin(\frac{\theta}{2}) \\
-         -i e^{i\phi}\sin(\frac{\theta}{2}) & \cos(\frac{\theta}{2})      
-        \end{bmatrix}
-        $$
-
-        Args:
-            theta (float): The rotation angle of the gate.
-            phi (float): The azimuth angle defining the rotation axis in the XY plane.
-            qubit (int): The qubit to apply the gate to.
-
-        Raises:
-            ValueError: If qubit out of circuit range.
-        """
-        if qubit < self.nqubits:
-            self.gates.append(('r', theta, phi, qubit))
-            self._add_qubits(qubit)
-            if isinstance(theta,str):
-                self.params_value[theta] = theta
-            if isinstance(phi,str):
-                self.params_value[phi] = phi
-            return self
-        else:
-            raise ValueError("Qubit index out of range")
-        
     def u(self, theta: float, phi: float, lamda: float, qubit: int) -> 'QuantumCircuit':
         r"""
         Add a U3 gate.
@@ -1064,40 +992,6 @@ Indexed format examples: "X1 Y2 Z3 Z4".
                 return self
             else:
                 raise ValueError(f"Qubit index conflict: qubit1 and qubit2 are both {qubit1}")
-        else:
-            raise ValueError("Qubit index out of range")
-
-    def cp(self, theta: float, control_qubit: int, target_qubit:int) -> 'QuantumCircuit':
-        r"""
-        Add a Cphase gate.
-
-        $$
-        CP(\theta) = I \otimes |0\rangle\langle 0| + P \otimes |1\rangle\langle 1| = 
-        \begin{bmatrix}
-         1  & 0 & 0 & 0 \\
-         0 & 1 & 0 & 0 \\
-         0 & 0 & 1 & 0 \\
-         0 & 0 & 0 & e^{i\theta}
-        \end{bmatrix}.
-        $$
-
-        Args:
-            theta (float): The rotation angle of the gate.
-            control_qubit (int): The qubit to apply the gate to.
-            target_qubit (int): The qubit to apply the gate to.
-
-        Raises:
-            ValueError: If qubit out of circuit range.
-        """
-        if max(control_qubit, target_qubit) < self.nqubits:
-            if control_qubit != target_qubit:
-                self.gates.append(('cp', theta, control_qubit, target_qubit))
-                self._add_qubits(control_qubit, target_qubit)
-                if isinstance(theta,str):
-                    self.params_value[theta] = theta
-                return self
-            else:
-                raise ValueError(f"Qubit index conflict: qubit1 and qubit2 are both {control_qubit}")
         else:
             raise ValueError("Qubit index out of range")
 
@@ -1550,8 +1444,6 @@ Indexed format examples: "X1 Y2 Z3 Z4".
             lines.append("include \"qelib1.inc\";")
             if 'delay' in gates0:
                 lines.append("opaque delay(param0) q0;")
-            if 'r' in gates0:
-                lines.append("gate r(param0,param1) q0 { u3(param0,param1 - pi/2,pi/2 - param1) q0; }")
             lines.append(f"qreg q[{self.nqubits}];")
             lines.append(f"creg c[{self.ncbits}];")
         elif version == "3.0":
@@ -1559,8 +1451,6 @@ Indexed format examples: "X1 Y2 Z3 Z4".
             lines.append("include \"stdgates.inc\";")
             if 'delay' in gates0:
                 lines.append("defcalgrammar \"openpulse\";")
-            if 'r' in gates0:
-                lines.append("gate r(theta,phi) q { u(theta,phi - pi/2,pi/2 - phi) q; }")
             lines.append(f"qubit[{self.nqubits}] q;")
             lines.append(f"bit[{self.ncbits}] c;")
         else:
@@ -1596,10 +1486,6 @@ Indexed format examples: "X1 Y2 Z3 Z4".
                 phi = self._fmt_param(gate_info[2], symbolic)
                 lamda = self._fmt_param(gate_info[3], symbolic)
                 return [f"{gate}({theta},{phi},{lamda}) q[{gate_info[-1]}];"]
-            if gate == 'r':
-                theta = self._fmt_param(gate_info[1], symbolic)
-                phi = self._fmt_param(gate_info[2], symbolic)
-                return [f"{gate}({theta},{phi}) q[{gate_info[-1]}];"]
             param_value = self._fmt_param(gate_info[1], symbolic)
             return [f"{gate}({param_value}) q[{gate_info[2]}];"]
         if gate in ['reset']:

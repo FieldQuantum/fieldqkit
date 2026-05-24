@@ -14,7 +14,6 @@ def test_three_qubit_decompose_removes_three_qubit_gates():
     qc = QuantumCircuit(3, 3)
     qc.ccx(0, 1, 2)
     qc.ccz(0, 1, 2)
-    qc.cswap(0, 1, 2)
     qc.measure([0, 1, 2], [0, 1, 2])
 
     new_qc = ThreeQubitGateDecompose().run(qc)
@@ -32,7 +31,6 @@ def test_translate_to_basis_gates_cz_and_u_only():
     qc.rxx(0.3, 0, 1)
     qc.ryy(-0.4, 0, 1)
     qc.rzz(0.5, 0, 1)
-    qc.cp(0.6, 0, 1)
     qc.measure([0, 1], [0, 1])
 
     new_qc = TranslateToBasisGates(convert_single_qubit_gate_to_u=True, two_qubit_gate_basis="cz").run(qc)
@@ -885,11 +883,14 @@ def test_expand_matrix_x_on_second_qubit():
 def test_expand_matrix_cx():
     """_expand_matrix on a CX with swapped positions gives correct matrix."""
     from quantum_hw.circuit.matrix import cx_mat
-    # CX on (1, 0) in a 2-qubit space — reversed qubit order
+    # CX on (1, 0): gate bit-0 → phys qubit 1, gate bit-1 → phys qubit 0.
+    # The result is CX with control on q1 and target on q0:
+    # |00⟩→0|00⟩, |01⟩→0|11⟩, |10⟩→0|10⟩, |11⟩→0|01⟩  (row order |q0 q1⟩)
     full = GateCompressor._expand_matrix(cx_mat, [1, 0], 2)
-    # This should be the XC (target-controlled) matrix
-    from quantum_hw.circuit.matrix import xc_mat
-    assert np.allclose(full, xc_mat)
+    expected = np.array(
+        [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 0, 1], [0, 0, 1, 0]], dtype=complex
+    )
+    assert np.allclose(full, expected)
 
 
 # --------------- Layout: Pool fallback & subgraph enumeration ---------------

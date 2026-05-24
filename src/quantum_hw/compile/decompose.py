@@ -629,39 +629,6 @@ def ccx_decompose(control_qubit1: int, control_qubit2: int, target_qubit: int):
     return gates
 
 
-def cswap_decompose(control_qubit1: int, control_qubit2: int, target_qubit: int):
-    """Decompose a Fredkin (CSWAP) gate into single- and two-qubit gates.
-
-    Args:
-        control_qubit1 (int): Control qubit index.
-        control_qubit2 (int): First swap-target qubit index.
-        target_qubit (int): Second swap-target qubit index.
-
-    Returns:
-        list: Decomposed gate info tuples.
-    """
-    gates = [
-        ("cx", target_qubit, control_qubit2),
-        ("h", target_qubit),
-        ("cx", control_qubit2, target_qubit),
-        ("tdg", target_qubit),
-        ("cx", control_qubit1, target_qubit),
-        ("t", target_qubit),
-        ("cx", control_qubit2, target_qubit),
-        ("t", control_qubit2),
-        ("tdg", target_qubit),
-        ("cx", control_qubit1, target_qubit),
-        ("cx", control_qubit1, control_qubit2),
-        ("t", target_qubit),
-        ("t", control_qubit1),
-        ("tdg", control_qubit2),
-        ("h", target_qubit),
-        ("cx", control_qubit1, control_qubit2),
-        ("cx", target_qubit, control_qubit2),
-    ]
-    return gates
-
-
 def ccz_decompose(control_qubit1: int, control_qubit2: int, target_qubit: int):
     """Decompose a CCZ gate into single- and two-qubit gates.
 
@@ -724,7 +691,7 @@ class ThreeQubitGateDecompose(TranspilerPass):
         super().__init__()
 
     def run(self, qc: QuantumCircuit):
-        """Decompose three-qubit gates (ccx, ccz, cswap) into one- and two-qubit gates.
+        """Decompose three-qubit gates (ccx, ccz) into one- and two-qubit gates.
 
         Args:
             qc (*QuantumCircuit*): Quantum circuit.
@@ -738,8 +705,6 @@ class ThreeQubitGateDecompose(TranspilerPass):
                 new += ccx_decompose(*gate_info[1:])
             elif gate_info[0] == "ccz":
                 new += ccz_decompose(*gate_info[1:])
-            elif gate_info[0] == "cswap":
-                new += cswap_decompose(*gate_info[1:])
             else:
                 new.append(gate_info)
         new_qc = qc.deepcopy()

@@ -53,32 +53,22 @@ def build_cluster(num_qubits: int, measure: bool = False) -> QuantumCircuit:
 
 
 def _apply_controlled_phase(qc: QuantumCircuit, control: int, target: int, angle: float) -> None:
-	"""Apply a controlled phase gate with API fallback.
+	"""Apply a controlled-phase CP(θ) using the basic gate decomposition.
 
-	Tries ``cp`` → ``cu1`` → ``crz`` in order.  Note that ``crz`` is *not*
-	exactly equivalent to ``cp`` (they differ by a global phase); the
-	fallback is provided only for circuits where the global phase does
-	not matter.
+	``CP(λ) = Rz(λ/2, ctrl) · CX · Rz(-λ/2, tgt) · CX · Rz(λ/2, tgt)``
 
 	Args:
 		qc (*QuantumCircuit*): Quantum circuit.
 		control (*int*): Control qubit index.
 		target (*int*): Target qubit index.
-		angle (*float*): Rotation angle in radians.
-
-	Raises:
-		AttributeError: QuantumCircuit does not support controlled phase gate
+		angle (*float*): Phase angle λ in radians.
 	"""
-	if hasattr(qc, "cp"):
-		qc.cp(angle, control, target)
-		return
-	if hasattr(qc, "cu1"):
-		qc.cu1(angle, control, target)
-		return
-	if hasattr(qc, "crz"):
-		qc.crz(angle, control, target)
-		return
-	raise AttributeError("QuantumCircuit does not support controlled phase gate")
+	# CP(λ) decomposed into basic gates: rz + cx + rz + cx + rz
+	qc.rz(angle / 2, control)
+	qc.cx(control, target)
+	qc.rz(-angle / 2, target)
+	qc.cx(control, target)
+	qc.rz(angle / 2, target)
 
 
 def build_qft(num_qubits: int, measure: bool = False, with_swaps: bool = True) -> QuantumCircuit:
