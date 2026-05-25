@@ -14,6 +14,8 @@ Credentials are resolved in the following order (first match wins):
    - ``TIANYAN_API_TOKEN``  – 天衍量子云 (https://qc.zdxlz.com/)
    - ``GUODUN_API_TOKEN``  – 国盾量子云 (https://quantumctek-cloud.com/)
    - ``TENCENT_API_TOKEN``  – 腾讯量子云 (https://quantum.tencent.com/cloud/)
+   - ``ORIGIN_API_TOKEN``   – 本源量子云 (https://qcloud.originqc.com.cn/)
+   - ``FIELDQUANTUM_API_TOKEN`` – 量坤乾坤云 (https://fieldquantum.tech/)
 
 The ``.quantum_hw.yaml`` file is excluded from Git via ``.gitignore``.
 """
@@ -118,6 +120,7 @@ _CREDENTIAL_MAP: Dict[str, tuple[str, str, str]] = {
     "guodun":  ("guodun",  "api_token",  "GUODUN_API_TOKEN"),
     "tencent": ("tencent", "api_token",  "TENCENT_API_TOKEN"),
     "origin":  ("origin",  "api_token",  "ORIGIN_API_TOKEN"),
+    "fieldquantum": ("fieldquantum", "api_token", "FIELDQUANTUM_API_TOKEN"),
 }
 
 _PLATFORM_LABELS: Dict[str, str] = {
@@ -126,6 +129,7 @@ _PLATFORM_LABELS: Dict[str, str] = {
     "guodun":  "GuoDun (国盾)  – https://quantumctek-cloud.com/",
     "tencent": "Tencent (腾讯) – https://quantum.tencent.com/cloud/",
     "origin":  "Origin (本源) – https://qcloud.originqc.com.cn/",
+    "fieldquantum": "FieldQuantum (量坤) – https://fieldquantum.tech/",
 }
 
 
@@ -224,3 +228,15 @@ def get_origin_api_token() -> str:
         ValueError: If no credential is found.
     """
     return _get_credential("origin")
+
+
+def get_fieldquantum_api_token() -> str:
+    """Return FieldQuantum API token (config file → ``FIELDQUANTUM_API_TOKEN`` env var).
+
+    Returns:
+        API token string of the form ``fq_<32hex>``.
+
+    Raises:
+        ValueError: If no credential is found.
+    """
+    return _get_credential("fieldquantum")

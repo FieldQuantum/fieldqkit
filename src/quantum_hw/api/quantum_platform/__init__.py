@@ -77,16 +77,10 @@ def create_provider_runtime(*, provider: str, client: Any) -> ProviderRuntime:
             task_adapter=TencentTaskAdapter(client=client),
         )
     if provider_name == "fieldquantum":
-        import os
-        from .fieldquantum import (  # noqa: PLC0415
-            FieldQuantumBackendAdapter,
-            FieldQuantumTaskAdapter,
-        )
-        base_url = os.environ.get("FIELDQUANTUM_SERVER_URL", "http://localhost:8765")
         return ProviderRuntime(
             provider=provider_name,
-            backend_adapter=FieldQuantumBackendAdapter(base_url=base_url),
-            task_adapter=FieldQuantumTaskAdapter(client=client, base_url=base_url),
+            backend_adapter=FieldQuantumBackendAdapter(),
+            task_adapter=FieldQuantumTaskAdapter(client=client),
         )
     if provider_name == "origin":
         return ProviderRuntime(

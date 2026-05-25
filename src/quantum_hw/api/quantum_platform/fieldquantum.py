@@ -1,13 +1,21 @@
 """FieldQuantum cloud simulator provider.
 
-Client-side adapters for the FieldQuantum HTTP-based cloud simulator backend.
-The companion server (``fieldquantum_server.py``) must be running before
-jobs can be submitted through this provider.
+Client-side adapters for the FieldQuantum HTTP-based cloud simulator backend
+(https://fieldquantum.tech). The service exposes a REST API rooted at
+``https://api.fieldquantum.tech/api/v1/fieldquantum`` and requires a bearer
+token of the form ``fq_<32hex>`` issued at
+``https://fieldquantum.tech/account/api-token/``.
+
+Endpoints used:
+
+    POST /task/run                -> {"task_id": int, "status": "submitted"}
+    GET  /task/status/{task_id}   -> {"task_id", "status", "fqd_task_id"}
+    GET  /task/result/{task_id}   -> {"task_id", "status", "result"|"error"}
+
+Server-side status values are normalised to the unified client states
+``"Running"`` / ``"Finished"`` / ``"Failed"``.
 
 Typical usage::
-
-    # start server once:
-    #   python -m quantum_hw.api.fieldquantum_server
 
     client = QuantumHardwareClient()
     result = client.run_auto(
@@ -19,8 +27,11 @@ Typical usage::
 
 from __future__ import annotations
 
+import base64
+import json
 import logging
 import os
+import time
 from typing import Any, Dict, List, Optional
 
 import requests
@@ -33,16 +44,18 @@ from ..backend import (
     _build_simulator_chip_info,
     build_simulator_profile,
 )
+from ..platform_credentials import get_fieldquantum_api_token
 from ..task import OpenQasmSubmitRequest, ProviderTaskHandle, TaskAdapter
 
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
-# Configurable server URL (override via env-var for non-localhost setups)
+# Configurable server URL (override via env-var for staging / private deploys)
 # ---------------------------------------------------------------------------
 
 FIELDQUANTUM_DEFAULT_URL: str = os.environ.get(
-    "FIELDQUANTUM_SERVER_URL", "http://localhost:8765"
+    "FIELDQUANTUM_SERVER_URL",
+    "https://api.fieldquantum.tech/api/v1/fieldquantum",
 )
 
 
@@ -51,27 +64,166 @@ FIELDQUANTUM_DEFAULT_URL: str = os.environ.get(
 # ---------------------------------------------------------------------------
 
 class FieldQuantumPlatform:
-    """Thin HTTP client that wraps the FieldQuantum simulator REST API.
+    """Thin HTTP client for the FieldQuantum cloud simulator REST API.
 
-    Args:
-        base_url: Root URL of the server, e.g. ``"http://localhost:8765"``.
+    The API root is taken from the module-level :data:`FIELDQUANTUM_DEFAULT_URL`
+    (override via the ``FIELDQUANTUM_SERVER_URL`` env var). The bearer token
+    (``fq_<32hex>``) is resolved at construction time via
+    :func:`get_fieldquantum_api_token` (config file → ``FIELDQUANTUM_API_TOKEN``
+    env var).
     """
 
-    def __init__(self, base_url: str = FIELDQUANTUM_DEFAULT_URL) -> None:
-        self.base_url = base_url.rstrip("/")
+    def __init__(self) -> None:
+        self.base_url = FIELDQUANTUM_DEFAULT_URL.rstrip("/")
         self._session = requests.Session()
+        self._session.headers.update({
+            "Authorization": f"Bearer {get_fieldquantum_api_token()}",
+            "Content-Type": "application/json",
+        })
+
+    # ------------------------------------------------------------------
+    # Helpers
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _extract_error(data: Any, fallback: str) -> str:
+        """Pull a human-readable error string out of a server JSON body."""
+        if isinstance(data, dict):
+            for key in ("message", "error"):
+                value = data.get(key)
+                if value:
+                    return str(value)
+        return fallback
+
+    def _raise_for_response(self, resp: requests.Response) -> Dict[str, Any]:
+        """Parse a JSON response and raise ``RuntimeError`` on server errors.
+
+        The FieldQuantum service signals failure via both HTTP status code
+        and a JSON body containing ``"error"`` and (optionally) ``"message"``.
+        """
+        try:
+            data = resp.json()
+        except ValueError:
+            data = {}
+        if resp.status_code >= 400:
+            msg = self._extract_error(data, fallback=resp.text or resp.reason)
+            raise RuntimeError(f"FieldQuantum HTTP {resp.status_code}: {msg}")
+        if isinstance(data, dict) and "error" in data and "result" not in data:
+            raise RuntimeError(
+                f"FieldQuantum server error: {self._extract_error(data, 'unknown')}"
+            )
+        return data
 
     # ------------------------------------------------------------------
     # API methods
     # ------------------------------------------------------------------
 
-    def health_check(self) -> bool:
-        """Return ``True`` if the server is reachable and healthy."""
-        try:
-            resp = self._session.get(f"{self.base_url}/health", timeout=5)
-            return resp.status_code == 200
-        except Exception:
-            return False
+    def submit_job(self, payload: Dict[str, Any]) -> str:
+        """POST *payload* to ``/task/run`` and return the server task_id.
+
+        Args:
+            payload: Request body dict (must include ``"mode"`` key).
+
+        Returns:
+            Task ID as a string. (The server issues integer IDs; we keep
+            the wider string type for parity with other providers and the
+            ``ProviderTaskHandle`` contract.)
+
+        Raises:
+            RuntimeError: If the server returns an error body or non-2xx.
+        """
+        resp = self._session.post(
+            f"{self.base_url}/task/run",
+            json=payload,
+            timeout=300,
+        )
+        data = self._raise_for_response(resp)
+        return str(data["task_id"])
+
+    def query_task_status(self, task_id: str) -> str:
+        """Query the raw status of a submitted task.
+
+        Returns:
+            Raw server status, one of ``submitted``, ``queued``, ``running``,
+            ``finished``, ``failed``, ``error``.
+        """
+        resp = self._session.get(
+            f"{self.base_url}/task/status/{task_id}",
+            timeout=10,
+        )
+        data = self._raise_for_response(resp)
+        return data.get("status", "unknown")
+
+    def fetch_task_result(self, task_id: str) -> Dict[str, Any]:
+        """Retrieve the result of a finished task.
+
+        Returns:
+            Unwrapped result payload (the contents of the server's
+            ``"result"`` field). For ``sample`` mode this contains
+            ``"counts"``; for ``expectation`` mode it contains
+            ``"energy"`` / ``"expectations"`` / ``"gradients"``.
+
+        Raises:
+            RuntimeError: If the task is still pending (HTTP 425), failed,
+                or the request itself errored out.
+        """
+        resp = self._session.get(
+            f"{self.base_url}/task/result/{task_id}",
+            timeout=300,
+        )
+        # HTTP 425 means "not ready" — surface as a distinct error so callers
+        # know to keep polling instead of treating it as a hard failure.
+        if resp.status_code == 425:
+            raise RuntimeError(
+                f"FieldQuantum task {task_id} not ready yet "
+                "(poll /task/status until status=finished)"
+            )
+        data = self._raise_for_response(resp)
+        status = data.get("status")
+        if status in ("failed", "error"):
+            raise RuntimeError(
+                f"FieldQuantum task {task_id} failed: "
+                f"{self._extract_error(data, 'unknown')}"
+            )
+        result = data.get("result")
+        if not isinstance(result, dict):
+            raise RuntimeError(
+                f"FieldQuantum task {task_id}: unexpected result payload {data!r}"
+            )
+        return self._unwrap_log_payload(task_id, result)
+
+    @staticmethod
+    def _unwrap_log_payload(task_id: str, result: Dict[str, Any]) -> Dict[str, Any]:
+        """Decode the actual simulator output from the server's log-stream wrapper.
+
+        The server delivers results passed-through from the downstream provider
+        as log lines: ``result = {"logs": [{"body": "FQ_RESULT_B64:<...>", ...}],
+        "total": "1", ...}``. The body's base64 payload decodes to the real
+        ``{"counts": ...}`` / ``{"energy": ..., "expectations": ...,
+        "gradients": ...}`` dict.
+
+        If the wrapper shape isn't present, returns *result* unchanged so this
+        stays forward-compatible with a future direct-result format.
+        """
+        logs = result.get("logs")
+        if not isinstance(logs, list):
+            return result
+        for entry in logs:
+            body = entry.get("body") if isinstance(entry, dict) else None
+            if not isinstance(body, str) or "FQ_RESULT_B64:" not in body:
+                continue
+            b64 = body.split("FQ_RESULT_B64:", 1)[1].strip()
+            try:
+                return json.loads(base64.b64decode(b64))
+            except Exception as exc:
+                raise RuntimeError(
+                    f"FieldQuantum task {task_id}: failed to decode FQ_RESULT_B64: {exc}"
+                ) from exc
+        raise RuntimeError(
+            f"FieldQuantum task {task_id}: server marked finished but published no "
+            f"FQ_RESULT_B64 log line (got logs={logs!r}). "
+            "This is a server-side bug — please report to the FieldQuantum team."
+        )
 
     def run_expectation(
         self,
@@ -79,21 +231,24 @@ class FieldQuantumPlatform:
         param_names: List[str],
         param_values: List[float],
         hamiltonian: List[Dict[str, Any]],
+        *,
+        poll_interval: float = 3.0,
+        timeout: float = 600.0,
     ) -> Dict[str, Any]:
-        """Submit an *expectation* request and return energy + gradients.
-
-        The server computes exact Pauli expectation values via automatic
-        differentiation (no shots required).
+        """Submit an ``expectation`` job and block until results are ready.
 
         Args:
-            qasm: OpenQASM 2.0 circuit template with symbolic parameter names
-                  (e.g. ``rx(theta_0) q[0];``).
+            qasm: OpenQASM 2.0 circuit template using symbolic parameter
+                placeholders (e.g. ``rx(theta_0) q[0];``).
             param_names: Ordered list of symbolic parameter names.
-            param_values: Numeric values corresponding to *param_names*.
+            param_values: Numeric values matching *param_names*.
             hamiltonian: List of ``{"coeff": float, "pauli": str}`` dicts.
+            poll_interval: Seconds between status polls (>=3s recommended
+                by the service; internal reconciliation is 10s).
+            timeout: Hard timeout in seconds.
 
         Returns:
-            Dict with keys ``"energy"``, ``"expectations"``, and ``"gradients"``.
+            ``{"energy", "expectations", "gradients"}``.
         """
         task_id = self.submit_job({
             "mode": "expectation",
@@ -102,71 +257,34 @@ class FieldQuantumPlatform:
             "param_values": list(param_values),
             "hamiltonian": hamiltonian,
         })
-        return self.fetch_task_result(task_id)
+        deadline = time.monotonic() + timeout
+        while True:
+            status = self.query_task_status(task_id)
+            if status == "finished":
+                return self.fetch_task_result(task_id)
+            if status in ("failed", "error"):
+                # Let fetch_task_result surface the server's error message.
+                return self.fetch_task_result(task_id)
+            if time.monotonic() > deadline:
+                raise TimeoutError(
+                    f"FieldQuantum task {task_id} timed out in status={status!r}"
+                )
+            time.sleep(max(poll_interval, 3.0))
 
-    def submit_job(self, payload: Dict[str, Any]) -> str:
-        """POST *payload* to ``/run`` and return the server-issued *task_id*.
 
-        Args:
-            payload: Request body dict (must include ``"mode"`` key).
+# ---------------------------------------------------------------------------
+# Status normalisation
+# ---------------------------------------------------------------------------
 
-        Returns:
-            Task ID string issued by the server.
-
-        Raises:
-            requests.HTTPError: On non-2xx HTTP status.
-            RuntimeError: If the server returns an error body.
-        """
-        resp = self._session.post(
-            f"{self.base_url}/run",
-            json=payload,
-            timeout=300,
-        )
-        resp.raise_for_status()
-        data = resp.json()
-        if "error" in data:
-            raise RuntimeError(f"Server error: {data['error']}")
-        return data["task_id"]
-
-    def query_task_status(self, task_id: str) -> str:
-        """Query the execution status of a submitted task.
-
-        Args:
-            task_id: Task ID returned by :meth:`submit_job`.
-
-        Returns:
-            Status string: ``"finished"``, ``"running"``, ``"pending"``, or ``"error"``.
-        """
-        resp = self._session.get(
-            f"{self.base_url}/task/{task_id}/status",
-            timeout=10,
-        )
-        resp.raise_for_status()
-        return resp.json().get("status", "unknown")
-
-    def fetch_task_result(self, task_id: str) -> Dict[str, Any]:
-        """Retrieve the result of a finished task.
-
-        Args:
-            task_id: Task ID returned by :meth:`submit_job`.
-
-        Returns:
-            Result dict (structure depends on mode: ``"counts"`` for sample,
-            ``"energy"`` / ``"gradients"`` for expectation).
-
-        Raises:
-            requests.HTTPError: On non-2xx HTTP status.
-            RuntimeError: If the server stored an error for this task.
-        """
-        resp = self._session.get(
-            f"{self.base_url}/task/{task_id}/result",
-            timeout=300,
-        )
-        resp.raise_for_status()
-        data = resp.json()
-        if "error" in data:
-            raise RuntimeError(f"Server error: {data['error']}")
-        return data
+_STATUS_MAP: Dict[str, str] = {
+    "submitted": "Running",
+    "pending":   "Running",
+    "queued":    "Running",
+    "running":   "Running",
+    "finished":  "Finished",
+    "failed":    "Failed",
+    "error":     "Failed",
+}
 
 
 # ---------------------------------------------------------------------------
@@ -176,26 +294,17 @@ class FieldQuantumPlatform:
 class FieldQuantumBackendAdapter(BackendAdapter):
     """Backend adapter for the FieldQuantum cloud simulator.
 
-    No credentials are required; the server must be reachable at *base_url*.
-
     Args:
-        base_url: Server URL. Defaults to ``FIELDQUANTUM_DEFAULT_URL``.
         num_qubits: Default qubit count for the synthetic chip. Defaults to 16.
     """
 
     provider = "fieldquantum"
     default_hardware_name = "fieldquantum_sim"
 
-    def __init__(
-        self,
-        *,
-        base_url: str = FIELDQUANTUM_DEFAULT_URL,
-        num_qubits: int = 16,
-    ) -> None:
-        self._base_url = base_url
+    def __init__(self, *, num_qubits: int = 16) -> None:
         self._num_qubits = num_qubits
         self._machine_name = "fieldquantum_sim"
-        self._platform = FieldQuantumPlatform(base_url=base_url)
+        self._platform = FieldQuantumPlatform()
 
     # ------------------------------------------------------------------
     # BackendAdapter interface
@@ -210,18 +319,9 @@ class FieldQuantumBackendAdapter(BackendAdapter):
         num_qubits: int,
         prefer_hardware: Optional[Any] = None,
     ) -> ResolvedBackend:
-        """Build a synthetic chip backend for the given qubit count.
-
-        Args:
-            num_qubits: Number of qubits to allocate on the synthetic chip.
-            prefer_hardware: Ignored for the cloud simulator.
-
-        Returns:
-            ``ResolvedBackend`` backed by a synthetic chip matching *num_qubits*.
-        """
+        """Build a synthetic chip backend for the given qubit count."""
         nq = max(int(num_qubits), 1)
         chip_info = _build_simulator_chip_info(nqubits=nq)
-        # Tag the chip_info so Backend.__init__ can identify it from a dict.
         chip_info["chip_name"] = "fieldquantum_sim"
         backend_obj = Backend(chip_info)
         profile = build_simulator_profile(provider=self.provider, num_qubits=nq)
@@ -239,29 +339,17 @@ class FieldQuantumBackendAdapter(BackendAdapter):
 # ---------------------------------------------------------------------------
 
 class FieldQuantumTaskAdapter(TaskAdapter):
-    """Task adapter that submits OpenQASM circuits to the FieldQuantum server.
-
-    Implements the full task lifecycle:
-    1. :meth:`submit_openqasm` — POST ``/run``, receive *task_id*.
-    2. :meth:`query_status` — GET ``/task/{task_id}/status``.
-    3. :meth:`fetch_result` — GET ``/task/{task_id}/result``.
+    """Submit OpenQASM circuits to the FieldQuantum cloud simulator.
 
     Args:
-        client: ``QuantumHardwareClient`` instance (not used directly, kept
-                for interface parity with other adapters).
-        base_url: Server URL. Defaults to ``FIELDQUANTUM_DEFAULT_URL``.
+        client: ``QuantumHardwareClient`` instance (kept for interface parity).
     """
 
     provider = "fieldquantum"
 
-    def __init__(
-        self,
-        *,
-        client: Any,
-        base_url: str = FIELDQUANTUM_DEFAULT_URL,
-    ) -> None:
+    def __init__(self, *, client: Any) -> None:
         self._client = client
-        self._platform = FieldQuantumPlatform(base_url=base_url)
+        self._platform = FieldQuantumPlatform()
 
     # ------------------------------------------------------------------
     # TaskAdapter interface
@@ -272,15 +360,7 @@ class FieldQuantumTaskAdapter(TaskAdapter):
         submit_request: OpenQasmSubmitRequest,
         backend: ResolvedBackend,
     ) -> ProviderTaskHandle:
-        """POST QASM to the server (sample mode) and return a handle with the server task_id.
-
-        Args:
-            submit_request: Submission descriptor with QASM, shots, etc.
-            backend: Resolved backend (provides ``platform_obj`` in metadata).
-
-        Returns:
-            ``ProviderTaskHandle`` with the server-issued *task_id*.
-        """
+        """POST QASM (sample mode) and return a handle with the server task_id."""
         platform: FieldQuantumPlatform = (
             backend.metadata.get("platform_obj") or self._platform
         )
@@ -302,27 +382,11 @@ class FieldQuantumTaskAdapter(TaskAdapter):
         )
 
     def query_status(self, handle: ProviderTaskHandle) -> str:
-        """Poll ``/task/{task_id}/status`` and return a normalised status string.
-
-        Returns:
-            ``"Finished"``, ``"Running"``, or ``"Failed"``.
-        """
+        """Normalise the server status to ``Running`` / ``Finished`` / ``Failed``."""
         raw = self._platform.query_task_status(handle.task_id)
-        return {
-            "finished": "Finished",
-            "error": "Failed",
-            "pending": "Running",
-            "running": "Running",
-        }.get(raw, "Running")
+        return _STATUS_MAP.get(raw, "Running")
 
     def fetch_result(self, handle: ProviderTaskHandle) -> Dict[str, Any]:
-        """Fetch the result from ``/task/{task_id}/result``.
-
-        Args:
-            handle: Task handle from :meth:`submit_openqasm`.
-
-        Returns:
-            ``{"count": {bitstring: int, ...}}`` dict consumed by the client.
-        """
+        """Fetch counts for a finished sample-mode task."""
         result = self._platform.fetch_task_result(handle.task_id)
         return {"count": result.get("counts", {})}

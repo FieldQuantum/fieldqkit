@@ -17,10 +17,10 @@ MIN_CONNECTED_COUPLER_FIDELITY = 0.9
 # ---------------------------------------------------------------------------
 
 QUAFU_HARDWARE_NAMES = {"Baihua", "Dongling", "Haituo", "Yunmeng", "Miaofeng", "Yudu", "Hongluo"}
-TIANYAN_HARDWARE_NAMES = {"tianyan176", "tianyan176-2", "tianyan24", "tianyan504", "tianyan287"}
-GUODUN_HARDWARE_NAMES = {"gd_qc1", "chmy176", "gd_sim1", "gd_test"}
+TIANYAN_HARDWARE_NAMES = {"supremacy_sample", "tianyan-287", "tianyan176", "tianyan176-2", "tianyan24", "tianyan287", "tianyan504", "tianyan_s", "tianyan_sa", "tianyan_sw", "tianyan_swn", "tianyan_tn", "tianyan_tnn"}
+GUODUN_HARDWARE_NAMES = {"chmy176", "gd_qc1", "gd_sim1", "gd_test", "tianyan_s", "tianyan_sw", "tianyan_tn"}
 CQLIB_HARDWARE_NAMES = TIANYAN_HARDWARE_NAMES | GUODUN_HARDWARE_NAMES
-TENCENT_HARDWARE_NAMES = {"tianji_s2", "tianji_m2", "tianxuan_s2"}
+TENCENT_HARDWARE_NAMES = {"simulator:tc", "tianji_m2", "tianji_m2v14s2", "tianji_m2v14s4", "tianji_m2v15s3", "tianji_m2v16s1", "tianji_s2", "tianji_s2v6", "tianji_s2v7", "tianxuan_s2", "tianxuan_s2v20s1", "tianxuan_s2v20s2"}
 ORIGIN_HARDWARE_NAMES = {"PQPUMESH8", "WK_C180", "HanYuan_01"}
 SIMULATOR_HARDWARE_NAMES = {"Simulator", "simulator"}
 FIELDQUANTUM_HARDWARE_NAMES = {"fieldquantum_sim"}

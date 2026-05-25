@@ -29,3 +29,7 @@ credentials:
   # 本源量子云 - https://qcloud.originqc.com.cn/
   origin:
     api_token: ""
+
+  # FieldQuantum 云端高性能模拟器 — https://fieldquantum.tech/
+  fieldquantum:
+    api_token: ""
