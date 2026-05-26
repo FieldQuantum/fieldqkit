@@ -850,7 +850,6 @@ def run_variational_loop(
                 param_names=list(param_names),
                 param_values=params.tolist(),
                 hamiltonian=_cloud_hamiltonian,
-                shots=shots,
             )
             cost = float(result["energy"])
             expectations = {k: float(v) for k, v in result.get("expectations", {}).items()}

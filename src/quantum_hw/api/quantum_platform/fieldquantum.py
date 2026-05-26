@@ -27,8 +27,6 @@ Typical usage::
 
 from __future__ import annotations
 
-import base64
-import json
 import logging
 import os
 import time
@@ -190,40 +188,7 @@ class FieldQuantumPlatform:
             raise RuntimeError(
                 f"FieldQuantum task {task_id}: unexpected result payload {data!r}"
             )
-        return self._unwrap_log_payload(task_id, result)
-
-    @staticmethod
-    def _unwrap_log_payload(task_id: str, result: Dict[str, Any]) -> Dict[str, Any]:
-        """Decode the actual simulator output from the server's log-stream wrapper.
-
-        The server delivers results passed-through from the downstream provider
-        as log lines: ``result = {"logs": [{"body": "FQ_RESULT_B64:<...>", ...}],
-        "total": "1", ...}``. The body's base64 payload decodes to the real
-        ``{"counts": ...}`` / ``{"energy": ..., "expectations": ...,
-        "gradients": ...}`` dict.
-
-        If the wrapper shape isn't present, returns *result* unchanged so this
-        stays forward-compatible with a future direct-result format.
-        """
-        logs = result.get("logs")
-        if not isinstance(logs, list):
-            return result
-        for entry in logs:
-            body = entry.get("body") if isinstance(entry, dict) else None
-            if not isinstance(body, str) or "FQ_RESULT_B64:" not in body:
-                continue
-            b64 = body.split("FQ_RESULT_B64:", 1)[1].strip()
-            try:
-                return json.loads(base64.b64decode(b64))
-            except Exception as exc:
-                raise RuntimeError(
-                    f"FieldQuantum task {task_id}: failed to decode FQ_RESULT_B64: {exc}"
-                ) from exc
-        raise RuntimeError(
-            f"FieldQuantum task {task_id}: server marked finished but published no "
-            f"FQ_RESULT_B64 log line (got logs={logs!r}). "
-            "This is a server-side bug — please report to the FieldQuantum team."
-        )
+        return result
 
     def run_expectation(
         self,

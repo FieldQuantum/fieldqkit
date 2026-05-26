@@ -8,13 +8,6 @@
 
 `QuantumCircuit` 是项目中的主线路对象。上层算法（如 VQE、QAOA）、编译流程、模拟器和执行 API 都以该类为中心完成数据交换。
 
-## 工厂函数
-
-### `generate_ghz_state(nqubits: int) -> QuantumCircuit`
-
-- 作用：构造 GHZ 线路（`h(0)` + `cx(0, i)`）。
-- 返回：构造好的 `QuantumCircuit`。
-
 ## 构造与基础属性
 
 ### `QuantumCircuit(*args)`

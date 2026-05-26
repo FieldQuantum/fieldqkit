@@ -28,22 +28,6 @@ from .render import draw_circuit, draw_circuit_simply
 from .utils import u3_decompose, zyz_decompose, kak_decompose
 from .matrix import h_mat
 
-def generate_ghz_state(nqubits: int) -> 'QuantumCircuit':
-    r"""
-    Produce a GHZ state on n qubits.
-
-    Args:
-        nqubits (int): The number of qubits. Must be >= 2.
-
-    Returns:
-        QuantumCircuit: A quantum circuit representing the GHZ state.
-    """
-    cir =  QuantumCircuit(nqubits)
-    cir.h(0)
-    for i in range(1,nqubits):
-        cir.cx(0,i)
-    return cir
-
 class QuantumCircuit:
     r"""
     A class used to build and manipulate a quantum circuit.

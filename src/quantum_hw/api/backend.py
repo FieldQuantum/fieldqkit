@@ -16,14 +16,33 @@ MIN_CONNECTED_COUPLER_FIDELITY = 0.9
 # Canonical chip-name registry (single source of truth)
 # ---------------------------------------------------------------------------
 
-QUAFU_HARDWARE_NAMES = {"Baihua", "Dongling", "Haituo", "Yunmeng", "Miaofeng", "Yudu", "Hongluo"}
-TIANYAN_HARDWARE_NAMES = {"supremacy_sample", "tianyan-287", "tianyan176", "tianyan176-2", "tianyan24", "tianyan287", "tianyan504", "tianyan_s", "tianyan_sa", "tianyan_sw", "tianyan_swn", "tianyan_tn", "tianyan_tnn"}
-GUODUN_HARDWARE_NAMES = {"chmy176", "gd_qc1", "gd_sim1", "gd_test", "tianyan_s", "tianyan_sw", "tianyan_tn"}
+QUAFU_HARDWARE_NAMES = {"Baihua", "Dongling", "Yudu", "Hongluo"}
+TIANYAN_HARDWARE_NAMES = {"supremacy_sample", "tianyan-287", "tianyan176", "tianyan176-2", "tianyan24", "tianyan504", "tianyan_s", "tianyan_sa", "tianyan_sw", "tianyan_swn", "tianyan_tn"}
+GUODUN_HARDWARE_NAMES = {"chmy176", "gd_qc1", "gd_sim1", "gd_test"}
 CQLIB_HARDWARE_NAMES = TIANYAN_HARDWARE_NAMES | GUODUN_HARDWARE_NAMES
 TENCENT_HARDWARE_NAMES = {"simulator:tc", "tianji_m2", "tianji_m2v14s2", "tianji_m2v14s4", "tianji_m2v15s3", "tianji_m2v16s1", "tianji_s2", "tianji_s2v6", "tianji_s2v7", "tianxuan_s2", "tianxuan_s2v20s1", "tianxuan_s2v20s2"}
-ORIGIN_HARDWARE_NAMES = {"PQPUMESH8", "WK_C180", "HanYuan_01"}
+ORIGIN_HARDWARE_NAMES = {"PQPUMESH8", "WK_C180"}
 SIMULATOR_HARDWARE_NAMES = {"Simulator", "simulator"}
 FIELDQUANTUM_HARDWARE_NAMES = {"fieldquantum_sim"}
+
+# Cloud-side simulators registered under a real-hardware provider. The provider's
+# config endpoint refuses to return topology for these (e.g. cqlib returns
+# "Only quantum physics machines can obtain configuration parameters"), so we
+# substitute a synthetic full-connectivity chip_info and still route jobs
+# through the provider's task adapter.
+TIANYAN_CLOUD_SIM_NAMES = {
+    "supremacy_sample",
+    "tianyan_s",
+    "tianyan_sa",
+    "tianyan_sw",
+    "tianyan_swn",
+    "tianyan_tn",
+}
+GUODUN_CLOUD_SIM_NAMES: set[str] = set()
+TENCENT_CLOUD_SIM_NAMES = {"simulator:tc"}
+CLOUD_SIM_HARDWARE_NAMES = (
+    TIANYAN_CLOUD_SIM_NAMES | GUODUN_CLOUD_SIM_NAMES | TENCENT_CLOUD_SIM_NAMES
+)
 
 
 def _as_float_or_default(value: Any, default: float) -> float:
@@ -138,6 +157,10 @@ class Backend:
         if isinstance(chip, dict):
             self.chip_name = chip.get("chip_name", " ")
             self.chip_info = chip
+        elif chip in CLOUD_SIM_HARDWARE_NAMES:
+            self.chip_name = str(chip)
+            self.chip_info = _build_simulator_chip_info()
+            self.chip_info["chip_name"] = self.chip_name
         elif chip in QUAFU_HARDWARE_NAMES:
             from .quantum_platform.quafu import load_quafu_chip_info
             self.chip_name = str(chip)
@@ -418,6 +441,16 @@ def build_simulator_profile(*, provider: str, num_qubits: int) -> HardwareProfil
     )
 
 
+def _build_backend_for_chip(chip_name: str, *, num_qubits: int) -> "Backend":
+    """Build a ``Backend`` for *chip_name*, scaling cloud simulators to *num_qubits*.
+    """
+    if str(chip_name) in CLOUD_SIM_HARDWARE_NAMES:
+        chip_info = _build_simulator_chip_info(nqubits=max(int(num_qubits), 1))
+        chip_info["chip_name"] = str(chip_name)
+        return Backend(chip_info)
+    return Backend(chip_name)
+
+
 @dataclass
 class ResolvedBackend:
     provider: str
@@ -484,7 +517,7 @@ class BackendAdapter(ABC):
 
         profiles: List[HardwareProfile] = []
         for machine_name in candidate_names:
-            backend_obj = Backend(machine_name)
+            backend_obj = _build_backend_for_chip(machine_name, num_qubits=num_qubits)
             profile = build_hardware_profile(
                 provider=self.provider,
                 hardware_name=machine_name,
@@ -525,7 +558,7 @@ class BackendAdapter(ABC):
         if (not is_simulator) and platform_obj is not None and hasattr(platform_obj, "set_machine"):
             platform_obj.set_machine(chosen.hardware_name)
 
-        backend_obj = Backend(chosen.hardware_name)
+        backend_obj = _build_backend_for_chip(chosen.hardware_name, num_qubits=num_qubits)
 
         profile = build_hardware_profile(
             provider=self.provider,
