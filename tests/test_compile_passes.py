@@ -738,9 +738,12 @@ def test_commutation_non_commuting_pair():
 
 
 def test_commutation_matrix_fallback_cx_x_target():
-    """X on the target qubit (q0 in cx_mat convention) commutes with CX."""
-    # In the code's cx_mat convention, qubit 0 is the target.
-    assert GateCompressor._check_commutation(('x', 0), ('cx', 0, 1))
+    """Big-endian: cx(0,1) has control=q0, target=q1.
+
+    X on the target (q1) commutes with CX; X on the control (q0) does not.
+    """
+    assert GateCompressor._check_commutation(('x', 1), ('cx', 0, 1))
+    assert not GateCompressor._check_commutation(('x', 0), ('cx', 0, 1))
 
 
 def test_commutation_barrier_blocks():
@@ -881,16 +884,55 @@ def test_expand_matrix_x_on_second_qubit():
 
 
 def test_expand_matrix_cx():
-    """_expand_matrix on a CX with swapped positions gives correct matrix."""
+    """_expand_matrix places positions[0] as the high-order (control) slot.
+
+    With big-endian cx_mat (control = first qubit = MSB):
+      - positions=[0,1] → CX(control=q0, target=q1), the standard CNOT.
+      - positions=[1,0] → CX(control=q1, target=q0), the reversed embedding.
+    """
     from quantum_hw.circuit.matrix import cx_mat
-    # CX on (1, 0): gate bit-0 → phys qubit 1, gate bit-1 → phys qubit 0.
-    # The result is CX with control on q1 and target on q0:
-    # |00⟩→0|00⟩, |01⟩→0|11⟩, |10⟩→0|10⟩, |11⟩→0|01⟩  (row order |q0 q1⟩)
-    full = GateCompressor._expand_matrix(cx_mat, [1, 0], 2)
+
+    full = GateCompressor._expand_matrix(cx_mat, [0, 1], 2)
     expected = np.array(
         [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 0, 1], [0, 0, 1, 0]], dtype=complex
     )
     assert np.allclose(full, expected)
+
+    full_rev = GateCompressor._expand_matrix(cx_mat, [1, 0], 2)
+    expected_rev = np.array(
+        [[1, 0, 0, 0], [0, 0, 0, 1], [0, 0, 1, 0], [0, 1, 0, 0]], dtype=complex
+    )
+    assert np.allclose(full_rev, expected_rev)
+
+
+def test_gatecompressor_preserves_semantics_across_cx():
+    """Regression: GateCompressor must not reorder/merge a single-qubit gate
+    across an asymmetric CX when they do not commute.
+
+    rz on a CX *target* does NOT commute with CX, so the compressor must not
+    bubble rz(0.4, q1) left across cx(0, 1) to merge it with rz(0.3, q1).
+    Verified against the production statevector simulator (ground truth).
+    Before the circuit.matrix big-endian fix, _check_commutation treated the
+    CX as control=q1 and wrongly allowed this reorder, corrupting the circuit.
+    """
+    from quantum_hw.sim.statevector import simulate_statevector
+
+    def state(qc):
+        return simulate_statevector(qc, device="cpu").detach().cpu().numpy()
+
+    qc = QuantumCircuit(2)
+    qc.h(0)
+    qc.h(1)
+    qc.rz(0.3, 1)
+    qc.cx(0, 1)
+    qc.rz(0.4, 1)  # on the CX target — must NOT cross the CX
+
+    before = state(qc)
+    after = state(GateCompressor().run(qc))
+    overlap = abs(np.vdot(before, after)) / (
+        np.linalg.norm(before) * np.linalg.norm(after)
+    )
+    assert np.isclose(overlap, 1.0), f"GateCompressor changed semantics (overlap={overlap})"
 
 
 # --------------- Layout: Pool fallback & subgraph enumeration ---------------

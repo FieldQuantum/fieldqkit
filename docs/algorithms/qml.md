@@ -4,9 +4,11 @@
 
 - **模块**：`quantum_hw.algorithms.qml`
 - **作用**：提供参数化量子线路（PQC）的机器学习训练框架，支持 **监督分类** 和 **无监督分布学习** 两种任务。
-- **梯度方式**：`autograd`（模拟器，torch 自动微分）或 `parameter-shift`（硬件兼容）。
+- **梯度方式**：`autograd`（torch 自动微分）或 `parameter-shift`（硬件兼容）。
 - **优化器**：Adam。
 - **编码策略**：`angle` / `iqp` / 自定义 callable。
+
+> **autograd 限制（与 VQE/QAOA 不同）**：QML 的 `autograd` **仅支持本地 `Simulator`**。若 `chip_name` 解析为云端模拟器（`fieldquantum_sim`）或真机，选择 `autograd` 会抛出 `ValueError`，提示改用 `gradient_method="parameter-shift"`。（VQE/QAOA 的 `autograd` 额外支持 `fieldquantum_sim` 云端梯度，QML 不支持。）直接调用底层函数时 `chip_name` 默认空串，视为本地，不受此限制。
 
 ---
 
@@ -185,6 +187,7 @@ run_qnn_unsupervised(
 
 | 函数 | 作用 |
 |---|---|
+| `_classifier_loss_and_dl_dz(z_values, label, num_classes)` | 单样本 softmax 交叉熵 loss 及其对 $\langle Z \rangle$ 的梯度。 |
 | `_batch_loss_and_grads(z_values_list, labels, num_classes)` | 批量计算分类 loss 和 $\partial L/\partial \langle Z \rangle$。 |
 | `_predictions_from_z(z_values_list, num_classes)` | 从 $\langle Z \rangle$ 值转换为类别预测。 |
 | `_get_z_autograd(...)` | autograd 路径获取所有样本的 $\langle Z \rangle$ 值。 |

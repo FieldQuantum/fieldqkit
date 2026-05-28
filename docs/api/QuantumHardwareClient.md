@@ -41,10 +41,10 @@ run_auto(
 
 | 参数 | 类型 | 默认值 | 必填 | 说明 |
 |---|---|---:|:---:|---|
-| `circuit` | `str \| QuantumCircuit` | - | 是 | 支持三类输入：预置线路名（如 `"ghz"`）、OpenQASM2/3 字符串、`QuantumCircuit` 对象。 |
+| `circuit` | `str \| QuantumCircuit` | - | 是 | 支持三类输入：预置线路名（如 `"ghz"` / `"cluster"` / `"qft"` / `"ising"` 等，由 `build_circuit` 处理）、**OpenQASM 2.0 字符串**（必须以 `OPENQASM 2.0` 开头）、或 `QuantumCircuit` 对象。 |
 | `name` | `str` | - | 是 | 任务名前缀。 |
 | `num_qubits` | `int` | - | 是 | 本次任务逻辑比特数。 |
-| `provider` | `str` | `"quafu"` | 否 | 平台名，支持 `quafu/tianyan/guodun/tencent`（大小写不敏感）。 |
+| `provider` | `str` | `"quafu"` | 否 | 平台名（大小写不敏感）。支持 `quafu / tianyan / guodun / tencent / origin / fieldquantum / simulator`。若同时给定已知 `prefer_chips`，则会由 `resolve_provider` 反查芯片名覆盖该参数。 |
 | `shots` | `int` | `8192` | 否 | 每个测量任务采样次数。 |
 | `zne` | `bool` | `False` | 否 | 是否启用零噪声外推（当前通过 CZ tripling + 线性外推实现）。 |
 | `readout_mitigation` | `bool` | `False` | 否 | 是否启用读出误差缓解。 |
@@ -197,13 +197,15 @@ def _transpile_with_backend(
 
 - 作用：在已解析 backend 条件下执行统一流程。
 - 主要步骤：
-  - 可观测量分组（减少任务数量）
+  - 可观测量分组（受 `merge_groups` 控制，默认 `True`，按共测基合并以减少任务数）
   - 基变换与测量附加
-  - 可选本地编译
+  - 可选本地编译（`transpile=True`）
   - 硬件异步提交或本地模拟
   - 可选 ZNE 与 readout mitigation
   - 统一汇总 `RunResult`
+- **`merge_groups` 仅暴露在 `_run_with_backend` 入口**：`run_auto` 始终走默认 `True`。算法层（VQE / QAOA / Shadow）直接调本函数时可显式关闭。
 - **部分测量支持**：当用户线路包含显式 `measure` 门（含 qubit→cbit 映射）且不提供 observables 时，返回的 `samples` 和 `probabilities` 基于经典比特子空间（宽度 = `max(cbit) + 1`），而非全 qubit 空间。
+- **自动 provision**：当算法层直接调用 `_run_with_backend` 且 `_active_task_adapter is None` 时，会通过 `infer_provider_from_chip(chip_name)` 自动建立 runtime；该过程**会触发对应 provider 的 token 解析**（例如 fieldquantum 必须已配置 `FIELDQUANTUM_API_TOKEN`）。如果芯片名不在任何 provider 注册表中，则抛 `RuntimeError("Cannot infer provider for chip ...")`。
 
 ### `_submit_openqasm_async(...) -> ProviderTaskHandle`
 

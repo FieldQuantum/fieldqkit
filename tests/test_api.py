@@ -1677,7 +1677,6 @@ class _OriginFakeQCloudService:
         return {
             "PQPUMESH8": True,
             "WK_C180": True,
-            "HanYuan_01": False,
             "full_amplitude": True,
         }
 
@@ -1710,7 +1709,6 @@ def test_origin_chip_names_registered_in_provider_inference():
     from quantum_hw.api.backend import infer_provider_from_chip
     assert infer_provider_from_chip("PQPUMESH8") == "origin"
     assert infer_provider_from_chip("WK_C180") == "origin"
-    assert infer_provider_from_chip("HanYuan_01") == "origin"
 
 
 def test_origin_credential_helper_reads_yaml(monkeypatch, tmp_path):
@@ -1735,11 +1733,9 @@ def test_origin_platform_list_available_hardware_filters_simulators(fake_origin_
     names = {r["hardware_name"] for r in rows}
     assert "PQPUMESH8" in names
     assert "WK_C180" in names
-    assert "HanYuan_01" in names
     assert "full_amplitude" not in names
     statuses = {r["hardware_name"]: r["status"] for r in rows}
     assert statuses["PQPUMESH8"] == "online"
-    assert statuses["HanYuan_01"] == "offline"
 
 
 def test_load_origin_chip_info_normalizes_unified_layout(fake_origin_sdk):
@@ -1858,4 +1854,4 @@ def test_list_available_hardware_dispatches_to_origin(monkeypatch, fake_origin_s
     from quantum_hw.api import backend as bmod
     rows = bmod.list_available_hardware("origin")
     names = {r["hardware_name"] for r in rows}
-    assert {"PQPUMESH8", "WK_C180", "HanYuan_01"} <= names
+    assert {"PQPUMESH8", "WK_C180"} <= names

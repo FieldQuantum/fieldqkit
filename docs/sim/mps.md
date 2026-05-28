@@ -44,7 +44,7 @@
 ### simulate_counts(qc, shots, *, seed=None, param_values=None, max_bond_dim=MAX_BOND_DIM, device=None) -> Dict[str, int]
 
 - 基于 MPS 逐位条件采样。
-- 输出 bitstring 采用小端序（与 statevector 后端一致）。
+- 输出 bitstring 采用大端序（qubit 0 对应字符串最左位，与 statevector 后端一致）。
 - max_bond_dim: 传递给 simulate_mps，默认 MAX_BOND_DIM（256）。
 
 ### expectation_pauli(state, pauli, *, num_qubits)
@@ -70,9 +70,9 @@
 ## 设备与 dtype
 
 - 默认 dtype: torch.complex128（态张量）
-- 自动设备选择：
+- 自动设备选择（`auto_sim_device`）：
   - 如果显式传入 device，优先使用
-  - 否则优先 torch 默认设备/可用 CUDA
+  - 否则按 Apple Metal（MPS） > 利用率最低的 CUDA > CPU 顺序探测
 
 ## 与接口层关系
 

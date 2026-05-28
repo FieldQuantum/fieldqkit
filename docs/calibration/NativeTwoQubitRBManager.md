@@ -73,7 +73,7 @@ calibrate_native_two_qubit_rb(
 - **缓存策略**
 	- 文件：`rb_two_qubit_<chip>.json`
 	- 仅缓存每条 coupler 的 `fidelity`（减小体积）。
-	- TTL 1 小时；过期后会重跑该 coupler。
+	- TTL 12 小时（`cache_is_fresh` 默认值）；过期后会重跑该 coupler。
 
 ## 示例
 
@@ -93,7 +93,7 @@ rb = NativeTwoQubitRBManager(
 		cache_dir=Path("src/quantum_hw/api/.cache"),
 		submit_circuit_async=client._submit_circuit_async,
 		wait_task=client._wait_task,
-		get_task_result=client.tmgr.result,
+		get_task_result=client._get_task_result,
 		compact_for_sim=client._compact_for_sim,
 		simulate_counts=simulate_counts,
 )

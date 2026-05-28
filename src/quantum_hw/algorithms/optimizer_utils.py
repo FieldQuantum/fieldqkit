@@ -132,6 +132,7 @@ def evaluate_energy_with_backend(
     target_qubits: Optional[Sequence[int]] = None,
     qasm_version: str = "2.0",
     convert_single_qubit_gate_to_u: bool = True,
+    submit_options: Optional[Dict] = None,
 ) -> Tuple[float, Dict[str, float]]:
     """Run a bound circuit on a backend and compute the Hamiltonian energy.
 
@@ -151,6 +152,8 @@ def evaluate_energy_with_backend(
         qasm_version: OpenQASM version for circuit serialisation.
         convert_single_qubit_gate_to_u: Whether to convert single-qubit gates
             to ``U`` during transpilation.
+        submit_options: Extra provider submission options (e.g.
+            ``max_wait_time`` / ``sleep_time``) forwarded to the task adapter.
 
     Returns:
         ``(energy, expectations)`` where *energy* is ⟨H⟩ and *expectations*
@@ -174,6 +177,7 @@ def evaluate_energy_with_backend(
         target_qubits=target_qubits,
         qasm_version=qasm_version,
         convert_single_qubit_gate_to_u=convert_single_qubit_gate_to_u,
+        submit_options=submit_options,
     )
     expectations_raw = ensure_observable_map(observables, result.observable_values)
     expectations = apply_clifford_fit(expectations_raw, clifford_fit_map)
@@ -448,6 +452,7 @@ def build_clifford_fit_map(
     target_qubits: Optional[Sequence[int]] = None,
     qasm_version: str = "2.0",
     convert_single_qubit_gate_to_u: bool = True,
+    submit_options: Optional[Dict] = None,
 ) -> CliffordFitMap:
     """Build per-observable affine correction map via Clifford calibration.
 
@@ -524,6 +529,7 @@ def build_clifford_fit_map(
             target_qubits=target_qubits,
             qasm_version=qasm_version,
             convert_single_qubit_gate_to_u=convert_single_qubit_gate_to_u,
+            submit_options=submit_options,
         )
 
         # Prefer the scalable Heisenberg-picture simulator for the ideal
@@ -588,6 +594,7 @@ def parameter_shift_gradient(
     circuit_transform: Optional[Callable[[QuantumCircuit, Optional[int]], QuantumCircuit]] = None,
     qasm_version: str = "2.0",
     convert_single_qubit_gate_to_u: bool = True,
+    submit_options: Optional[Dict] = None,
 ) -> np.ndarray:
     """Compute gradients via the parameter-shift rule on hardware.
 
@@ -654,6 +661,7 @@ def parameter_shift_gradient(
             target_qubits=target_qubits,
             qasm_version=qasm_version,
             convert_single_qubit_gate_to_u=convert_single_qubit_gate_to_u,
+            submit_options=submit_options,
         )
         e_minus, _ = evaluate_energy_with_backend(
             client,
@@ -670,6 +678,7 @@ def parameter_shift_gradient(
             target_qubits=target_qubits,
             qasm_version=qasm_version,
             convert_single_qubit_gate_to_u=convert_single_qubit_gate_to_u,
+            submit_options=submit_options,
         )
         grads[i] = 0.5 * (e_plus - e_minus)
     return grads
@@ -751,6 +760,7 @@ def run_variational_loop(
     qasm_version: str = "2.0",
     extra_info: str = "",
     convert_single_qubit_gate_to_u: bool = True,
+    submit_options: Optional[Dict] = None,
     device: "torch.device | str | None" = None,
 ) -> dict:
     """Core variational optimization loop shared by VQE, QAOA, etc.
@@ -797,6 +807,8 @@ def run_variational_loop(
         extra_info: Additional info for the start log message.
         convert_single_qubit_gate_to_u: Whether to convert single-qubit gates
             to ``U`` during transpilation.
+        submit_options: Extra provider submission options (e.g.
+            ``max_wait_time`` / ``sleep_time``) forwarded to the task adapter.
     Returns:
         Dict with ``best_cost``, ``best_params``, ``cost_history``,
         ``params_history``, ``grad_history``, ``last_expectations``.
@@ -816,7 +828,12 @@ def run_variational_loop(
     _cloud_hamiltonian: Optional[List[Dict]] = None
     if method == "autograd" and str(chip_name).lower() == "fieldquantum_sim":
         _cloud_qasm_template = symbolic_qc.to_openqasm2(symbolic=True)
-        _cloud_platform = client._active_resolved_backend.metadata["platform_obj"]
+        _cloud_platform = (client._active_resolved_backend.metadata or {}).get("platform_obj")
+        if _cloud_platform is None:
+            raise RuntimeError(
+                "fieldquantum_sim autograd requires a resolved backend carrying "
+                "metadata['platform_obj']; run via VQERunner/QAOARunner"
+            )
         _cloud_hamiltonian = [
             {"coeff": float(c), "pauli": str(p)} for c, p in hamiltonian
         ]
@@ -890,6 +907,7 @@ def run_variational_loop(
                 target_qubits=target_qubits,
                 qasm_version=qasm_version,
                 convert_single_qubit_gate_to_u=convert_single_qubit_gate_to_u,
+                submit_options=submit_options,
             )
             grads = parameter_shift_gradient(
                 client,
@@ -910,6 +928,7 @@ def run_variational_loop(
                 circuit_transform=circuit_transform,
                 qasm_version=qasm_version,
                 convert_single_qubit_gate_to_u=convert_single_qubit_gate_to_u,
+                submit_options=submit_options,
             )
 
         grad_norm = float(np.linalg.norm(grads))

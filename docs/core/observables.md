@@ -8,6 +8,8 @@
 
 - `pauli_support`
 - `shift_pauli_string`
+- `pauli_basis_pattern`
+- `apply_measurement_basis_rotations`
 - `append_measurement_basis`
 - `group_observables`
 - `pauli_expectation`

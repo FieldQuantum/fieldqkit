@@ -15,8 +15,8 @@
 ```
 输入 QuantumCircuit（任意门集）
   │
-  ├─ [1] ThreeQubitGateDecompose    CCX/CCZ/CSWAP → 1Q+2Q 门分解
-  │                                  CCX: 6 CX, CCZ: 6 CX, CSWAP: 8 CX
+  ├─ [1] ThreeQubitGateDecompose    CCX/CCZ → 1Q+2Q 门分解
+  │                                  CCX: 6 CX, CCZ: 6 CX
   │
   ├─ [2] Layout                     逻辑比特 → 物理比特映射
   │       │                          保真度优先选择 + 电路感知评分
@@ -87,7 +87,7 @@
 - [TranslateToBasisGates](./translate.md) — 门集翻译（4 种两比特门基 + 符号参数）
 - [GateCompressor](./optimize.md) — 门优化与压缩（5 步流水线 + DAG 压缩）
 - [DynamicalDecoupling](./schedule.md) — 动力学去耦（XY4 / CPMG）
-- [ThreeQubitGateDecompose + 分解函数](./decompose.md) — 三比特门分解 + 13 种两比特门分解 + 单比特→U 转换
+- [ThreeQubitGateDecompose + 分解函数](./decompose.md) — 三比特门分解 + 10 种两比特门分解 + 单比特→U 转换
 - [DAG 工具](./dag.md) — 有向无环图转换、交互图、连通分量分割、可视化
 
 ---
@@ -96,16 +96,16 @@
 
 | 文件 | 行数 | 核心类/函数 |
 |---|---|---|
-| `transpiler.py` | 141 | `Transpiler` |
-| `layout.py` | 516 | `Layout` |
-| `routing.py` | 456 | `SabreRouting` |
-| `optimize.py` | 598 | `GateCompressor` |
-| `decompose.py` | 482 | `ThreeQubitGateDecompose` + 10 个两比特门分解 + 13 个 1Q→U 转换 |
-| `schedule.py` | 179 | `DynamicalDecoupling` |
-| `translate.py` | 162 | `TranslateToBasisGates` |
-| `dag.py` | 176 | `qc2dag` / `dag2qc` / `qc2graph` / `split_qubits` |
-| `basepasses.py` | 42 | `TranspilerPass`（ABC） |
-| **合计** | **2,757** | |
+| `transpiler.py` | 182 | `Transpiler` |
+| `layout.py` | 674 | `Layout` |
+| `routing.py` | 655 | `SabreRouting` |
+| `optimize.py` | 819 | `GateCompressor` |
+| `decompose.py` | 712 | `ThreeQubitGateDecompose` + 10 个两比特门分解 + 13 个 1Q→U 转换 |
+| `schedule.py` | 211 | `DynamicalDecoupling` |
+| `translate.py` | 160 | `TranslateToBasisGates` |
+| `dag.py` | 223 | `qc2dag` / `dag2qc` / `qc2graph` / `split_qubits` |
+| `basepasses.py` | 29 | `TranspilerPass`（ABC） |
+| **合计** | **3,665** | |
 
 ---
 

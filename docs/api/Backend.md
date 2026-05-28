@@ -21,7 +21,7 @@ def __init__(self, chip: str | dict)
 
 | 参数 | 类型 | 说明 |
 |---|---|---|
-| `chip` | `str \| dict` | **字符串**：支持以下芯片名——Quafu 侧：`Baihua`、`Dongling`、`Haituo`、`Yunmeng`、`Miaofeng`、`Yudu`、`Hongluo`；cqlib 侧：`tianyan176`、`tianyan176-2`、`tianyan24`、`tianyan504`、`tianyan287`、`gd_qc1`、`chmy176`、`gd_sim1`；Tencent 侧：`tianji_s2`、`tianji_m2`、`tianxuan_s2`；模拟器：`Simulator`。**字典**：直接传入标准化 `chip_info` 配置（需含 `qubits_info`、`couplers_info`、`global_info` 等字段）。 |
+| `chip` | `str \| dict` | **字符串**：支持以下芯片名——Quafu：`Baihua / Dongling / Yudu / Hongluo`；TianYan：`tianyan-287 / tianyan176 / tianyan176-2 / tianyan24 / tianyan504 / supremacy_sample / tianyan_s / tianyan_sa / tianyan_sw / tianyan_swn / tianyan_tn`；GuoDun：`chmy176 / gd_qc1 / gd_sim1 / gd_test`；Tencent：`simulator:tc / tianji_m2(*) / tianji_s2(*) / tianxuan_s2(*)`（共 11 项）；Origin：`PQPUMESH8 / WK_C180`；FieldQuantum：`fieldquantum_sim`；本地模拟器：`Simulator`。**字典**：直接传入标准化 `chip_info`（必须包含 `qubits_info`、`couplers_info`、`global_info`，其中 `global_info.two_qubit_gate_basis` 必填）。 |
 
 **返回值：** `Backend` 对象，包含拓扑图和校准信息。
 
@@ -274,8 +274,8 @@ class BackendAdapter(ABC):
 ### `list_available_hardware(provider) -> List[Dict[str, Any]]`（模块级函数）
 
 - 作用：按 provider 创建平台对象并返回统一硬件列表。
-- 支持：`quafu/tianyan/guodun/tencent`。
-- 注意：这是 `quantum_hw.api.backend` 模块级函数，与 `BackendAdapter.list_available_hardware()` 实例方法不同。
+- 支持：`quafu / tianyan / guodun / tencent / origin / fieldquantum`。
+- 注意：这是 `quantum_hw.api.backend` 模块级函数，与 `BackendAdapter.list_available_hardware()` 实例方法不同。后者由各 `*BackendAdapter` 通过其 `_platform` 子对象转发，调用前需要已经准备好 token。
 
 ### `infer_provider_from_chip(chip_name) -> Optional[str]`
 
@@ -291,14 +291,21 @@ class BackendAdapter(ABC):
 
 | 常量 | 包含值 |
 |---|---|
-| `QUAFU_HARDWARE_NAMES` | Baihua, Dongling, Haituo, Yunmeng, Miaofeng, Yudu, Hongluo |
-| `TIANYAN_HARDWARE_NAMES` | tianyan176, tianyan176-2, tianyan24, tianyan504, tianyan287 |
-| `GUODUN_HARDWARE_NAMES` | gd_qc1, chmy176, gd_sim1 |
-| `CQLIB_HARDWARE_NAMES` | TIANYAN + GUODUN |
-| `TENCENT_HARDWARE_NAMES` | tianji_s2, tianji_m2, tianxuan_s2 |
-| `SIMULATOR_HARDWARE_NAMES` | Simulator, simulator |
+| `QUAFU_HARDWARE_NAMES` | `Baihua`、`Dongling`、`Yudu`、`Hongluo` |
+| `TIANYAN_HARDWARE_NAMES` | `supremacy_sample`、`tianyan-287`、`tianyan176`、`tianyan176-2`、`tianyan24`、`tianyan504`、`tianyan_s`、`tianyan_sa`、`tianyan_sw`、`tianyan_swn`、`tianyan_tn` |
+| `GUODUN_HARDWARE_NAMES` | `chmy176`、`gd_qc1`、`gd_sim1`、`gd_test` |
+| `CQLIB_HARDWARE_NAMES` | `TIANYAN_HARDWARE_NAMES ∪ GUODUN_HARDWARE_NAMES`（共用 cqlib HTTP 客户端） |
+| `TENCENT_HARDWARE_NAMES` | `simulator:tc`、`tianji_m2`、`tianji_m2v14s2`、`tianji_m2v14s4`、`tianji_m2v15s3`、`tianji_m2v16s1`、`tianji_s2`、`tianji_s2v6`、`tianji_s2v7`、`tianxuan_s2`、`tianxuan_s2v20s1`、`tianxuan_s2v20s2` |
+| `ORIGIN_HARDWARE_NAMES` | `PQPUMESH8`、`WK_C180` |
+| `FIELDQUANTUM_HARDWARE_NAMES` | `fieldquantum_sim` |
+| `SIMULATOR_HARDWARE_NAMES` | `Simulator`、`simulator` |
+| `TIANYAN_CLOUD_SIM_NAMES` | `supremacy_sample`、`tianyan_s`、`tianyan_sa`、`tianyan_sw`、`tianyan_swn`、`tianyan_tn`（云端模拟器，配置接口不返回拓扑，由 `_build_simulator_chip_info` 合成全连接 chip_info） |
+| `GUODUN_CLOUD_SIM_NAMES` | `set()`（保留扩展位） |
+| `TENCENT_CLOUD_SIM_NAMES` | `simulator:tc` |
+| `CLOUD_SIM_HARDWARE_NAMES` | `TIANYAN_CLOUD_SIM_NAMES ∪ GUODUN_CLOUD_SIM_NAMES ∪ TENCENT_CLOUD_SIM_NAMES ∪ FIELDQUANTUM_HARDWARE_NAMES`（所有走 provider 任务通道但 chip_info 需合成的芯片） |
+| `MIN_CONNECTED_COUPLER_FIDELITY` | `0.9` —— `is_connected_coupler` 与 `build_hardware_profile` 过滤低保真耦合器的阈值 |
 
-这些集合是芯片名 → provider 映射的唯一数据源，`cqlib.py` 等子模块统一从 `backend.py` 导入。
+这些集合是芯片名 → provider 映射的唯一数据源，`cqlib.py`、`quafu.py`、`tencent.py` 等子模块统一从 `backend.py` 导入。新增 provider 时同步更新 `_register_chips(...)` 即可让 `infer_provider_from_chip()` 与 `resolve_provider()` 工作。
 
 ## `SimulatorBackendAdapter`
 
@@ -306,10 +313,12 @@ class BackendAdapter(ABC):
 
 ## 常见报错
 
-- `ValueError("Wrong chip name! ...")`
-- `ValueError("provider must be one of: 'quafu', 'tianyan', 'guodun', 'tencent', or 'simulator'")`
-- `RuntimeError("no available chips satisfy num_qubits requirement")`
-- `RuntimeError("Cannot infer provider for chip ...")`
+- `ValueError("Wrong chip name! ...")` —— `Backend(chip)` 传入未知字符串。
+- `ValueError("malformed chip_info: ...")` —— `Backend(dict)` 缺必填字段（必须含 `qubits_info`、`couplers_info`、`global_info`）。
+- `ValueError("provider must be one of: 'quafu', 'tianyan', 'guodun', 'tencent', or 'origin'")` —— 模块级 `list_available_hardware(provider)` 不识别 provider（注意：该函数不暴露 `fieldquantum` / `simulator` 路径）。
+- `ValueError("provider must be one of: 'quafu', 'tianyan', 'guodun', 'tencent', 'simulator', 'fieldquantum', or 'origin'")` —— `create_provider_runtime` 抛出。
+- `RuntimeError("no available chips satisfy num_qubits requirement")` —— `BackendAdapter.resolve_backend` 找不到符合比特数的候选。
+- `RuntimeError("Cannot infer provider for chip ...")` —— `_run_with_backend` 在没有激活 adapter 时通过 `infer_provider_from_chip` 推断失败。
 ## 示例
 
 ```python

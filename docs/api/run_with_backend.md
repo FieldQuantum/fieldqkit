@@ -73,25 +73,29 @@ _run_with_backend(
 
 ## 执行流程
 
-1. 标准化 `observables`，并预计算每个 observable 的 support。
-   - 输入线路通过 `_normalize_input_circuit` 处理：仅当提供了 `observables` 且线路已含测量门时才移除已有测量（并发出 warning），否则保留用户测量。
-2. 按是否可共测分组（`merge_groups=True` 时调用 `group_observables`）。
-3. 预编译一次基线路（可选），每组仅追加基变换和测量。
-4. `chip_name="Simulator"` 时直接本地 `simulate_counts`（若线路含显式 `measure` 门，simulator 会自动投影到 cbit 子空间）。
-5. 硬件模式下逐组异步提交任务，随后统一轮询与取结果。
+1. 校验 `qasm_version == "2.0"`；标准化 `observables`，并预计算每个 observable 的 support。
+2. 若 `_active_task_adapter` 为空且 `chip_name != "Simulator"`，通过 `infer_provider_from_chip(chip_name)` 自动建立 runtime（**会触发该 provider 的 token 解析**）。
+3. 按是否可共测分组（`merge_groups=True` 时调用 `group_observables`）。
+4. 预编译一次基线路（`transpile=True`），每组仅追加基变换和测量。
+5. `chip_name="Simulator"` 时直接本地 `simulate_counts`（若线路含显式 `measure` 门，simulator 会自动投影到 cbit 子空间）。
+6. 硬件模式下逐组异步提交任务，随后统一轮询与取结果。
    - 结果解析时从 counts key 推断 bit 宽度（支持部分测量投影场景）。
-6. 若启用 ZNE，额外执行 scale=3 线路并线性外推。
-7. 若启用 readout mitigation，调用 `ReadoutCalibrationManager` 获取 confusion matrix 并做概率/observable 缓解。
-8. 汇总并返回 `RunResult`。
+   - TianYan provider 不支持批量提交，本函数会自动切换到顺序提交模式（提交一条 → 等完成 → 再提交下一条）。
+7. 若启用 ZNE，额外执行 scale=3 线路并线性外推。
+8. 若启用 readout mitigation，调用 `ReadoutCalibrationManager` 获取 confusion matrix 并做概率/observable 缓解。
+9. 汇总并返回 `RunResult`。
 
 ## 异常与约束
 
 - `ValueError`
+  - `qasm_version` 不是 `"2.0"`。
   - `target_qubits` 与 `num_qubits` 不匹配。
   - `target_qubits` 未覆盖线路实际使用比特。
+  - `num_qubits` 与 `target_qubits` 长度不一致时启用 readout mitigation。
 - `RuntimeError`
   - 硬件任务状态不是 `Finished`。
   - 获取任务结果时缺少激活 task adapter。
+  - 自动 provision 时 `infer_provider_from_chip` 返回 `None`。
 
 ## 示例
 

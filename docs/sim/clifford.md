@@ -61,9 +61,11 @@ $$
 
 ## 常见报错
 
-- `CliffordError("non-Clifford rotation angle ...")`
-- `CliffordError("gate '<name>' is not Clifford")`
-- `ValueError("pauli string length does not match num_qubits")`
+- `CliffordError("non-Clifford rotation '<gate>(<theta>)'")`（旋转角非 `π/2` 倍数）
+- `CliffordError("non-Clifford U3(<theta>,<phi>,<lam>)")`（`u`/`u3` 非 Clifford）
+- `CliffordError("non-Clifford gate '<gate>' (use clifford_t simulator)")`（`t`/`tdg`）
+- `CliffordError("unsupported gate '<gate>' for Clifford simulator")`
+- `ValueError("pauli length mismatch with num_qubits")`（来自 `pauli_basis_pattern` 解析）
 
 ## 相关
 

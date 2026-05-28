@@ -127,7 +127,6 @@ class ThreeQubitGateDecompose(TranspilerPass):
 |---|---|---:|
 | `ccx` (Toffoli) | `ccx_decompose(c1, c2, t)` | 6 |
 | `ccz` | `ccz_decompose(c1, c2, t)` | 6 |
-| `cswap` (Fredkin) | `cswap_decompose(c1, c2, t)` | 8 |
 
 ---
 
@@ -140,10 +139,6 @@ class ThreeQubitGateDecompose(TranspilerPass):
 #### `ccz_decompose(control_qubit1, control_qubit2, target_qubit) -> list`
 
 CCZ 分解：15 个门（6 CX + 7 T/T† + 2 H），结构类似 CCX 但目标比特的 H 位置不同。
-
-#### `cswap_decompose(control_qubit1, control_qubit2, target_qubit) -> list`
-
-Fredkin 分解：17 个门（8 CX + 7 T/T† + 2 H），在 CCX 基础上前后各加一个 CX。
 
 #### `ccx_decompose_mute_phase(control_qubit1, control_qubit2, target_qubit) -> list`
 

@@ -170,6 +170,7 @@ def run_qaoa_with_backend(
     use_dd: bool = True,
     convert_single_qubit_gate_to_u: bool = True,
     transpile: bool = True,
+    submit_options: Optional[Dict[str, object]] = None,
 ) -> QAOAResult:
     """Run QAOA optimization on a specific backend.
 
@@ -209,6 +210,8 @@ def run_qaoa_with_backend(
         transpile: Whether to transpile the circuit for hardware on the client
             side.  When ``False`` the symbolic template is used as-is and no
             layout mapping is performed.  Defaults to ``True``.
+        submit_options: Extra provider submission options (e.g.
+            ``max_wait_time`` / ``sleep_time``) forwarded to the task adapter.
 
     Returns:
         ``QAOAResult`` with best cost, parameters, and optimisation history.
@@ -236,7 +239,7 @@ def run_qaoa_with_backend(
 
     if method == "autograd":
         if str(chip_name).lower() not in ["simulator", "fieldquantum_sim"]:
-            raise ValueError("autograd mode is only supported on Simulator backend")
+            raise ValueError("autograd mode is only supported on Simulator or fieldquantum_sim backend")
     else:
         if transpile:
             transpiled_template = client._transpile_with_backend(
@@ -281,6 +284,7 @@ def run_qaoa_with_backend(
             target_qubits=target_qubits_in_use,
             qasm_version=qasm_version,
             convert_single_qubit_gate_to_u=convert_single_qubit_gate_to_u,
+            submit_options=submit_options,
         )
         clifford_fitting_summary = {
             obs: {"a": float(c[0]), "b": float(c[1])}
@@ -321,6 +325,7 @@ def run_qaoa_with_backend(
         qasm_version=qasm_version,
         extra_info=f"p={p}",
         convert_single_qubit_gate_to_u=convert_single_qubit_gate_to_u,
+        submit_options=submit_options,
     )
 
     return QAOAResult(
@@ -381,7 +386,7 @@ class QAOARunner:
             name (*str*): Task name prefix.
             num_qubits (*int*): Number of logical qubits.
             edges (*Sequence[Tuple[int, int]]*): Graph edge list for the QAOA ansatz (RZZ cost layer).
-            provider (*str*): Hardware provider (``"quafu"``, ``"tianyan"``, ``"guodun"``, ``"tencent"``). Defaults to ``'quafu'``.
+            provider (*str*): Hardware provider name. One of ``"quafu"``, ``"tianyan"``, ``"guodun"``, ``"tencent"``, ``"origin"``, ``"fieldquantum"``, ``"simulator"``. Defaults to ``'quafu'``.
             target_qubits (*Optional[Sequence[int]]*): Optional physical qubit mapping. Defaults to ``None``.
             init_params (*Optional[Sequence[float]]*): Explicit initial parameters (length must be ``2 * p``). Defaults to ``None``.
             callback (*Optional[Callable[[int, float, np.ndarray], None]]*): Per-iteration callback ``(iter, cost, params)``. Defaults to ``None``.
@@ -402,6 +407,10 @@ class QAOARunner:
         provider_name = resolve_provider(provider, prefer_chips)
         use_dd = provider_name not in {"tianyan", "guodun", "tencent", "simulator", "fieldquantum"}
         convert_single_qubit_gate_to_u = provider_name not in {"tencent", "fieldquantum"}
+        submit_options = {
+            "max_wait_time": int(self.max_wait_time),
+            "sleep_time": int(self.sleep_time),
+        }
         runtime = create_provider_runtime(provider=provider_name, client=self.client)
         profiles = runtime.backend_adapter.discover_hardware(
             num_qubits=num_qubits,
@@ -456,6 +465,7 @@ class QAOARunner:
                     use_dd=use_dd,
                     convert_single_qubit_gate_to_u=convert_single_qubit_gate_to_u,
                     transpile=bool(self.transpile_on_client),
+                    submit_options=submit_options,
                 )
             except Exception as exc:
                 last_error = exc

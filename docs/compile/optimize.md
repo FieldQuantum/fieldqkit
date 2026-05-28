@@ -2,7 +2,7 @@
 
 ## 概览
 
-- **模块**：`quantum_hw.compile.optimize`（约740 行）
+- **模块**：`quantum_hw.compile.optimize`（约820 行）
 - **作用**：通过合并、对消和重排门来减少线路中的门数量，降低噪声影响。
 - **继承**：`TranspilerPass`（实现 `run()` 方法）
 - **依赖**：`qc2dag` / `dag2qc`（DAG 构建）、`u3_decompose`（合并后分解）、`gate_matrix_dict`（矩阵查表）
@@ -13,7 +13,7 @@
 
 | 常量 | 类型 | 值 | 说明 |
 |---|---|---|---|
-| `_DIAGONAL_1Q_GATES` | `frozenset` | `{id, z, s, sdg, t, tdg, rz, p}` | 计算基对角单比特门（互相对易） |
+| `_DIAGONAL_1Q_GATES` | `frozenset` | `{id, z, s, sdg, t, tdg, rz}` | 计算基对角单比特门（互相对易） |
 | `_NON_REORDERABLE` | `frozenset` | `{barrier, measure, reset, delay}` | 功能性指令，不可重排 |
 
 ---
@@ -31,7 +31,7 @@ class GateCompressor(TranspilerPass):
 
 | 属性 | 类型 | 说明 |
 |---|---|---|
-| `compressible_gates` | `list[str]` | 21 个可压缩门名列表（含 `id`, `x`, `y`, `z`, `h`, `cx`, `cnot`, `cy`, `cz`, `swap`, `rx`, `ry`, `rz`, `p`, `u`, `rxx`, `ryy`, `rzz`, `ccx`, `ccz`, `cswap`） |
+| `compressible_gates` | `list[str]` | 14 个可压缩门名列表（`x`, `y`, `z`, `h`, `cx`, `cy`, `cz`, `swap`, `ecr`, `ccx`, `ccz`, `rxx`, `ryy`, `rzz`）。单比特参数门（`rx`/`ry`/`rz`/`u`）和非自逆 1Q 门（`s`/`sdg`/`t`/`tdg`/`sx`/`sxdg`）刻意排除，由 `merge_single_qubit_runs` 的矩阵累乘处理 |
 | `_idx` | `int` | DAG 压缩时新节点的自增 ID，起始值 `1000000` |
 | `_single_qubit_gates` | `set[str]` | 所有单比特门名的合集（固定 + 参数化） |
 | `dag` | `nx.DiGraph` | 运行时 DAG 实例（在 `run()` 中赋值） |
@@ -39,7 +39,7 @@ class GateCompressor(TranspilerPass):
 **类变量：**
 
 ```python
-_SELF_INVERSE_2Q = frozenset({'cx', 'cnot', 'cy', 'cz', 'swap'})
+_SELF_INVERSE_2Q = frozenset({'cx', 'cy', 'cz', 'swap', 'ecr'})
 ```
 
 自逆两比特门集合：$G \cdot G = I$。

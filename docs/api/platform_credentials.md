@@ -3,7 +3,7 @@
 ## 概览
 
 - 模块：`quantum_hw.api.platform_credentials`
-- 作用：集中管理四家量子云平台的 API 凭证，支持配置文件和环境变量两种方式。
+- 作用：集中管理六家量子云平台（夸父 / 天衍 / 国盾 / 腾讯 / 本源 / 量坤）的 API 凭证，支持配置文件和环境变量两种方式。
 
 ## 凭证查找优先级
 
@@ -27,6 +27,10 @@ credentials:
   guodun:
     api_token: "your-token"
   tencent:
+    api_token: "your-token"
+  origin:
+    api_token: "your-token"
+  fieldquantum:
     api_token: "your-token"
 ```
 
@@ -70,6 +74,23 @@ cp .quantum_hw.example.yaml .quantum_hw.yaml
 | 配置路径 | `credentials.tencent.api_token` |
 | 环境变量 | `TENCENT_API_TOKEN` |
 | 返回值 | Tencent API token 字符串 |
+
+### `get_origin_api_token() -> str`
+
+| 项目 | 说明 |
+|---|---|
+| 配置路径 | `credentials.origin.api_token` |
+| 环境变量 | `ORIGIN_API_TOKEN` |
+| 返回值 | Origin API token 字符串 |
+
+### `get_fieldquantum_api_token() -> str`
+
+| 项目 | 说明 |
+|---|---|
+| 配置路径 | `credentials.fieldquantum.api_token` |
+| 环境变量 | `FIELDQUANTUM_API_TOKEN` |
+| 返回值 | FieldQuantum API token 字符串 |
+| 申请地址 | [https://fieldquantum.tech/account/api-token/](https://fieldquantum.tech/account/api-token/) |
 
 ### `reload_config() -> None`
 

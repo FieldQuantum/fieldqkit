@@ -36,7 +36,7 @@ __all__ = [
 
 | 返回值 | 类型 | 说明 |
 |--------|------|------|
-| `new` | `list` | 解析后的语句行列表uff08gate tuple IR） |
+| `new` | `list` | 解析后的语句行列表（gate tuple IR） |
 | `qubit_used` | `set[int]` | 使用的 qubit 索引集合 |
 | `cbit_used` | `set[int]` | 使用的 cbit 索引集合 |
 

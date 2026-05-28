@@ -65,7 +65,7 @@ calibrate_native_two_qubit_tomography(
 - **缓存策略**
 	- 文件：`tomo_two_qubit_<chip>.json`
 	- 按 coupler 粒度缓存。
-	- TTL 1 小时，过期后重跑。
+	- TTL 12 小时（`cache_is_fresh` 默认值），过期后重跑。
 
 ## 示例
 
@@ -85,7 +85,7 @@ tomo = NativeTwoQubitTomographyManager(
 		cache_dir=Path("src/quantum_hw/api/.cache"),
 		submit_circuit_async=client._submit_circuit_async,
 		wait_task=client._wait_task,
-		get_task_result=client.tmgr.result,
+		get_task_result=client._get_task_result,
 		compact_for_sim=client._compact_for_sim,
 		simulate_counts=simulate_counts,
 )

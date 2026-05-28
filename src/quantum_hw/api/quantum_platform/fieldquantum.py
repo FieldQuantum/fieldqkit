@@ -116,6 +116,18 @@ class FieldQuantumPlatform:
     # API methods
     # ------------------------------------------------------------------
 
+    def list_available_hardware(self) -> List[Dict[str, Any]]:
+        """Return the (single) virtual chip exposed by the FieldQuantum service.
+        """
+        return [{
+            "provider": "fieldquantum",
+            "hardware_name": "fieldquantum_sim",
+            "queue_length": 0,
+            "status": None,
+            "is_toll": None,
+            "raw": {},
+        }]
+
     def submit_job(self, payload: Dict[str, Any]) -> str:
         """POST *payload* to ``/task/run`` and return the server task_id.
 
@@ -274,9 +286,6 @@ class FieldQuantumBackendAdapter(BackendAdapter):
     # ------------------------------------------------------------------
     # BackendAdapter interface
     # ------------------------------------------------------------------
-
-    def list_available_hardware(self) -> List[Dict[str, Any]]:
-        return [{"hardware_name": "fieldquantum_sim", "queue_length": 0}]
 
     def resolve_backend(
         self,

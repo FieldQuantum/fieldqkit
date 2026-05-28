@@ -3,39 +3,17 @@
 ## 概览
 
 - **模块**：`quantum_hw.circuit.matrix`、`quantum_hw.circuit.utils`
-- **源文件**：`matrix.py`（约400 行）、`utils.py`（约290 行）
+- **源文件**：`matrix.py`（约230 行）、`utils.py`（约290 行）
 - **作用**：
   - 提供所有标准量子门的矩阵表示（常量 + 参数函数）
   - 提供门名到矩阵的统一查找字典 `gate_matrix_dict`
   - 提供单/双比特幺正矩阵分解算法（ZYZ、U3、KAK）
   - 提供随机幺正矩阵生成与等价判定工具
+- **比特序约定**：大端序（big-endian）。对门元组 `(gate, q0, q1, ...)`，第一个比特 `q0` 是矩阵索引的最高位（最左），与 `quantum_hw.sim.matrix` 及模拟器一致；因此受控门的控制位编码在高位块（例如 `cx` 的控制位是第一个参数）。
 
 ---
 
 ## matrix 模块
-
-### 态矢量常量
-
-| 名称 | 形状 | 说明 |
-|------|------|------|
-| `ket0` | `(2,1)` | $\|0\rangle = \begin{pmatrix}1\\0\end{pmatrix}$ |
-| `ket1` | `(2,1)` | $\|1\rangle = \begin{pmatrix}0\\1\end{pmatrix}$ |
-
-### 态矢量函数
-
-#### `ketn0(nqubits: int) -> np.ndarray`
-
-生成 $n$ 个 $\|0\rangle$ 的张量积：$\|0\rangle^{\otimes n}$。
-
-| 参数 | 类型 | 说明 |
-|------|------|------|
-| `nqubits` | `int` | 量子比特数 |
-
-**返回**：`(2^n, 1)` 形状的列向量。
-
-#### `ketn1(nqubits: int) -> np.ndarray`
-
-生成 $n$ 个 $\|1\rangle$ 的张量积：$\|1\rangle^{\otimes n}$。
 
 ### 单比特门矩阵常量
 
@@ -58,9 +36,7 @@
 | 名称 | 门 | 维度 | 说明 |
 |------|-----|------|------|
 | `cx_mat` | CX (CNOT) | $4\times4$ | 控制-X，控制位在前 |
-| `xc_mat` | XC | $4\times4$ | 控制-X，控制位在后 |
 | `cy_mat` | CY | $4\times4$ | 控制-Y，控制位在前 |
-| `yc_mat` | YC | $4\times4$ | 控制-Y，控制位在后 |
 | `cz_mat` | CZ | $4\times4$ | 控制-Z |
 | `swap_mat` | SWAP | $4\times4$ | 交换门 |
 | `iswap_mat` | iSWAP | $4\times4$ | $\|01\rangle\leftrightarrow i\|10\rangle$ |
@@ -72,17 +48,8 @@
 |------|-----|------|------|
 | `ccz_mat` | CCZ | $8\times8$ | 双控-Z |
 | `ccx_mat` | CCX (Toffoli) | $8\times8$ | 双控-X |
-| `cxc_mat` | CXC | $8\times8$ | 控制位在两端的 CX |
-| `cswap_mat` | Fredkin (CSWAP) | $8\times8$ | 控制-SWAP |
-| `swapc_mat` | SWAPC | $8\times8$ | SWAP-控制 |
 
 ### 单比特参数门函数
-
-#### `r_mat(theta, phi) -> np.ndarray`
-
-通用旋转门：
-
-$$R(\theta,\phi) = \begin{pmatrix}\cos\frac{\theta}{2} & -ie^{-i\phi}\sin\frac{\theta}{2} \\ -ie^{i\phi}\sin\frac{\theta}{2} & \cos\frac{\theta}{2}\end{pmatrix}$$
 
 #### `rx_mat(theta: float) -> np.ndarray`
 
@@ -96,25 +63,11 @@ $$R_y(\theta) = \begin{pmatrix}\cos\frac{\theta}{2} & -\sin\frac{\theta}{2} \\\ 
 
 $$R_z(\theta) = \begin{pmatrix}e^{-i\theta/2} & 0 \\\ 0 & e^{i\theta/2}\end{pmatrix}$$
 
-#### `p_mat(theta: float) -> np.ndarray`
-
-相位门：
-
-$$P(\theta) = \begin{pmatrix}1 & 0 \\\ 0 & e^{i\theta}\end{pmatrix}$$
-
 #### `u_mat(theta: float, phi: float, lamda: float) -> np.ndarray`
 
 通用 U3 门：
 
 $$U(\theta,\phi,\lambda) = \begin{pmatrix}\cos\frac{\theta}{2} & -e^{i\lambda}\sin\frac{\theta}{2} \\ e^{i\phi}\sin\frac{\theta}{2} & e^{i(\phi+\lambda)}\cos\frac{\theta}{2}\end{pmatrix}$$
-
-#### `u1_mat(lamda: float) -> np.ndarray`
-
-等价于 `u_mat(0, 0, lamda)`，即 $U_1(\lambda) = U(0,0,\lambda)$。
-
-#### `u2_mat(phi: float, lamda: float) -> np.ndarray`
-
-等价于 `u_mat(π/2, phi, lamda)`，即 $U_2(\phi,\lambda) = U(\pi/2,\phi,\lambda)$。
 
 ### 双比特参数门函数
 
@@ -130,13 +83,9 @@ $$R_{yy}(\theta) = \exp\bigl(-i\frac{\theta}{2} Y\otimes Y\bigr)$$
 
 $$R_{zz}(\theta) = \exp\bigl(-i\frac{\theta}{2} Z\otimes Z\bigr)$$
 
-#### `cp_mat(theta: float) -> np.ndarray`
-
-控制相位门：$CP(\theta) = \text{diag}(1, 1, 1, e^{i\theta})$。
-
 ### `gate_matrix_dict`
 
-统一查找字典，将门名映射到矩阵常量或参数门函数，共 27 项（含 `cnot` → `cx_mat` 别名）：
+统一查找字典，将门名映射到矩阵常量或参数门函数，共 26 项：
 
 ```python
 gate_matrix_dict = {
@@ -144,11 +93,11 @@ gate_matrix_dict = {
     's': s_mat, 'sdg': sdg_mat, 't': t_mat, 'tdg': tdg_mat,
     'sx': sx_mat, 'sxdg': sxdg_mat,
     'swap': swap_mat, 'iswap': iswap_mat, 'ecr': ecr_mat,
-    'cx': cx_mat, 'cnot': cx_mat, 'cy': cy_mat, 'cz': cz_mat,
+    'cx': cx_mat, 'cy': cy_mat, 'cz': cz_mat,
     'rx': rx_mat, 'ry': ry_mat, 'rz': rz_mat,
-    'p': p_mat, 'u': u_mat, 'r': r_mat,
-    'rxx': rxx_mat, 'ryy': ryy_mat, 'rzz': rzz_mat, 'cp': cp_mat,
-    'ccz': ccz_mat, 'ccx': ccx_mat, 'cswap': cswap_mat,
+    'u': u_mat,
+    'rxx': rxx_mat, 'ryy': ryy_mat, 'rzz': rzz_mat,
+    'ccz': ccz_mat, 'ccx': ccx_mat,
 }
 ```
 
@@ -237,11 +186,11 @@ ZYZ 分解：$U = e^{i\alpha}\, R_z(\phi)\, R_y(\theta)\, R_z(\lambda)$。
 
 **返回**：`(theta, phi, lamda, alpha)`。
 
-### `u3_decompose(mat: np.ndarray) -> tuple[float, float, float]`
+### `u3_decompose(mat: np.ndarray) -> tuple[float, float, float, float]`
 
-U3 分解：$U = e^{i\alpha}\, U_3(\theta, \phi, \lambda)$。
+U3 分解：$U = e^{i p}\, U_3(\theta, \phi, \lambda)$。
 
-**返回**：`(theta, phi, lamda)`（忽略全局相位）。
+**返回**：`(theta, phi, lamda, phase)`，其中 `phase` 为全局相位 $p$。`QuantumCircuit.u3_for_unitary` 取前三项构造 `u` 门、丢弃 `phase`。
 
 ---
 

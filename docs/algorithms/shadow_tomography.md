@@ -34,10 +34,10 @@ run(
 | 参数 | 类型 | 默认值 | 必填 | 说明 |
 |---|---|---:|:---:|---|
 | `client` | `QuantumHardwareClient` | - | 是 | `ShadowTomography` 初始化参数。 |
-| `circuit` | `str \| QuantumCircuit` | - | 是 | 线路输入（内置名称、OpenQASM2/3 字符串或 `QuantumCircuit`）。 |
+| `circuit` | `str \| QuantumCircuit` | - | 是 | 线路输入（内置名称、OpenQASM 2.0 字符串或 `QuantumCircuit`）。OpenQASM 3.0 已自 `e0648c2` 移除。 |
 | `name` | `str` | - | 是 | 任务名前缀，内部会追加 `_shadow`。 |
 | `num_qubits` | `int` | - | 是 | 逻辑比特数。 |
-| `provider` | `str` | `"quafu"` | 否 | 平台名，支持 `quafu/tianyan/guodun/tencent/fieldquantum`。 |
+| `provider` | `str` | `"quafu"` | 否 | 平台名，支持 `quafu/tianyan/guodun/tencent/origin/fieldquantum/simulator`。 |
 | `shots` | `int` | `8192` | 否 | 总采样预算。实际会被按 batch 分配。 |
 | `shots_per_basis` | `int` | `1` | 否 | 每个随机测量基的 shots。batch 数量为 `ceil(shots / shots_per_basis)`。 |
 | `observables` | `Sequence[str] \| str` | - | 是 | 待估计的 Pauli 字符串；可传单个字符串。至少提供一个 observable，否则抛出 `ValueError`。 |
@@ -73,6 +73,7 @@ run_shadow_with_backend(
   use_dd=True,
   submit_options=None,
   convert_single_qubit_gate_to_u=True,
+  transpile=True,
 ) -> ShadowResult
 ```
 

@@ -36,7 +36,7 @@ def create_provider_runtime(*, provider: str, client: Any) -> ProviderRuntime:
     """Create a ``ProviderRuntime`` for the given provider name.
 
     Args:
-        provider (*str*): Platform provider name (``"quafu"``, ``"tianyan"``, ``"guodun"``, ``"tencent"``, ``"simulator"``).
+        provider (*str*): Platform provider name. One of ``"quafu"``, ``"tianyan"``, ``"guodun"``, ``"tencent"``, ``"origin"``, ``"fieldquantum"``, ``"simulator"`` (case-insensitive).
         client (*Any*): ``QuantumHardwareClient`` instance.
 
     Returns:

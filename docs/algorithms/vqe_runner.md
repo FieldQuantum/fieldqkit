@@ -148,8 +148,12 @@ run_vqe_with_backend(
   qasm_version="2.0",
   use_dd=True,
   convert_single_qubit_gate_to_u=True,
+  transpile=True,
+  submit_options=None,
 ) -> VQEResult
 ```
+
+> `VQERunner` 的 `max_wait_time` / `sleep_time` 会被打包进 `submit_options`，沿 `run_vqe_with_backend → run_variational_loop → evaluate_energy_with_backend → client._run_with_backend` 透传到 provider task adapter（与 `ShadowTomography.run` 一致）。
 
 ## Ansatz 行为说明
 

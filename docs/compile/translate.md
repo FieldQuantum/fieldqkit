@@ -85,10 +85,9 @@ def run(self, qc: QuantumCircuit) -> QuantumCircuit
 | 门 | 处理方式 |
 |---|---|
 | `u` | 保留原样 |
-| `r(θ, φ)` | → `("u", θ, φ-π/2, π/2-φ, qubit)` |
 | `rx(θ)` 且 θ 为 `str` | → `("u", θ, -π/2, π/2, qubit)` |
 | `ry(θ)` 且 θ 为 `str` | → `("u", θ, 0, 0, qubit)` |
-| `rz(θ)` / `p(θ)` 且 θ 为 `str` | → `("u", 0, 0, θ, qubit)` |
+| `rz(θ)` 且 θ 为 `str` | → `("u", 0, 0, θ, qubit)` |
 | 其他参数门（数值参数） | 矩阵计算 → `u3_decompose` |
 
 当 `convert_single_qubit_gate_to_u=False` 时：原样保留。
@@ -102,7 +101,7 @@ def run(self, qc: QuantumCircuit) -> QuantumCircuit
 | 输入门 | 调用的分解函数 |
 |---|---|
 | `cz` | `cz_decompose(q1, q2, ...)` |
-| `cx` / `cnot` | `cx_decompose(q1, q2, ...)` |
+| `cx` | `cx_decompose(q1, q2, ...)` |
 | `swap` | `swap_decompose(q1, q2, ...)` |
 | `iswap` | `iswap_decompose(q1, q2, ...)` |
 | `ecr` | `ecr_decompose(q1, q2, ...)` |
@@ -118,7 +117,6 @@ def run(self, qc: QuantumCircuit) -> QuantumCircuit
 | `rxx` | `rxx_decompose(θ, q1, q2, ...)` |
 | `ryy` | `ryy_decompose(θ, q1, q2, ...)` |
 | `rzz` | `rzz_decompose(θ, q1, q2, ...)` |
-| `cp` | `cp_decompose(θ, q1, q2, ...)` |
 
 ---
 

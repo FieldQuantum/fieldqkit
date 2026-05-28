@@ -57,10 +57,14 @@
 
 ## Algorithms
 
+- [algorithms module reference](./algorithms/README.md)
 - [ShadowTomography.run](./algorithms/shadow_tomography.md)
 - [VQERunner.run_model](./algorithms/vqe_runner.md)
 - [QAOARunner.run_model](./algorithms/qaoa_runner.md)
-- [QML — run_pqc_classifier / run_qnn_unsupervised](./algorithms/qml.md)
+- [QML — run_pqc_classifier / run_qnn_unsupervised / run_qnn_conditional](./algorithms/qml.md)
+- [QMLRunner](./algorithms/qml_runner.md)
+- [optimizer utils](./algorithms/optimizer_utils.md)
+- [qml encoding](./algorithms/qml_encoding.md)
 - [circuit compression](./algorithms/circuit_compression.md)
 - [ansatz templates](./algorithms/ansatz_templates.md)
 
@@ -101,6 +105,7 @@
 - [circuit module reference](./circuit/README.md)
 - [QuantumCircuit](./circuit/quantumcircuit.md)
 - [OpenQASM 解析](./circuit/qasm.md)
+- [QCIS 原生指令](./circuit/qcis.md)
 - [helpers 与渲染](./circuit/helpers_render.md)
 - [matrix 与 utils](./circuit/matrix_utils.md)
 

@@ -149,7 +149,7 @@ def normalize_hardware_rows(*, provider: str, records: List[Dict[str, Any]]) -> 
     """Normalize heterogeneous hardware records into a uniform schema.
 
     Args:
-        provider (*str*): Platform provider name (``"quafu"``, ``"tianyan"``, ``"guodun"``, ``"tencent"``).
+        provider (*str*): Platform provider name written into the returned rows (typically ``"tianyan"`` or ``"guodun"``, as this helper is shared by the cqlib-based providers).
         records (*List[Dict[str, Any]]*): Raw hardware records from the platform.
 
     Returns:
@@ -1138,7 +1138,7 @@ def load_cqlib_chip_info(
 
     Args:
         chip_name (*str*): Name of the target chip.
-        provider (*Optional[str]*): Platform provider name (``"quafu"``, ``"tianyan"``, ``"guodun"``, ``"tencent"``). Defaults to ``None``.
+        provider (*Optional[str]*): cqlib-based provider name, ``"tianyan"`` or ``"guodun"``. Inferred from *chip_name* via :func:`infer_provider_from_chip` when ``None``. Defaults to ``None``.
         platform (*Optional[RemotePlatformClient]*): Existing platform client instance. Defaults to ``None``.
 
     Returns:

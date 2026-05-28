@@ -25,13 +25,15 @@ TWO_QUBIT_PARAM_GATES = {"rxx", "ryy", "rzz"}
 
 
 def _bits_from_index(idx: int, nqubits: int) -> list[int]:
-    return [(idx >> q) & 1 for q in range(nqubits)]
+    # Big-endian: qubit 0 is the most-significant bit (matches circuit.matrix).
+    return [(idx >> (nqubits - 1 - q)) & 1 for q in range(nqubits)]
 
 
 def _index_from_bits(bits: list[int]) -> int:
+    n = len(bits)
     idx = 0
     for q, bit in enumerate(bits):
-        idx |= (bit & 1) << q
+        idx |= (bit & 1) << (n - 1 - q)
     return idx
 
 

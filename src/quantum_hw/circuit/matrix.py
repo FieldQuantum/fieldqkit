@@ -1,42 +1,7 @@
 """The matrices corresponding to single-qubit, two-qubit and three-qubit gates.
-
-SPDX-License-Identifier: MIT
-Original source: quarkcircuit, Copyright (c) YL Feng.
-See THIRD_PARTY_NOTICES for full license text.
 """
 
 import numpy as np
-
-ket0 = np.array([[1.0], [0.0]], dtype = complex) # |0>
-ket1 = np.array([[0.0], [1.0]], dtype = complex) # |1>
-
-def ketn0(nqubits: int) -> np.ndarray:
-    r"""Generate the tensor product of n |0⟩ states.
-
-    Args:
-        nqubits (int): The number of qubits.
-
-    Returns:
-        np.ndarray: A state vector representing the tensor product of n |0⟩ states.
-    """
-    state = ket0
-    for _ in range(nqubits - 1):
-        state = np.kron(state, ket0)
-    return state
-
-def ketn1(nqubits: int) -> np.ndarray:
-    r"""Generate the tensor product of n |1⟩ states.
-
-    Args:
-        nqubits (int): The number of qubits.
-
-    Returns:
-        np.ndarray: A state vector representing the tensor product of n |1⟩ states.
-    """
-    state = ket1
-    for _ in range(nqubits - 1):
-        state = np.kron(state, ket1)
-    return state
 
 id_mat = np.eye(2, dtype=complex)
 x_mat = np.array([[0.0, 1.0], [1.0, 0.0]], dtype=complex)
@@ -70,34 +35,30 @@ iswap_mat = np.array(
 
 ecr_mat = np.array(
     [
-        [0.0, 1.0, 0.0, 1.0j],
-        [1.0, 0.0, -1.0j, 0.0],
-        [0.0, 1.0j, 0.0, 1.0],
-        [-1.0j, 0.0, 1.0, 0.0],
+        [0.0, 0.0, 1.0, 1.0j],
+        [0.0, 0.0, 1.0j, 1.0],
+        [1.0, -1.0j, 0.0, 0.0],
+        [-1.0j, 1.0, 0.0, 0.0],
     ],dtype=complex,
 ) / np.sqrt(2)
 
 cx_mat = np.array(
     [
         [1.0, 0.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0, 0.0],
         [0.0, 0.0, 0.0, 1.0],
         [0.0, 0.0, 1.0, 0.0],
-        [0.0, 1.0, 0.0, 0.0],
     ],dtype=complex,
 )
-
-
 
 cy_mat = np.array(
     [
         [1.0, 0.0, 0.0,  0.0],
+        [0.0, 1.0, 0.0,  0.0],
         [0.0, 0.0, 0.0, -1.0j],
-        [0.0, 0.0, 1.0,  0.0],
-        [0.0, 1.0j, 0.0, 0.0],
+        [0.0, 0.0, 1.0j, 0.0],
     ],dtype=complex,
 )
-
-
 
 cz_mat = np.array(
     [
@@ -126,16 +87,13 @@ ccx_mat = np.array(
         [1, 0, 0, 0, 0, 0, 0, 0],
         [0, 1, 0, 0, 0, 0, 0, 0],
         [0, 0, 1, 0, 0, 0, 0, 0],
-        [0, 0, 0, 0, 0, 0, 0, 1],
+        [0, 0, 0, 1, 0, 0, 0, 0],
         [0, 0, 0, 0, 1, 0, 0, 0],
         [0, 0, 0, 0, 0, 1, 0, 0],
+        [0, 0, 0, 0, 0, 0, 0, 1],
         [0, 0, 0, 0, 0, 0, 1, 0],
-        [0, 0, 0, 1, 0, 0, 0, 0],
     ],dtype=complex,
 )
-
-
-
 
 
 def rx_mat(theta: float) -> np.ndarray:

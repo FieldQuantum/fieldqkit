@@ -77,17 +77,10 @@ set_sim_config(mps_threshold_qubits=20, max_bond_dim=512)
 
 `quantum_hw.sim.__init__` 当前导出：
 
-- `get_sim_config`
-- `set_sim_config`
-- `build_state_from_symbolic`
-- `simulate_counts`
-- `expectation_pauli`
-- `sample_probabilities`
-- `energy_and_expectations`
-- `simulate_statevector`
-- `simulate_mps`
-- `simulate_mpo_process`
-- `auto_sim_device`
+- 分发层：`get_sim_config`、`set_sim_config`、`build_state_from_symbolic`、`simulate_counts`、`expectation_pauli`、`sample_probabilities`、`energy_and_expectations`
+- 后端入口：`simulate_statevector`、`simulate_mps`、`simulate_mpo_process`
+- Clifford / Clifford+T：`CliffordError`、`is_clifford_circuit`、`simulate_clifford_expectation`、`simulate_clifford_expectations`、`count_non_clifford_gates`、`count_t_gates`、`simulate_clifford_t_expectation`、`simulate_clifford_t_expectations`
+- 设备：`auto_sim_device`
 
 ## 相关页面
 

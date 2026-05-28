@@ -224,7 +224,7 @@ class QuantumHardwareClient:
 		"""
 		resolved_chip_name = self._resolve_chip_name(chip_name)
 		options = dict(submit_options or {})
-		if "num_qubits" not in options and self._active_num_qubits is not None:
+		if self._active_num_qubits is not None:
 			options["num_qubits"] = self._active_num_qubits
 
 		# Add timestamp suffix to avoid task name collision
@@ -234,7 +234,10 @@ class QuantumHardwareClient:
 		adapter = self._active_task_adapter
 		backend = self._active_resolved_backend
 		if adapter is None or backend is None:
-			raise RuntimeError("active task adapter is required before submitting OpenQASM")
+			raise RuntimeError(
+				"active task adapter is required before submitting OpenQASM; "
+				"call run_auto() or _run_with_backend() first to provision a runtime"
+			)
 
 		handle = adapter.submit_openqasm(
 			OpenQasmSubmitRequest(
@@ -258,13 +261,16 @@ class QuantumHardwareClient:
 			Resolved chip name string.
 
 		Raises:
-			RuntimeError: chip_name is not set; use run_auto or provide chip_name
+			RuntimeError: chip_name is not set; call run_auto() or _run_with_backend() first, or pass chip_name explicitly
 		"""
 		if chip_name is not None:
 			return chip_name
 		if self.chip_name is not None:
 			return self.chip_name
-		raise RuntimeError("chip_name is not set; use run_auto or provide chip_name")
+		raise RuntimeError(
+			"chip_name is not set; call run_auto() or _run_with_backend() first, "
+			"or pass chip_name explicitly"
+		)
 
 	def _submit_circuit_async(
 		self,
@@ -344,7 +350,7 @@ class QuantumHardwareClient:
 		"""
 		resolved_chip_name = self._resolve_chip_name(chip_name)
 		options = dict(submit_options or {})
-		if "num_qubits" not in options and self._active_num_qubits is not None:
+		if self._active_num_qubits is not None:
 			options["num_qubits"] = self._active_num_qubits
 
 		timestamp = int(time.time() * 1000)
@@ -353,7 +359,10 @@ class QuantumHardwareClient:
 		adapter = self._active_task_adapter
 		backend = self._active_resolved_backend
 		if adapter is None or backend is None:
-			raise RuntimeError("active task adapter is required before submitting QCIS")
+			raise RuntimeError(
+				"active task adapter is required before submitting QCIS; "
+				"call run_auto() or _run_with_backend() first to provision a runtime"
+			)
 
 		handle = adapter.submit_qcis(
 			QcisSubmitRequest(
@@ -888,7 +897,7 @@ class QuantumHardwareClient:
 			circuit (*Union[str, QuantumCircuit]*): Quantum circuit to execute.
 			name (*str*): Experiment name for the submission.
 			num_qubits (*int*): Number of qubits.
-			provider (*str*): Platform provider name (``"quafu"``, ``"tianyan"``, ``"guodun"``, ``"tencent"``). Defaults to ``'quafu'``.
+			provider (*str*): Platform provider name. One of ``"quafu"``, ``"tianyan"``, ``"guodun"``, ``"tencent"``, ``"origin"``, ``"fieldquantum"``, ``"simulator"`` (case-insensitive). If ``prefer_chips`` contains a known chip name, the inferred provider overrides this argument. Defaults to ``'quafu'``.
 			shots (*int*): Number of measurement shots. Defaults to ``8192``.
 			zne (*bool*): Whether to apply zero-noise extrapolation. Defaults to ``False``.
 			readout_mitigation (*bool*): Whether to apply readout error mitigation. Defaults to ``False``.

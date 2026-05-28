@@ -63,7 +63,7 @@ def run(
 | `target_qubits` | `list \| None` | `None` | 手动指定物理比特列表；`None` 时由 Layout 自动选择。非空时会校验数量和连通性。 |
 | `niter` | `int` | `5` | SABRE 路由前后向迭代次数。越多结果越稳定，但耗时更长。 |
 | `use_dd` | `bool` | `True` | 是否启用动力学去耦。需要 `chip_backend.chip_info` 中有 `one_qubit_gate_length` 和 `two_qubit_gate_length`，否则静默跳过。 |
-| `use_three_qubit_decompose` | `bool` | `True` | 是否将 CCX/CCZ/CSWAP 分解为单/两比特门组合。 |
+| `use_three_qubit_decompose` | `bool` | `True` | 是否将 CCX/CCZ 分解为单/两比特门组合。 |
 | `use_sabre_routing` | `bool` | `True` | 是否启用 SABRE 路由。关闭时不插入 SWAP。 |
 | `use_translate_to_basis` | `bool` | `True` | 是否将所有门翻译到芯片本征门集。 |
 | `use_gate_compressor` | `bool` | `True` | 是否启用门压缩（对易重排 + 单比特合并 + 两比特对消 + DAG 压缩）。 |
@@ -98,7 +98,7 @@ def run(
 输入 QuantumCircuit
   │
   ▼
-[1] ThreeQubitGateDecompose        CCX/CCZ/CSWAP → 单/两比特门组合
+[1] ThreeQubitGateDecompose        CCX/CCZ → 单/两比特门组合
   │
   ▼
 [2] Layout.select_layout()         选择物理比特子图（线路感知 + 保真度优先）

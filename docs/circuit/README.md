@@ -15,7 +15,7 @@
 ## 页面导航
 
 - [QuantumCircuit](./quantumcircuit.md) — 核心线路类、门操作 API、参数绑定、分析与可视化
-- [OpenQASM 解析](./qasm.md) — OpenQASM 2/3 解析器
+- [OpenQASM 解析](./qasm.md) — OpenQASM 2.0 解析器
 - [QCIS 原生指令](./qcis.md) — `QuantumCircuit` 到 QCIS 原生指令的转换
 - [Helpers 与渲染](./helpers_render.md) — 门集合常量、参数格式化、DAG 转换、ASCII 渲染管线
 - [matrix 与 utils](./matrix_utils.md) — 门矩阵表示、分解算法、幺正等价判定

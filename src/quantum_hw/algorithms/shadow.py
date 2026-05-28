@@ -338,8 +338,8 @@ class ShadowTomography:
         target_qubits: Optional[Sequence[int]] = None,
         prefer_chips: Optional[Sequence[str] | str] = None,
         transpile_on_client: bool = True,
-		max_wait_time: int = 3600,
-		sleep_time: int = 5,
+        max_wait_time: int = 3600,
+        sleep_time: int = 5,
     ) -> ShadowResult:
         """Select hardware and run classical shadow tomography.
 
@@ -347,7 +347,7 @@ class ShadowTomography:
             circuit (*Union[str, QuantumCircuit]*): Quantum circuit to execute.
             name (*str*): Experiment name for the submission.
             num_qubits (*int*): Number of qubits.
-            provider (*str*): Platform provider name (``"quafu"``, ``"tianyan"``, ``"guodun"``, ``"tencent"``). Defaults to ``'quafu'``.
+            provider (*str*): Platform provider name. One of ``"quafu"``, ``"tianyan"``, ``"guodun"``, ``"tencent"``, ``"origin"``, ``"fieldquantum"``, ``"simulator"``. Defaults to ``'quafu'``.
             shots (*int*): Number of measurement shots. Defaults to ``8192``.
             shots_per_basis (*int*): Number of shots per measurement basis. Defaults to ``1``.
             observables (*Optional[Sequence[str]]*): Observable operators to measure. Defaults to ``None``.

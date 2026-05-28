@@ -57,7 +57,7 @@ def dag2qc(dag: nx.DiGraph, nqubits: int | None = None, ncbits: int | None = Non
 |---|---|---:|---|
 | `dag` | `nx.DiGraph` | — | 输入 DAG |
 | `nqubits` | `int \| None` | `None` | 比特数。`None` 时自动取 `max(qubit) + 1` |
-| `ncbits` | `int \| None` | `None` | 经典比特数。`None` 时等于 `nqubits` |
+| `ncbits` | `int \| None` | `None` | 经典比特数。`None` 时由 `measure` 门用到的最大经典位推断（`max(cbit)+1`）；无测量门时退回 `nqubits` |
 
 **返回值：** `QuantumCircuit`（`qubits` 属性从 `dag.graph["qubits"]` 继承）。
 

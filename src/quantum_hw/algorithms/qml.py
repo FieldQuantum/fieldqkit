@@ -330,6 +330,11 @@ def run_pqc_classifier(
         raise ValueError(f"gradient_method must be 'autograd' or 'parameter-shift', got {method!r}")
     if method == "parameter-shift" and (client is None or backend is None):
         raise ValueError("parameter-shift requires client and backend")
+    if method == "autograd" and chip_name and str(chip_name).lower() != "simulator":
+        raise ValueError(
+            "QML autograd mode only supports the local Simulator backend; "
+            "use gradient_method='parameter-shift' for cloud simulator (fieldquantum_sim) or real hardware"
+        )
 
     if method == "autograd":
         import torch
@@ -756,6 +761,11 @@ def run_qnn_unsupervised(
         raise ValueError(f"gradient_method must be 'autograd' or 'parameter-shift', got {method!r}")
     if method == "parameter-shift" and (client is None or backend is None):
         raise ValueError("parameter-shift requires client and backend")
+    if method == "autograd" and chip_name and str(chip_name).lower() != "simulator":
+        raise ValueError(
+            "QML autograd mode only supports the local Simulator backend; "
+            "use gradient_method='parameter-shift' for cloud simulator (fieldquantum_sim) or real hardware"
+        )
 
     train_samples = np.asarray(train_samples, dtype=np.int64)
     n_train = train_samples.shape[0]
@@ -1042,6 +1052,11 @@ def run_qnn_conditional(
         raise ValueError(f"gradient_method must be 'autograd' or 'parameter-shift', got {method!r}")
     if method == "parameter-shift" and (client is None or backend is None):
         raise ValueError("parameter-shift requires client and backend")
+    if method == "autograd" and chip_name and str(chip_name).lower() != "simulator":
+        raise ValueError(
+            "QML autograd mode only supports the local Simulator backend; "
+            "use gradient_method='parameter-shift' for cloud simulator (fieldquantum_sim) or real hardware"
+        )
 
     train_x = [np.asarray(x, dtype=np.int64) for x, _ in train_pairs]
     train_y = [np.asarray(y, dtype=np.int64) for _, y in train_pairs]

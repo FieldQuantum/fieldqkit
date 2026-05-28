@@ -28,8 +28,8 @@
 
 ### 参数门矩阵函数
 
-- 单比特：`r_mat`、`rx_mat`、`ry_mat`、`rz_mat`、`p_mat`、`u_mat`、`u1_mat`、`u2_mat`
-- 双比特：`rxx_mat`、`ryy_mat`、`rzz_mat`、`cp_mat`
+- 单比特：`rx_mat`、`ry_mat`、`rz_mat`、`u_mat`
+- 双比特：`rxx_mat`、`ryy_mat`、`rzz_mat`
 
 所有函数返回 `torch.Tensor(dtype=torch.complex*)`，维度与门作用比特数一致。
 
@@ -38,16 +38,16 @@
 - 字典键是门名字符串，值为：
   - 固定门：对应矩阵常量
   - 参数门：对应矩阵构造函数
-- 典型键包括：
+- 完整键集合（共 26 个）：
   - 单比特：`id/x/y/z/h/s/sdg/t/tdg/sx/sxdg`
-  - 双比特：`swap/iswap/ecr/cx/cnot/cy/cz`
-  - 参数门：`rx/ry/rz/p/u/r/rxx/ryy/rzz/cp`
-  - 三比特：`ccz/ccx/cswap`
+  - 双比特：`swap/iswap/ecr/cx/cy/cz`
+  - 参数门：`rx/ry/rz/u/rxx/ryy/rzz`
+  - 三比特：`ccz/ccx`
 
 ## 注意事项
 
 - `statevector` 模拟器依赖本模块矩阵定义；变更 `gate_matrix_dict` 会直接影响模拟结果。
-- `cnot` 在字典中映射到 `cx` 矩阵。
+- 字典中没有 `cnot` 键；`QuantumCircuit` 的 `cnot()` 在建线路时即以 `cx` 记录，因此模拟器只会查到 `cx`。
 
 ## 示例
 

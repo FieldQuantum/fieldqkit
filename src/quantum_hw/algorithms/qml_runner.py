@@ -77,7 +77,7 @@ class QMLRunner:
             func: Low-level training function to call.
             name: Task name prefix.
             num_qubits: Number of logical qubits.
-            provider: Hardware provider name.
+            provider: Hardware provider name — one of ``"quafu"`` / ``"tianyan"`` / ``"guodun"`` / ``"tencent"`` / ``"origin"`` / ``"fieldquantum"`` / ``"simulator"``.
             prefer_chips: Candidate chip filter.
             target_qubits: Physical qubit mapping.
             extra_kwargs: Algorithm-specific keyword arguments.
@@ -89,6 +89,8 @@ class QMLRunner:
             RuntimeError: If all candidate chips fail.
         """
         provider_name = resolve_provider(provider, prefer_chips)
+        # Only relevant on the parameter-shift path (autograd does not transpile);
+        # tencent/fieldquantum reject U-gate conversion.
         convert_u = provider_name not in {"tencent", "fieldquantum"} and self.convert_single_qubit_gate_to_u
         runtime = create_provider_runtime(provider=provider_name, client=self.client)
         profiles = runtime.backend_adapter.discover_hardware(
@@ -172,7 +174,7 @@ class QMLRunner:
             num_classes: Number of classes.
             measurement_qubits: Qubits to measure for readout.
             callback: Per-iteration callback.
-            provider: Hardware provider.
+            provider: Hardware provider name (see ``run_classifier`` for the supported list). With ``gradient_method="autograd"`` only the local ``Simulator`` is valid.
             prefer_chips: Candidate chip filter.
             target_qubits: Physical qubit mapping.
 
@@ -214,7 +216,7 @@ class QMLRunner:
             train_samples: ``(N, num_qubits)`` binary array.
             test_samples: Optional validation samples.
             callback: Per-iteration callback.
-            provider: Hardware provider.
+            provider: Hardware provider name (see ``run_classifier`` for the supported list). With ``gradient_method="autograd"`` only the local ``Simulator`` is valid.
             prefer_chips: Candidate chip filter.
             target_qubits: Physical qubit mapping.
 
@@ -258,7 +260,7 @@ class QMLRunner:
             train_pairs: List of ``(input_bits, output_bits)`` pairs.
             test_pairs: Optional validation pairs.
             callback: Per-iteration callback.
-            provider: Hardware provider.
+            provider: Hardware provider name (see ``run_classifier`` for the supported list). With ``gradient_method="autograd"`` only the local ``Simulator`` is valid.
             prefer_chips: Candidate chip filter.
             target_qubits: Physical qubit mapping.
 

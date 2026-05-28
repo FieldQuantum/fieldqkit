@@ -343,6 +343,7 @@ def run_vqe_with_backend(
     use_dd: bool = True,
     convert_single_qubit_gate_to_u: bool = True,
     transpile: bool = True,
+    submit_options: Optional[Dict[str, object]] = None,
 ) -> VQEResult:
     """Run VQE optimization on a specific backend.
 
@@ -402,6 +403,8 @@ def run_vqe_with_backend(
         transpile: Whether to transpile the circuit for hardware on the client
             side.  When ``False`` the symbolic template is used as-is and no
             layout mapping is performed.  Defaults to ``True``.
+        submit_options: Extra provider submission options (e.g.
+            ``max_wait_time`` / ``sleep_time``) forwarded to the task adapter.
 
     Returns:
         ``VQEResult`` with best energy, parameters, and full history.
@@ -462,8 +465,8 @@ def run_vqe_with_backend(
     target_qubits_in_use: Optional[Sequence[int]] = target_qubits
     circuit_transform_fn = None
     if method == "autograd":
-        if (str(chip_name).lower() not in ["simulator", "fieldquantum_sim"]):
-            raise ValueError("autograd mode is only supported on Simulator backend")
+        if str(chip_name).lower() not in ["simulator", "fieldquantum_sim"]:
+            raise ValueError("autograd mode is only supported on Simulator or fieldquantum_sim backend")
     else:
         if not enable_circuit_compression:
             if transpile:
@@ -542,6 +545,7 @@ def run_vqe_with_backend(
             target_qubits=target_qubits_in_use,
             qasm_version=qasm_version,
             convert_single_qubit_gate_to_u=convert_single_qubit_gate_to_u,
+            submit_options=submit_options,
         )
         clifford_fitting_summary = {
             obs: {"a": float(coeffs[0]), "b": float(coeffs[1])}
@@ -585,6 +589,7 @@ def run_vqe_with_backend(
         qasm_version=qasm_version,
         extra_info=f"layers={layers} ansatz={str(ansatz).lower()}",
         convert_single_qubit_gate_to_u=convert_single_qubit_gate_to_u,
+        submit_options=submit_options,
     )
 
     return VQEResult(
@@ -657,7 +662,7 @@ class VQERunner:
         Args:
             name: Task name prefix.
             num_qubits: Number of logical qubits.
-            provider: Hardware provider name.
+            provider: Hardware provider name — one of ``"quafu"`` / ``"tianyan"`` / ``"guodun"`` / ``"tencent"`` / ``"origin"`` / ``"fieldquantum"`` / ``"simulator"``.
             model: Hamiltonian model.
             model_params: Extra kwargs forwarded to the model builder.
             hamiltonian: Required when ``model="custom"``.
@@ -701,6 +706,10 @@ class VQERunner:
         provider_name = resolve_provider(provider, prefer_chips)
         use_dd = provider_name not in {"tianyan", "guodun", "tencent", "simulator", "fieldquantum"}
         convert_single_qubit_gate_to_u = provider_name not in {"tencent", "fieldquantum"}
+        submit_options = {
+            "max_wait_time": int(self.max_wait_time),
+            "sleep_time": int(self.sleep_time),
+        }
         runtime = create_provider_runtime(provider=provider_name, client=self.client)
         profiles = runtime.backend_adapter.discover_hardware(
             num_qubits=num_qubits,
@@ -764,6 +773,7 @@ class VQERunner:
                     use_dd=use_dd,
                     convert_single_qubit_gate_to_u=convert_single_qubit_gate_to_u,
                     transpile=bool(self.transpile_on_client),
+                    submit_options=submit_options,
                 )
             except Exception as exc:
                 last_error = exc

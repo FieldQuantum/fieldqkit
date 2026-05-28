@@ -107,7 +107,9 @@ print(f"Best cost: {result.best_cost:.4f}")
 
 - `build_maxcut_hamiltonian(edges, num_qubits)` — 构建 MaxCut ZZ 代价项。
 - `build_qaoa_ansatz_symbolic(num_qubits, edges, p)` — 构建符号化 QAOA ansatz 线路。
-- `run_qaoa_with_backend(...)` — 底层优化循环（支持 parameter-shift / autograd）。
+- `run_qaoa_with_backend(..., submit_options=None)` — 底层优化循环（支持 parameter-shift / autograd）。
+
+> `QAOARunner` 的 `max_wait_time` / `sleep_time` 会被打包进 `submit_options`，经 `run_qaoa_with_backend → run_variational_loop → evaluate_energy_with_backend → client._run_with_backend` 透传到 provider task adapter（与 VQE / ShadowTomography 一致）。
 
 ## 共享优化工具
 

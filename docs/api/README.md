@@ -15,7 +15,7 @@
 - [Backend](./Backend.md) —— 后端抽象、拓扑操作、硬件 profile
 - [Task](./Task.md) —— 任务协议与适配器接口
 - [provider_runtime](./provider_runtime.md) —— Provider Runtime 工厂
-- [providers](./providers.md) —— 五个 Provider 实现（Quafu、TianYan、GuoDun、Tencent、Origin）
+- [providers](./providers.md) —— 六个 Provider 实现（Quafu、TianYan、GuoDun、Tencent、Origin、FieldQuantum 云）
 - [cqlib](./cqlib.md) —— 共享远程平台客户端
 - [platform_credentials](./platform_credentials.md) —— 凭证管理
 
@@ -32,7 +32,7 @@
 6. [provider_runtime](./provider_runtime.md) —— Provider 动态注册与初始化
 
 **集成新 Provider：**
-7. [providers](./providers.md) —— 参考现有 Quafu/TianYan/GuoDun/Tencent/Origin 实现
+7. [providers](./providers.md) —— 参考现有 Quafu/TianYan/GuoDun/Tencent/Origin/FieldQuantum 实现
 8. [cqlib](./cqlib.md) —— TianYan/GuoDun 共享的 HTTP 客户端层
 9. [platform_credentials](./platform_credentials.md) —— 认证配置管理
 

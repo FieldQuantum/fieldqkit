@@ -41,7 +41,10 @@ TIANYAN_CLOUD_SIM_NAMES = {
 GUODUN_CLOUD_SIM_NAMES: set[str] = set()
 TENCENT_CLOUD_SIM_NAMES = {"simulator:tc"}
 CLOUD_SIM_HARDWARE_NAMES = (
-    TIANYAN_CLOUD_SIM_NAMES | GUODUN_CLOUD_SIM_NAMES | TENCENT_CLOUD_SIM_NAMES
+    TIANYAN_CLOUD_SIM_NAMES
+    | GUODUN_CLOUD_SIM_NAMES
+    | TENCENT_CLOUD_SIM_NAMES
+    | FIELDQUANTUM_HARDWARE_NAMES
 )
 
 
@@ -180,10 +183,6 @@ class Backend:
         elif chip in SIMULATOR_HARDWARE_NAMES:
             self.chip_name = "Simulator"
             self.chip_info = _build_simulator_chip_info()
-        elif chip in FIELDQUANTUM_HARDWARE_NAMES:
-            self.chip_name = "fieldquantum_sim"
-            self.chip_info = _build_simulator_chip_info()
-            self.chip_info["chip_name"] = "fieldquantum_sim"
         else:
             raise ValueError(f"Wrong chip name! {chip}")
 
@@ -196,9 +195,12 @@ class Backend:
             self.priority_qubits = _fallback_priority_qubits(
                 self.chip_info.get("qubits_info") if isinstance(self.chip_info, dict) else {}
             )
-        self.qubits_with_attributes = self._collect_qubits_with_attributes()
-        self.couplers_with_attributes = self._collect_couplers_with_attributes()
-        self.two_qubit_gate_basis = self.chip_info['global_info']['two_qubit_gate_basis'].lower()
+        try:
+            self.qubits_with_attributes = self._collect_qubits_with_attributes()
+            self.couplers_with_attributes = self._collect_couplers_with_attributes()
+            self.two_qubit_gate_basis = self.chip_info['global_info']['two_qubit_gate_basis'].lower()
+        except (KeyError, TypeError, AttributeError) as exc:
+            raise ValueError(f"malformed chip_info: {exc}") from exc
 
     @property
     def graph(self):
@@ -422,7 +424,7 @@ def build_simulator_profile(*, provider: str, num_qubits: int) -> HardwareProfil
     """Build a synthetic hardware profile for the local simulator.
 
     Args:
-        provider (*str*): Platform provider name (``"quafu"``, ``"tianyan"``, ``"guodun"``, ``"tencent"``).
+        provider (*str*): Platform provider name. One of ``"quafu"``, ``"tianyan"``, ``"guodun"``, ``"tencent"``, ``"origin"``, ``"fieldquantum"``, ``"simulator"`` (case-insensitive).
         num_qubits (*int*): Number of qubits.
 
     Returns:
@@ -616,7 +618,7 @@ def build_hardware_profile(
     """Build a ``HardwareProfile`` from a ``Backend`` instance.
 
     Args:
-        provider (*str*): Platform provider name (``"quafu"``, ``"tianyan"``, ``"guodun"``, ``"tencent"``).
+        provider (*str*): Platform provider name. One of ``"quafu"``, ``"tianyan"``, ``"guodun"``, ``"tencent"``, ``"origin"``, ``"fieldquantum"``, ``"simulator"`` (case-insensitive).
         hardware_name (*str*): Human-readable identifier for the quantum hardware.
         backend (*Backend*): Hardware backend descriptor.
         queue_length (*Optional[int]*): Current job queue depth on the hardware.
@@ -696,7 +698,7 @@ def list_available_hardware(provider: str) -> List[Dict[str, Any]]:
     """List available hardware for the given provider.
 
     Args:
-        provider (*str*): Platform provider name (``"quafu"``, ``"tianyan"``, ``"guodun"``, ``"tencent"``).
+        provider (*str*): Platform provider name. One of ``"quafu"``, ``"tianyan"``, ``"guodun"``, ``"tencent"``, ``"origin"``, ``"fieldquantum"``, ``"simulator"`` (case-insensitive).
 
     Returns:
         List of normalized hardware description dictionaries.
@@ -742,7 +744,12 @@ def list_available_hardware(provider: str) -> List[Dict[str, Any]]:
         platform_obj = OriginPlatform(token=api_token)
         return platform_obj.list_available_hardware()
 
-    raise ValueError("provider must be one of: 'quafu', 'tianyan', 'guodun', 'tencent', or 'origin'")
+    if provider_name == "fieldquantum":
+        from .quantum_platform.fieldquantum import FieldQuantumPlatform
+
+        return FieldQuantumPlatform().list_available_hardware()
+
+    raise ValueError("provider must be one of: 'quafu', 'tianyan', 'guodun', 'tencent', 'origin', or 'fieldquantum'")
 
 
 # ---------------------------------------------------------------------------

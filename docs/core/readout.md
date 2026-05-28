@@ -49,7 +49,9 @@
 - `ValueError("target_qubits is empty")`
 - `ValueError("confusion_matrix must be square")`
 - `ValueError("local_samples must be a 2D array...")`
+- `ValueError("local_confusion_matrices length must equal local_samples.shape[1]")`
 - `ValueError("each local confusion matrix must have shape (2, 2)")`
+- `ValueError("local_samples must contain only 0/1 outcomes")`
 
 ## 示例
 

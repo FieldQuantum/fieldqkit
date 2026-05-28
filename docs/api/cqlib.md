@@ -55,8 +55,8 @@ RemotePlatformClient(login_key: str, auto_login: bool = True, machine_name: str 
 |---|---|---|---|
 | `login` | `login(timeout=60)` | `str` | 登录并获取 access token。 |
 | `set_machine` | `set_machine(machine_name)` | `None` | 设置目标芯片。 |
-| `submit_job` | `submit_job(..., language=QuantumLanguage.QCIS, ...)` | `query_ids` | 提交实验任务。 |
-| `query_experiment` | `query_experiment(query_id, max_wait_time=120, sleep_time=5)` | `list/dict` | 轮询查询结果。 |
+| `submit_job` | `submit_job(circuit=None, exp_name="", parameters=None, values=None, num_shots=12000, lab_id=None, exp_id=None, language=QuantumLanguage.QCIS, version="1", is_verify=True, **kwargs)` | `query_ids` | 提交一条或一批线路实验。`circuit` 可以是字符串或字符串列表；多条时 `version` 会被置 `None`。`circuit=None` 时必须提供 `exp_id`。 |
+| `query_experiment` | `query_experiment(query_id, max_wait_time=120, sleep_time=5)` | `list` | 轮询查询结果，超时抛 `CqlibRequestError`。 |
 | `download_config` | `download_config(read_time=None, machine=None)` | `dict` | 下载设备配置。 |
 | `query_quantum_computer_records` | `query_quantum_computer_records()` | `List[Dict[str, Any]]` | 查询硬件记录。 |
 | `_send_request` | `_send_request(path, method="GET", data=None, params=None, raise_for_code=True)` | `dict` | 统一 HTTP 请求入口（带重连装饰器）。 |

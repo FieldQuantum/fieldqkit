@@ -4,7 +4,7 @@
 
 - **模块**：`quantum_hw.compile.layout`（约670 行）
 - **作用**：根据芯片拓扑和耦合保真度，为量子线路选择最优的物理比特子图。
-- **依赖**：`Backend`、`QuantumCircuit`、`split_qubits`、`networkx`、`numpy`、`multiprocessing`
+- **依赖**：`Backend`、`QuantumCircuit`、`split_qubits`、`networkx`、`numpy`
 - **继承**：无（独立类）
 
 ---
@@ -32,7 +32,7 @@ class Layout:
 |---|---|---|---|
 | `priority_qubits` | `List[List[int]]` | `chip_backend.priority_qubits` | 芯片推荐比特优先级列表 |
 | `graph` | `nx.Graph` | `chip_backend.edge_filtered_graph(thres=0.6)` | 保真度过滤后的耦合图（边保真度 ≥ 0.6 的子图，同时过滤节点） |
-| `ncore` | `int` | `os.cpu_count() // 2` | 并行枚举子图时使用的进程数 |
+| `ncore` | `int` | `os.cpu_count() // 2` | 历史遗留属性；当前子图枚举为串行实现，未实际使用该值 |
 | `fidelity_mean_threshold` | `float` | 硬编码 `0.9` | 候选子图的平均保真度筛选阈值 |
 | `edge_fidelitys` | `Dict[Tuple, float]` | `nx.get_edge_attributes(graph, "fidelity")` | 边保真度字典 |
 | `algorithm_switch_threshold` | `int` | 硬编码 `10` | 小规模枚举 vs 大规模 BFS 的分界比特数 |
@@ -153,7 +153,7 @@ def _estimate_routing_cost(interaction_graph: nx.Graph, subgraph: nx.Graph) -> f
 当比特数 $\leq$ `algorithm_switch_threshold`（默认 10）且线路有两比特门交互时，布局选择流程为：
 
 1. **提取交互图**：`_extract_interaction_graph(qc)` 构建虚拟比特加权图
-2. **候选枚举**：枚举所有满足 `fidelity_mean_threshold` 的连通子图（`collect_all_subgraph_in_parallel`，利用 `multiprocessing.Pool` 并行化）
+2. **候选枚举**：枚举所有满足 `fidelity_mean_threshold` 的连通子图（`collect_all_subgraph_in_parallel`，名称为历史遗留，实际为串行实现——旧版的 `multiprocessing.Pool` 会在 Windows/macOS 上重导入用户脚本，故已移除）
 3. **排序选 Top-K**（K=10）：按 `fidelity_var` 或 `fidelity_mean` 排序
 4. **路由代价重排序**：对 Top-K 候选调用 `_estimate_routing_cost`
 5. **综合评分**：
@@ -228,9 +228,9 @@ def select_few_qubits_from_backend(
 | 方法 | 签名 | 说明 |
 |---|---|---|
 | `get_one_node_subgraph(node, nqubits)` | → `List[tuple]` | 以 `node` 为起点枚举所有大小为 `nqubits` 的连通子图 |
-| `collect_all_subgraph_in_parallel(nqubits)` | → `List[tuple]` | 并行枚举所有起点的子图，合并去重 |
+| `collect_all_subgraph_in_parallel(nqubits)` | → `List[tuple]` | 枚举所有起点的子图并合并去重（名称为历史遗留，实为串行） |
 | `get_one_subgraph_info(nodes)` | → `Tuple \| None` | 计算子图度分布、平均保真度、保真度方差；低于阈值返回 `None` |
-| `collect_all_subgraph_info_in_parallel(nqubits)` | → `List` | 并行计算所有的子图信息 |
+| `collect_all_subgraph_info_in_parallel(nqubits)` | → `List` | 计算所有子图的信息（名称为历史遗留，实为串行） |
 | `classify_all_subgraph_according_topology(nqubits)` | → `(linear_list, nonlinear_list)` | 按最大度分类为线性（≤2）/非线性 |
 | `sort_subgraph_according_mean_fidelity(nqubits, num, printdetails)` | → `(linear_top, nonlinear_top)` | 按平均保真度降序排列 |
 | `sort_subgraph_according_var_fidelity(nqubits, num, printdetails)` | → `(linear_top, nonlinear_top)` | 按保真度方差升序排列 |

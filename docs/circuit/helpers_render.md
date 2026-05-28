@@ -22,14 +22,14 @@
 |------|------|----------|
 | `one_qubit_gates_available` | 单比特离散门 | `'x': 'X'`, `'h': 'H'`, `'sx': '√X'` |
 | `two_qubit_gates_available` | 双比特离散门 | `'cx': '●X'`, `'swap': 'XX'`, `'ecr': '╬╬'` |
-| `three_qubit_gates_available` | 三比特门 | `'ccx': '●●X'`, `'cswap': '●XX'` |
-| `one_qubit_parameter_gates_available` | 单比特参数门 | `'rx': 'Rx'`, `'u': 'U'`, `'r': 'R'` |
-| `two_qubit_parameter_gates_available` | 双比特参数门 | `'rxx': 'Rxx'`, `'cp': '●P'` |
+| `three_qubit_gates_available` | 三比特门 | `'ccz': '●●●'`, `'ccx': '●●X'` |
+| `one_qubit_parameter_gates_available` | 单比特参数门 | `'rx': 'Rx'`, `'ry': 'Ry'`, `'rz': 'Rz'`, `'u': 'U'` |
+| `two_qubit_parameter_gates_available` | 双比特参数门 | `'rxx': 'Rxx'`, `'ryy': 'Ryy'`, `'rzz': 'Rzz'` |
 | `functional_gates_available` | 功能门 | `'barrier': '░'`, `'measure': 'M'`, `'reset': '\|0>'`, `'delay': 'Delay'` |
 
 ### DAG 转换
 
-#### `convert_gate_info_to_dag_info(nqubits: int, qubits: list, gates: list, show_qubits: bool = True) -> tuple[np.ndarray, np.ndarray]`
+#### `convert_gate_info_to_dag_info(nqubits: int, qubits: list, gates: list, show_qubits: bool = True) -> tuple[list, list]`
 
 将 gate tuple 列表转换为有向无环图（DAG）的节点与边列表，供编译模块的 DAG 分层使用。
 
@@ -40,7 +40,7 @@
 | `gates` | `list` | gate tuple 列表 |
 | `show_qubits` | `bool` | 是否为每个 qubit 生成初始节点，默认 `True` |
 
-**返回**：`(node_list, edge_list)`，均为 `np.ndarray`。
+**返回**：`(node_list, edge_list)`，均为 Python `list`。
 
 - 节点格式：`(gate_idx_qubits, {'qubits': [...], 'params': [...], ...})`
 - 边格式：`(src_node, dst_node, {'qubit': [...]})`

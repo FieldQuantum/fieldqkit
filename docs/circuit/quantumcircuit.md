@@ -88,12 +88,12 @@
 
 ### 三比特门
 
-- `ccx` / `ccz` / `cswap`
+- `ccx` / `ccz`
 
 ### 参数门
 
-- 单比特：`p`、`r`、`u`、`rx`、`ry`、`rz`
-- 双比特：`rxx`、`ryy`、`rzz`、`cp`
+- 单比特：`u`、`rx`、`ry`、`rz`
+- 双比特：`rxx`、`ryy`、`rzz`
 
 ### Pauli 演化门
 
