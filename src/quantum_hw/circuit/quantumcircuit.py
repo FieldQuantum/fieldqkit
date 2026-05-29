@@ -20,6 +20,9 @@ from .quantumcircuit_helpers import (
     two_qubit_parameter_gates_available,
     three_qubit_gates_available,
     functional_gates_available,
+    noise_channel_gates_available,
+    single_qubit_noise_channel_gates_available,
+    two_qubit_noise_channel_gates_available,
     convert_gate_info_to_dag_info,
     add_gates_to_lines,
     )
@@ -132,6 +135,13 @@ class QuantumCircuit:
                 qubit1 = gate_info[-2] + num
                 qubit2 = gate_info[-1] + num
                 gates.append((gate, *gate_info[1:-2], qubit1, qubit2))
+            elif gate in single_qubit_noise_channel_gates_available:
+                qubit = gate_info[-1] + num
+                gates.append((gate, gate_info[1], qubit))
+            elif gate in two_qubit_noise_channel_gates_available:
+                qubit1 = gate_info[2] + num
+                qubit2 = gate_info[3] + num
+                gates.append((gate, gate_info[1], qubit1, qubit2))
             elif gate in ['reset']:
                 qubit = gate_info[-1] + num
                 gates.append((gate,qubit))
@@ -1034,6 +1044,10 @@ Indexed format examples: "X1 Y2 Z3 Z4".
                 new.append((gate,gate_info[1],*[mapping[q] for q in gate_info[2:]]))
             elif gate in three_qubit_gates_available.keys():
                 new.append((gate,*[mapping[q] for q in gate_info[1:]]))
+            elif gate in single_qubit_noise_channel_gates_available:
+                new.append((gate, gate_info[1], mapping[gate_info[2]]))
+            elif gate in two_qubit_noise_channel_gates_available:
+                new.append((gate, gate_info[1], mapping[gate_info[2]], mapping[gate_info[3]]))
             elif gate in functional_gates_available.keys():
                 if gate == 'measure':
                     qubitlst = [mapping[q] for q in gate_info[1]]
@@ -1188,6 +1202,156 @@ Indexed format examples: "X1 Y2 Z3 Z4".
         self.u3_for_unitary(rots2[3] @ h_mat, qubit2)
         self._add_qubits(qubit1,qubit2)
         return self
+
+    def depolarize1(self, p: float, qubit: int) -> 'QuantumCircuit':
+        r"""Add a single-qubit depolarizing noise channel.
+
+        Args:
+            p (float): Error probability (0 ≤ p ≤ 1).
+            qubit (int): The qubit to apply the channel to.
+
+        Raises:
+            ValueError: If qubit out of circuit range or p out of range.
+        """
+        if isinstance(p, str) or not (0.0 <= p <= 1.0):
+            raise ValueError(f"Depolarizing probability must be a number in [0, 1], got {p!r}")
+        if qubit < self.nqubits:
+            self.gates.append(('depolarize1', p, qubit))
+            self._add_qubits(qubit)
+            return self
+        else:
+            raise ValueError("Qubit index out of range")
+
+    def depolarize2(self, p: float, qubit0: int, qubit1: int) -> 'QuantumCircuit':
+        r"""Add a two-qubit depolarizing noise channel.
+
+        Args:
+            p (float): Error probability (0 ≤ p ≤ 1).
+            qubit0 (int): The first qubit.
+            qubit1 (int): The second qubit.
+
+        Raises:
+            ValueError: If qubits out of circuit range or p out of range.
+        """
+        if isinstance(p, str) or not (0.0 <= p <= 1.0):
+            raise ValueError(f"Depolarizing probability must be a number in [0, 1], got {p!r}")
+        if max(qubit0, qubit1) < self.nqubits:
+            if qubit0 != qubit1:
+                self.gates.append(('depolarize2', p, qubit0, qubit1))
+                self._add_qubits(qubit0, qubit1)
+                return self
+            else:
+                raise ValueError(f"Qubit index conflict: qubit0 and qubit1 are both {qubit0}")
+        else:
+            raise ValueError("Qubit index out of range")
+
+    def x_error(self, p: float, qubit: int) -> 'QuantumCircuit':
+        r"""Add a single-qubit bit-flip (X) error channel.
+
+        Args:
+            p (float): Error probability (0 ≤ p ≤ 1).
+            qubit (int): The qubit to apply the channel to.
+
+        Raises:
+            ValueError: If qubit out of circuit range or p out of range.
+        """
+        if isinstance(p, str) or not (0.0 <= p <= 1.0):
+            raise ValueError(f"Error probability must be a number in [0, 1], got {p!r}")
+        if qubit < self.nqubits:
+            self.gates.append(('x_error', p, qubit))
+            self._add_qubits(qubit)
+            return self
+        else:
+            raise ValueError("Qubit index out of range")
+
+    def y_error(self, p: float, qubit: int) -> 'QuantumCircuit':
+        r"""Add a single-qubit Y error channel.
+
+        Args:
+            p (float): Error probability (0 ≤ p ≤ 1).
+            qubit (int): The qubit to apply the channel to.
+
+        Raises:
+            ValueError: If qubit out of circuit range or p out of range.
+        """
+        if isinstance(p, str) or not (0.0 <= p <= 1.0):
+            raise ValueError(f"Error probability must be a number in [0, 1], got {p!r}")
+        if qubit < self.nqubits:
+            self.gates.append(('y_error', p, qubit))
+            self._add_qubits(qubit)
+            return self
+        else:
+            raise ValueError("Qubit index out of range")
+
+    def z_error(self, p: float, qubit: int) -> 'QuantumCircuit':
+        r"""Add a single-qubit phase-flip (Z) error channel.
+
+        Args:
+            p (float): Error probability (0 ≤ p ≤ 1).
+            qubit (int): The qubit to apply the channel to.
+
+        Raises:
+            ValueError: If qubit out of circuit range or p out of range.
+        """
+        if isinstance(p, str) or not (0.0 <= p <= 1.0):
+            raise ValueError(f"Error probability must be a number in [0, 1], got {p!r}")
+        if qubit < self.nqubits:
+            self.gates.append(('z_error', p, qubit))
+            self._add_qubits(qubit)
+            return self
+        else:
+            raise ValueError("Qubit index out of range")
+
+    def amplitude_damping(self, gamma: float, qubit: int) -> 'QuantumCircuit':
+        r"""Add an amplitude damping channel (energy dissipation).
+
+        Args:
+            gamma (float): Damping parameter (0 ≤ γ ≤ 1).
+            qubit (int): The qubit to apply the channel to.
+
+        Raises:
+            ValueError: If qubit out of circuit range or gamma out of range.
+        """
+        if isinstance(gamma, str) or not (0.0 <= gamma <= 1.0):
+            raise ValueError(f"Damping parameter must be a number in [0, 1], got {gamma!r}")
+        if qubit < self.nqubits:
+            self.gates.append(('amplitude_damping', gamma, qubit))
+            self._add_qubits(qubit)
+            return self
+        else:
+            raise ValueError("Qubit index out of range")
+
+    def phase_damping(self, gamma: float, qubit: int) -> 'QuantumCircuit':
+        r"""Add a phase damping channel (dephasing).
+
+        Args:
+            gamma (float): Dephasing parameter (0 ≤ γ ≤ 1).
+            qubit (int): The qubit to apply the channel to.
+
+        Raises:
+            ValueError: If qubit out of circuit range or gamma out of range.
+        """
+        if isinstance(gamma, str) or not (0.0 <= gamma <= 1.0):
+            raise ValueError(f"Dephasing parameter must be a number in [0, 1], got {gamma!r}")
+        if qubit < self.nqubits:
+            self.gates.append(('phase_damping', gamma, qubit))
+            self._add_qubits(qubit)
+            return self
+        else:
+            raise ValueError("Qubit index out of range")
+
+    def remove_noise_channels(self) -> 'QuantumCircuit':
+        r"""Return a copy of this circuit with all noise channel gates removed.
+
+        Useful for obtaining the ideal (noise-free) version of a noisy circuit,
+        e.g. as the reference branch in Clifford data regression.
+
+        Returns:
+            A new ``QuantumCircuit`` containing only the non-noise gates.
+        """
+        new = self.deepcopy()
+        new.gates = [g for g in new.gates if g[0] not in noise_channel_gates_available]
+        return new
 
     def reset(self, qubit: int) -> 'QuantumCircuit':
         r"""
@@ -1400,6 +1564,14 @@ Indexed format examples: "X1 Y2 Z3 Z4".
         ]
         if 'delay' in gates0:
             lines.append("opaque delay(param0) q0;")
+        for gate_name in single_qubit_noise_channel_gates_available:
+            if gate_name in gates0:
+                arg = "gamma" if "damping" in gate_name else "p"
+                lines.append(f"opaque {gate_name}({arg}) q;")
+        for gate_name in two_qubit_noise_channel_gates_available:
+            if gate_name in gates0:
+                arg = "gamma" if "damping" in gate_name else "p"
+                lines.append(f"opaque {gate_name}({arg}) q0,q1;")
         lines.append(f"qreg q[{self.nqubits}];")
         lines.append(f"creg c[{self.ncbits}];")
         return lines
@@ -1448,6 +1620,12 @@ Indexed format examples: "X1 Y2 Z3 Z4".
                 f"measure q[{gate_info[1][idx]}] -> c[{gate_info[2][idx]}];"
                 for idx in range(len(gate_info[1]))
             ]
+        if gate in single_qubit_noise_channel_gates_available:
+            param_value = self._fmt_param(gate_info[1], symbolic)
+            return [f"{gate}({param_value}) q[{gate_info[2]}];"]
+        if gate in two_qubit_noise_channel_gates_available:
+            param_value = self._fmt_param(gate_info[1], symbolic)
+            return [f"{gate}({param_value}) q[{gate_info[2]}],q[{gate_info[3]}];"]
         raise ValueError(f"Unsupported gate for OpenQASM 2.0: {gate}")
 
     @property
@@ -1514,6 +1692,11 @@ Indexed format examples: "X1 Y2 Z3 Z4".
             elif gate in two_qubit_parameter_gates_available.keys():
                 used_qubits.add(gate_info[-2])
                 used_qubits.add(gate_info[-1])
+            elif gate in single_qubit_noise_channel_gates_available:
+                used_qubits.add(gate_info[2])
+            elif gate in two_qubit_noise_channel_gates_available:
+                used_qubits.add(gate_info[2])
+                used_qubits.add(gate_info[3])
             elif gate in functional_gates_available.keys():
                 if gate == 'measure':
                     for q in gate_info[1]:

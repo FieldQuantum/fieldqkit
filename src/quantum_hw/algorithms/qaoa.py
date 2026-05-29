@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 
 import numpy as np
 
-from ..api.backend import Backend, resolve_provider
+from ..api.backend import Backend, resolve_provider, is_noisy_circuit_for_backend
 from ..api.quantum_platform import create_provider_runtime
 from ..circuit import QuantumCircuit
 from ..core.types import QAOAResult
@@ -241,6 +241,8 @@ def run_qaoa_with_backend(
         if str(chip_name).lower() not in ["simulator", "fieldquantum_sim"]:
             raise ValueError("autograd mode is only supported on Simulator or fieldquantum_sim backend")
     else:
+        if is_noisy_circuit_for_backend(symbolic_qc, chip_name):
+            transpile = False
         if transpile:
             transpiled_template = client._transpile_with_backend(
                 symbolic_qc,

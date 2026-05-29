@@ -47,6 +47,38 @@ CLOUD_SIM_HARDWARE_NAMES = (
     | FIELDQUANTUM_HARDWARE_NAMES
 )
 
+# Backends that can execute circuits containing explicit noise channels.
+NOISE_CAPABLE_HARDWARE_NAMES = SIMULATOR_HARDWARE_NAMES | FIELDQUANTUM_HARDWARE_NAMES
+
+
+def is_noisy_circuit_for_backend(qc, chip_name: str) -> bool:
+    """Return whether *qc* has noise channels, validating backend support.
+
+    Explicit noise channels have no hardware-basis decomposition and can only be
+    simulated, so they are restricted to the local/cloud simulators. Callers use
+    the return value to skip transpilation for noisy circuits.
+
+    Args:
+        qc: Quantum circuit to inspect.
+        chip_name (*str*): Target chip identifier.
+
+    Returns:
+        ``True`` if *qc* contains at least one noise channel.
+
+    Raises:
+        ValueError: If *qc* is noisy but *chip_name* is not a simulator backend.
+    """
+    from ..circuit.quantumcircuit_helpers import has_noise_channels
+
+    if not has_noise_channels(qc):
+        return False
+    if chip_name not in NOISE_CAPABLE_HARDWARE_NAMES:
+        raise ValueError(
+            f"Noisy circuits (depolarize/amplitude_damping/etc.) are not supported "
+            f"on hardware backend '{chip_name}'. Use 'simulator' or 'fieldquantum_sim'."
+        )
+    return True
+
 
 def _as_float_or_default(value: Any, default: float) -> float:
     """Convert *value* to float, returning *default* on failure.

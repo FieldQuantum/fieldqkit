@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -m py_compile src/quantum_hw/circuit/quantumcircuit_helpers.py src/quantum_hw/sim/density_matrix.py src/quantum_hw/sim/interface.py tests/test_noise_channels.py)",
+      "Bash(python -m py_compile src/quantum_hw/sim/interface.py)",
+      "Bash(python3)"
+    ]
+  }
+}

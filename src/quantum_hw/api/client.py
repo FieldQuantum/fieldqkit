@@ -554,6 +554,11 @@ class QuantumHardwareClient:
 			observables = []
 		observables = list(observables)
 
+		from .backend import is_noisy_circuit_for_backend
+		noisy_circuit = is_noisy_circuit_for_backend(qc, chip_name)
+		if noisy_circuit:
+			transpile = False
+
 		if print_true:
 			logger.info("which hardware: %s", chip_name)
 
@@ -641,7 +646,7 @@ class QuantumHardwareClient:
 			elif not self._has_measurements(qct):
 				qct.barrier()
 				qct.measure(target_qubits_in_use, list(range(len(target_qubits_in_use))))
-			if basis_pattern is not None or not self._has_measurements(qct):
+			if not noisy_circuit and (basis_pattern is not None or not self._has_measurements(qct)):
 				qct = _translate_to_basis(qct)
 			if scale_zne:
 				# Insert CZ tripling after transpilation for ZNE.
@@ -969,7 +974,9 @@ class QuantumHardwareClient:
 		transpiled_qc: Optional[QuantumCircuit] = None
 		target_qubits_in_use = target_qubits
 		if do_clifford_fitting:
-			if transpile_on_client:
+			from .backend import is_noisy_circuit_for_backend
+			noisy_circuit = is_noisy_circuit_for_backend(qc, resolved_backend.hardware_name)
+			if transpile_on_client and not noisy_circuit:
 				transpiled_qc = self._transpile_with_backend(
 					deepcopy(qc),
 					resolved_backend.backend,

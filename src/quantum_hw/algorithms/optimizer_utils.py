@@ -513,7 +513,7 @@ def build_clifford_fit_map(
     )
     for si, clifford_qc in enumerate(sampled_clifford_circuits):
         noisy_qc = clifford_qc.deepcopy()
-        ideal_qc = clifford_qc.deepcopy()
+        ideal_qc = clifford_qc.remove_noise_channels()
 
         _, noisy_expectations = evaluate_energy_with_backend(
             client,

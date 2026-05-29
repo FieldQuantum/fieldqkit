@@ -11,7 +11,7 @@ from typing import Callable, Dict, List, Literal, Optional, Sequence, Tuple
 logger = logging.getLogger(__name__)
 
 import numpy as np
-from ..api.backend import Backend, resolve_provider
+from ..api.backend import Backend, resolve_provider, is_noisy_circuit_for_backend
 from ..api.quantum_platform import create_provider_runtime
 
 from ..circuit import QuantumCircuit
@@ -468,6 +468,10 @@ def run_vqe_with_backend(
         if str(chip_name).lower() not in ["simulator", "fieldquantum_sim"]:
             raise ValueError("autograd mode is only supported on Simulator or fieldquantum_sim backend")
     else:
+        if is_noisy_circuit_for_backend(symbolic_qc, chip_name):
+            if enable_circuit_compression:
+                raise ValueError("circuit compression is not supported for noisy circuits")
+            transpile = False
         if not enable_circuit_compression:
             if transpile:
                 transpiled_template = client._transpile_with_backend(

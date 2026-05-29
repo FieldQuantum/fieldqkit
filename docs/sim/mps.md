@@ -97,3 +97,4 @@
 - statevector simulator（statevector.md）
 - simulator interface（interface.md）
 - mpo process simulator（mpo.md）
+- density matrix simulator（density_matrix.md）

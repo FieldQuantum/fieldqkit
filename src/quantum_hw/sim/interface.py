@@ -10,6 +10,7 @@ from typing import Dict, Optional, Sequence
 import torch
 
 from ..circuit import QuantumCircuit
+from ..circuit.quantumcircuit_helpers import has_noise_channels
 
 from .mps import energy_and_expectations as _energy_and_expectations_mps
 from .mps import expectation_pauli as _expectation_pauli_mps
@@ -21,6 +22,11 @@ from .statevector import simulate_statevector as _simulate_statevector
 from .statevector import expectation_pauli as _expectation_pauli_statevector
 from .statevector import sample_probabilities as _sample_probabilities_statevector
 from .statevector import simulate_counts as _simulate_counts_statevector
+from .density_matrix import simulate_density_matrix as _simulate_density_matrix
+from .density_matrix import simulate_noisy_counts as _simulate_noisy_counts_dm
+from .density_matrix import expectation_pauli_dm as _expectation_pauli_dm
+from .density_matrix import sample_probabilities_dm as _sample_probabilities_dm
+from .density_matrix import energy_and_expectations as _energy_and_expectations_dm
 
 
 MPS_THRESHOLD_QUBITS: int = 16
@@ -139,6 +145,9 @@ def simulate_counts(
 ) -> Dict[str, int]:
     """Simulate counts with threshold-based backend selection.
 
+    Routes to density matrix backend if circuit contains noise channels,
+    otherwise dispatches to statevector or MPS based on qubit count.
+
     Args:
         qc (*QuantumCircuit*): Quantum circuit.
         shots (*int*): Number of measurement shots.
@@ -157,24 +166,33 @@ def simulate_counts(
     if max_bond_dim is _UNSET:
         max_bond_dim = _mps_mod.MAX_BOND_DIM
 
-    nqubits = int(getattr(qc, "nqubits", 0) or 0)
-    if nqubits > MPS_THRESHOLD_QUBITS:
-        raw = _simulate_counts_mps(
+    if has_noise_channels(qc):
+        raw = _simulate_noisy_counts_dm(
             qc,
             shots,
             seed=seed,
             param_values=param_values,
-            max_bond_dim=max_bond_dim,
             device=device,
         )
     else:
-        raw = _simulate_counts_statevector(
-            qc,
-            shots,
-            seed=seed,
-            param_values=param_values,
-            device=device,
-        )
+        nqubits = int(getattr(qc, "nqubits", 0) or 0)
+        if nqubits > MPS_THRESHOLD_QUBITS:
+            raw = _simulate_counts_mps(
+                qc,
+                shots,
+                seed=seed,
+                param_values=param_values,
+                max_bond_dim=max_bond_dim,
+                device=device,
+            )
+        else:
+            raw = _simulate_counts_statevector(
+                qc,
+                shots,
+                seed=seed,
+                param_values=param_values,
+                device=device,
+            )
 
     meas = _extract_measurements(qc)
     if meas is not None:
@@ -188,16 +206,21 @@ def expectation_pauli(
     *,
     num_qubits: int,
 ):
-    """Return <psi|P|psi> using threshold-based backend selection.
+    """Return expectation value with backend selection.
 
     Args:
-        state: Flat statevector tensor (≤ threshold qubits) or MPS tensor list (> threshold qubits).
-        pauli (*str*): Pauli string (e.g. ``'XZI'``).
+        state: Statevector (1D), MPS (list), or density matrix (2D).
+        pauli (*str*): Pauli string (e.g. ``'XZI'`` or ``'Z0Z1'``).
         num_qubits (*int*): Number of qubits.
 
     Returns:
-        Expectation value as a scalar.
+        Expectation value scalar.
     """
+    # DM fast path: 2D tensor
+    if hasattr(state, 'dim') and state.dim() == 2:
+        return _expectation_pauli_dm(state, pauli, num_qubits=num_qubits)
+
+    # SV/MPS: dispatch by qubit count
     if int(num_qubits) > MPS_THRESHOLD_QUBITS:
         return _expectation_pauli_mps(state, pauli, num_qubits=num_qubits)
     return _expectation_pauli_statevector(state, pauli, num_qubits=num_qubits)
@@ -212,13 +235,18 @@ def sample_probabilities(
     """Return probabilities for sample vectors via threshold-based dispatch.
 
     Args:
-        state: Statevector or MPS.
+        state: Statevector (1D), MPS (list), or density matrix (2D).
         samples: ``(N, n_qubits)`` integer tensor/array with entries 0/1.
-        num_qubits (*int*): Number of qubits, used to select backend.
+        num_qubits (*int*): Number of qubits.
 
     Returns:
         Probability tensor for the given samples.
     """
+    # DM fast path: 2D tensor
+    if hasattr(state, 'dim') and state.dim() == 2:
+        return _sample_probabilities_dm(state, samples)
+
+    # SV/MPS: dispatch by qubit count
     if int(num_qubits) > MPS_THRESHOLD_QUBITS:
         return _sample_probabilities_mps(state, samples)
     return _sample_probabilities_statevector(state, samples)
@@ -233,7 +261,10 @@ def energy_and_expectations(
     max_bond_dim: int | None | object = _UNSET,
     device: torch.device | str | None = None,
 ):
-    """Evaluate Hamiltonian energy via threshold-based backend selection.
+    """Evaluate Hamiltonian energy with backend selection (SV/MPS/DM).
+
+    Routes to density matrix backend if circuit contains noise, otherwise
+    dispatches to statevector or MPS based on qubit count.
 
     Args:
         symbolic_qc (*QuantumCircuit*): Symbolic (unbound) quantum circuit.
@@ -251,6 +282,18 @@ def energy_and_expectations(
         max_bond_dim = _mps_mod.MAX_BOND_DIM
 
     nqubits = int(getattr(symbolic_qc, "nqubits", 0) or 0)
+
+    # Noisy circuits: use density matrix backend
+    if has_noise_channels(symbolic_qc):
+        return _energy_and_expectations_dm(
+            symbolic_qc,
+            params=params,
+            param_names=param_names,
+            hamiltonian=hamiltonian,
+            device=device,
+        )
+
+    # Clean circuits: use SV or MPS based on qubit count
     if nqubits > MPS_THRESHOLD_QUBITS:
         return _energy_and_expectations_mps(
             symbolic_qc,
@@ -279,9 +322,9 @@ def build_state_from_symbolic(
 ):
     """Build a simulator state from a symbolic circuit and a differentiable param tensor.
 
-    Dispatches to statevector (flat tensor) or MPS (list of tensors) based on
-    qubit count vs ``MPS_THRESHOLD_QUBITS``.  The returned state object can be
-    passed directly to the interface-layer :func:`expectation_pauli` and
+    Dispatches to statevector (flat tensor), MPS (list of tensors), or density matrix
+    (2D tensor) based on noise presence and qubit count.
+    The returned state object can be passed directly to :func:`expectation_pauli` and
     :func:`sample_probabilities`, which perform the same dispatch.
 
     Args:
@@ -293,8 +336,8 @@ def build_state_from_symbolic(
         device (*torch.device | str | None*): Torch device. Defaults to ``None``.
 
     Returns:
-        Flat complex statevector tensor of length ``2**n`` (statevector backend)
-        or list of MPS site tensors (MPS backend).
+        Flat complex statevector tensor (statevector), MPS site tensors list (MPS),
+        or square density matrix tensor (DM for noisy circuits).
     """
     from .common import build_param_values_from_tensor
     from . import mps as _mps_mod
@@ -304,6 +347,12 @@ def build_state_from_symbolic(
 
     nqubits = int(getattr(symbolic_qc, "nqubits", 0) or 0)
     param_values = build_param_values_from_tensor(params=params, param_names=param_names)
+
+    # Noisy circuits always use density matrix backend
+    if has_noise_channels(symbolic_qc):
+        return _simulate_density_matrix(symbolic_qc, param_values=param_values, device=device)
+
+    # Clean circuits: SV or MPS based on qubit count
     if nqubits > MPS_THRESHOLD_QUBITS:
         return _simulate_mps(
             symbolic_qc,

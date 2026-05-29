@@ -35,6 +35,7 @@ import numpy as np
 
 from ..circuit import QuantumCircuit
 from ..core.types import QBMResult, QMLResult
+from ..api.backend import is_noisy_circuit_for_backend
 from .ansatz_templates import (
     build_hardware_efficient_ansatz_symbolic,
 )
@@ -399,17 +400,22 @@ def run_pqc_classifier(
     full_symbolic_template = _compose_circuits(enc_qc, ansatz_qc)
 
     if method == "parameter-shift":
-        transpiled_template = client._transpile_with_backend(
-            full_symbolic_template, backend, target_qubits=target_qubits,
-            use_dd=False, use_gate_compressor=False,
-            convert_single_qubit_gate_to_u=convert_single_qubit_gate_to_u,
-        )
-        target_qubits_in_use = client._ordered_target_qubits_from_layout(
-            compiled_qc=transpiled_template,
-            original_qc=full_symbolic_template,
-            num_qubits=num_qubits,
-        )
-        logger.info("transpiled ONCE (unified template), target_qubits=%s", target_qubits_in_use)
+        if is_noisy_circuit_for_backend(full_symbolic_template, chip_name):
+            # Noisy circuits run only on simulators and cannot be transpiled.
+            transpiled_template = full_symbolic_template
+            target_qubits_in_use = list(target_qubits) if target_qubits is not None else list(range(num_qubits))
+        else:
+            transpiled_template = client._transpile_with_backend(
+                full_symbolic_template, backend, target_qubits=target_qubits,
+                use_dd=False, use_gate_compressor=False,
+                convert_single_qubit_gate_to_u=convert_single_qubit_gate_to_u,
+            )
+            target_qubits_in_use = client._ordered_target_qubits_from_layout(
+                compiled_qc=transpiled_template,
+                original_qc=full_symbolic_template,
+                num_qubits=num_qubits,
+            )
+            logger.info("transpiled ONCE (unified template), target_qubits=%s", target_qubits_in_use)
     else:
         transpiled_template = full_symbolic_template
         target_qubits_in_use = None
@@ -799,16 +805,21 @@ def run_qnn_unsupervised(
 
     # Transpile once for parameter-shift
     if method == "parameter-shift":
-        transpiled_template = client._transpile_with_backend(
-            ansatz_qc, backend, target_qubits=target_qubits,
-            use_dd=False, use_gate_compressor=False,
-            convert_single_qubit_gate_to_u=convert_single_qubit_gate_to_u,
-        )
-        target_qubits_in_use = client._ordered_target_qubits_from_layout(
-            compiled_qc=transpiled_template,
-            original_qc=ansatz_qc,
-            num_qubits=num_qubits,
-        )
+        if is_noisy_circuit_for_backend(ansatz_qc, chip_name):
+            # Noisy circuits run only on simulators and cannot be transpiled.
+            transpiled_template = ansatz_qc
+            target_qubits_in_use = list(target_qubits) if target_qubits is not None else list(range(num_qubits))
+        else:
+            transpiled_template = client._transpile_with_backend(
+                ansatz_qc, backend, target_qubits=target_qubits,
+                use_dd=False, use_gate_compressor=False,
+                convert_single_qubit_gate_to_u=convert_single_qubit_gate_to_u,
+            )
+            target_qubits_in_use = client._ordered_target_qubits_from_layout(
+                compiled_qc=transpiled_template,
+                original_qc=ansatz_qc,
+                num_qubits=num_qubits,
+            )
         backend_kwargs = dict(
             num_qubits=num_qubits, backend=backend, chip_name=chip_name,
             shots=shots, zne=zne, readout_mitigation=readout_mitigation,
@@ -1098,16 +1109,21 @@ def run_qnn_conditional(
 
     # Transpile ansatz once (prep X gates are added per-sample before running)
     if method == "parameter-shift":
-        transpiled_ansatz = client._transpile_with_backend(
-            ansatz_qc, backend, target_qubits=target_qubits,
-            use_dd=False, use_gate_compressor=False,
-            convert_single_qubit_gate_to_u=convert_single_qubit_gate_to_u,
-        )
-        target_qubits_in_use = client._ordered_target_qubits_from_layout(
-            compiled_qc=transpiled_ansatz,
-            original_qc=ansatz_qc,
-            num_qubits=num_qubits,
-        )
+        if is_noisy_circuit_for_backend(ansatz_qc, chip_name):
+            # Noisy circuits run only on simulators and cannot be transpiled.
+            transpiled_ansatz = ansatz_qc
+            target_qubits_in_use = list(target_qubits) if target_qubits is not None else list(range(num_qubits))
+        else:
+            transpiled_ansatz = client._transpile_with_backend(
+                ansatz_qc, backend, target_qubits=target_qubits,
+                use_dd=False, use_gate_compressor=False,
+                convert_single_qubit_gate_to_u=convert_single_qubit_gate_to_u,
+            )
+            target_qubits_in_use = client._ordered_target_qubits_from_layout(
+                compiled_qc=transpiled_ansatz,
+                original_qc=ansatz_qc,
+                num_qubits=num_qubits,
+            )
         backend_kwargs = dict(
             num_qubits=num_qubits, backend=backend, chip_name=chip_name,
             shots=shots, zne=zne, readout_mitigation=readout_mitigation,

@@ -11,6 +11,8 @@ from .quantumcircuit_helpers import (
     one_qubit_parameter_gates_available,
     two_qubit_parameter_gates_available,
     functional_gates_available,
+    single_qubit_noise_channel_gates_available,
+    two_qubit_noise_channel_gates_available,
 )
 
 __all__ = [
@@ -389,6 +391,19 @@ def parse_openqasm2_to_gates(openqasm2_str):
                 new.append(("u", params[0], phi - np.pi / 2, np.pi / 2 - phi, q))
                 _record_qubits(qubit_used, q)
         elif gate in two_qubit_parameter_gates_available:
+            if len(positions) != 2:
+                raise ValueError(f"{gate} takes 2 quantum arguments, but got {len(positions)}.")
+            if len(positions[0]) != len(positions[1]):
+                raise ValueError(f"{gate} takes 2 different quantum arguments length.")
+            for idx in range(len(positions[0])):
+                new.append((gate, *params, positions[0][idx], positions[1][idx]))
+                _record_qubits(qubit_used, positions[0][idx], positions[1][idx])
+        elif gate in single_qubit_noise_channel_gates_available:
+            qubits = [p for pp in positions for p in pp]
+            for q in qubits:
+                new.append((gate, *params, q))
+                _record_qubits(qubit_used, q)
+        elif gate in two_qubit_noise_channel_gates_available:
             if len(positions) != 2:
                 raise ValueError(f"{gate} takes 2 quantum arguments, but got {len(positions)}.")
             if len(positions[0]) != len(positions[1]):

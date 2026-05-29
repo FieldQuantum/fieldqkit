@@ -287,6 +287,14 @@ class BackendAdapter(ABC):
 - 作用：若 `prefer_chips` 中包含已知芯片，返回该芯片推断出的 provider；否则回退到调用方提供的 provider。
 - 典型场景：`run_with_backend` 硬件主路径自动根据芯片名解析 provider。
 
+### `is_noisy_circuit_for_backend(qc, chip_name) -> bool`
+
+- 作用：判断线路 `qc` 是否含噪声信道，并校验目标后端是否支持。
+- 返回 `False`：线路无噪声信道。
+- 返回 `True`：线路含噪声信道且 `chip_name` 是模拟器后端（`NOISE_CAPABLE_HARDWARE_NAMES` 内）。
+- 抛 `ValueError`：线路含噪声信道但 `chip_name` 不是模拟器后端——显式噪声信道无硬件基分解，只能模拟。
+- 典型场景：执行 API 与各算法 runner 用返回值决定是否跳过转译（含噪线路一律不转译）。
+
 ## 模块级常量（芯片注册表）
 
 | 常量 | 包含值 |
@@ -303,6 +311,7 @@ class BackendAdapter(ABC):
 | `GUODUN_CLOUD_SIM_NAMES` | `set()`（保留扩展位） |
 | `TENCENT_CLOUD_SIM_NAMES` | `simulator:tc` |
 | `CLOUD_SIM_HARDWARE_NAMES` | `TIANYAN_CLOUD_SIM_NAMES ∪ GUODUN_CLOUD_SIM_NAMES ∪ TENCENT_CLOUD_SIM_NAMES ∪ FIELDQUANTUM_HARDWARE_NAMES`（所有走 provider 任务通道但 chip_info 需合成的芯片） |
+| `NOISE_CAPABLE_HARDWARE_NAMES` | `SIMULATOR_HARDWARE_NAMES ∪ FIELDQUANTUM_HARDWARE_NAMES`（可执行显式噪声信道的后端，即 `is_noisy_circuit_for_backend` 允许的目标） |
 | `MIN_CONNECTED_COUPLER_FIDELITY` | `0.9` —— `is_connected_coupler` 与 `build_hardware_profile` 过滤低保真耦合器的阈值 |
 
 这些集合是芯片名 → provider 映射的唯一数据源，`cqlib.py`、`quafu.py`、`tencent.py` 等子模块统一从 `backend.py` 导入。新增 provider 时同步更新 `_register_chips(...)` 即可让 `infer_provider_from_chip()` 与 `resolve_provider()` 工作。
@@ -319,6 +328,7 @@ class BackendAdapter(ABC):
 - `ValueError("provider must be one of: 'quafu', 'tianyan', 'guodun', 'tencent', 'simulator', 'fieldquantum', or 'origin'")` —— `create_provider_runtime` 抛出。
 - `RuntimeError("no available chips satisfy num_qubits requirement")` —— `BackendAdapter.resolve_backend` 找不到符合比特数的候选。
 - `RuntimeError("Cannot infer provider for chip ...")` —— `_run_with_backend` 在没有激活 adapter 时通过 `infer_provider_from_chip` 推断失败。
+- `ValueError("Noisy circuits ... are not supported on hardware backend ...")` —— `is_noisy_circuit_for_backend` 收到含噪线路但目标不是 `simulator` / `fieldquantum_sim`。
 ## 示例
 
 ```python

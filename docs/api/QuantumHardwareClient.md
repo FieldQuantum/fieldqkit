@@ -53,7 +53,7 @@ run_auto(
 | `return_probabilities` | `bool` | `False` | 否 | 是否返回概率向量。 |
 | `target_qubits` | `Optional[Sequence[int]]` | `None` | 否 | 指定物理比特映射。 |
 | `prefer_chips` | `Optional[Sequence[str] \| str]` | `None` | 否 | 候选芯片白名单，可显式传 `"Simulator"`。 |
-| `transpile_on_client` | `bool` | `True` | 否 | `True` 时客户端先编译再提交。开启 `clifford_fitting` 时该编译被框架层复用为校准线路的模板。 |
+| `transpile_on_client` | `bool` | `True` | 否 | `True` 时客户端先编译再提交。开启 `clifford_fitting` 时该编译被框架层复用为校准线路的模板。含噪线路会被强制跳过转译（含 clifford_fitting 路径）。 |
 | `clifford_fitting` | `bool` | `False` | 否 | 是否在框架层对 `observables` 启用 Clifford-随机化仿射校正（仅在 `observables` 非空时生效）。流程与 `run_vqe` / `run_qaoa` 对齐：先在客户端一次性编译模板，然后用该模板在硬件上提交主任务及 `clifford_fitting_num_samples` 条校准线路；理想期望由 `sim.clifford`（Heisenberg picture，$O(g\cdot n)$）计算，非 Clifford 门部分回退到 `sim.clifford_t` 的分支展开，最终落到 statevector。 |
 | `clifford_fitting_num_samples` | `int` | `8` | 否 | 校准线路条数。 |
 | `clifford_fitting_num_non_clifford_gates` | `int` | `0` | 否 | 每条校准线路中替换为 Haar 随机 U3 的单比特门个数（其余替换为 24 个 Clifford U3 之一）。 |
@@ -197,10 +197,11 @@ def _transpile_with_backend(
 
 - 作用：在已解析 backend 条件下执行统一流程。
 - 主要步骤：
+  - 噪声检测（`is_noisy_circuit_for_backend`）：含噪线路强制 `transpile=False` 并跳过基变换；目标非模拟器则抛 `ValueError`
   - 可观测量分组（受 `merge_groups` 控制，默认 `True`，按共测基合并以减少任务数）
   - 基变换与测量附加
-  - 可选本地编译（`transpile=True`）
-  - 硬件异步提交或本地模拟
+  - 可选本地编译（`transpile=True`，含噪线路除外）
+  - 硬件异步提交或本地模拟（含噪线路在本地走密度矩阵后端）
   - 可选 ZNE 与 readout mitigation
   - 统一汇总 `RunResult`
 - **`merge_groups` 仅暴露在 `_run_with_backend` 入口**：`run_auto` 始终走默认 `True`。算法层（VQE / QAOA / Shadow）直接调本函数时可显式关闭。
@@ -220,6 +221,7 @@ def _transpile_with_backend(
 - `RuntimeError`
   - 未设置激活 task adapter/后端却尝试提交任务。
   - 任务状态非 `Finished`。
+- 含噪线路（`depolarize` / `amplitude_damping` 等）仅可运行于 `simulator` / `fieldquantum_sim`；提交真机时抛 `ValueError`，并强制跳过转译与基变换。
 
 ## 示例
 

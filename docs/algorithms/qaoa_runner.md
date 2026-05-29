@@ -109,6 +109,8 @@ print(f"Best cost: {result.best_cost:.4f}")
 - `build_qaoa_ansatz_symbolic(num_qubits, edges, p)` — 构建符号化 QAOA ansatz 线路。
 - `run_qaoa_with_backend(..., submit_options=None)` — 底层优化循环（支持 parameter-shift / autograd）。
 
+> 含噪 ansatz：当符号线路包含噪声信道时，`run_qaoa_with_backend` 会强制 `transpile=False`（含噪线路仅能在 `simulator` / `fieldquantum_sim` 上运行，且无硬件基分解）。
+
 > `QAOARunner` 的 `max_wait_time` / `sleep_time` 会被打包进 `submit_options`，经 `run_qaoa_with_backend → run_variational_loop → evaluate_energy_with_backend → client._run_with_backend` 透传到 provider task adapter（与 VQE / ShadowTomography 一致）。
 
 ## 共享优化工具

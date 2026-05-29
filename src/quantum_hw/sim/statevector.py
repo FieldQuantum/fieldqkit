@@ -199,6 +199,8 @@ def simulate_counts(
     generator = torch.Generator(device=probs.device)
     if seed is not None:
         generator.manual_seed(int(seed))
+    else:
+        generator.seed()  # a fresh Generator is otherwise deterministic
     samples = torch.multinomial(probs, num_samples=shots, replacement=True, generator=generator)
     counts = torch.bincount(samples, minlength=probs.numel())
 

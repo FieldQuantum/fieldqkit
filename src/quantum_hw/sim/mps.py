@@ -739,6 +739,8 @@ def _sample_bits_from_mps(
     generator = torch.Generator(device=device)
     if seed is not None:
         generator.manual_seed(int(seed))
+    else:
+        generator.seed()  # a fresh Generator is otherwise deterministic
 
     proj0 = _projector(0, dtype=dtype, device=device)
     proj1 = _projector(1, dtype=dtype, device=device)

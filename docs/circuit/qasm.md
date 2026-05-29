@@ -44,6 +44,7 @@ __all__ = [
 
 - `qreg`/`creg` 声明解析与全局索引映射
 - 所有内置门（离散门、参数门、三比特门）
+- 噪声信道门（`depolarize1`/`depolarize2`/`x_error`/`y_error`/`z_error`/`amplitude_damping`/`phase_damping`），以 `opaque` 声明承载
 - `measure` / `barrier` / `reset`
 - `if (c == val)` 条件前缀附着
 - 自定义 `gate` / `opaque` 定义的内联展开
@@ -96,6 +97,7 @@ __all__ = [
 - 解析过程默认静默，不输出调试信息
 - 输出门序列采用统一 tuple IR，便于导出、绘图和编译复用
 - 参数表达式求值使用 `parse_expression`（来自 `quantumcircuit_helpers`，安全 AST 求值）
+- 噪声信道在 `to_openqasm2` 中先以 `opaque` 声明，再按门发射；单比特形如 `opaque depolarize1(p) q;` 与 `depolarize1(0.1) q[0];`，双比特形如 `opaque depolarize2(p) q0,q1;` 与 `depolarize2(0.05) q[0],q[1];`。阻尼信道（`amplitude_damping`/`phase_damping`）的形参名用 `gamma`，其余用 `p`。这些门同样可经 `from_openqasm2` 往返还原。
 
 ## 示例
 

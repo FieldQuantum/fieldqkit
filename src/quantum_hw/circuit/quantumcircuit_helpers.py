@@ -21,6 +21,21 @@ three_qubit_gates_available = {'ccz':'●●●','ccx':'●●X'}
 one_qubit_parameter_gates_available = {'rx':'Rx', 'ry':'Ry', 'rz':'Rz', 'u':'U'}
 two_qubit_parameter_gates_available = {'rxx':'Rxx', 'ryy':'Ryy', 'rzz':'Rzz'}
 functional_gates_available = {'barrier':'░', 'measure':'M', 'reset':'|0>','delay':'Delay'}
+single_qubit_noise_channel_gates_available = {
+    'depolarize1': 'Dep1',
+    'x_error': 'Xerr',
+    'y_error': 'Yerr',
+    'z_error': 'Zerr',
+    'amplitude_damping': 'AD',
+    'phase_damping': 'PD',
+}
+two_qubit_noise_channel_gates_available = {
+    'depolarize2': 'Dep2',
+}
+noise_channel_gates_available = {
+    **single_qubit_noise_channel_gates_available,
+    **two_qubit_noise_channel_gates_available,
+}
 
 def convert_gate_info_to_dag_info(nqubits:int,qubits:list,gates:list,show_qubits:bool=True) -> tuple[list,list]:
     """Transform gate tuples and qubit indices into DAG node and edge lists.
@@ -79,6 +94,10 @@ def convert_gate_info_to_dag_info(nqubits:int,qubits:list,gates:list,show_qubits
             qubits = list(gate_info[2:])
             params = [gate_info[1]]
             node_info = (gate+'_'+str(idx)+'_'+str(qubits),{'qubits':qubits, 'params':params})  
+        elif gate in noise_channel_gates_available:
+            qubits = list(gate_info[2:]) if gate == 'depolarize2' else [gate_info[-1]]
+            params = [gate_info[1]]
+            node_info = (gate+'_'+str(idx)+'_'+str(qubits),{'qubits':qubits, 'params':params})
         elif gate in functional_gates_available:
             if gate == 'measure':
                 qubits = [gate_info[1][0]]
@@ -97,7 +116,7 @@ def convert_gate_info_to_dag_info(nqubits:int,qubits:list,gates:list,show_qubits
         node_list.append(node_info)
         
         # edge
-        if gate in two_qubit_gates_available or gate in two_qubit_parameter_gates_available:
+        if gate in two_qubit_gates_available or gate in two_qubit_parameter_gates_available or gate == 'depolarize2':
             if qubit_dic[qubits[0]] == qubit_dic[qubits[1]]:
                 if qubit_dic[qubits[0]] is not None:
                     edge_info = (qubit_dic[qubits[0]],node_info[0],{"qubit":list(sorted(qubits))})
@@ -581,3 +600,15 @@ def add_gates_to_lines(nqubits:int,ncbits:int,gates:list,params_value:dict, widt
             elif i > 2 * nqubits:
                 lines1[i] += gates_layerd_format[j][i] + ' ' * width
     return lines1,lines_use
+
+
+def has_noise_channels(qc) -> bool:
+    """Check whether a circuit contains any noise channel gates.
+
+    Args:
+        qc: QuantumCircuit instance.
+
+    Returns:
+        ``True`` if the circuit contains at least one noise channel gate.
+    """
+    return any(g[0] in noise_channel_gates_available for g in getattr(qc, 'gates', []))

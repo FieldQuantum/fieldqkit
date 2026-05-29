@@ -26,6 +26,9 @@
 | `one_qubit_parameter_gates_available` | 单比特参数门 | `'rx': 'Rx'`, `'ry': 'Ry'`, `'rz': 'Rz'`, `'u': 'U'` |
 | `two_qubit_parameter_gates_available` | 双比特参数门 | `'rxx': 'Rxx'`, `'ryy': 'Ryy'`, `'rzz': 'Rzz'` |
 | `functional_gates_available` | 功能门 | `'barrier': '░'`, `'measure': 'M'`, `'reset': '\|0>'`, `'delay': 'Delay'` |
+| `single_qubit_noise_channel_gates_available` | 单比特噪声信道 | `'depolarize1': 'Dep1'`, `'x_error': 'Xerr'`, `'amplitude_damping': 'AD'`, `'phase_damping': 'PD'` |
+| `two_qubit_noise_channel_gates_available` | 双比特噪声信道 | `'depolarize2': 'Dep2'` |
+| `noise_channel_gates_available` | 全部噪声信道（上两者的并集） | — |
 
 ### DAG 转换
 
@@ -45,7 +48,11 @@
 - 节点格式：`(gate_idx_qubits, {'qubits': [...], 'params': [...], ...})`
 - 边格式：`(src_node, dst_node, {'qubit': [...]})`
 - `measure` 指令会被拆解为逐 qubit 的单独节点
-- 支持所有门类别（一/二/三比特门、参数门、功能门）
+- 支持所有门类别（一/二/三比特门、参数门、功能门、噪声信道门）
+
+#### `has_noise_channels(qc) -> bool`
+
+判断线路是否包含任意噪声信道门（即 `gates` 中是否存在门名落入 `noise_channel_gates_available`）。仿真分发层与执行 API 用它来决定是否路由到密度矩阵后端、是否跳过转译、以及是否拒绝提交真机。
 
 ### 参数格式化
 

@@ -24,6 +24,8 @@
 	- 对应： [QML — run_qnn_unsupervised](./algorithms/qml.md)
 - [Backend：demo_backend.ipynb](../examples/demo_backend.ipynb)
 	- 对应： [hardware_discovery](./api/hardware_discovery.md)、[Backend](./api/Backend.md)
+- [含噪模拟：demo_noisy_simulation.ipynb](../examples/demo_noisy_simulation.ipynb)
+	- 对应： [density matrix simulator](./sim/density_matrix.md)、[noise kraus operators](./sim/noise_kraus.md)、[QuantumCircuit 噪声信道](./circuit/quantumcircuit.md)
 
 ## 学习路径（入门 → 进阶 → 硬件 → 优化）
 
@@ -117,5 +119,7 @@
 - [mpo process simulator](./sim/mpo.md)
 - [Clifford stabilizer simulator](./sim/clifford.md)
 - [Clifford+T branching simulator](./sim/clifford_t.md)
+- [density matrix simulator](./sim/density_matrix.md)
+- [noise kraus operators](./sim/noise_kraus.md)
 - [simulator interface](./sim/interface.md)
 - [simulator common helpers](./sim/common.md)

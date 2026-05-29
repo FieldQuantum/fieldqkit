@@ -10,6 +10,8 @@
 
 > **autograd 限制（与 VQE/QAOA 不同）**：QML 的 `autograd` **仅支持本地 `Simulator`**。若 `chip_name` 解析为云端模拟器（`fieldquantum_sim`）或真机，选择 `autograd` 会抛出 `ValueError`，提示改用 `gradient_method="parameter-shift"`。（VQE/QAOA 的 `autograd` 额外支持 `fieldquantum_sim` 云端梯度，QML 不支持。）直接调用底层函数时 `chip_name` 默认空串，视为本地，不受此限制。
 
+> **含噪线路**：当编码/ansatz 模板包含噪声信道时，`run_pqc_classifier` / `run_qnn_unsupervised` / `run_qnn_conditional` 的 parameter-shift 路径会跳过转译，直接使用符号模板，目标比特取 `target_qubits`（未指定则为 `range(num_qubits)`）。含噪线路仅能在 `simulator` / `fieldquantum_sim` 上运行。
+
 ---
 
 ## 1. 监督分类 — `run_pqc_classifier`

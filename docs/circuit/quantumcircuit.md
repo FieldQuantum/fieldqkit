@@ -36,6 +36,7 @@
 - 单比特参数门：`(gate, theta, q)` / `("r", theta, phi, q)` / `("u", theta, phi, lam, q)`
 - 双比特参数门：`(gate, theta, q0, q1)`
 - 功能门：`("delay", duration, (q...))` / `("barrier", (q...))` / `("measure", [q...], [c...])` / `("reset", q)`
+- 噪声信道门：`(gate, p, q)`（单比特，如 `("depolarize1", 0.1, 0)`）/ `("depolarize2", p, q0, q1)`（双比特）
 
 ### `deepcopy() -> QuantumCircuit`
 
@@ -108,6 +109,18 @@
 
 参数可为数值或字符串占位符。占位符会自动注册到 `params_value`，供后续绑定。
 
+### 噪声信道门
+
+用于构造含噪线路，由密度矩阵后端（[density matrix simulator](../sim/density_matrix.md)）模拟。这些门**仅能在模拟器上运行**（`simulator` / `fieldquantum_sim`），提交真机会被拒绝；含噪线路也会跳过转译。
+
+- 单比特：`depolarize1(p, qubit)`、`x_error(p, qubit)`、`y_error(p, qubit)`、`z_error(p, qubit)`、`amplitude_damping(gamma, qubit)`、`phase_damping(gamma, qubit)`
+- 双比特：`depolarize2(p, qubit0, qubit1)`
+
+约束：
+
+- 噪声率（`p` / `gamma`）必须是 $[0, 1]$ 内的**具体数值**；传入符号/字符串参数会抛 `ValueError`（噪声率不可微，不参与变分优化）。
+- `depolarize2` 要求两个 qubit 不同。
+
 ## 参数绑定与映射
 
 ### `apply_value(params_dic: dict, *, deep: bool = False) -> QuantumCircuit`
@@ -151,12 +164,14 @@
 - `remove_barrier()`
 - `remove_gate(gate_name)`
 - `count_gate(gate_name) -> int`
+- `remove_noise_channels() -> QuantumCircuit`
 
 补充说明：
 
 - `delay` 支持 `unit='ns'/'us'/'ms'/'s'`（内部统一换算为秒）。
 - `measure_all()` 仅对当前 `qubits` 中已使用量子位追加测量。
 - `remove_barrier()` 不影响量子语义，可用于导出前清理线路。
+- `remove_noise_channels()` 返回去除全部噪声信道门的**副本**（原线路不变），用于获取理想（无噪）参考线路，例如 Clifford 数据回归（CDR）中的理想分支。
 
 ## 分析与可视化
 
@@ -299,3 +314,4 @@ print("gates:", len(qc.gates))
 - [QCIS 原生指令](./qcis.md)
 - [helpers 与渲染](./helpers_render.md)
 - [matrix 与 utils](./matrix_utils.md)
+- [density matrix simulator](../sim/density_matrix.md)

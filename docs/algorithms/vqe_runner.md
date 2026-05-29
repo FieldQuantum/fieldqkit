@@ -87,7 +87,7 @@ run_model(
 | `planner_bond_cap` | `int` | `128` | 否 | 分块规划和压缩共用的 bond 上限。 |
 | `planner_trunc_tol` | `float` | `1e-8` | 否 | 分块规划和压缩共用的截断误差阈值。 |
 | `planner_max_layers_per_block` | `int` | `6` | 否 | 规划时每个后缀块最多层数。 |
-| `enable_circuit_compression` | `bool` | `False` | 否 | 是否启用每次能量/梯度评估前的线路压缩。 |
+| `enable_circuit_compression` | `bool` | `False` | 否 | 是否启用每次能量/梯度评估前的线路压缩。含噪线路不支持，置 `True` 会抛 `ValueError`。 |
 | `compression_block_layers` | `Optional[int]` | `None` | 条件必填 | 启用压缩时必填，必须是单个正整数 `k`（压缩 ansatz 层数）。 |
 | `compression_optimizer_steps` | `int` | `20` | 否 | 每次压缩优化步数。 |
 | `compression_optimizer_lr` | `float` | `0.05` | 否 | 压缩优化学习率。 |
@@ -271,6 +271,10 @@ parameter_shift_gradient(
   - 无可用芯片。
   - 所有候选芯片执行失败（`run_model` 会捕获候选执行异常并继续尝试下一块芯片，最终统一抛错）。
   - 期望值结构与 observable 列表不匹配。
+- 含噪 ansatz（含 `depolarize` / `amplitude_damping` 等噪声信道）
+  - 仅可运行于 `simulator` / `fieldquantum_sim`，否则在 `is_noisy_circuit_for_backend` 抛 `ValueError`。
+  - 强制 `transpile=False`。
+  - 与 `enable_circuit_compression=True` 互斥：抛 `ValueError("circuit compression is not supported for noisy circuits")`。
 
 ## 示例
 
