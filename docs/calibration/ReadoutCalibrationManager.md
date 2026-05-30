@@ -2,7 +2,7 @@
 
 ## 概览
 
-- **模块**：`quantum_hw.calibration.readout`
+- **模块**：`fieldqkit.calibration.readout`
 - **作用**：执行单比特 readout 校准（`|0⟩/|1⟩`），生成每比特 confusion matrix，并按芯片做增量缓存。
 
 ## 构造函数
@@ -64,10 +64,10 @@ calibrate_readout(
 
 ```python
 from pathlib import Path
-from quantum_hw import QuantumHardwareClient
-from quantum_hw.api.backend import Backend
-from quantum_hw.calibration.readout import ReadoutCalibrationManager
-from quantum_hw.sim.statevector import simulate_counts
+from fieldqkit import QuantumHardwareClient
+from fieldqkit.api.backend import Backend
+from fieldqkit.calibration.readout import ReadoutCalibrationManager
+from fieldqkit.sim.statevector import simulate_counts
 
 client = QuantumHardwareClient()
 chip_name = "Simulator"
@@ -75,7 +75,7 @@ client.chip_name = chip_name
 client.chip_backend = Backend(chip_name)
 
 manager = ReadoutCalibrationManager(
-		cache_dir=Path("src/quantum_hw/api/.cache"),
+		cache_dir=Path("src/fieldqkit/api/.cache"),
 		submit_circuit_async=client._submit_circuit_async,
 		wait_task=client._wait_task,
 		get_task_result=client._get_task_result,
@@ -104,7 +104,7 @@ print(res.per_qubit_confusion[res.target_qubits[0]])
 
 - `build_confusion_matrix(res_list, num_qubits)`
 	- 将计数字典转换为 confusion matrix；是本类产出矩阵的底层构造函数。
-- 缓存辅助（`quantum_hw.calibration._cache`）
+- 缓存辅助（`fieldqkit.calibration._cache`）
 	- `cache_file`：缓存文件命名。
 	- `load_timestamped_payload` / `save_timestamped_payload`：时间戳缓存读写。
 	- `cache_is_fresh`：TTL 判定（12 小时）。

@@ -2,7 +2,7 @@
 
 ## 模块
 
-- quantum_hw.sim.common
+- fieldqkit.sim.common
 
 ## 概览
 

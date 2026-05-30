@@ -2,7 +2,7 @@
 
 ## 概览
 
-- **模块路径**：`quantum_hw.compile`
+- **模块路径**：`fieldqkit.compile`
 - **作用**：将用户构建的逻辑量子线路编译为可在物理芯片上执行的本征门序列。
 - **对外导出**：`Transpiler`（编译流水线管理器）
 - **内部 Pass**：`ThreeQubitGateDecompose` → `Layout` + `SabreRouting` → `TranslateToBasisGates` → `GateCompressor` → `DynamicalDecoupling`

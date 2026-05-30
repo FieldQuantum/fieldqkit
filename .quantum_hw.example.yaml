@@ -1,4 +1,4 @@
-# quantum_hw 凭证配置文件
+# fieldqkit 凭证配置文件
 #
 # 使用方式：复制到项目根目录并填入 token
 #   cp .quantum_hw.example.yaml .quantum_hw.yaml

@@ -2,7 +2,7 @@
 
 ## 概览
 
-- **模块**：`quantum_hw.compile.optimize`（约820 行）
+- **模块**：`fieldqkit.compile.optimize`（约820 行）
 - **作用**：通过合并、对消和重排门来减少线路中的门数量，降低噪声影响。
 - **继承**：`TranspilerPass`（实现 `run()` 方法）
 - **依赖**：`qc2dag` / `dag2qc`（DAG 构建）、`u3_decompose`（合并后分解）、`gate_matrix_dict`（矩阵查表）
@@ -208,8 +208,8 @@ DAG 压缩时为新节点生成唯一 ID。每次访问自增 1，起始值 `100
 ## 示例
 
 ```python
-from quantum_hw.compile.optimize import GateCompressor
-from quantum_hw.circuit import QuantumCircuit
+from fieldqkit.compile.optimize import GateCompressor
+from fieldqkit.circuit import QuantumCircuit
 
 qc = QuantumCircuit(3)
 qc.h(0)

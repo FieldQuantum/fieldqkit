@@ -64,7 +64,7 @@ def set_sim_config(
 
     Example::
 
-        from quantum_hw.sim import set_sim_config
+        from fieldqkit.sim import set_sim_config
         set_sim_config(mps_threshold_qubits=20, max_bond_dim=512)
     """
     global MPS_THRESHOLD_QUBITS

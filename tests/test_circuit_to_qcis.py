@@ -8,9 +8,9 @@ instructions.
 import math
 import pytest
 
-from quantum_hw.circuit import QuantumCircuit
-from quantum_hw.circuit.qcis import circuit_to_qcis
-from quantum_hw.compile.translate import TranslateToBasisGates
+from fieldqkit.circuit import QuantumCircuit
+from fieldqkit.circuit.qcis import circuit_to_qcis
+from fieldqkit.compile.translate import TranslateToBasisGates
 
 
 # ---------------------------------------------------------------------------
@@ -51,7 +51,7 @@ def test_rx_produces_rz_sandwich(theta):
     # Skip translate so rx stays as rx (not converted to u)
     qc = QuantumCircuit(1)
     qc.rx(theta, 0)
-    from quantum_hw.circuit.quantumcircuit_helpers import one_qubit_parameter_gates_available
+    from fieldqkit.circuit.quantumcircuit_helpers import one_qubit_parameter_gates_available
     assert "rx" in one_qubit_parameter_gates_available
     qcis = circuit_to_qcis(qc)  # rx is already an internal gate
     lines = _lines(qcis)

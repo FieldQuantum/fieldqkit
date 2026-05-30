@@ -11,8 +11,8 @@ build/
 *.egg
 .eggs/
 *.so
-src/quantum_hw/.cache/
-src/quantum_hw/api/.cache/
+src/fieldqkit/.cache/
+src/fieldqkit/api/.cache/
 
 # Type checking / linting caches
 .mypy_cache/
@@ -32,5 +32,8 @@ htmlcov/
 *.swp
 *.swo
 
-# Quantum-hw credentials (never commit tokens)
+# Claude Code local config
+.claude/
+
+# Credentials (never commit tokens)
 .quantum_hw.yaml

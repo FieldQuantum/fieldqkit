@@ -2,7 +2,7 @@
 
 ## 概览
 
-- 模块：`quantum_hw.api.client`
+- 模块：`fieldqkit.api.client`
 - 作用：统一封装线路输入标准化、硬件自动选择、任务提交、结果聚合，以及 ZNE/readout 缓解流程。
 - 推荐入口：`run_auto(...)`
 - 低层执行入口：`_run_with_backend(...)`（供算法层与高级用户复用）
@@ -64,7 +64,7 @@ run_auto(
 
 ## 返回值
 
-返回 `RunResult`（`quantum_hw.core.types.RunResult`）：
+返回 `RunResult`（`fieldqkit.core.types.RunResult`）：
 
 - `task_ids: Optional[List[str]]`：硬件任务 ID 列表（Simulator 为 `None`）。
 - `samples: List[List[List[int]]]`：每个观测分组对应的样本矩阵。
@@ -226,7 +226,7 @@ def _transpile_with_backend(
 ## 示例
 
 ```python
-from quantum_hw.api.client import QuantumHardwareClient
+from fieldqkit.api.client import QuantumHardwareClient
 
 client = QuantumHardwareClient()
 res = client.run_auto(

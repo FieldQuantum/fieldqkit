@@ -2,7 +2,7 @@
 
 ## 概览
 
-- 模块：`quantum_hw.api.quantum_platform`
+- 模块：`fieldqkit.api.quantum_platform`
 - 作用：按 provider 名称创建统一运行时对象，绑定 `BackendAdapter` 与 `TaskAdapter`。
 - 入口函数：`create_provider_runtime(...)`
 
@@ -52,8 +52,8 @@ class ProviderRuntime:
 ## 示例
 
 ```python
-from quantum_hw.api.quantum_platform import create_provider_runtime
-from quantum_hw.api.client import QuantumHardwareClient
+from fieldqkit.api.quantum_platform import create_provider_runtime
+from fieldqkit.api.client import QuantumHardwareClient
 
 client = QuantumHardwareClient()
 runtime = create_provider_runtime(provider="quafu", client=client)

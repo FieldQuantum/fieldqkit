@@ -2,7 +2,7 @@
 
 ## 概览
 
-- 模块：`quantum_hw.algorithms.optimizer_utils`
+- 模块：`fieldqkit.algorithms.optimizer_utils`
 - 作用：VQE / QAOA（以及任何走 `run_variational_loop` 的算法）共享的底座，包含可观测量与能量评估、parameter-shift 梯度、Adam、Clifford fitting、通用优化循环。
 - 这些函数主要是内部实现；本页面用于算法拆解与二次开发参考。
 

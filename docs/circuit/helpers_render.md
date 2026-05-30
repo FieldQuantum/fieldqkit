@@ -2,7 +2,7 @@
 
 ## 概览
 
-- **模块**：`quantum_hw.circuit.quantumcircuit_helpers`、`quantum_hw.circuit.render`
+- **模块**：`fieldqkit.circuit.quantumcircuit_helpers`、`fieldqkit.circuit.render`
 - **源文件**：`quantumcircuit_helpers.py`（约620 行）、`render.py`（约50 行）
 - **作用**：
   - 管理门元信息（门集合常量、显示符号映射）
@@ -192,7 +192,7 @@ gates → initialize_lines → generate_gates_layerd → format_gates_layerd →
 ## 示例
 
 ```python
-from quantum_hw.circuit import QuantumCircuit
+from fieldqkit.circuit import QuantumCircuit
 
 qc = QuantumCircuit(3, 3)
 qc.h(0)

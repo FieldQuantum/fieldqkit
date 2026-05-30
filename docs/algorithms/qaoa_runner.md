@@ -2,7 +2,7 @@
 
 ## 概览
 
-- **模块**：`quantum_hw.algorithms.qaoa`
+- **模块**：`fieldqkit.algorithms.qaoa`
 - **作用**：将 QAOA 组合优化问题（MaxCut / 自定义代价项）映射到量子线路，用 Adam 优化器最小化代价函数。
 - **ansatz 结构**：初态 $|+\rangle^{\otimes n}$，每层包含 $\text{RZZ}(\gamma)$ 代价层 + $\text{RX}(\beta)$ 混合层。
 - **当前推荐入口**：`QAOARunner.run_model(...)`
@@ -87,8 +87,8 @@ run_model(
 ## 快速示例
 
 ```python
-from quantum_hw import QuantumHardwareClient
-from quantum_hw.algorithms.qaoa import QAOARunner
+from fieldqkit import QuantumHardwareClient
+from fieldqkit.algorithms.qaoa import QAOARunner
 
 client = QuantumHardwareClient()
 runner = QAOARunner(client, p=2, gradient_method="autograd")

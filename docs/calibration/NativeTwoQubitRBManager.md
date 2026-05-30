@@ -2,7 +2,7 @@
 
 ## 概览
 
-- **模块**：`quantum_hw.calibration.rb`
+- **模块**：`fieldqkit.calibration.rb`
 - **作用**：对后端 native 双比特基门做 randomized benchmarking（RB），输出每条 coupler 的衰减拟合与 fidelity。
 
 ## 构造函数
@@ -79,10 +79,10 @@ calibrate_native_two_qubit_rb(
 
 ```python
 from pathlib import Path
-from quantum_hw import QuantumHardwareClient
-from quantum_hw.api.backend import Backend
-from quantum_hw.calibration import NativeTwoQubitRBManager
-from quantum_hw.sim.statevector import simulate_counts
+from fieldqkit import QuantumHardwareClient
+from fieldqkit.api.backend import Backend
+from fieldqkit.calibration import NativeTwoQubitRBManager
+from fieldqkit.sim.statevector import simulate_counts
 
 client = QuantumHardwareClient()
 chip_name = "Simulator"
@@ -90,7 +90,7 @@ client.chip_name = chip_name
 client.chip_backend = Backend(chip_name)
 
 rb = NativeTwoQubitRBManager(
-		cache_dir=Path("src/quantum_hw/api/.cache"),
+		cache_dir=Path("src/fieldqkit/api/.cache"),
 		submit_circuit_async=client._submit_circuit_async,
 		wait_task=client._wait_task,
 		get_task_result=client._get_task_result,
@@ -122,10 +122,10 @@ for key, payload in results.items():
 
 ## 相关辅助函数
 
-- coupler 辅助（`quantum_hw.calibration._coupler_utils`）
+- coupler 辅助（`fieldqkit.calibration._coupler_utils`）
 	- `resolve_positive_fidelity_couplers`：`couplers=None` 时自动筛选 `fidelity>0` 连线。
 	- `coupler_key`：规范化 coupler 标识为 `min-max`（如 `3-7`）。
-- 缓存辅助（`quantum_hw.calibration._cache`）
+- 缓存辅助（`fieldqkit.calibration._cache`）
 	- `cache_file` / `load_timestamped_payload` / `save_timestamped_payload` / `cache_is_fresh`。
 	- 说明：当前 RB 缓存仅持久化 `fit.fidelity`。
 

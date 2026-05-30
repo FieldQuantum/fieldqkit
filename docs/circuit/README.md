@@ -2,7 +2,7 @@
 
 ## 概览
 
-- **模块路径**：`quantum_hw.circuit`
+- **模块路径**：`fieldqkit.circuit`
 - **模块定位**：量子线路表示与转换能力
 - **源文件**：`quantumcircuit.py`、`quantumcircuit_helpers.py`、`matrix.py`、`utils.py`、`qasm2.py`、`qcis.py`、`render.py`
 - **主要能力**：

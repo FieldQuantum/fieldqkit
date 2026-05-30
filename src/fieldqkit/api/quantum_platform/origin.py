@@ -143,7 +143,7 @@ def _normalize_chip_info(chip, chip_name: str) -> Dict[str, Any]:
     """Convert a pyqpanda3 ``ChipInfo`` into the unified ``Backend.chip_info`` dict.
 
     The unified dict layout matches the format consumed by
-    :class:`quantum_hw.api.backend.Backend` (see other providers like
+    :class:`fieldqkit.api.backend.Backend` (see other providers like
     ``tencent._load_tencent_chip_info``).
 
     Args:

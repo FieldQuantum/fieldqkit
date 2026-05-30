@@ -2,7 +2,7 @@
 
 ## 模块
 
-- `quantum_hw.core.readout`
+- `fieldqkit.core.readout`
 
 ## 关键函数
 
@@ -57,7 +57,7 @@
 
 ```python
 import numpy as np
-from quantum_hw.core.readout import (
+from fieldqkit.core.readout import (
 		build_local_confusion_matrix,
 		mitigate_readout,
 		mitigate_observable_from_samples,

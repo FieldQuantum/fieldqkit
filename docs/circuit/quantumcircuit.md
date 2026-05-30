@@ -2,7 +2,7 @@
 
 ## 概览
 
-- **模块**：`quantum_hw.circuit.quantumcircuit`
+- **模块**：`fieldqkit.circuit.quantumcircuit`
 - **作用**：提供统一的量子线路表示、门操作 API、QASM 导入导出、参数绑定、线路分析与文本可视化能力。
 - **核心对象**：`QuantumCircuit`
 
@@ -191,7 +191,7 @@
 ## 示例 1：基础建线路与导出 QASM
 
 ```python
-from quantum_hw.circuit import QuantumCircuit
+from fieldqkit.circuit import QuantumCircuit
 
 qc = QuantumCircuit(2, 2)
 qc.h(0)
@@ -207,7 +207,7 @@ print(qc.to_openqasm2())
 
 ```python
 import numpy as np
-from quantum_hw.circuit import QuantumCircuit
+from fieldqkit.circuit import QuantumCircuit
 
 qc = QuantumCircuit(2)
 qc.ry("t0", 0)
@@ -223,7 +223,7 @@ for step in range(3):
 ## 示例 3：OpenQASM 导入后继续编辑
 
 ```python
-from quantum_hw.circuit import QuantumCircuit
+from fieldqkit.circuit import QuantumCircuit
 
 qasm = """
 OPENQASM 2.0;
@@ -243,7 +243,7 @@ print(qc.to_openqasm2())
 ## 示例 4：子线路拼接前做索引平移
 
 ```python
-from quantum_hw.circuit import QuantumCircuit
+from fieldqkit.circuit import QuantumCircuit
 
 left = QuantumCircuit(2, 2)
 left.h(0)
@@ -264,7 +264,7 @@ print(merged.qubits)
 ## 示例 5：线路统计与可视化
 
 ```python
-from quantum_hw.circuit import QuantumCircuit
+from fieldqkit.circuit import QuantumCircuit
 
 qc = QuantumCircuit(3, 3)
 qc.h(0)
@@ -282,7 +282,7 @@ qc.draw_simply(width=3)
 ## 示例 6：Pauli 演化
 
 ```python
-from quantum_hw.circuit import QuantumCircuit
+from fieldqkit.circuit import QuantumCircuit
 
 qc = QuantumCircuit(5)
 qc.pauli_evolution(0.3, "X1 Y2 Z3 Z4")
@@ -295,7 +295,7 @@ qc.pauli_evolution("theta", "X1 Y2 Z3 Z4")
 
 ```python
 import numpy as np
-from quantum_hw.circuit import QuantumCircuit
+from fieldqkit.circuit import QuantumCircuit
 
 qc = QuantumCircuit(2)
 

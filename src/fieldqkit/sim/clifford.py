@@ -19,7 +19,7 @@ is an integer multiple of ``π/2``, plus ``u``/``u3`` whose
 Cliffords.
 
 Non-Clifford gates raise :class:`CliffordError`; use
-:mod:`quantum_hw.sim.clifford_t` for circuits with ``t``/``tdg`` or
+:mod:`fieldqkit.sim.clifford_t` for circuits with ``t``/``tdg`` or
 non-Clifford rotations.
 """
 
@@ -321,7 +321,7 @@ def is_clifford_circuit(qc: QuantumCircuit) -> bool:
 def pauli_pattern_to_list(pauli: str, num_qubits: int) -> List[str]:
     """Build a length-``num_qubits`` Pauli char list from a Pauli string spec.
 
-    Reuses :func:`quantum_hw.core.observables.pauli_basis_pattern`, which
+    Reuses :func:`fieldqkit.core.observables.pauli_basis_pattern`, which
     accepts either dense (e.g. ``'XYIZ'``) or sparse (e.g. ``'X0 Z2'``)
     notation.
 

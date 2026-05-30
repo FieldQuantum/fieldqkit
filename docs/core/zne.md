@@ -2,7 +2,7 @@
 
 ## 模块
 
-- `quantum_hw.core.zne`
+- `fieldqkit.core.zne`
 
 ## 关键函数
 
@@ -47,7 +47,7 @@ $$
 
 ```python
 import numpy as np
-from quantum_hw.core.zne import zne_linear_extrapolate
+from fieldqkit.core.zne import zne_linear_extrapolate
 
 probs_1 = np.array([0.52, 0.48])
 probs_3 = np.array([0.56, 0.44])

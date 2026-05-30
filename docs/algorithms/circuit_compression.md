@@ -2,7 +2,7 @@
 
 ## 概览
 
-- 模块：`quantum_hw.algorithms.circuit_compression`
+- 模块：`fieldqkit.algorithms.circuit_compression`
 - 目标：为 VQE parameter-shift 路径提供可复用的线路压缩工具。
 - 核心思想：
 	- 先把目标线路按层切成 prefix/suffix blocks（可选）。
@@ -164,7 +164,7 @@ build_compression_transform(
 ### 1) 先规划后分段压缩
 
 ```python
-from quantum_hw.algorithms.circuit_compression import (
+from fieldqkit.algorithms.circuit_compression import (
 		plan_hybrid_suffix_blocks,
 		build_layer_span_circuit,
 		compress_circuit_with_hybrid_objective,

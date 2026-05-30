@@ -2,7 +2,7 @@
 
 ## 概览
 
-- 模块：`quantum_hw.api.backend`
+- 模块：`fieldqkit.api.backend`
 - 作用：在指定数量的可用比特数下，发现候选硬件、选择最优后端、获取拓扑与校准信息。
 - 核心接口：`BackendAdapter.discover_hardware(...)` 与 `BackendAdapter.resolve_backend(...)`
 
@@ -117,7 +117,7 @@ backend_obj.cache_topology_figure(edge_fidelity_thres=0.9)
 ### 示例1：发现所有可用芯片
 
 ```python
-from quantum_hw.api.quantum_platform import QuafuBackendAdapter
+from fieldqkit.api.quantum_platform import QuafuBackendAdapter
 
 adapter = QuafuBackendAdapter()
 profiles = adapter.discover_hardware(num_qubits=8)

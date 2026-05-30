@@ -2,11 +2,11 @@
 
 ## 模块
 
-- `quantum_hw.sim.density_matrix`
+- `fieldqkit.sim.density_matrix`
 
 ## 概览
 
-该模块是 Torch 实现的密度矩阵模拟器，用于含噪线路（噪声信道）的前向演化与可观测量计算。它与 statevector / MPS 后端保持同构接口，并被 `quantum_hw.sim.interface` 自动选用：当线路包含噪声信道（`has_noise_channels(qc)` 为真）时，分发层会路由到本模块，而非按 qubit 数阈值选择 statevector / MPS。
+该模块是 Torch 实现的密度矩阵模拟器，用于含噪线路（噪声信道）的前向演化与可观测量计算。它与 statevector / MPS 后端保持同构接口，并被 `fieldqkit.sim.interface` 自动选用：当线路包含噪声信道（`has_noise_channels(qc)` 为真）时，分发层会路由到本模块，而非按 qubit 数阈值选择 statevector / MPS。
 
 核心能力：
 
@@ -72,8 +72,8 @@
 
 ```python
 import torch
-from quantum_hw.circuit import QuantumCircuit
-from quantum_hw.sim import (
+from fieldqkit.circuit import QuantumCircuit
+from fieldqkit.sim import (
     simulate_density_matrix,
     simulate_noisy_counts,
     expectation_pauli_dm,

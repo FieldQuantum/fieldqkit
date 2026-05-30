@@ -1,6 +1,6 @@
 """Clifford + arbitrary non-Clifford single-qubit gate simulator.
 
-This module extends :mod:`quantum_hw.sim.clifford` to handle any non-Clifford
+This module extends :mod:`fieldqkit.sim.clifford` to handle any non-Clifford
 single-qubit gate by branching the observable's Heisenberg evolution along
 the four-term Pauli basis expansion of ``U† σ U``.
 
@@ -357,7 +357,7 @@ def count_non_clifford_gates(qc: QuantumCircuit) -> int:
     """Return the number of non-Clifford gates in a circuit.
 
     Counts gates that are *not* recognised as Clifford by
-    :func:`quantum_hw.sim.clifford.conjugate_clifford_gate`.  Useful for
+    :func:`fieldqkit.sim.clifford.conjugate_clifford_gate`.  Useful for
     estimating worst-case branching factor (≤4 per single-qubit
     non-Clifford gate, ≤2 per axis rotation, ≤2 per ``t``/``tdg``).
 

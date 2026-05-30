@@ -2,7 +2,7 @@
 
 ## 概览
 
-- 模块：`quantum_hw.api.client`
+- 模块：`fieldqkit.api.client`
 - 实际函数名：`QuantumHardwareClient._run_with_backend(...)`
 - 作用：在给定 backend/chip 条件下，统一执行编译、提交、采样、ZNE、readout 缓解并返回 `RunResult`。
 
@@ -61,7 +61,7 @@ _run_with_backend(
 
 ## 返回值
 
-返回 `RunResult`，字段定义见 `quantum_hw.core.types`：
+返回 `RunResult`，字段定义见 `fieldqkit.core.types`：
 
 - `task_ids`
 - `samples`
@@ -104,9 +104,9 @@ _run_with_backend(
 ## 示例
 
 ```python
-from quantum_hw.api.client import QuantumHardwareClient
-from quantum_hw.api.backend import Backend
-from quantum_hw.circuit import QuantumCircuit
+from fieldqkit.api.client import QuantumHardwareClient
+from fieldqkit.api.backend import Backend
+from fieldqkit.circuit import QuantumCircuit
 
 client = QuantumHardwareClient()
 backend = Backend("Simulator")

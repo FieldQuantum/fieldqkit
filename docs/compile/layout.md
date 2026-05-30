@@ -2,7 +2,7 @@
 
 ## 概览
 
-- **模块**：`quantum_hw.compile.layout`（约670 行）
+- **模块**：`fieldqkit.compile.layout`（约670 行）
 - **作用**：根据芯片拓扑和耦合保真度，为量子线路选择最优的物理比特子图。
 - **依赖**：`Backend`、`QuantumCircuit`、`split_qubits`、`networkx`、`numpy`
 - **继承**：无（独立类）
@@ -250,9 +250,9 @@ def select_few_qubits_from_backend(
 ## 示例
 
 ```python
-from quantum_hw.api.backend import Backend
-from quantum_hw.compile.layout import Layout
-from quantum_hw.circuit import QuantumCircuit
+from fieldqkit.api.backend import Backend
+from fieldqkit.compile.layout import Layout
+from fieldqkit.circuit import QuantumCircuit
 
 backend = Backend("Baihua")
 layout = Layout(backend)

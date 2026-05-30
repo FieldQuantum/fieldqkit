@@ -7,29 +7,29 @@ import types
 
 import pytest
 
-import quantum_hw.api as api
-import quantum_hw.api.quantum_platform as qp
-from quantum_hw.api import backend as bmod
-from quantum_hw.api import task as ut
-from quantum_hw.api.backend import (
+import fieldqkit.api as api
+import fieldqkit.api.quantum_platform as qp
+from fieldqkit.api import backend as bmod
+from fieldqkit.api import task as ut
+from fieldqkit.api.backend import (
     Backend,
     HardwareCalibration,
     HardwareProfile,
     HardwareTopology,
     ResolvedBackend,
 )
-from quantum_hw.api.client import QuantumHardwareClient
-from quantum_hw.api.quantum_platform import ProviderRuntime
-from quantum_hw.api.quantum_platform import cqlib as cq
-from quantum_hw.api.quantum_platform import guodun as gd
-from quantum_hw.api.quantum_platform import origin as og
-from quantum_hw.api.quantum_platform import quafu as qf
-from quantum_hw.api.quantum_platform import tencent as tc
-from quantum_hw.api.quantum_platform import tianyan as ty
-from quantum_hw.circuit import QuantumCircuit
-from quantum_hw.circuit.qcis import circuit_to_qcis
-from quantum_hw.compile.translate import TranslateToBasisGates
-from quantum_hw.core.types import RunResult
+from fieldqkit.api.client import QuantumHardwareClient
+from fieldqkit.api.quantum_platform import ProviderRuntime
+from fieldqkit.api.quantum_platform import cqlib as cq
+from fieldqkit.api.quantum_platform import guodun as gd
+from fieldqkit.api.quantum_platform import origin as og
+from fieldqkit.api.quantum_platform import quafu as qf
+from fieldqkit.api.quantum_platform import tencent as tc
+from fieldqkit.api.quantum_platform import tianyan as ty
+from fieldqkit.circuit import QuantumCircuit
+from fieldqkit.circuit.qcis import circuit_to_qcis
+from fieldqkit.compile.translate import TranslateToBasisGates
+from fieldqkit.core.types import RunResult
 
 
 # ═══════════════════════════════════════════════════════════
@@ -81,7 +81,7 @@ class _FakeTaskAdapter:
 
 
 def _install_runtime_mocks(monkeypatch, *, backend_adapter, task_adapter):
-    import quantum_hw.api.client as client_module
+    import fieldqkit.api.client as client_module
 
     seen = {}
 
@@ -197,7 +197,7 @@ def test_api_exports_include_origin_symbols():
 
 
 def test_create_provider_runtime_for_quafu(monkeypatch):
-    import quantum_hw.api.quantum_platform as module
+    import fieldqkit.api.quantum_platform as module
 
     dummy_backend = object()
     dummy_task = object()
@@ -214,7 +214,7 @@ def test_create_provider_runtime_for_quafu(monkeypatch):
 
 
 def test_create_provider_runtime_for_tianyan(monkeypatch):
-    import quantum_hw.api.quantum_platform as module
+    import fieldqkit.api.quantum_platform as module
 
     dummy_backend = object()
     dummy_task = object()
@@ -230,7 +230,7 @@ def test_create_provider_runtime_for_tianyan(monkeypatch):
 
 
 def test_create_provider_runtime_for_guodun(monkeypatch):
-    import quantum_hw.api.quantum_platform as module
+    import fieldqkit.api.quantum_platform as module
 
     dummy_backend = object()
     dummy_task = object()
@@ -246,7 +246,7 @@ def test_create_provider_runtime_for_guodun(monkeypatch):
 
 
 def test_create_provider_runtime_for_tencent(monkeypatch):
-    import quantum_hw.api.quantum_platform as module
+    import fieldqkit.api.quantum_platform as module
 
     dummy_backend = object()
     dummy_task = object()
@@ -271,7 +271,7 @@ def test_create_provider_runtime_invalid_provider_raises():
 
 
 def test_create_provider_runtime_provider_name_is_case_insensitive(monkeypatch):
-    import quantum_hw.api.quantum_platform as module
+    import fieldqkit.api.quantum_platform as module
 
     dummy_backend = object()
     dummy_task = object()
@@ -284,7 +284,7 @@ def test_create_provider_runtime_provider_name_is_case_insensitive(monkeypatch):
 
 
 def test_create_provider_runtime_tencent_case_insensitive(monkeypatch):
-    import quantum_hw.api.quantum_platform as module
+    import fieldqkit.api.quantum_platform as module
 
     dummy_backend = object()
     dummy_task = object()
@@ -297,7 +297,7 @@ def test_create_provider_runtime_tencent_case_insensitive(monkeypatch):
 
 
 def test_create_provider_runtime_for_origin(monkeypatch):
-    import quantum_hw.api.quantum_platform as module
+    import fieldqkit.api.quantum_platform as module
 
     dummy_backend = object()
     dummy_task = object()
@@ -311,7 +311,7 @@ def test_create_provider_runtime_for_origin(monkeypatch):
 
 
 def test_create_provider_runtime_origin_case_insensitive(monkeypatch):
-    import quantum_hw.api.quantum_platform as module
+    import fieldqkit.api.quantum_platform as module
 
     dummy_backend = object()
     dummy_task = object()
@@ -335,7 +335,7 @@ def test_provider_runtime_dataclass_fields_accessible():
 
 
 def test_list_available_hardware_quafu(monkeypatch):
-    import quantum_hw.api.quantum_platform.quafu as _qf
+    import fieldqkit.api.quantum_platform.quafu as _qf
 
     class _FakeQuafuPlatform:
         def list_available_hardware(self):
@@ -356,8 +356,8 @@ def test_list_available_hardware_quafu(monkeypatch):
 
 
 def test_list_available_hardware_tianyan(monkeypatch):
-    import quantum_hw.api.quantum_platform.tianyan as _ty
-    import quantum_hw.api.platform_credentials as _creds
+    import fieldqkit.api.quantum_platform.tianyan as _ty
+    import fieldqkit.api.platform_credentials as _creds
 
     class _FakeTianYanPlatform:
         def __init__(self, login_key, auto_login, machine_name):
@@ -1129,7 +1129,7 @@ def test_circuit_to_qcis_basic_conversion():
 
 
 def test_cqlib_request_error_has_status_code():
-    from quantum_hw.api.quantum_platform.cqlib import CqlibRequestError
+    from fieldqkit.api.quantum_platform.cqlib import CqlibRequestError
 
     exc = CqlibRequestError("test error", status_code=401)
     assert exc.status_code == 401
@@ -1140,7 +1140,7 @@ def test_cqlib_request_error_has_status_code():
 
 
 def test_assign_parameters_inline():
-    from quantum_hw.api.quantum_platform.cqlib import _assign_parameters
+    from fieldqkit.api.quantum_platform.cqlib import _assign_parameters
 
     circuits = ["X2P Q0\nRZ Q0 {THETA}"]
     result = _assign_parameters(circuits, [["theta"]], [[1.5]])
@@ -1216,7 +1216,7 @@ def test_run_auto_guodun_routes_to_guodun_runtime(monkeypatch):
 
 
 def test_run_auto_invalid_provider_raises():
-    from quantum_hw.api import quantum_platform as runtime_module
+    from fieldqkit.api import quantum_platform as runtime_module
 
     client = QuantumHardwareClient()
 
@@ -1706,13 +1706,13 @@ def fake_origin_sdk(monkeypatch):
 
 
 def test_origin_chip_names_registered_in_provider_inference():
-    from quantum_hw.api.backend import infer_provider_from_chip
+    from fieldqkit.api.backend import infer_provider_from_chip
     assert infer_provider_from_chip("PQPUMESH8") == "origin"
     assert infer_provider_from_chip("WK_C180") == "origin"
 
 
 def test_origin_credential_helper_reads_yaml(monkeypatch, tmp_path):
-    from quantum_hw.api import platform_credentials as pc
+    from fieldqkit.api import platform_credentials as pc
 
     cfg = tmp_path / ".quantum_hw.yaml"
     cfg.write_text(
@@ -1751,7 +1751,7 @@ def test_load_origin_chip_info_normalizes_unified_layout(fake_origin_sdk):
 
 
 def test_backend_loads_origin_chip_via_sdk(fake_origin_sdk):
-    from quantum_hw.api.backend import Backend
+    from fieldqkit.api.backend import Backend
     b = Backend("PQPUMESH8")
     assert b.chip_name == "PQPUMESH8"
     assert b.two_qubit_gate_basis == "cz"
@@ -1797,7 +1797,7 @@ def test_origin_platform_fetch_raises_when_failed(fake_origin_sdk):
 
 
 def test_origin_task_adapter_submit_and_query(fake_origin_sdk):
-    from quantum_hw.api.task import OpenQasmSubmitRequest
+    from fieldqkit.api.task import OpenQasmSubmitRequest
 
     platform_obj = og.OriginPlatform(token="fake-token")
     resolved = ResolvedBackend(
@@ -1828,7 +1828,7 @@ def test_origin_task_adapter_submit_and_query(fake_origin_sdk):
 
 
 def test_origin_task_adapter_creates_platform_when_missing(fake_origin_sdk):
-    from quantum_hw.api.task import OpenQasmSubmitRequest
+    from fieldqkit.api.task import OpenQasmSubmitRequest
 
     resolved = ResolvedBackend(
         provider="origin",
@@ -1851,7 +1851,7 @@ def test_origin_cancel_task_logs_warning(fake_origin_sdk, caplog):
 
 
 def test_list_available_hardware_dispatches_to_origin(monkeypatch, fake_origin_sdk):
-    from quantum_hw.api import backend as bmod
+    from fieldqkit.api import backend as bmod
     rows = bmod.list_available_hardware("origin")
     names = {r["hardware_name"] for r in rows}
     assert {"PQPUMESH8", "WK_C180"} <= names

@@ -2,7 +2,7 @@
 
 ## 模块
 
-- quantum_hw.sim.interface
+- fieldqkit.sim.interface
 
 ## 概览
 
@@ -14,7 +14,7 @@
 - energy_and_expectations(...)
 - build_state_from_symbolic(...)
 
-MPO 过程模拟不在该分发层中自动路由，需要显式调用 quantum_hw.sim.mpo.simulate_mpo_process。
+MPO 过程模拟不在该分发层中自动路由，需要显式调用 fieldqkit.sim.mpo.simulate_mpo_process。
 
 ## 分发规则
 
@@ -39,7 +39,7 @@ MPO 过程模拟不在该分发层中自动路由，需要显式调用 quantum_h
 - `max_bond_dim`：MPS 最大键维，`None` 不截断，`...`（默认）不变。
 
 ```python
-from quantum_hw.sim import set_sim_config
+from fieldqkit.sim import set_sim_config
 set_sim_config(mps_threshold_qubits=20, max_bond_dim=512)
 ```
 
@@ -81,7 +81,7 @@ set_sim_config(mps_threshold_qubits=20, max_bond_dim=512)
 
 ## 包级导出
 
-`quantum_hw.sim.__init__` 当前导出：
+`fieldqkit.sim.__init__` 当前导出：
 
 - 分发层：`get_sim_config`、`set_sim_config`、`build_state_from_symbolic`、`simulate_counts`、`expectation_pauli`、`sample_probabilities`、`energy_and_expectations`
 - 后端入口：`simulate_statevector`、`simulate_mps`、`simulate_mpo_process`

@@ -2,7 +2,7 @@
 
 ## 模块
 
-- `quantum_hw.sim.noise_kraus`
+- `fieldqkit.sim.noise_kraus`
 
 ## 概览
 
@@ -35,7 +35,7 @@
 
 ```python
 import torch
-from quantum_hw.sim.noise_kraus import get_kraus_ops
+from fieldqkit.sim.noise_kraus import get_kraus_ops
 
 kraus = get_kraus_ops("amplitude_damping", 0.3)
 total = sum(K.conj().T @ K for K in kraus)

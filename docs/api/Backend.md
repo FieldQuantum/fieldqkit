@@ -2,7 +2,7 @@
 
 ## 概览
 
-- 模块：`quantum_hw.api.backend`
+- 模块：`fieldqkit.api.backend`
 - 作用：提供统一硬件拓扑抽象、硬件 profile 标准化、provider 侧后端发现/解析。
 - 主要对象：`Backend`、`BackendAdapter`、`HardwareProfile`、`ResolvedBackend`。
 
@@ -30,7 +30,7 @@ def __init__(self, chip: str | dict)
 
 **示例：**
 ```python
-from quantum_hw.api.backend import Backend
+from fieldqkit.api.backend import Backend
 
 # 按名字创建后端
 backend_str = Backend("Baihua")
@@ -177,7 +177,7 @@ def cache_topology_figure(self, edge_fidelity_thres: float = 0.9) -> None
 
 **返回值：** `None`
 
-**缓存位置：** `src/quantum_hw/api/.cache/{chip_name}_chip.svg`
+**缓存位置：** `src/fieldqkit/api/.cache/{chip_name}_chip.svg`
 
 **使用场景：** 在硬件解析 (`resolve_backend`) 时自动调用，加快后续相同芯片的加载。
 
@@ -185,7 +185,7 @@ def cache_topology_figure(self, edge_fidelity_thres: float = 0.9) -> None
 ```python
 backend = Backend("Baihua")
 backend.cache_topology_figure()
-# 生成: src/quantum_hw/api/.cache/Baihua_chip.svg
+# 生成: src/fieldqkit/api/.cache/Baihua_chip.svg
 ```
 
 ---
@@ -275,7 +275,7 @@ class BackendAdapter(ABC):
 
 - 作用：按 provider 创建平台对象并返回统一硬件列表。
 - 支持：`quafu / tianyan / guodun / tencent / origin / fieldquantum`。
-- 注意：这是 `quantum_hw.api.backend` 模块级函数，与 `BackendAdapter.list_available_hardware()` 实例方法不同。后者由各 `*BackendAdapter` 通过其 `_platform` 子对象转发，调用前需要已经准备好 token。
+- 注意：这是 `fieldqkit.api.backend` 模块级函数，与 `BackendAdapter.list_available_hardware()` 实例方法不同。后者由各 `*BackendAdapter` 通过其 `_platform` 子对象转发，调用前需要已经准备好 token。
 
 ### `infer_provider_from_chip(chip_name) -> Optional[str]`
 
@@ -332,7 +332,7 @@ class BackendAdapter(ABC):
 ## 示例
 
 ```python
-from quantum_hw.api.backend import Backend, list_available_hardware
+from fieldqkit.api.backend import Backend, list_available_hardware
 
 rows = list_available_hardware("quafu")
 print(rows[:2])

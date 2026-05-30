@@ -2,7 +2,7 @@
 
 ## 概览
 
-- 模块路径：`quantum_hw.api`
+- 模块路径：`fieldqkit.api`
 - 模块定位：统一硬件执行 API（入口客户端 + 后端发现 + 任务抽象 + provider 适配）
 
 ## 页面导航

@@ -1,9 +1,9 @@
 import numpy as np
 import pytest
 
-from quantum_hw.compile import decompose
-from quantum_hw.circuit.matrix import gate_matrix_dict, u_mat
-from quantum_hw.circuit.utils import is_equiv_unitary
+from fieldqkit.compile import decompose
+from fieldqkit.circuit.matrix import gate_matrix_dict, u_mat
+from fieldqkit.circuit.utils import is_equiv_unitary
 
 
 ONE_QUBIT_GATES = {

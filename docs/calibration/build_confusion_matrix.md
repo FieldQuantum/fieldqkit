@@ -2,7 +2,7 @@
 
 ## 概览
 
-- **所属模块**：`quantum_hw.calibration.readout`
+- **所属模块**：`fieldqkit.calibration.readout`
 - **用途**：将校准任务得到的计数字典列表转换为 confusion matrix（每行对应一个输入基态的输出概率分布）。
 
 ## 签名
@@ -35,7 +35,7 @@ build_confusion_matrix(
 ## 示例
 
 ```python
-from quantum_hw.calibration.readout import build_confusion_matrix
+from fieldqkit.calibration.readout import build_confusion_matrix
 
 res_list = [
     {"0": 980, "1": 44},   # prepare |0>

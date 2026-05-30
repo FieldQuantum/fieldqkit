@@ -2,11 +2,11 @@
 
 ## 概览
 
-- **模块**：`quantum_hw.algorithms.vqe`
+- **模块**：`fieldqkit.algorithms.vqe`
 - **作用**：支持参数移位或 `torch autograd` 梯度，并用 Adam 做能量最小化。
 - **ansatz 支持**：`hardwareefficient` / `custom`
 - **当前推荐入口**：`VQERunner.run_model(...)`
-- **Simulator 自动微分入口**：`quantum_hw.sim.energy_and_expectations`（由 sim 接口层按 qubit 数在 statevector/MPS 间分发）。
+- **Simulator 自动微分入口**：`fieldqkit.sim.energy_and_expectations`（由 sim 接口层按 qubit 数在 statevector/MPS 间分发）。
 - **压缩能力（parameter-shift 路径）**：支持后缀分块规划 + stage 级压缩（prefix 用 `mps` 目标，suffix block 用 `mpo` 目标）。
 - **硬件压缩执行路径**：压缩开启时使用“双模板”模式：
   - 梯度模板：原始 symbolic ansatz（每次参数化后再压缩）。
@@ -226,7 +226,7 @@ parameter_shift_gradient(
 - 触发条件：`run_vqe_with_backend(..., gradient_method="autograd")` 或 `VQERunner(gradient_method="autograd")`。
 - 限制：
   - 仅支持 `chip_name="Simulator"`
-- 实现入口：`quantum_hw.sim.energy_and_expectations`（包级导出）。
+- 实现入口：`fieldqkit.sim.energy_and_expectations`（包级导出）。
 - 后端分发：由 sim 接口层按 qubit 数自动路由（`statevector` 或 `mps`）。
 - 依赖：需要安装 `torch`。
 
@@ -239,7 +239,7 @@ parameter_shift_gradient(
 
 ## 返回值
 
-返回 `VQEResult`（定义于 `quantum_hw.core.types`）：
+返回 `VQEResult`（定义于 `fieldqkit.core.types`）：
 
 - `best_energy: float`
 - `best_params: List[float]`
@@ -279,8 +279,8 @@ parameter_shift_gradient(
 ## 示例
 
 ```python
-from quantum_hw import QuantumHardwareClient
-from quantum_hw.algorithms import VQERunner
+from fieldqkit import QuantumHardwareClient
+from fieldqkit.algorithms import VQERunner
 
 client = QuantumHardwareClient()
 runner = VQERunner(
@@ -308,9 +308,9 @@ print(result.best_params)
 ### `custom` ansatz 示例
 
 ```python
-from quantum_hw import QuantumHardwareClient
-from quantum_hw.algorithms import VQERunner
-from quantum_hw.circuit import QuantumCircuit
+from fieldqkit import QuantumHardwareClient
+from fieldqkit.algorithms import VQERunner
+from fieldqkit.circuit import QuantumCircuit
 
 qc = QuantumCircuit(4)
 qc.ry("alpha_0", 0)

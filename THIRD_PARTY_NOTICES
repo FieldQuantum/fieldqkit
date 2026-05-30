@@ -1,5 +1,5 @@
 This file contains third-party license notices for code incorporated into
-quantum-hw.
+fieldqkit.
 
 ================================================================================
 quarkstudio
@@ -9,21 +9,21 @@ Copyright (c) YL Feng
 Licensed under the MIT License
 
 Files modified from quarkstudio:
-  - src/quantum_hw/circuit/quantumcircuit.py
-  - src/quantum_hw/circuit/quantumcircuit_helpers.py
-  - src/quantum_hw/circuit/matrix.py
-  - src/quantum_hw/circuit/utils.py
-  - src/quantum_hw/compile/__init__.py
-  - src/quantum_hw/compile/basepasses.py
-  - src/quantum_hw/compile/dag.py
-  - src/quantum_hw/compile/decompose.py
-  - src/quantum_hw/compile/layout.py
-  - src/quantum_hw/compile/optimize.py
-  - src/quantum_hw/compile/routing.py
-  - src/quantum_hw/compile/schedule.py
-  - src/quantum_hw/compile/translate.py
-  - src/quantum_hw/compile/transpiler.py
-  - src/quantum_hw/api/quantum_platform/quafu.py
+  - src/fieldqkit/circuit/quantumcircuit.py
+  - src/fieldqkit/circuit/quantumcircuit_helpers.py
+  - src/fieldqkit/circuit/matrix.py
+  - src/fieldqkit/circuit/utils.py
+  - src/fieldqkit/compile/__init__.py
+  - src/fieldqkit/compile/basepasses.py
+  - src/fieldqkit/compile/dag.py
+  - src/fieldqkit/compile/decompose.py
+  - src/fieldqkit/compile/layout.py
+  - src/fieldqkit/compile/optimize.py
+  - src/fieldqkit/compile/routing.py
+  - src/fieldqkit/compile/schedule.py
+  - src/fieldqkit/compile/translate.py
+  - src/fieldqkit/compile/transpiler.py
+  - src/fieldqkit/api/quantum_platform/quafu.py
 
 MIT License
 
@@ -53,10 +53,10 @@ Copyright (c) China Telecom Quantum Group Quantum Computing Team
 Licensed under the Apache License, Version 2.0
 
 Files modified from cqlib:
-  - src/quantum_hw/api/quantum_platform/cqlib.py
-  - src/quantum_hw/api/quantum_platform/guodun.py
-  - src/quantum_hw/api/quantum_platform/tianyan.py
-  - src/quantum_hw/circuit/qcis.py
+  - src/fieldqkit/api/quantum_platform/cqlib.py
+  - src/fieldqkit/api/quantum_platform/guodun.py
+  - src/fieldqkit/api/quantum_platform/tianyan.py
+  - src/fieldqkit/circuit/qcis.py
 
                                  Apache License
                            Version 2.0, January 2004
@@ -82,7 +82,7 @@ Copyright (c) TensorCircuit Authors
 Licensed under the Apache License, Version 2.0
 
 Files modified from TensorCircuit:
-  - src/quantum_hw/api/quantum_platform/tencent.py
+  - src/fieldqkit/api/quantum_platform/tencent.py
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.

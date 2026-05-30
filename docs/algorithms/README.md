@@ -1,6 +1,6 @@
 # Algorithms 模块参考
 
-- 模块路径：`quantum_hw.algorithms`
+- 模块路径：`fieldqkit.algorithms`
 - 模块定位：在统一硬件 API 之上提供变分算法（VQE / QAOA）、经典阴影层析（Shadow）、量子机器学习（QML），以及它们共享的优化工具与线路压缩能力。
 
 ## 两层设计

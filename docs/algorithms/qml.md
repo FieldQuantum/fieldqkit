@@ -2,7 +2,7 @@
 
 ## 概览
 
-- **模块**：`quantum_hw.algorithms.qml`
+- **模块**：`fieldqkit.algorithms.qml`
 - **作用**：提供参数化量子线路（PQC）的机器学习训练框架，支持 **监督分类** 和 **无监督分布学习** 两种任务。
 - **梯度方式**：`autograd`（torch 自动微分）或 `parameter-shift`（硬件兼容）。
 - **优化器**：Adam。
@@ -86,7 +86,7 @@ run_pqc_classifier(
 
 ### 返回值
 
-`QMLResult`（定义于 `quantum_hw.core.types`）：
+`QMLResult`（定义于 `fieldqkit.core.types`）：
 
 | 字段 | 类型 | 说明 |
 |---|---|---|
@@ -172,7 +172,7 @@ run_qnn_unsupervised(
 
 ### 返回值
 
-`QBMResult`（定义于 `quantum_hw.core.types`）：
+`QBMResult`（定义于 `fieldqkit.core.types`）：
 
 | 字段 | 类型 | 说明 |
 |---|---|---|
@@ -205,7 +205,7 @@ run_qnn_unsupervised(
 ### 监督分类（Iris 数据集）
 
 ```python
-from quantum_hw.algorithms import run_pqc_classifier
+from fieldqkit.algorithms import run_pqc_classifier
 
 train = [(features_i, label_i) for features_i, label_i in zip(X_train, y_train)]
 test  = [(features_i, label_i) for features_i, label_i in zip(X_test, y_test)]
@@ -231,7 +231,7 @@ print(f"Test accuracy:  {result.test_accuracy:.4f}")
 
 ```python
 import numpy as np
-from quantum_hw.algorithms import run_qnn_unsupervised
+from fieldqkit.algorithms import run_qnn_unsupervised
 
 # 目标分布：|00⟩ 和 |11⟩ 各 50%
 samples = np.array([[0,0]]*50 + [[1,1]]*50)
@@ -275,12 +275,12 @@ print(f"Generated {len(result.generated_samples)} samples")
 
 ## 4. 高层入口 — `QMLRunner`
 
-模块：`quantum_hw.algorithms.qml_runner`
+模块：`fieldqkit.algorithms.qml_runner`
 
 `QMLRunner` 是 QML 任务的高层封装，类似 `VQERunner` / `QAOARunner` 的设计：自动解析 provider → backend → chip，然后委托底层 `run_pqc_classifier` / `run_qnn_unsupervised` / `run_qnn_conditional`。
 
 ```python
-from quantum_hw.algorithms.qml_runner import QMLRunner
+from fieldqkit.algorithms.qml_runner import QMLRunner
 
 runner = QMLRunner(client=client, layers=2, max_iters=100)
 result = runner.run_classifier(train_data=train, test_data=test, num_qubits=4)

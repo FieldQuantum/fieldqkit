@@ -2,14 +2,14 @@
 
 ## 概览
 
-- **模块**：`quantum_hw.circuit.matrix`、`quantum_hw.circuit.utils`
+- **模块**：`fieldqkit.circuit.matrix`、`fieldqkit.circuit.utils`
 - **源文件**：`matrix.py`（约230 行）、`utils.py`（约290 行）
 - **作用**：
   - 提供所有标准量子门的矩阵表示（常量 + 参数函数）
   - 提供门名到矩阵的统一查找字典 `gate_matrix_dict`
   - 提供单/双比特幺正矩阵分解算法（ZYZ、U3、KAK）
   - 提供随机幺正矩阵生成与等价判定工具
-- **比特序约定**：大端序（big-endian）。对门元组 `(gate, q0, q1, ...)`，第一个比特 `q0` 是矩阵索引的最高位（最左），与 `quantum_hw.sim.matrix` 及模拟器一致；因此受控门的控制位编码在高位块（例如 `cx` 的控制位是第一个参数）。
+- **比特序约定**：大端序（big-endian）。对门元组 `(gate, q0, q1, ...)`，第一个比特 `q0` 是矩阵索引的最高位（最左），与 `fieldqkit.sim.matrix` 及模拟器一致；因此受控门的控制位编码在高位块（例如 `cx` 的控制位是第一个参数）。
 
 ---
 
@@ -210,7 +210,7 @@ U3 分解：$U = e^{i p}\, U_3(\theta, \phi, \lambda)$。
 
 ```python
 import numpy as np
-from quantum_hw.circuit.matrix import h_mat, cx_mat, gate_matrix_dict
+from fieldqkit.circuit.matrix import h_mat, cx_mat, gate_matrix_dict
 
 # 直接使用常量
 print(h_mat.shape)          # (2, 2)
@@ -225,7 +225,7 @@ print(rz_fn(np.pi / 4))    # 2x2 rz(π/4) 矩阵
 
 ```python
 import numpy as np
-from quantum_hw.circuit.utils import generate_random_unitary_matrix, is_equiv_unitary
+from fieldqkit.circuit.utils import generate_random_unitary_matrix, is_equiv_unitary
 
 U = generate_random_unitary_matrix(4, seed=42)
 # 添加全局相位后仍然等价
@@ -237,8 +237,8 @@ print(is_equiv_unitary(U, U_phased))  # True
 
 ```python
 import numpy as np
-from quantum_hw.circuit.matrix import cx_mat
-from quantum_hw.circuit.utils import kak_decompose
+from fieldqkit.circuit.matrix import cx_mat
+from fieldqkit.circuit.utils import kak_decompose
 
 rots1, rots2 = kak_decompose(cx_mat)
 print(len(rots1), len(rots2))  # 4, 4

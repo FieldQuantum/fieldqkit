@@ -2,7 +2,7 @@
 
 ## 概览
 
-- 模块：`quantum_hw.api.task`
+- 模块：`fieldqkit.api.task`
 - 作用：定义 provider 无关的任务请求/句柄/适配器协议，屏蔽各平台任务接口差异。
 - 核心对象：`OpenQasmSubmitRequest`、`QcisSubmitRequest`、`ProviderTaskHandle`、`TaskAdapter`。
 
@@ -48,7 +48,7 @@ class QcisSubmitRequest:
 | `chip_name` | `str` | 目标芯片名。 |
 | `submit_options` | `Dict[str, Any]` | provider 扩展参数（同 `OpenQasmSubmitRequest`）。 |
 
-QCIS 文本由 `quantum_hw.circuit.qcis.circuit_to_qcis(QuantumCircuit)` 在客户端生成。
+QCIS 文本由 `fieldqkit.circuit.qcis.circuit_to_qcis(QuantumCircuit)` 在客户端生成。
 
 ### `ProviderTaskHandle`
 
@@ -206,12 +206,12 @@ def cancel_task(self, handle: ProviderTaskHandle) -> None
 
 ## 实现方
 
-- Quafu：`quantum_hw.api.quantum_platform.quafu.QuafuTaskAdapter`（OpenQASM）
-- TianYan：`quantum_hw.api.quantum_platform.tianyan.TianYanTaskAdapter`（QCIS）
-- GuoDun：`quantum_hw.api.quantum_platform.guodun.GuoDunTaskAdapter`（QCIS）
-- Tencent：`quantum_hw.api.quantum_platform.tencent.TencentTaskAdapter`（OpenQASM）
-- Origin：`quantum_hw.api.quantum_platform.origin.OriginTaskAdapter`（OpenQASM）
-- FieldQuantum：`quantum_hw.api.quantum_platform.fieldquantum.FieldQuantumTaskAdapter`（OpenQASM，sample 模式）
+- Quafu：`fieldqkit.api.quantum_platform.quafu.QuafuTaskAdapter`（OpenQASM）
+- TianYan：`fieldqkit.api.quantum_platform.tianyan.TianYanTaskAdapter`（QCIS）
+- GuoDun：`fieldqkit.api.quantum_platform.guodun.GuoDunTaskAdapter`（QCIS）
+- Tencent：`fieldqkit.api.quantum_platform.tencent.TencentTaskAdapter`（OpenQASM）
+- Origin：`fieldqkit.api.quantum_platform.origin.OriginTaskAdapter`（OpenQASM）
+- FieldQuantum：`fieldqkit.api.quantum_platform.fieldquantum.FieldQuantumTaskAdapter`（OpenQASM，sample 模式）
 
 ## 与 QuantumHardwareClient 的配合
 
@@ -224,8 +224,8 @@ def cancel_task(self, handle: ProviderTaskHandle) -> None
 ## 示例
 
 ```python
-from quantum_hw.api.task import OpenQasmSubmitRequest
-from quantum_hw.api.quantum_platform.quafu import QuafuTaskAdapter, QuafuBackendAdapter
+from fieldqkit.api.task import OpenQasmSubmitRequest
+from fieldqkit.api.quantum_platform.quafu import QuafuTaskAdapter, QuafuBackendAdapter
 
 # 使用 BackendAdapter 解析后端
 backend_adapter = QuafuBackendAdapter()

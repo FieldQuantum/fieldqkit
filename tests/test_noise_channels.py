@@ -4,15 +4,15 @@ import numpy as np
 import pytest
 import torch
 
-from quantum_hw.circuit import QuantumCircuit
-from quantum_hw.sim import (
+from fieldqkit.circuit import QuantumCircuit
+from fieldqkit.sim import (
     simulate_counts,
     simulate_density_matrix,
     simulate_noisy_counts,
     expectation_pauli,
     expectation_pauli_dm,
 )
-from quantum_hw.circuit.quantumcircuit_helpers import has_noise_channels
+from fieldqkit.circuit.quantumcircuit_helpers import has_noise_channels
 
 
 class TestNoiseGateCreation:
@@ -229,7 +229,7 @@ class TestExpectationValue:
 
     def test_expectation_z_pure_state(self):
         """Test <ψ|Z|ψ> on |0> state via SV simulator."""
-        from quantum_hw.sim import simulate_statevector
+        from fieldqkit.sim import simulate_statevector
         qc = QuantumCircuit(1)
         psi = simulate_statevector(qc)
         exp = expectation_pauli(psi, 'Z', num_qubits=1)
@@ -237,7 +237,7 @@ class TestExpectationValue:
 
     def test_expectation_z_plus_state(self):
         """Test <ψ|Z|ψ> on |+> state is 0 via SV simulator."""
-        from quantum_hw.sim import simulate_statevector
+        from fieldqkit.sim import simulate_statevector
         qc = QuantumCircuit(1)
         qc.h(0)
         psi = simulate_statevector(qc)
@@ -259,7 +259,7 @@ class TestExpectationValue:
 
     def test_expectation_two_qubit_observable(self):
         """Test multi-qubit observable expectation via SV simulator."""
-        from quantum_hw.sim import simulate_statevector
+        from fieldqkit.sim import simulate_statevector
         qc = QuantumCircuit(2)
         qc.h(0).cx(0, 1)
         psi = simulate_statevector(qc)
@@ -368,8 +368,8 @@ class TestHardwareValidation:
 
     def test_noisy_circuit_blocked_on_hardware(self):
         """Test ValueError when submitting noisy circuit to hardware."""
-        from quantum_hw.api import QuantumHardwareClient
-        from quantum_hw.api.backend import Backend
+        from fieldqkit.api import QuantumHardwareClient
+        from fieldqkit.api.backend import Backend
 
         client = QuantumHardwareClient()
         qc = QuantumCircuit(2)
@@ -387,8 +387,8 @@ class TestHardwareValidation:
 
     def test_noisy_circuit_allowed_on_simulator(self):
         """Test that noisy circuit is allowed on local simulator."""
-        from quantum_hw.api import QuantumHardwareClient
-        from quantum_hw.api.backend import Backend
+        from fieldqkit.api import QuantumHardwareClient
+        from fieldqkit.api.backend import Backend
 
         client = QuantumHardwareClient()
         qc = QuantumCircuit(2)
@@ -406,8 +406,8 @@ class TestHardwareValidation:
 
     def test_noisy_circuit_allowed_on_fieldquantum(self):
         """Test that noisy circuit is allowed on fieldquantum_sim."""
-        from quantum_hw.api import QuantumHardwareClient
-        from quantum_hw.api.backend import Backend
+        from fieldqkit.api import QuantumHardwareClient
+        from fieldqkit.api.backend import Backend
 
         client = QuantumHardwareClient()
         qc = QuantumCircuit(2)
@@ -429,14 +429,14 @@ class TestNoiseBackendHelper:
 
     def test_clean_circuit_returns_false(self):
         """Test a noiseless circuit is reported as non-noisy on any backend."""
-        from quantum_hw.api.backend import is_noisy_circuit_for_backend
+        from fieldqkit.api.backend import is_noisy_circuit_for_backend
         qc = QuantumCircuit(2)
         qc.h(0).cx(0, 1)
         assert is_noisy_circuit_for_backend(qc, "tianyan176") is False
 
     def test_noisy_on_simulator_allowed(self):
         """Test a noisy circuit is allowed on the local/cloud simulators."""
-        from quantum_hw.api.backend import is_noisy_circuit_for_backend
+        from fieldqkit.api.backend import is_noisy_circuit_for_backend
         qc = QuantumCircuit(2)
         qc.h(0).depolarize1(0.1, 0)
         assert is_noisy_circuit_for_backend(qc, "Simulator") is True
@@ -444,7 +444,7 @@ class TestNoiseBackendHelper:
 
     def test_noisy_on_hardware_rejected(self):
         """Test a noisy circuit is rejected on real hardware."""
-        from quantum_hw.api.backend import is_noisy_circuit_for_backend
+        from fieldqkit.api.backend import is_noisy_circuit_for_backend
         qc = QuantumCircuit(2)
         qc.h(0).depolarize1(0.1, 0)
         with pytest.raises(ValueError, match="not supported"):
@@ -516,8 +516,8 @@ class TestNoiseErrorMitigation:
 
     def test_noisy_observable_basis_runs_on_simulator(self):
         """Test a noisy circuit with an X-basis observable runs (no basis-translate crash)."""
-        from quantum_hw.api import QuantumHardwareClient
-        from quantum_hw.api.backend import Backend
+        from fieldqkit.api import QuantumHardwareClient
+        from fieldqkit.api.backend import Backend
 
         client = QuantumHardwareClient()
         qc = QuantumCircuit(1)
@@ -556,9 +556,9 @@ class TestNoiseErrorMitigation:
 
     def test_clifford_fitting_on_noisy_circuit(self):
         """Test Clifford data regression builds a fit map for a noisy circuit."""
-        from quantum_hw.api import QuantumHardwareClient
-        from quantum_hw.api.backend import Backend
-        from quantum_hw.algorithms.optimizer_utils import build_clifford_fit_map
+        from fieldqkit.api import QuantumHardwareClient
+        from fieldqkit.api.backend import Backend
+        from fieldqkit.algorithms.optimizer_utils import build_clifford_fit_map
 
         client = QuantumHardwareClient()
         qc = QuantumCircuit(1)

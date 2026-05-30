@@ -2,7 +2,7 @@
 
 ## 模块
 
-- `quantum_hw.sim.matrix`
+- `fieldqkit.sim.matrix`
 
 ## 概览
 
@@ -53,7 +53,7 @@
 
 ```python
 import torch
-from quantum_hw.sim.matrix import ketn0, gate_matrix_dict
+from fieldqkit.sim.matrix import ketn0, gate_matrix_dict
 
 psi0 = ketn0(3)
 rx_fn = gate_matrix_dict["rx"]

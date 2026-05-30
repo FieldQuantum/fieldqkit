@@ -2,7 +2,7 @@
 
 ## 模块
 
-- `quantum_hw.core.types`
+- `fieldqkit.core.types`
 
 ## 数据结构
 

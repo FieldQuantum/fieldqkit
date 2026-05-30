@@ -11,12 +11,12 @@
 
 ## C1. `TaskAdapter` ABC 实质上是接口声明，但混入 `NotImplementedError` 默认实现
 
-**位置**：[src/quantum_hw/api/task.py](src/quantum_hw/api/task.py)
+**位置**：[src/fieldqkit/api/task.py](src/fieldqkit/api/task.py)
 
 **现状**
 - `TaskAdapter(ABC)` 中的 `submit_openqasm` / `query_status` / `fetch_result` / `cancel_task` 全部以 `raise NotImplementedError(...)` 作为"默认实现"。
 - 没有标注 `@abstractmethod`，所以子类可以"忘记"覆盖而仍然实例化成功，运行时才报错。
-- `SimulatorBackendAdapter` 在 [quantum_platform/__init__.py#L47](src/quantum_hw/api/quantum_platform/__init__.py#L47) 把 `task_adapter=None`，调用方需要在所有使用点判空（违反"接口必须实现"的合约）。
+- `SimulatorBackendAdapter` 在 [quantum_platform/__init__.py#L47](src/fieldqkit/api/quantum_platform/__init__.py#L47) 把 `task_adapter=None`，调用方需要在所有使用点判空（违反"接口必须实现"的合约）。
 - 等价于"运行时无收益的能力声明层"。
 
 **建议（任选其一）**
@@ -24,19 +24,19 @@
 2. **真正的 ABC**：给 4 个方法加 `@abstractmethod`，并提供显式的 `NullTaskAdapter`（simulator 用），让所有 provider 严格实现；同时把 `task_adapter` 字段类型由 `Any` 改成 `TaskAdapter`，消除 `None` 分支。
 
 **影响范围**
-- `src/quantum_hw/api/task.py`
-- `src/quantum_hw/api/quantum_platform/__init__.py`（`ProviderRuntime.task_adapter` 类型与 simulator 分支）
-- `src/quantum_hw/api/client.py` 中所有 `if self._active_task_adapter is not None:` 判空点
+- `src/fieldqkit/api/task.py`
+- `src/fieldqkit/api/quantum_platform/__init__.py`（`ProviderRuntime.task_adapter` 类型与 simulator 分支）
+- `src/fieldqkit/api/client.py` 中所有 `if self._active_task_adapter is not None:` 判空点
 - 各 provider 的 `*TaskAdapter` 实现保持不变（已经全部覆盖了这 4 个方法）
 
 ---
 
 ## C2. `RemotePlatformClient` 公开导出但属于内部基类
 
-**位置**：[src/quantum_hw/api/quantum_platform/__init__.py](src/quantum_hw/api/quantum_platform/__init__.py)（第 86 行附近的 `__all__`）+ [src/quantum_hw/api/__init__.py](src/quantum_hw/api/__init__.py)
+**位置**：[src/fieldqkit/api/quantum_platform/__init__.py](src/fieldqkit/api/quantum_platform/__init__.py)（第 86 行附近的 `__all__`）+ [src/fieldqkit/api/__init__.py](src/fieldqkit/api/__init__.py)
 
 **现状**
-- `RemotePlatformClient` 是 cqlib 的内部抽象基类，被同时导出到 `quantum_hw.api.quantum_platform` 与 `quantum_hw.api`。
+- `RemotePlatformClient` 是 cqlib 的内部抽象基类，被同时导出到 `fieldqkit.api.quantum_platform` 与 `fieldqkit.api`。
 - docs 中虽然出现了 [docs/api/cqlib.md](docs/api/cqlib.md)，但用户层没有"用 cqlib 客户端发任务"这种正常使用路径，全部走 `Backend` + `run_with_backend`。
 
 **建议**
@@ -47,26 +47,26 @@
 
 ## C3. provider Adapter 全部以 top-level 公开导出
 
-**位置**：[src/quantum_hw/api/__init__.py](src/quantum_hw/api/__init__.py#L4-L29)
+**位置**：[src/fieldqkit/api/__init__.py](src/fieldqkit/api/__init__.py#L4-L29)
 
 **现状**
-- `QuafuBackendAdapter`、`TianYanBackendAdapter`、`GuoDunBackendAdapter`、`TencentBackendAdapter`、`FieldQuantumBackendAdapter` 以及对应的 `*TaskAdapter` / `*Platform` 类全部从 `quantum_hw.api` 顶层导出。
+- `QuafuBackendAdapter`、`TianYanBackendAdapter`、`GuoDunBackendAdapter`、`TencentBackendAdapter`、`FieldQuantumBackendAdapter` 以及对应的 `*TaskAdapter` / `*Platform` 类全部从 `fieldqkit.api` 顶层导出。
 - 用户面唯一稳定入口是 `create_provider_runtime(provider=..., client=...)`，adapter 不是用户应直接构造的对象。
 - 这些 adapter 都内置 provider-specific 状态（platform_obj、token、URL），公开它们等于把 provider 差异泄到 API 表面。
 
 **建议**
-- 顶层 `quantum_hw.api.__init__.py` 只导出：`QuantumHardwareClient`, `Backend`, `HardwareProfile`, `HardwareTopology`, `HardwareCalibration`, `ResolvedBackend`, `BackendAdapter`(可保留也可去掉), `OpenQasmSubmitRequest`, `ProviderTaskHandle`, `TaskAdapter`, `ProviderRuntime`, `create_provider_runtime`, `list_available_hardware`。
-- 各 provider 的 `*BackendAdapter / *TaskAdapter / *Platform` 仅在 `quantum_hw.api.quantum_platform.<provider>` 子模块可见，不进入 `quantum_platform.__init__` 的 `__all__`。
+- 顶层 `fieldqkit.api.__init__.py` 只导出：`QuantumHardwareClient`, `Backend`, `HardwareProfile`, `HardwareTopology`, `HardwareCalibration`, `ResolvedBackend`, `BackendAdapter`(可保留也可去掉), `OpenQasmSubmitRequest`, `ProviderTaskHandle`, `TaskAdapter`, `ProviderRuntime`, `create_provider_runtime`, `list_available_hardware`。
+- 各 provider 的 `*BackendAdapter / *TaskAdapter / *Platform` 仅在 `fieldqkit.api.quantum_platform.<provider>` 子模块可见，不进入 `quantum_platform.__init__` 的 `__all__`。
 - 保留 docs/api/providers.md，但说明 adapter 是"通过 `create_provider_runtime` 间接访问"的内部对象。
 
 **影响**
-- 上层 `examples/` 与测试需要核对是否有 `from quantum_hw.api import QuafuBackendAdapter` 类似直接 import。当前抽样未发现此类用法，影响面应当较小。
+- 上层 `examples/` 与测试需要核对是否有 `from fieldqkit.api import QuafuBackendAdapter` 类似直接 import。当前抽样未发现此类用法，影响面应当较小。
 
 ---
 
 ## C4. `BackendAdapter` ABC 同时含 abstract 与 concrete 方法
 
-**位置**：[src/quantum_hw/api/backend.py](src/quantum_hw/api/backend.py#L425-L460)
+**位置**：[src/fieldqkit/api/backend.py](src/fieldqkit/api/backend.py#L425-L460)
 
 **现状**
 - 类继承 `ABC`，但成员方法 `list_available_hardware` / `discover_hardware` / `resolve_backend` / `_fallback_hardware_name` 都给了具体实现，且没有任何 `@abstractmethod`。
@@ -81,7 +81,7 @@
 
 ## C5. `create_provider_runtime` 中 fieldquantum 分支重复 import
 
-**位置**：[src/quantum_hw/api/quantum_platform/__init__.py](src/quantum_hw/api/quantum_platform/__init__.py#L70-L82)
+**位置**：[src/fieldqkit/api/quantum_platform/__init__.py](src/fieldqkit/api/quantum_platform/__init__.py#L70-L82)
 
 **现状**
 - 文件顶部已经从 `.fieldquantum` 导入了 `FieldQuantumPlatform / FieldQuantumBackendAdapter / FieldQuantumTaskAdapter / FIELDQUANTUM_DEFAULT_URL`。
@@ -116,8 +116,8 @@
 ## C7. 错误信息与日志中的敏感字段
 
 **位置**：
-- [src/quantum_hw/api/platform_credentials.py](src/quantum_hw/api/platform_credentials.py#L155-L164)：错误信息把 env var 名、yaml 路径与 token 字段名一并写出。
-- [src/quantum_hw/api/fieldquantum_server.py](src/quantum_hw/api/fieldquantum_server.py#L369-L371)：将完整 traceback 写入日志，且把 `str(exc)` 直接通过 HTTP 500 响应返回客户端。
+- [src/fieldqkit/api/platform_credentials.py](src/fieldqkit/api/platform_credentials.py#L155-L164)：错误信息把 env var 名、yaml 路径与 token 字段名一并写出。
+- [src/fieldqkit/api/fieldquantum_server.py](src/fieldqkit/api/fieldquantum_server.py#L369-L371)：将完整 traceback 写入日志，且把 `str(exc)` 直接通过 HTTP 500 响应返回客户端。
 
 **建议**
 - credentials 报错改为引用 docs 链接，不在异常字符串里枚举 env var 名/字段名。
@@ -127,7 +127,7 @@
 
 ## C8. `cqlib` 401 重新登录缺失次数限制
 
-**位置**：[src/quantum_hw/api/quantum_platform/cqlib.py](src/quantum_hw/api/quantum_platform/cqlib.py#L299-L307)
+**位置**：[src/fieldqkit/api/quantum_platform/cqlib.py](src/fieldqkit/api/quantum_platform/cqlib.py#L299-L307)
 
 **现状**
 - 401 时直接 `self.login()` 并继续重试；如果 token/账户也失效，会陷入"过期 → 登录失败 → 仍用旧 token → 再 401"的循环。

@@ -347,7 +347,7 @@ def circuit_to_qcis(qc) -> str:
     transpiled (basis gates only) before calling this function.
 
     Args:
-        qc: :class:`~quantum_hw.circuit.QuantumCircuit` to convert.
+        qc: :class:`~fieldqkit.circuit.QuantumCircuit` to convert.
 
     Returns:
         str: QCIS instruction string.

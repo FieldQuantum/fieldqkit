@@ -739,7 +739,7 @@ def build_compression_transform(
 
     Creates a stateful compression callback compatible with the
     ``circuit_transform`` parameter of
-    :func:`~quantum_hw.algorithms.optimizer_utils.run_variational_loop`.
+    :func:`~fieldqkit.algorithms.optimizer_utils.run_variational_loop`.
     Also prepares a compressed hardware-efficient template that is
     transpiled once and reused across iterations.
 

@@ -3,7 +3,7 @@
 import pytest
 import numpy as np
 
-from quantum_hw.core.circuits import (
+from fieldqkit.core.circuits import (
     build_ghz,
     build_cluster,
     build_qft,
@@ -12,7 +12,7 @@ from quantum_hw.core.circuits import (
     build_xxz_time_evolution,
     build_xy_time_evolution,
 )
-from quantum_hw.core.observables import (
+from fieldqkit.core.observables import (
     _parse_pauli_string,
     pauli_support,
     shift_pauli_string,
@@ -23,14 +23,14 @@ from quantum_hw.core.observables import (
     _compatible_with_basis,
     _merge_basis,
 )
-from quantum_hw.core.readout import (
+from fieldqkit.core.readout import (
     build_local_confusion_matrix,
     mitigate_readout,
     expectation_from_samples_unbiased,
     mitigate_observable_from_samples,
 )
-from quantum_hw.core.zne import apply_zne_cz_tripling, zne_linear_extrapolate
-from quantum_hw.core.utils import (
+from fieldqkit.core.zne import apply_zne_cz_tripling, zne_linear_extrapolate
+from fieldqkit.core.utils import (
     get_probabilities,
     get_samples,
     get_probabilities_from_samples,
@@ -38,7 +38,7 @@ from quantum_hw.core.utils import (
     get_local_probabilities_from_samples,
     expectation_from_probabilities,
 )
-from quantum_hw.core.types import (
+from fieldqkit.core.types import (
     RunResult,
     CalibrationResult,
     ShadowResult,
@@ -388,7 +388,7 @@ class TestPauliExpectation:
 
 class TestApplyMeasurementBasisRotations:
     def test_unsupported_basis_raises(self):
-        from quantum_hw.circuit import QuantumCircuit
+        from fieldqkit.circuit import QuantumCircuit
         qc = QuantumCircuit(2)
         with pytest.raises(ValueError, match="unsupported"):
             apply_measurement_basis_rotations(qc, ["Q", "Z"], target_qubits=[0, 1])

@@ -2,7 +2,7 @@
 
 ## 概览
 
-- **模块**：`quantum_hw.compile.transpiler`（约170 行）
+- **模块**：`fieldqkit.compile.transpiler`（约170 行）
 - **作用**：编译流水线管理器，按顺序执行各编译 Pass，将逻辑线路转换为物理芯片可执行的门序列。
 - **依赖**：`Backend`、`Layout`、`SabreRouting`、`TranslateToBasisGates`、`GateCompressor`、`DynamicalDecoupling`、`ThreeQubitGateDecompose`、`split_qubits`
 - **继承**：无（独立类，非 `TranspilerPass` 子类）
@@ -172,9 +172,9 @@ DD 的初始化需要从 `chip_backend.chip_info["global_info"]` 中读取：
 ### 基础用法
 
 ```python
-from quantum_hw.api.backend import Backend
-from quantum_hw.compile.transpiler import Transpiler
-from quantum_hw.circuit import QuantumCircuit
+from fieldqkit.api.backend import Backend
+from fieldqkit.compile.transpiler import Transpiler
+from fieldqkit.circuit import QuantumCircuit
 
 backend = Backend("Baihua")
 transpiler = Transpiler(backend)

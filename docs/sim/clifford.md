@@ -2,7 +2,7 @@
 
 ## 模块
 
-- `quantum_hw.sim.clifford`
+- `fieldqkit.sim.clifford`
 
 ## 概览
 

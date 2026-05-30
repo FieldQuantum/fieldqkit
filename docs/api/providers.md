@@ -3,12 +3,12 @@
 ## 概览
 
 - 模块：
-  - `quantum_hw.api.quantum_platform.quafu`
-  - `quantum_hw.api.quantum_platform.tianyan`
-  - `quantum_hw.api.quantum_platform.guodun`
-  - `quantum_hw.api.quantum_platform.tencent`
-  - `quantum_hw.api.quantum_platform.origin`
-  - `quantum_hw.api.quantum_platform.fieldquantum`
+  - `fieldqkit.api.quantum_platform.quafu`
+  - `fieldqkit.api.quantum_platform.tianyan`
+  - `fieldqkit.api.quantum_platform.guodun`
+  - `fieldqkit.api.quantum_platform.tencent`
+  - `fieldqkit.api.quantum_platform.origin`
+  - `fieldqkit.api.quantum_platform.fieldquantum`
 - 作用：分别实现六家 provider 的硬件列表查询、任务提交、状态查询和结果归一化。
 - 通用约定：每家 provider 提供三件套 —— `XxxPlatform`（直接 HTTP / SDK 客户端）、`XxxBackendAdapter`（实现 `BackendAdapter` 的 `discover_hardware / resolve_backend`）、`XxxTaskAdapter`（实现 `TaskAdapter` 的 `submit_* / query_status / fetch_result / cancel_task`）。
 
@@ -429,8 +429,8 @@ class FieldQuantumBackendAdapter(BackendAdapter):
 通过 `create_provider_runtime(provider, client)` 工厂函数（见 [provider_runtime](./provider_runtime.md)），根据 provider 名称自动创建适配器对（支持 `quafu / tianyan / guodun / tencent / origin / fieldquantum / simulator`）：
 
 ```python
-from quantum_hw.api.quantum_platform import create_provider_runtime
-from quantum_hw.api.client import QuantumHardwareClient
+from fieldqkit.api.quantum_platform import create_provider_runtime
+from fieldqkit.api.client import QuantumHardwareClient
 
 client = QuantumHardwareClient()
 runtime = create_provider_runtime(provider="quafu", client=client)

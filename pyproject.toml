@@ -3,7 +3,7 @@ requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "quantum-hw"
+name = "fieldqkit"
 version = "0.1.0"
 description = "User-facing interface for controlling quantum hardware"
 readme = "README.md"
@@ -51,10 +51,10 @@ package-dir = {"" = "src"}
 where = ["src"]
 
 [tool.setuptools.package-data]
-quantum_hw = ["circuit/include/*.inc"]
+fieldqkit = ["circuit/include/*.inc"]
 
 [project.urls]
-Homepage = "https://github.com/FieldQuantum/Quantum_control"
-Repository = "https://github.com/FieldQuantum/Quantum_control"
-Documentation = "https://github.com/FieldQuantum/Quantum_control/tree/main/docs"
-Issues = "https://github.com/FieldQuantum/Quantum_control/issues"
+Homepage = "https://github.com/FieldQuantum/fieldqkit"
+Repository = "https://github.com/FieldQuantum/fieldqkit"
+Documentation = "https://github.com/FieldQuantum/fieldqkit/tree/main/docs"
+Issues = "https://github.com/FieldQuantum/fieldqkit/issues"

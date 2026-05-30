@@ -2,7 +2,7 @@
 
 ## 概览
 
-- 模块：`quantum_hw.api.quantum_platform.cqlib`
+- 模块：`fieldqkit.api.quantum_platform.cqlib`
 - 作用：提供 TianYan/GuoDun 共用的远端平台 HTTP 客户端、硬件列表归一化、结果计数提取、后端配置转 `chip_info`。
 
 ## 关键类型

@@ -1,11 +1,11 @@
-from quantum_hw.circuit import QuantumCircuit
-from quantum_hw.circuit.quantumcircuit_helpers import three_qubit_gates_available
-from quantum_hw.compile.decompose import ThreeQubitGateDecompose
-from quantum_hw.compile.optimize import GateCompressor
-from quantum_hw.compile.routing import SabreRouting
-from quantum_hw.compile.transpiler import Transpiler
-from quantum_hw.compile.translate import TranslateToBasisGates
-from quantum_hw.compile.layout import Layout
+from fieldqkit.circuit import QuantumCircuit
+from fieldqkit.circuit.quantumcircuit_helpers import three_qubit_gates_available
+from fieldqkit.compile.decompose import ThreeQubitGateDecompose
+from fieldqkit.compile.optimize import GateCompressor
+from fieldqkit.compile.routing import SabreRouting
+from fieldqkit.compile.transpiler import Transpiler
+from fieldqkit.compile.translate import TranslateToBasisGates
+from fieldqkit.compile.layout import Layout
 import networkx as nx
 import numpy as np
 
@@ -454,7 +454,7 @@ def test_transpiler_noise_aware_true_no_backend_uses_hop():
 
 def _sim_unitary(qc: QuantumCircuit) -> np.ndarray:
     """Compute the full unitary of a circuit via matrix multiplication (for small circuits)."""
-    from quantum_hw.circuit.matrix import gate_matrix_dict
+    from fieldqkit.circuit.matrix import gate_matrix_dict
     n = qc.nqubits
     dim = 2 ** n
     U = np.eye(dim, dtype=complex)
@@ -877,7 +877,7 @@ def test_expand_matrix_identity():
 
 def test_expand_matrix_x_on_second_qubit():
     """_expand_matrix puts X on qubit 1 of a 2-qubit space: I⊗X."""
-    from quantum_hw.circuit.matrix import x_mat
+    from fieldqkit.circuit.matrix import x_mat
     full = GateCompressor._expand_matrix(x_mat, [1], 2)
     expected = np.kron(np.eye(2), x_mat)
     assert np.allclose(full, expected)
@@ -890,7 +890,7 @@ def test_expand_matrix_cx():
       - positions=[0,1] → CX(control=q0, target=q1), the standard CNOT.
       - positions=[1,0] → CX(control=q1, target=q0), the reversed embedding.
     """
-    from quantum_hw.circuit.matrix import cx_mat
+    from fieldqkit.circuit.matrix import cx_mat
 
     full = GateCompressor._expand_matrix(cx_mat, [0, 1], 2)
     expected = np.array(
@@ -915,7 +915,7 @@ def test_gatecompressor_preserves_semantics_across_cx():
     Before the circuit.matrix big-endian fix, _check_commutation treated the
     CX as control=q1 and wrongly allowed this reorder, corrupting the circuit.
     """
-    from quantum_hw.sim.statevector import simulate_statevector
+    from fieldqkit.sim.statevector import simulate_statevector
 
     def state(qc):
         return simulate_statevector(qc, device="cpu").detach().cpu().numpy()
@@ -1168,7 +1168,7 @@ def test_routing_normalizes_numpy_int64_physical_qubits():
 
 def test_backend_couplers_normalize_qubit_indices():
     """Backend._collect_couplers_with_attributes 应将 np.int64 的 qubits_index 转为 int。"""
-    from quantum_hw.api.backend import Backend
+    from fieldqkit.api.backend import Backend
     chip = {
         "chip_name": "test",
         "qubits_info": {
@@ -1195,7 +1195,7 @@ def test_backend_couplers_normalize_qubit_indices():
 def test_qcis_rz_at_positive_pi_is_clamped():
     """RZ at exactly +π is clamped to slightly less than π."""
     import math
-    from quantum_hw.circuit.qcis import Instruction
+    from fieldqkit.circuit.qcis import Instruction
     inst = Instruction("rz", [0], [math.pi])
     s = str(inst)
     # Should contain a value slightly less than π
@@ -1207,7 +1207,7 @@ def test_qcis_rz_at_positive_pi_is_clamped():
 def test_qcis_rz_at_negative_pi_is_clamped():
     """RZ at exactly -π is clamped to slightly greater than -π."""
     import math
-    from quantum_hw.circuit.qcis import Instruction
+    from fieldqkit.circuit.qcis import Instruction
     inst = Instruction("rz", [0], [-math.pi])
     s = str(inst)
     val = float(s.split()[-1])
@@ -1218,7 +1218,7 @@ def test_qcis_rz_at_negative_pi_is_clamped():
 def test_qcis_rz_not_at_pi_unchanged():
     """RZ values not at ±π boundary are not modified."""
     import math
-    from quantum_hw.circuit.qcis import Instruction
+    from fieldqkit.circuit.qcis import Instruction
     for angle in [0.0, 0.5, -0.5, math.pi / 4, -math.pi / 3, 2.0, -2.0]:
         inst = Instruction("rz", [0], [angle])
         s = str(inst)
@@ -1229,7 +1229,7 @@ def test_qcis_rz_not_at_pi_unchanged():
 def test_qcis_rz_near_pi_but_not_exact_unchanged():
     """RZ values near but not exactly at ±π are unchanged."""
     import math
-    from quantum_hw.circuit.qcis import Instruction
+    from fieldqkit.circuit.qcis import Instruction
     # Just outside the 1e-12 tolerance
     angle = math.pi - 1e-11
     inst = Instruction("rz", [0], [angle])
@@ -1241,7 +1241,7 @@ def test_qcis_rz_near_pi_but_not_exact_unchanged():
 def test_qcis_non_rz_gates_not_clamped():
     """Non-RZ gates with angle arguments are not affected by clamping."""
     import math
-    from quantum_hw.circuit.qcis import Instruction
+    from fieldqkit.circuit.qcis import Instruction
     inst = Instruction("x2p", [0], [math.pi])
     s = str(inst)
     val = float(s.split()[-1])
@@ -1251,7 +1251,7 @@ def test_qcis_non_rz_gates_not_clamped():
 def test_qcis_rz_clamped_value_within_strict_interval():
     """The clamped value must be strictly in the open interval (-π, π)."""
     import math
-    from quantum_hw.circuit.qcis import Instruction
+    from fieldqkit.circuit.qcis import Instruction
     for angle in [math.pi, -math.pi]:
         inst = Instruction("rz", [0], [angle])
         s = str(inst)
@@ -1262,9 +1262,9 @@ def test_qcis_rz_clamped_value_within_strict_interval():
 def test_qcis_full_circuit_rz_pi_clamped():
     """End-to-end: circuit with RZ(π) → circuit_to_qcis output has clamped value."""
     import math
-    from quantum_hw.circuit import QuantumCircuit
-    from quantum_hw.circuit.qcis import circuit_to_qcis
-    from quantum_hw.compile.translate import TranslateToBasisGates
+    from fieldqkit.circuit import QuantumCircuit
+    from fieldqkit.circuit.qcis import circuit_to_qcis
+    from fieldqkit.compile.translate import TranslateToBasisGates
     qc = QuantumCircuit(1)
     qc.rz(math.pi, 0)
     translated = TranslateToBasisGates().run(qc)
@@ -1303,7 +1303,7 @@ def test_layout_bfs_for_large_nqubits():
 
 def test_transpiler_full_pipeline_4qubit_mock_backend():
     """Full transpile pipeline on a 4-qubit circuit with mock backend."""
-    from quantum_hw.api.backend import Backend
+    from fieldqkit.api.backend import Backend
     chip_info = {
         "size": (1, 6),
         "priority_qubits": [],
@@ -1403,7 +1403,7 @@ def test_circuit_aware_layout_prefers_matching_topology():
         },
         "global_info": {"two_qubit_gate_basis": "cz"},
     }
-    from quantum_hw.api.backend import Backend
+    from fieldqkit.api.backend import Backend
     backend = Backend(chip_info)
     qc = QuantumCircuit(3)
     qc.cx(0, 1); qc.cx(1, 2); qc.cx(0, 1)

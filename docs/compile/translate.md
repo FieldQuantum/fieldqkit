@@ -2,7 +2,7 @@
 
 ## 概览
 
-- **模块**：`quantum_hw.compile.translate`（约170 行）
+- **模块**：`fieldqkit.compile.translate`（约170 行）
 - **作用**：将线路中所有门翻译为目标芯片的本征门集（单比特统一为 U 门，两比特统一为指定本征门）。
 - **继承**：`TranspilerPass`（实现 `run()` 方法）
 - **依赖**：`decompose` 模块（所有两比特门分解函数）、`u3_decompose`（矩阵→U 分解）
@@ -129,8 +129,8 @@ def run(self, qc: QuantumCircuit) -> QuantumCircuit
 ## 示例
 
 ```python
-from quantum_hw.compile.translate import TranslateToBasisGates
-from quantum_hw.circuit import QuantumCircuit
+from fieldqkit.compile.translate import TranslateToBasisGates
+from fieldqkit.circuit import QuantumCircuit
 
 qc = QuantumCircuit(3)
 qc.h(0)

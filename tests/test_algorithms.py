@@ -11,31 +11,31 @@ import pytest
 
 torch = pytest.importorskip("torch")
 
-from quantum_hw.algorithms.qaoa import (
+from fieldqkit.algorithms.qaoa import (
     build_maxcut_hamiltonian,
     build_qaoa_ansatz_symbolic,
     run_qaoa_with_backend,
 )
-from quantum_hw.algorithms.vqe import build_ising_hamiltonian, run_vqe_with_backend
-from quantum_hw.algorithms.qml_encoding import (
+from fieldqkit.algorithms.vqe import build_ising_hamiltonian, run_vqe_with_backend
+from fieldqkit.algorithms.qml_encoding import (
     angle_encoding_circuit,
     angle_encoding_circuit_symbolic,
     iqp_encoding_circuit,
     iqp_encoding_circuit_symbolic,
 )
-from quantum_hw.algorithms.qml import (
+from fieldqkit.algorithms.qml import (
     run_pqc_classifier,
     run_qnn_conditional,
     run_qnn_unsupervised,
 )
-from quantum_hw.algorithms.qml_runner import QMLRunner
-from quantum_hw.algorithms.circuit_compression import (
+from fieldqkit.algorithms.qml_runner import QMLRunner
+from fieldqkit.algorithms.circuit_compression import (
     compress_circuit_with_hybrid_objective,
     plan_hybrid_suffix_blocks,
 )
-from quantum_hw.api.backend import Backend
-from quantum_hw.circuit import QuantumCircuit
-import quantum_hw.sim as sim_pkg
+from fieldqkit.api.backend import Backend
+from fieldqkit.circuit import QuantumCircuit
+import fieldqkit.sim as sim_pkg
 
 
 # ═══════════════════════════════════════════════════════════
@@ -340,7 +340,7 @@ def test_hybrid_suffix_planner_rejects_invalid_thresholds(kwargs):
 
 def test_compose_stage_circuits_rejects_inconsistent_qubits_layout():
     """Stages with mismatched qubits ordering must raise to preserve transpiler layout."""
-    from quantum_hw.algorithms.circuit_compression import _compose_stage_circuits
+    from fieldqkit.algorithms.circuit_compression import _compose_stage_circuits
 
     qc1 = QuantumCircuit(3)
     qc1.ry(0.1, 0)
@@ -357,7 +357,7 @@ def test_compose_stage_circuits_rejects_inconsistent_qubits_layout():
 
 def test_compose_stage_circuits_preserves_qubits_layout():
     """When all stages share the same qubits list, composition keeps it intact."""
-    from quantum_hw.algorithms.circuit_compression import _compose_stage_circuits
+    from fieldqkit.algorithms.circuit_compression import _compose_stage_circuits
 
     qc1 = QuantumCircuit(3)
     qc1.ry(0.1, 0)

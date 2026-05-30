@@ -2,7 +2,7 @@
 
 ## 概览
 
-- **模块**：`quantum_hw.algorithms.shadow`
+- **模块**：`fieldqkit.algorithms.shadow`
 - **当前推荐入口**：`ShadowTomography.run(...)`
 
 ## 推荐签名（`ShadowTomography.run`）
@@ -81,7 +81,7 @@ run_shadow_with_backend(
 
 ## 返回值
 
-返回 `ShadowResult`（定义于 `quantum_hw.core.types`）：
+返回 `ShadowResult`（定义于 `fieldqkit.core.types`）：
 
 - `task_ids: Optional[List[str]]`
 - `samples: Optional[List[List[int]]]`
@@ -113,7 +113,7 @@ run_shadow_with_backend(
 ## 示例
 
 ```python
-from quantum_hw import QuantumHardwareClient, ShadowTomography
+from fieldqkit import QuantumHardwareClient, ShadowTomography
 
 client = QuantumHardwareClient()
 shadow = ShadowTomography(client=client, seed=42)

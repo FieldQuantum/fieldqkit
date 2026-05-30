@@ -2,7 +2,7 @@
 
 ## 概览
 
-- **模块**：`quantum_hw.circuit.qcis`
+- **模块**：`fieldqkit.circuit.qcis`
 - **源文件**：`qcis.py`
 - **作用**：提供 QCIS 原生指令原语，以及将 `QuantumCircuit` 直接转换为 QCIS 指令字符串的能力
 - **QCIS 原生门集**：`X2P`、`X2M`、`Y2P`、`Y2M`、`RZ`、`CZ`（以及 `I` 用于 delay）
@@ -129,8 +129,8 @@ class Instruction:
 ### 基本用法
 
 ```python
-from quantum_hw.circuit import QuantumCircuit
-from quantum_hw.circuit.qcis import circuit_to_qcis
+from fieldqkit.circuit import QuantumCircuit
+from fieldqkit.circuit.qcis import circuit_to_qcis
 
 qc = QuantumCircuit(2)
 qc.h(0)
@@ -150,7 +150,7 @@ print(circuit_to_qcis(qc))
 ### 使用自定义分解规则
 
 ```python
-from quantum_hw.circuit.qcis import NativeQcisRules, Instruction, circuit_to_qcis
+from fieldqkit.circuit.qcis import NativeQcisRules, Instruction, circuit_to_qcis
 
 class MyRules(NativeQcisRules):
     @staticmethod

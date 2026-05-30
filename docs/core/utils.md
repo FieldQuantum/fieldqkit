@@ -2,7 +2,7 @@
 
 ## 模块
 
-- `quantum_hw.core.utils`
+- `fieldqkit.core.utils`
 
 ## 概览
 
@@ -62,7 +62,7 @@
 
 ```python
 import numpy as np
-from quantum_hw.core.utils import (
+from fieldqkit.core.utils import (
     get_samples,
     get_probabilities,
     get_local_probabilities_from_samples,

@@ -2,13 +2,13 @@
 
 ## 模块
 
-- `quantum_hw.sim.statevector`
+- `fieldqkit.sim.statevector`
 
 ## 概览
 
 该模块是 Torch 实现的状态向量模拟器，并同时提供 VQE 自动微分所需的能量计算辅助函数。
 
-在高层调用中，通常通过 `quantum_hw.sim.interface` 进行后端选择；当 qubit 数不超过阈值时才会路由到本模块。
+在高层调用中，通常通过 `fieldqkit.sim.interface` 进行后端选择；当 qubit 数不超过阈值时才会路由到本模块。
 
 核心能力：
 
@@ -65,8 +65,8 @@
 
 ```python
 import torch
-from quantum_hw.circuit import QuantumCircuit
-from quantum_hw.sim.statevector import (
+from fieldqkit.circuit import QuantumCircuit
+from fieldqkit.sim.statevector import (
     energy_and_expectations,
     simulate_counts,
     simulate_statevector,

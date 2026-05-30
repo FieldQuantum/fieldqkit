@@ -2,7 +2,7 @@
 
 ## 概览
 
-- 模块：`quantum_hw.api.platform_credentials`
+- 模块：`fieldqkit.api.platform_credentials`
 - 作用：集中管理六家量子云平台（夸父 / 天衍 / 国盾 / 腾讯 / 本源 / 量坤）的 API 凭证，支持配置文件和环境变量两种方式。
 
 ## 凭证查找优先级
@@ -11,7 +11,7 @@
 
 1. **配置文件** `.quantum_hw.yaml`，按以下位置顺序搜索：
   - 当前工作目录及其父目录
-  - 包安装目录（`quantum_hw`）及其父目录
+  - 包安装目录（`fieldqkit`）及其父目录
   - 可选显式路径：环境变量 `QUANTUM_HW_CONFIG`
 2. **环境变量**（见下表）
 3. 以上均未找到 → 抛出 `ValueError`
@@ -106,7 +106,7 @@ cp .quantum_hw.example.yaml .quantum_hw.yaml
 ```
 
 ```python
-from quantum_hw.api.platform_credentials import get_quafu_api_token
+from fieldqkit.api.platform_credentials import get_quafu_api_token
 
 token = get_quafu_api_token()  # 自动从配置文件读取
 ```
@@ -117,14 +117,14 @@ token = get_quafu_api_token()  # 自动从配置文件读取
 import os
 os.environ["QUAFU_API_TOKEN"] = "<token>"
 
-from quantum_hw.api.platform_credentials import get_quafu_api_token
+from fieldqkit.api.platform_credentials import get_quafu_api_token
 token = get_quafu_api_token()
 ```
 
 ### 运行时重新加载
 
 ```python
-from quantum_hw.api.platform_credentials import reload_config
+from fieldqkit.api.platform_credentials import reload_config
 
 # 修改了 .quantum_hw.yaml 之后
 reload_config()

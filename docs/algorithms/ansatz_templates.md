@@ -2,7 +2,7 @@
 
 ## 概览
 
-- 模块：`quantum_hw.algorithms.ansatz_templates`
+- 模块：`fieldqkit.algorithms.ansatz_templates`
 - 定位：VQE 与压缩流程共用的 ansatz 构造器。
 - 提供能力：
   - hardware-efficient ansatz（数值/符号）
@@ -45,7 +45,7 @@ build_hardware_efficient_ansatz_symbolic(
 ### hardware-efficient（数值）
 
 ```python
-from quantum_hw.algorithms.ansatz_templates import build_hardware_efficient_ansatz
+from fieldqkit.algorithms.ansatz_templates import build_hardware_efficient_ansatz
 
 n = 4
 layers = 2
@@ -57,8 +57,8 @@ qc = build_hardware_efficient_ansatz(n, params, layers=layers)
 
 ## 典型调用方
 
-- VQE 主流程：`quantum_hw.algorithms.vqe`
-- 压缩流程：`quantum_hw.algorithms.circuit_compression`
+- VQE 主流程：`fieldqkit.algorithms.vqe`
+- 压缩流程：`fieldqkit.algorithms.circuit_compression`
 
 ## 注意事项
 

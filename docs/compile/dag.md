@@ -2,7 +2,7 @@
 
 ## 概览
 
-- **模块**：`quantum_hw.compile.dag`（约220 行）
+- **模块**：`fieldqkit.compile.dag`（约220 行）
 - **作用**：提供量子线路与有向无环图（DAG）、无向交互图之间的互转工具，供编译 Pass 内部使用。
 - **依赖**：`networkx`、`convert_gate_info_to_dag_info`（来自 `quantumcircuit_helpers`）
 
@@ -164,8 +164,8 @@ def get_qcgraph_edges(gates: list) -> list[tuple]
 ## 示例
 
 ```python
-from quantum_hw.compile.dag import qc2dag, dag2qc, qc2graph, split_qubits
-from quantum_hw.circuit import QuantumCircuit
+from fieldqkit.compile.dag import qc2dag, dag2qc, qc2graph, split_qubits
+from fieldqkit.circuit import QuantumCircuit
 
 # 线路 → DAG → 线路
 qc = QuantumCircuit(3)

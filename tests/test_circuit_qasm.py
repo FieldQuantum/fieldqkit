@@ -2,12 +2,12 @@
 
 import numpy as np
 
-from quantum_hw.circuit.qasm2 import (
+from fieldqkit.circuit.qasm2 import (
     parse_openqasm2_regs,
     parse_openqasm2_to_gates,
     parse_openqasm2_custom_gates,
 )
-from quantum_hw.circuit.quantumcircuit_helpers import (
+from fieldqkit.circuit.quantumcircuit_helpers import (
     add_gates_to_lines,
     format_gates_layerd,
     parse_expression,

@@ -56,8 +56,8 @@ def _iter_config_candidates() -> list[Path]:
     module_file = Path(__file__).resolve()
     search_starts = [
         Path.cwd(),
-        module_file.parent,       # .../quantum_hw/api
-        module_file.parents[1],   # .../quantum_hw
+        module_file.parent,       # .../fieldqkit/api
+        module_file.parents[1],   # .../fieldqkit
     ]
 
     for start in search_starts:

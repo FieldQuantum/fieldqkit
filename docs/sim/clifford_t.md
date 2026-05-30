@@ -2,7 +2,7 @@
 
 ## 模块
 
-- `quantum_hw.sim.clifford_t`
+- `fieldqkit.sim.clifford_t`
 
 ## 概览
 
@@ -83,7 +83,7 @@ $$
 
 ## 关联用法
 
-- 在 `quantum_hw.algorithms.optimizer_utils._ideal_expectations_clifford_aware` 中作为 Clifford fitting 校准的可扩展理想期望路径：先尝试 `sim.clifford` 的稳定子快通道，遇到非 Clifford 门时回退到本模块的分支扩展，仍不可行时再退回 statevector。
+- 在 `fieldqkit.algorithms.optimizer_utils._ideal_expectations_clifford_aware` 中作为 Clifford fitting 校准的可扩展理想期望路径：先尝试 `sim.clifford` 的稳定子快通道，遇到非 Clifford 门时回退到本模块的分支扩展，仍不可行时再退回 statevector。
 - 闭环示例见 [`examples/demo_clifford_fitting.ipynb`](../../examples/demo_clifford_fitting.ipynb)（8 比特 `tianyan176` 真机线路 + `run_auto` 自动校准）。
 
 ## 相关

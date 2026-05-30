@@ -2,7 +2,7 @@
 
 ## 概览
 
-- **模块**：`quantum_hw.circuit.qasm2`
+- **模块**：`fieldqkit.circuit.qasm2`
 - **源文件**：`qasm2.py`（约410 行）
 - **作用**：将 OpenQASM 2.0 程序解析为统一的 gate tuple IR
 - **调用入口**：`QuantumCircuit.from_openqasm2`
@@ -102,7 +102,7 @@ __all__ = [
 ## 示例
 
 ```python
-from quantum_hw.circuit.qasm2 import parse_openqasm2_to_gates
+from fieldqkit.circuit.qasm2 import parse_openqasm2_to_gates
 
 qasm = """
 OPENQASM 2.0;

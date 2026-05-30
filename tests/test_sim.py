@@ -4,8 +4,8 @@ import pytest
 
 torch = pytest.importorskip("torch")
 
-from quantum_hw.circuit import QuantumCircuit
-from quantum_hw.circuit.quantumcircuit_helpers import (
+from fieldqkit.circuit import QuantumCircuit
+from fieldqkit.circuit.quantumcircuit_helpers import (
     functional_gates_available,
     one_qubit_gates_available,
     one_qubit_parameter_gates_available,
@@ -13,13 +13,13 @@ from quantum_hw.circuit.quantumcircuit_helpers import (
     two_qubit_gates_available,
     two_qubit_parameter_gates_available,
 )
-from quantum_hw.sim.common import materialize_gate_matrix, resolve_param
-import quantum_hw.sim.common as sim_common
-from quantum_hw.sim.mpo import simulate_mpo_process
-from quantum_hw.sim.mps import simulate_mps
-from quantum_hw.sim.mps import simulate_counts as simulate_counts_mps
-from quantum_hw.sim.statevector import simulate_counts as simulate_counts_statevector
-from quantum_hw.sim.statevector import simulate_statevector
+from fieldqkit.sim.common import materialize_gate_matrix, resolve_param
+import fieldqkit.sim.common as sim_common
+from fieldqkit.sim.mpo import simulate_mpo_process
+from fieldqkit.sim.mps import simulate_mps
+from fieldqkit.sim.mps import simulate_counts as simulate_counts_mps
+from fieldqkit.sim.statevector import simulate_counts as simulate_counts_statevector
+from fieldqkit.sim.statevector import simulate_statevector
 
 
 # ═══════════════════════════════════════════════════════════
@@ -305,11 +305,11 @@ def test_simulate_mpo_process_respects_max_bond_dim_cap():
 #  Statevector simulator tests
 # ═══════════════════════════════════════════════════════════
 
-from quantum_hw.sim.statevector import (
+from fieldqkit.sim.statevector import (
     expectation_pauli as sv_expectation_pauli,
     sample_probabilities as sv_sample_probabilities,
 )
-from quantum_hw.sim.common import (
+from fieldqkit.sim.common import (
     auto_sim_device,
     single_pauli,
     build_param_values_from_tensor,
@@ -578,14 +578,14 @@ class TestResolveParam:
 
 import numpy as np
 
-from quantum_hw.core.observables import pauli_basis_pattern
-from quantum_hw.sim.clifford import (
+from fieldqkit.core.observables import pauli_basis_pattern
+from fieldqkit.sim.clifford import (
     CliffordError,
     is_clifford_circuit,
     simulate_clifford_expectation,
     simulate_clifford_expectations,
 )
-from quantum_hw.sim.clifford_t import (
+from fieldqkit.sim.clifford_t import (
     count_non_clifford_gates,
     count_t_gates,
     simulate_clifford_t_expectation,
@@ -760,7 +760,7 @@ class TestCliffordTBranching:
 
     def test_qubit_mapping_via_compact(self):
         """Sparse physical layout reproduces the dense statevector result."""
-        from quantum_hw.api.client import QuantumHardwareClient
+        from fieldqkit.api.client import QuantumHardwareClient
 
         client = QuantumHardwareClient()
         # Logical 0,1,2 mapped to physical 3,5,7.

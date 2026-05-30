@@ -2,7 +2,7 @@
 
 ## 模块
 
-- `quantum_hw.core.circuits`
+- `fieldqkit.core.circuits`
 
 ## 包含函数
 
@@ -89,7 +89,7 @@
 ## 示例
 
 ```python
-from quantum_hw.core.circuits import (
+from fieldqkit.core.circuits import (
 		build_ghz,
 		build_cluster,
 		build_qft,

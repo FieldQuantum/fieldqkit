@@ -286,7 +286,7 @@ large_cases = [
 
 def main() -> None:
     sys.path.insert(0, os.path.join(os.path.dirname(__file__), "src"))
-    from quantum_hw.api.fieldquantum_server import _handle_sample, _handle_expectation
+    from fieldqkit.api.fieldquantum_server import _handle_sample, _handle_expectation
 
     output_dir = os.path.join(os.path.dirname(__file__), "test_data")
     os.makedirs(output_dir, exist_ok=True)

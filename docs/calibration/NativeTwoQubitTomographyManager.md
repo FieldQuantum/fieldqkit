@@ -2,7 +2,7 @@
 
 ## 概览
 
-- **模块**：`quantum_hw.calibration.tomography`
+- **模块**：`fieldqkit.calibration.tomography`
 - **作用**：对 native 双比特门执行 process tomography，重建实际 PTM 并输出 error channel 的 Choi 矩阵。
 
 ## 构造函数
@@ -71,10 +71,10 @@ calibrate_native_two_qubit_tomography(
 
 ```python
 from pathlib import Path
-from quantum_hw import QuantumHardwareClient
-from quantum_hw.api.backend import Backend
-from quantum_hw.calibration import NativeTwoQubitTomographyManager
-from quantum_hw.sim.statevector import simulate_counts
+from fieldqkit import QuantumHardwareClient
+from fieldqkit.api.backend import Backend
+from fieldqkit.calibration import NativeTwoQubitTomographyManager
+from fieldqkit.sim.statevector import simulate_counts
 
 client = QuantumHardwareClient()
 chip_name = "Simulator"
@@ -82,7 +82,7 @@ client.chip_name = chip_name
 client.chip_backend = Backend(chip_name)
 
 tomo = NativeTwoQubitTomographyManager(
-		cache_dir=Path("src/quantum_hw/api/.cache"),
+		cache_dir=Path("src/fieldqkit/api/.cache"),
 		submit_circuit_async=client._submit_circuit_async,
 		wait_task=client._wait_task,
 		get_task_result=client._get_task_result,
@@ -110,10 +110,10 @@ for key, payload in res.items():
 
 ## 相关辅助函数
 
-- coupler 辅助（`quantum_hw.calibration._coupler_utils`）
+- coupler 辅助（`fieldqkit.calibration._coupler_utils`）
 	- `resolve_positive_fidelity_couplers`：自动筛选有效 coupler。
 	- `coupler_key`：统一 coupler key。
-- 缓存辅助（`quantum_hw.calibration._cache`）
+- 缓存辅助（`fieldqkit.calibration._cache`）
 	- 统一管理 `tomo_two_qubit_<chip>.json` 的读写与 TTL。
 - readout 联动
 	- 通过 `ReadoutCalibrationManager` 获取每比特 confusion matrix，再构造局部 2 比特缓解矩阵。

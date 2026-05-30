@@ -2,7 +2,7 @@
 
 ## 概览
 
-- 模块：`quantum_hw.algorithms.qml_runner`
+- 模块：`fieldqkit.algorithms.qml_runner`
 - 作用：与 `VQERunner` / `QAOARunner` 平行的高层封装，自动解析 provider → 候选芯片 → 后端，再委托底层 `run_pqc_classifier` / `run_qnn_unsupervised` / `run_qnn_conditional`。
 - 候选芯片逐块尝试；任一块失败则记录并尝试下一块，全部失败时抛 `RuntimeError("all candidate chips failed")`。
 
@@ -111,8 +111,8 @@ run_conditional(
 ## 示例
 
 ```python
-from quantum_hw import QuantumHardwareClient
-from quantum_hw.algorithms.qml_runner import QMLRunner
+from fieldqkit import QuantumHardwareClient
+from fieldqkit.algorithms.qml_runner import QMLRunner
 
 client = QuantumHardwareClient()
 runner = QMLRunner(client=client, layers=2, max_iters=100, gradient_method="autograd")

@@ -112,7 +112,7 @@ def build_ising_time_evolution(
 	Implements first-order Trotter for the transverse-field Ising
 	Hamiltonian ``H = J * sum_i Z_i Z_{i+1} + h * sum_i X_i`` (note the
 	positive-sign convention; this differs from
-	:func:`quantum_hw.algorithms.vqe.build_ising_hamiltonian` by an overall
+	:func:`fieldqkit.algorithms.vqe.build_ising_hamiltonian` by an overall
 	minus, equivalent to ``j -> -j`` and ``h -> -h``).
 
 	Args:
@@ -157,7 +157,7 @@ def build_heisenberg_time_evolution(
 
 	Implements first-order Trotter for the Heisenberg Hamiltonian
 	``H = sum_i (Jx X_i X_{i+1} + Jy Y_i Y_{i+1} + Jz Z_i Z_{i+1}) + hz * sum_i Z_i``
-	(matching :func:`quantum_hw.algorithms.vqe.build_heisenberg_hamiltonian`).
+	(matching :func:`fieldqkit.algorithms.vqe.build_heisenberg_hamiltonian`).
 
 	Args:
 		num_qubits (*int*): Number of qubits (chain length).
@@ -204,7 +204,7 @@ def build_xxz_time_evolution(
 
 	Implements first-order Trotter for the XXZ Hamiltonian
 	``H = Jxy * sum_i (X_i X_{i+1} + Y_i Y_{i+1}) + Jz * sum_i Z_i Z_{i+1} + hz * sum_i Z_i``
-	(matching :func:`quantum_hw.algorithms.vqe.build_xxz_hamiltonian`). Uses
+	(matching :func:`fieldqkit.algorithms.vqe.build_xxz_hamiltonian`). Uses
 	native ``rxx`` / ``ryy`` / ``rzz`` gates.
 
 	Args:
@@ -250,7 +250,7 @@ def build_xy_time_evolution(
 
 	Implements first-order Trotter for the XY Hamiltonian
 	``H = Jx * sum_i X_i X_{i+1} + Jy * sum_i Y_i Y_{i+1} + hz * sum_i Z_i``
-	(matching :func:`quantum_hw.algorithms.vqe.build_xy_hamiltonian`). Uses
+	(matching :func:`fieldqkit.algorithms.vqe.build_xy_hamiltonian`). Uses
 	native ``rxx`` / ``ryy`` gates.
 
 	Args:

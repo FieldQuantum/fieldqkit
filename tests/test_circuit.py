@@ -3,10 +3,10 @@
 import pytest
 import numpy as np
 
-from quantum_hw.circuit import QuantumCircuit
-from quantum_hw.circuit.qasm2 import parse_openqasm2_to_gates
-from quantum_hw.circuit.quantumcircuit_helpers import parse_expression
-from quantum_hw.circuit.render import draw_circuit, draw_circuit_simply
+from fieldqkit.circuit import QuantumCircuit
+from fieldqkit.circuit.qasm2 import parse_openqasm2_to_gates
+from fieldqkit.circuit.quantumcircuit_helpers import parse_expression
+from fieldqkit.circuit.render import draw_circuit, draw_circuit_simply
 
 
 # ═══════════════════════════════════════════════════════════

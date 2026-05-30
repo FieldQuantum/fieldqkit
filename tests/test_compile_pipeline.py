@@ -9,9 +9,9 @@ import math
 import numpy as np
 import pytest
 
-from quantum_hw.circuit import QuantumCircuit
-from quantum_hw.compile.transpiler import Transpiler
-from quantum_hw.api.backend import Backend
+from fieldqkit.circuit import QuantumCircuit
+from fieldqkit.compile.transpiler import Transpiler
+from fieldqkit.api.backend import Backend
 
 
 # ══════════════════════════════════════════════════════════
@@ -23,7 +23,7 @@ def _gate_names(qc):
 
 
 def _two_qubit_gate_qubits(qc):
-    from quantum_hw.circuit.quantumcircuit_helpers import (
+    from fieldqkit.circuit.quantumcircuit_helpers import (
         two_qubit_gates_available,
         two_qubit_parameter_gates_available,
     )
@@ -53,7 +53,7 @@ def _assert_basis_only(qc, two_q_basis, allow_swap=True):
 
 
 def _assert_no_three_qubit_gates(qc):
-    from quantum_hw.circuit.quantumcircuit_helpers import three_qubit_gates_available
+    from fieldqkit.circuit.quantumcircuit_helpers import three_qubit_gates_available
     for g in qc.gates:
         assert g[0] not in three_qubit_gates_available, f"3-qubit gate survived: {g[0]}"
 

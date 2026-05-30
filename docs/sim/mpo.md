@@ -2,7 +2,7 @@
 
 ## 模块
 
-- quantum_hw.sim.mpo
+- fieldqkit.sim.mpo
 
 ## 概览
 
