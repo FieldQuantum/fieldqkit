@@ -44,7 +44,18 @@ from ..calibration.readout import ReadoutCalibrationManager
 from ..core.types import RunResult
 from ..core.utils import get_probabilities_from_samples, get_samples
 from ..core.zne import apply_zne_cz_tripling, zne_linear_extrapolate
-from ..sim import simulate_counts
+
+
+def simulate_counts(*args, **kwargs):
+	"""Lazy proxy to :func:`fieldqkit.sim.simulate_counts`.
+
+	The local simulator requires PyTorch (the optional ``[sim]`` extra), so the
+	import is deferred to call time.  This keeps ``import fieldqkit`` and
+	hardware-only workflows working without PyTorch installed.
+	"""
+	from ..sim import simulate_counts as _simulate_counts
+	return _simulate_counts(*args, **kwargs)
+
 
 READOUT_OBSERVABLE_MARGINAL_MAX_SUPPORT = 10
 
