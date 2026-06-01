@@ -1,12 +1,14 @@
-# Quantum Hardware Interface
+# fieldqkit
 
-> 版本：0.1.0.dev2 · 许可：Apache-2.0 · Python ≥ 3.9
+**A user-facing Python interface for controlling quantum hardware.** One unified API across multiple quantum-cloud platforms (Quafu / TianYan / GuoDun / Tencent / Origin / FieldQuantum), automatic transpilation, error mitigation (readout + ZNE), variational algorithms (VQE / QAOA / Shadow tomography / QML), and a built-in PyTorch simulator with autodiff. Full documentation: <https://fieldquantum.github.io/fieldqkit/>.
+
+> 面向用户的**量子硬件控制接口**：统一多平台访问 · 自动编译 · 误差缓解 · 变分算法 · 内置 PyTorch 模拟器（支持自动微分）。
 
 ---
 
 ## 项目定位
 
-`fieldqkit`（包名 `fieldqkit`）是一个面向用户的**量子硬件控制接口**，提供从量子线路构建、编译转译、提交执行、误差缓解到变分算法的完整工作流。项目以统一 API 屏蔽多量子云平台（夸父 / 天衍 / 国盾 / 腾讯 / 本源）的差异，并内置基于 PyTorch 的本地模拟器，支持自动微分和大规模张量网络仿真。
+`fieldqkit` 是一个面向用户的**量子硬件控制接口**，提供从量子线路构建、编译转译、提交执行、误差缓解到变分算法的完整工作流。项目以统一 API 屏蔽多量子云平台（夸父 / 天衍 / 国盾 / 腾讯 / 本源）的差异，并内置基于 PyTorch 的本地模拟器，支持自动微分和大规模张量网络仿真。
 
 核心目标：
 
@@ -23,30 +25,22 @@
 ## 安装
 
 ```bash
-pip install -e .
+pip install fieldqkit
 ```
 
 > 核心依赖：Python >= 3.9，`numpy>=1.24`，`scipy>=1.10`，`networkx>=3.0`，`requests>=2.31`，`matplotlib>=3.7`，`pyyaml>=6.0`。
 
-如果需要使用**本地模拟器**（`fieldqkit.sim`），需要额外安装 PyTorch：
+按需安装可选依赖组：
 
 ```bash
-pip install -e .[sim]       # 核心 + 模拟器（torch>=2.1）
+pip install "fieldqkit[sim]"       # 本地模拟器（torch>=2.1，运行 fieldqkit.sim 必需）
+pip install "fieldqkit[origin]"    # 接入本源量子云（pyqpanda3）
+pip install "fieldqkit[test]"      # 运行测试（pytest）
 ```
 
-如果需要接入**本源量子云**（`fieldqkit` Origin provider），需要额外安装 pyqpanda3：
-
-```bash
-pip install -e .[origin]    # 核心 + pyqpanda3（本源量子云 SDK）
-```
-
-> **量坤云端模拟器**（`fieldquantum` provider）无需额外依赖，仅需在配置文件或环境变量中填入 `fq_<32hex>` 形式的 API token。详见下文 [量坤云端模拟器](#量坤云端模拟器fieldquantum-provider) 小节。
-
-其他可选依赖组：
-
-```bash
-pip install -e .[test]      # 核心 + pytest
-```
+> **量坤云端模拟器**（`fieldquantum` provider）无需额外依赖，仅需配置 `fq_<32hex>` 形式的 API token。
+>
+> 从源码开发：`git clone` 仓库后执行 `pip install -e ".[sim,test]"`。
 
 ## 快速开始（本地模拟器，无需 token）
 
@@ -116,119 +110,6 @@ credentials:
 
 各平台政策不同，优先推荐使用夸父量子云的免费资源（不限时）进行体验和学习。
 
-## 模块全景
-
-```
-fieldqkit/                          入口 __init__.py（导出顶层 API）
-├── api/                             硬件 API 层
-│   ├── client.py                    QuantumHardwareClient — 唯一用户入口
-│   ├── backend.py                   Backend / HardwareProfile / BackendAdapter (ABC)
-│   ├── task.py                      OpenQasmSubmitRequest / TaskAdapter (ABC) / ProviderTaskHandle
-│   ├── platform_credentials.py      凭证管理（夸父 / 天衍 / 国盾 / 腾讯 / 本源）
-│   └── quantum_platform/            平台具体适配
-│       ├── quafu.py                 夸父
-│       ├── tianyan.py               天衍
-│       ├── guodun.py                国盾
-│       ├── tencent.py               腾讯
-│       ├── origin.py                本源
-│       ├── fieldquantum.py          量坤云端模拟器
-│       └── cqlib.py                 cqlib 公共 HTTP 客户端（天衍 / 国盾共用）
-│
-├── circuit/                         线路表示
-│   ├── quantumcircuit.py            QuantumCircuit 类（门操作、参数化、deepcopy）
-│   ├── quantumcircuit_helpers.py    门名称字典、DAG 信息转换、门→线路渲染辅助
-│   ├── qasm2.py                     OpenQASM 2 解析器
-│   ├── qcis.py                      QASM ↔ QCIS 原生指令转换
-│   ├── matrix.py                    门矩阵定义（numpy）
-│   ├── render.py                    线路文本可视化
-│   └── utils.py                     辅助工具
-│
-├── compile/                         编译转译
-│   ├── transpiler.py                Transpiler — pass 管理器
-│   ├── basepasses.py                TranspilerPass (ABC)
-│   ├── decompose.py                 门分解（CX/SWAP/iSWAP/ECR/CCX… → U+CZ）
-│   ├── layout.py                    Layout（线路感知布局选择，保真度+路由代价联合排序）
-│   ├── routing.py                   SabreRouting（SWAP 插入，噪声感知 + 多试验模式）
-│   ├── translate.py                 TranslateToBasisGates（翻译到 {U, CZ} 本征门集）
-│   ├── optimize.py                  GateCompressor（对易重排 + 单比特合并 + 两比特对消）
-│   ├── schedule.py                  DynamicalDecoupling（XY4 / CPMG DD 序列）
-│   └── dag.py                       DAG 转换与可视化
-│
-├── algorithms/                      量子算法
-│   ├── vqe.py                       VQERunner — Ising/Heisenberg/XXZ/XY/自定义 Hamiltonian
-│   │                                parameter-shift / autograd 梯度, Adam 优化, Clifford fitting
-│   ├── qaoa.py                      QAOARunner — MaxCut / 自定义 Z/ZZ 代价项
-│   │                                parameter-shift / autograd 梯度, Adam 优化, Clifford fitting
-│   ├── qml.py                       QML — PQC 监督分类 + 无监督 QNN + 条件 QNN
-│   │                                autograd / parameter-shift, Adam 优化
-│   ├── qml_runner.py                QMLRunner — 高层 QML 入口（自动 provider/芯片解析）
-│   ├── qml_encoding.py              编码线路模板：Angle / IQP（含符号参数版本）
-│   ├── optimizer_utils.py            共享优化工具（能量计算、参数移位梯度、Adam、
-│   │                                Clifford fitting、run_variational_loop 通用优化循环）
-│   ├── shadow.py                    ShadowTomography — classical shadow 协议
-│   ├── ansatz_templates.py          Hardware-efficient ansatz 构建
-│   └── circuit_compression.py       MPS/MPO 混合后缀压缩（降低线路深度）
-│                                    + build_compression_transform（可复用压缩变换工厂）
-│
-├── core/                            通用工具
-│   ├── circuits.py                  预置线路（GHZ / Cluster / QFT / Ising 演化）
-│   ├── observables.py               Pauli 字符串解析、期望值计算、测量基转换
-│   ├── readout.py                   Readout 误差缓解（逆混淆矩阵）
-│   ├── zne.py                       ZNE（CZ 三倍插入 + 线性外推）
-│   ├── types.py                     RunResult / CalibrationResult / VQEResult / ShadowResult /
-│   │                                QAOAResult / QMLResult / QBMResult
-│   ├── utils.py                     概率/采样辅助函数
-│   └── plotting.py                  概率分布和可观测量对比图
-│
-├── calibration/                     校准
-│   ├── readout.py                   ReadoutCalibrationManager（带缓存的 readout 校准）
-│   ├── rb.py                        NativeTwoQubitRBManager（原生两比特 RB）
-│   ├── tomography.py                NativeTwoQubitTomographyManager（过程层析）
-│   └── _cache.py / _coupler_utils   缓存 TTL / coupler 过滤
-│
-├── sim/                             模拟器（需安装 [sim] 依赖组）
-│   ├── statevector.py               全态矢量模拟（torch，支持 autograd）
-│   ├── mps.py                       MPS 张量网络模拟器（可微）
-│   ├── mpo.py                       MPO 量子过程模拟器
-│   ├── clifford.py                  Clifford stabilizer 模拟器
-│   ├── clifford_t.py                Clifford+T branching 模拟器
-│   ├── matrix.py                    torch 门矩阵（支持梯度）
-│   ├── interface.py                 统一模拟入口 simulate_counts / expectation_pauli /
-│   │                                sample_probabilities / energy_and_expectations
-│   │                                + set_sim_config / get_sim_config（运行时调参）
-│   └── common.py                    参数解析工具
-│
-```
-
-## 核心调用链路
-
-```
-用户代码
-  │
-  ▼
-QuantumHardwareClient.run_auto(provider="quafu", circuit=..., observables=...)
-  │
-  ├─ create_provider_runtime(provider)
-  │    → ProviderRuntime(backend_adapter, task_adapter)
-  │
-  ├─ backend_adapter.discover_hardware()
-  │    → [HardwareProfile, ...]
-  │
-  ├─ backend_adapter.resolve_backend()
-  │    → ResolvedBackend(backend, profile)
-  │
-  └─ _run_with_backend()
-       ├─ Transpiler pipeline
-       │    decompose → layout → route → translate → DD
-       ├─ QuantumCircuit.to_openqasm2
-       ├─ TaskAdapter.submit_openqasm()   → 提交任务
-       ├─ TaskAdapter.query_status()      → 轮询状态
-       ├─ TaskAdapter.fetch_result()      → 获取 counts
-       ├─ ReadoutCalibrationManager       → readout 缓解
-       ├─ ZNE                             → CZ 三倍插入 + 外推
-       └─ pauli_expectation()             → observable values → RunResult
-```
-
 ## 教程导航（Notebook）
 
 > 每个 notebook 顶部带 **Open in Colab** 徽章，可一键在 Colab 打开运行（首个单元格会 `pip install fieldqkit`）。
@@ -269,6 +150,21 @@ QuantumHardwareClient.run_auto(provider="quafu", circuit=..., observables=...)
   - 教程 Notebook：见上文 [教程导航](#教程导航notebook) 与 [学习路径](#学习路径入门--进阶--硬件--优化)
 - **开发者参考**
   - API 与模块参考总览见 [docs/README.md](https://fieldquantum.github.io/fieldqkit/)
+
+## 参与贡献 (Contributing)
+
+欢迎通过 [GitHub Issues](https://github.com/FieldQuantum/fieldqkit/issues) 反馈问题与需求，也欢迎提交 Pull Request。本地开发：
+
+```bash
+git clone https://github.com/FieldQuantum/fieldqkit.git
+cd fieldqkit
+pip install -e ".[sim,test]"
+pytest
+```
+
+## 引用 (Citation)
+
+如果 `fieldqkit` 对你的研究有帮助，请引用本项目（元数据见 [CITATION.cff](https://github.com/FieldQuantum/fieldqkit/blob/main/CITATION.cff)）。
 
 ## 许可证 (License)
 

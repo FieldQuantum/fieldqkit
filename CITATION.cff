@@ -1,0 +1,23 @@
+cff-version: 1.2.0
+message: "If you use fieldqkit in your research, please cite it as below."
+title: fieldqkit
+abstract: >-
+  A user-facing Python interface for controlling quantum hardware: one unified
+  API across multiple quantum-cloud platforms, automatic transpilation, error
+  mitigation (readout + ZNE), variational algorithms (VQE / QAOA / Shadow
+  tomography / QML), and a built-in PyTorch simulator with autodiff.
+type: software
+authors:
+  - given-names: Yuchen
+    family-names: Guo
+    email: guoyuchen@fieldquanta.com
+repository-code: "https://github.com/FieldQuantum/fieldqkit"
+url: "https://fieldquantum.github.io/fieldqkit/"
+license: Apache-2.0
+version: 0.1.0
+keywords:
+  - quantum computing
+  - quantum hardware
+  - VQE
+  - QAOA
+  - quantum machine learning
