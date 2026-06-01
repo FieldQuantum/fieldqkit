@@ -1,5 +1,0 @@
-{
-  "mode": "sample",
-  "qasm": "OPENQASM 2.0;\ninclude \"qelib1.inc\";\nqreg q[4];\ncreg c[4];\nrx(0.5) q[0];\nry(1.2) q[1];\nrz(0.8) q[2];\nh q[3];\ncz q[0],q[1];\ncx q[1],q[2];\ncx q[2],q[3];\nmeasure q -> c;",
-  "shots": 2048
-}

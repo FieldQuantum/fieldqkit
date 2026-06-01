@@ -395,6 +395,7 @@ def compile_tn_1d(
     bond_cap: Optional[int] = None,
     warm_start_params: Optional[np.ndarray] = None,
     device: torch.device | str | None = None,
+    verbose: bool = False,
 ) -> Tuple[QuantumCircuit, np.ndarray, Dict[str, object]]:
     """Compile a 1-D tensor network (MPS or MPO) into a hardware-efficient ansatz circuit.
 
@@ -420,6 +421,8 @@ def compile_tn_1d(
             ``None`` keeps all bond dimensions (no truncation). Defaults to ``None``.
         warm_start_params: Optional initial parameter array.
         device: Torch device. Defaults to ``None`` (CPU).
+        verbose: Print per-step optimization progress to stdout. Defaults to
+            ``False`` (silent).
 
     Returns:
         Tuple of ``(compiled_circuit, optimized_params, summary_dict)`` where
@@ -512,7 +515,7 @@ def compile_tn_1d(
         if cur < best_loss:
             best_loss = cur
             best_params = active_t.detach().cpu().numpy().astype(float, copy=True)
-        if _step % 20 == 0 or _step == _total_main:
+        if verbose and (_step % 20 == 0 or _step == _total_main):
             cur_fid = float(np.exp(-cur))
             best_fid = float(np.exp(-best_loss))
             print(f"    compile_tn_1d main {_step}/{_total_main}  fid={cur_fid:.8f}  best_fid={best_fid:.8f}  -logF={cur:.4f}", flush=True)
@@ -522,7 +525,8 @@ def compile_tn_1d(
         refine_t = torch.tensor(best_params, dtype=dtype, device=device_obj, requires_grad=True)
         refine_opt = torch.optim.Adam([refine_t], lr=float(optimizer_lr) * 0.2)
         refine_steps = max(4, int(np.ceil(float(optimizer_steps) * 0.5)))
-        print(f"    compile_tn_1d entering refinement ({refine_steps} steps, lr={float(optimizer_lr)*0.2:.4f})", flush=True)
+        if verbose:
+            print(f"    compile_tn_1d entering refinement ({refine_steps} steps, lr={float(optimizer_lr)*0.2:.4f})", flush=True)
         for _rstep in range(1, refine_steps + 1):
             refine_opt.zero_grad()
             loss = _objective(refine_t)
@@ -534,7 +538,7 @@ def compile_tn_1d(
             if cur < best_loss:
                 best_loss = cur
                 best_params = refine_t.detach().cpu().numpy().astype(float, copy=True)
-            if _rstep % 100 == 0 or _rstep == refine_steps:
+            if verbose and (_rstep % 100 == 0 or _rstep == refine_steps):
                 cur_fid = float(np.exp(-cur))
                 best_fid = float(np.exp(-best_loss))
                 print(f"    compile_tn_1d refine {_rstep}/{refine_steps}  fid={cur_fid:.8f}  best_fid={best_fid:.8f}  -logF={cur:.4f}", flush=True)
@@ -546,7 +550,8 @@ def compile_tn_1d(
 
     best_fid_final = float(np.exp(-best_loss))
     objective_inf = 1.0 - best_fid_final
-    print(f"    compile_tn_1d done: infidelity={objective_inf:.6e}, fidelity={best_fid_final:.8f}", flush=True)
+    if verbose:
+        print(f"    compile_tn_1d done: infidelity={objective_inf:.6e}, fidelity={best_fid_final:.8f}", flush=True)
 
     summary = {
         "objective_mode": mode,
@@ -570,6 +575,7 @@ def compress_circuit_with_hybrid_objective(
     bond_cap: int,
     warm_start_params: Optional[np.ndarray],
     device: torch.device | str | None = None,
+    verbose: bool = False,
 ) -> Tuple[QuantumCircuit, np.ndarray, Dict[str, object]]:
     """Fit a shallow hardware-efficient circuit to a bound circuit using MPS/MPO objectives.
 
@@ -586,6 +592,8 @@ def compress_circuit_with_hybrid_objective(
         bond_cap (*int*): Maximum bond dimension for MPS/MPO truncation.
         warm_start_params (*Optional[np.ndarray]*): Optional initial parameters; used as one of the seed candidates.
         device (*torch.device | str | None*): Torch device. Defaults to ``None`` (CPU).
+        verbose (*bool*): Forward per-step optimization progress printing to
+            :func:`compile_tn_1d`. Defaults to ``False`` (silent).
 
     Returns:
         Tuple of ``(QuantumCircuit, np.ndarray, dict)`` — the compressed circuit,
@@ -615,6 +623,7 @@ def compress_circuit_with_hybrid_objective(
         bond_cap=bond_cap,
         warm_start_params=warm_start_params,
         device=device,
+        verbose=verbose,
     )
 
 
@@ -850,6 +859,7 @@ def build_compression_transform(
                 objective_mode="mpo" if (plan is not None and int(stage_id) >= 0) else "mps",
                 bond_cap=unified_bond_cap,
                 warm_start_params=local_warm_start,
+                verbose=compression_verbose,
             )
             local_warm_start = next_warm_start
 

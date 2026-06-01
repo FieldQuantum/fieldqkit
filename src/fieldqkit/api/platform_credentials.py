@@ -150,7 +150,7 @@ _CREDENTIAL_MAP: Dict[str, tuple[str, str, str]] = {
 
 _PLATFORM_LABELS: Dict[str, str] = {
     "quafu":   "Quafu (夸父)  – https://quafu-sqc.baqis.ac.cn/",
-    "tianyan":  "TianYan (天衢) – https://qc.zdxlz.com/",
+    "tianyan":  "TianYan (天衍) – https://qc.zdxlz.com/",
     "guodun":  "GuoDun (国盾)  – https://quantumctek-cloud.com/",
     "tencent": "Tencent (腾讯) – https://quantum.tencent.com/cloud/",
     "origin":  "Origin (本源) – https://qcloud.originqc.com.cn/",
