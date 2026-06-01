@@ -66,7 +66,7 @@ run_classifier(
 ) -> QMLResult
 ```
 
-委托 [`run_pqc_classifier`](./qml.md#1-监督分类--run_pqc_classifier)；参数语义见 qml.md。
+委托 [`run_pqc_classifier`](./qml.md)；参数语义见 qml.md。
 
 ### `run_unsupervised(...) -> QBMResult`
 
@@ -84,7 +84,7 @@ run_unsupervised(
 ) -> QBMResult
 ```
 
-委托 [`run_qnn_unsupervised`](./qml.md#2-无监督分布学习--run_qnn_unsupervised)。`mmd_sigma` / `gen_shots` 取自 runner 字段。
+委托 [`run_qnn_unsupervised`](./qml.md)。`mmd_sigma` / `gen_shots` 取自 runner 字段。
 
 ### `run_conditional(...) -> QBMResult`
 
@@ -102,7 +102,7 @@ run_conditional(
 ) -> QBMResult
 ```
 
-委托 [`run_qnn_conditional`](./qml.md#3-条件-qnn--run_qnn_conditional)：学习条件分布 P(y|x)，输入 bit-string *x* 以计算基态 `|x⟩` 制备。
+委托 [`run_qnn_conditional`](./qml.md)：学习条件分布 P(y|x)，输入 bit-string *x* 以计算基态 `|x⟩` 制备。
 
 ## provider 支持
 

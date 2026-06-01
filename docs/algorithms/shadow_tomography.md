@@ -1,4 +1,4 @@
-﻿# ShadowTomography.run
+# ShadowTomography.run
 
 ## 概览
 

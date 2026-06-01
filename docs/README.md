@@ -5,7 +5,7 @@
 ## 用户指南
 
 - [配置凭证 (Configuration)](./configuration.md) — 真机 token 的三种配置方式与查找优先级（本地模拟器无需配置）
-- 上手教程见下方 [教程入口（Notebook）](#教程入口notebook)；安装与快速开始见项目根 [README](https://github.com/FieldQuantum/fieldqkit/blob/main/README.md)
+- 上手教程见下方 下方「教程入口（Notebook）」；安装与快速开始见项目根 [README](https://github.com/FieldQuantum/fieldqkit/blob/main/README.md)
 
 ## API 参考
 

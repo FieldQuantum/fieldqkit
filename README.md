@@ -76,7 +76,7 @@ print(result.probabilities)
 
 ## 真机使用
 
-使用真机前需要配置对应平台的 API 凭证。任选一种方式（完整说明见 [docs/configuration.md](https://github.com/FieldQuantum/fieldqkit/blob/main/docs/configuration.md)）：
+使用真机前需要配置对应平台的 API 凭证。任选一种方式（完整说明见 [docs/configuration.md](https://fieldquantum.github.io/fieldqkit/configuration/)）：
 
 **方式一 · 环境变量（pip 用户最简单）**
 
@@ -231,18 +231,20 @@ QuantumHardwareClient.run_auto(provider="quafu", circuit=..., observables=...)
 
 ## 教程导航（Notebook）
 
-- [全览入门：run_auto + mitigation + 可视化](https://github.com/FieldQuantum/fieldqkit/blob/main/examples/demo_full.ipynb)
-- [QuantumCircuit 与 core 函数拆解](https://github.com/FieldQuantum/fieldqkit/blob/main/examples/demo_circuit_core.ipynb)
-- [Shadow tomography 分层教程](https://github.com/FieldQuantum/fieldqkit/blob/main/examples/demo_shadow.ipynb)
-- [Readout calibration + ZNE 专项](https://github.com/FieldQuantum/fieldqkit/blob/main/examples/demo_readout_zne.ipynb)
-- [Clifford fitting 闭环（tianyan176）](https://github.com/FieldQuantum/fieldqkit/blob/main/examples/demo_clifford_fitting.ipynb)
-- [VQE：顶层接口 + parameter-shift 手动梯度下降](https://github.com/FieldQuantum/fieldqkit/blob/main/examples/demo_vqe.ipynb)
-- [QAOA：MaxCut + 自定义哈密顿量 + VQE 对比](https://github.com/FieldQuantum/fieldqkit/blob/main/examples/demo_qaoa.ipynb)
-- [QML Iris：Iris 数据集多分类](https://github.com/FieldQuantum/fieldqkit/blob/main/examples/demo_qml_iris.ipynb)
-- [QNN BAS：Born Machine 分布学习](https://github.com/FieldQuantum/fieldqkit/blob/main/examples/demo_qnn_bas.ipynb)
-- [QNN 无监督：量子分布学习](https://github.com/FieldQuantum/fieldqkit/blob/main/examples/demo_qnn_unsupervised.ipynb)
-- [VQE H₂ 4-qubit：氢分子势能面扫描](https://github.com/FieldQuantum/fieldqkit/blob/main/examples/demo_vqe_h2_4q.ipynb)
-- [Backend 拓扑与芯片排序](https://github.com/FieldQuantum/fieldqkit/blob/main/examples/demo_backend.ipynb)
+> 每个 notebook 顶部带 **Open in Colab** 徽章，可一键在 Colab 打开运行（首个单元格会 `pip install fieldqkit`）。
+
+- [全览入门：run_auto + mitigation + 可视化](https://github.com/FieldQuantum/fieldqkit/blob/main/examples/demo_full.ipynb) · [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/FieldQuantum/fieldqkit/blob/main/examples/demo_full.ipynb)
+- [QuantumCircuit 与 core 函数拆解](https://github.com/FieldQuantum/fieldqkit/blob/main/examples/demo_circuit_core.ipynb) · [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/FieldQuantum/fieldqkit/blob/main/examples/demo_circuit_core.ipynb)
+- [Shadow tomography 分层教程](https://github.com/FieldQuantum/fieldqkit/blob/main/examples/demo_shadow.ipynb) · [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/FieldQuantum/fieldqkit/blob/main/examples/demo_shadow.ipynb)
+- [Readout calibration + ZNE 专项](https://github.com/FieldQuantum/fieldqkit/blob/main/examples/demo_readout_zne.ipynb) · [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/FieldQuantum/fieldqkit/blob/main/examples/demo_readout_zne.ipynb)
+- [Clifford fitting 闭环（tianyan176）](https://github.com/FieldQuantum/fieldqkit/blob/main/examples/demo_clifford_fitting.ipynb) · [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/FieldQuantum/fieldqkit/blob/main/examples/demo_clifford_fitting.ipynb)
+- [VQE：顶层接口 + parameter-shift 手动梯度下降](https://github.com/FieldQuantum/fieldqkit/blob/main/examples/demo_vqe.ipynb) · [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/FieldQuantum/fieldqkit/blob/main/examples/demo_vqe.ipynb)
+- [QAOA：MaxCut + 自定义哈密顿量 + VQE 对比](https://github.com/FieldQuantum/fieldqkit/blob/main/examples/demo_qaoa.ipynb) · [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/FieldQuantum/fieldqkit/blob/main/examples/demo_qaoa.ipynb)
+- [QML Iris：Iris 数据集多分类](https://github.com/FieldQuantum/fieldqkit/blob/main/examples/demo_qml_iris.ipynb) · [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/FieldQuantum/fieldqkit/blob/main/examples/demo_qml_iris.ipynb)
+- [QNN BAS：Born Machine 分布学习](https://github.com/FieldQuantum/fieldqkit/blob/main/examples/demo_qnn_bas.ipynb) · [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/FieldQuantum/fieldqkit/blob/main/examples/demo_qnn_bas.ipynb)
+- [QNN 无监督：量子分布学习](https://github.com/FieldQuantum/fieldqkit/blob/main/examples/demo_qnn_unsupervised.ipynb) · [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/FieldQuantum/fieldqkit/blob/main/examples/demo_qnn_unsupervised.ipynb)
+- [VQE H₂ 4-qubit：氢分子势能面扫描](https://github.com/FieldQuantum/fieldqkit/blob/main/examples/demo_vqe_h2_4q.ipynb) · [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/FieldQuantum/fieldqkit/blob/main/examples/demo_vqe_h2_4q.ipynb)
+- [Backend 拓扑与芯片排序](https://github.com/FieldQuantum/fieldqkit/blob/main/examples/demo_backend.ipynb) · [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/FieldQuantum/fieldqkit/blob/main/examples/demo_backend.ipynb)
 
 ## 学习路径（入门 → 进阶 → 硬件 → 优化）
 
@@ -263,10 +265,10 @@ QuantumHardwareClient.run_auto(provider="quafu", circuit=..., observables=...)
 ## 文档 (Docs)
 
 - **用户指南**
-  - [配置凭证 (Configuration)](https://github.com/FieldQuantum/fieldqkit/blob/main/docs/configuration.md) — 环境变量 / 一键生成配置 / 查找优先级
+  - [配置凭证 (Configuration)](https://fieldquantum.github.io/fieldqkit/configuration/) — 环境变量 / 一键生成配置 / 查找优先级
   - 教程 Notebook：见上文 [教程导航](#教程导航notebook) 与 [学习路径](#学习路径入门--进阶--硬件--优化)
 - **开发者参考**
-  - API 与模块参考总览见 [docs/README.md](https://github.com/FieldQuantum/fieldqkit/blob/main/docs/README.md)
+  - API 与模块参考总览见 [docs/README.md](https://fieldquantum.github.io/fieldqkit/)
 
 ## 许可证 (License)
 

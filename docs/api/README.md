@@ -41,21 +41,21 @@
 各文档中的关键方法参数说明如下：
 
 - **QuantumHardwareClient**
-  - `run_auto(...)` 的 16 个参数（不含 self）及返回 RunResult 字段 —— see [QuantumHardwareClient.md](./QuantumHardwareClient.md#%E5%8F%82%E6%95%B0)
-  - `build_circuit(kind, **kwargs)` 的 4 种线路及其参数 —— see [QuantumHardwareClient.md](./QuantumHardwareClient.md#%E5%85%B3%E9%94%AE%E6%96%B9%E6%B3%95) 下的展开说明
+  - `run_auto(...)` 的 16 个参数（不含 self）及返回 RunResult 字段 —— see [QuantumHardwareClient.md](./QuantumHardwareClient.md)
+  - `build_circuit(kind, **kwargs)` 的 4 种线路及其参数 —— see [QuantumHardwareClient.md](./QuantumHardwareClient.md) 下的展开说明
 
 - **hardware_discovery**
-  - `discover_hardware(num_qubits, prefer_hardware)` —— see [hardware_discovery.md](./hardware_discovery.md#%E6%A0%B8%E5%BF%83%E6%8E%A5%E5%8F%A3)
-  - `resolve_backend(...)` —— see [hardware_discovery.md](./hardware_discovery.md#%E8%BF%94%E5%9B%9E%E5%80%BC%E8%AF%A6%E8%A7%A3)
+  - `discover_hardware(num_qubits, prefer_hardware)` —— see [hardware_discovery.md](./hardware_discovery.md)
+  - `resolve_backend(...)` —— see [hardware_discovery.md](./hardware_discovery.md)
 
 - **Backend**
-  - `Backend(chip)` + 拓扑操作方法 —— see [Backend.md](./Backend.md#%E6%A0%B8%E5%BF%83%E7%B1%BB)
+  - `Backend(chip)` + 拓扑操作方法 —— see [Backend.md](./Backend.md)
 
 - **Task**
-  - `TaskAdapter.submit_openqasm()` / `query_status()` / `fetch_result()` —— see [Task.md](./Task.md#%E5%85%B3%E9%94%AE%E6%96%B9%E6%B3%95)
+  - `TaskAdapter.submit_openqasm()` / `query_status()` / `fetch_result()` —— see [Task.md](./Task.md)
 
 - **providers**
-  - Quafu/TianYan/GuoDun 特定方法 —— see [providers.md](./providers.md#%E7%89%B9%E5%AE%9A%E4%BA%8E-provider-%E7%9A%84%E6%96%B9%E6%B3%95)
+  - Quafu/TianYan/GuoDun 特定方法 —— see [providers.md](./providers.md)
 
 ## 相关页面
 

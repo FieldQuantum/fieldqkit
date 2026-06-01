@@ -6,6 +6,86 @@ repo_name: FieldQuantum/fieldqkit
 edit_uri: edit/main/docs/
 docs_dir: docs
 
+nav:
+  - 首页: README.md
+  - 配置凭证 (Configuration): configuration.md
+  - 教程 (Notebooks):
+      - 全览入门 · run_auto + 缓解 + 可视化: https://github.com/FieldQuantum/fieldqkit/blob/main/examples/demo_full.ipynb
+      - QuantumCircuit 与 core 拆解: https://github.com/FieldQuantum/fieldqkit/blob/main/examples/demo_circuit_core.ipynb
+      - Readout 校准 + ZNE: https://github.com/FieldQuantum/fieldqkit/blob/main/examples/demo_readout_zne.ipynb
+      - Shadow tomography: https://github.com/FieldQuantum/fieldqkit/blob/main/examples/demo_shadow.ipynb
+      - VQE 顶层接口 + 手动梯度: https://github.com/FieldQuantum/fieldqkit/blob/main/examples/demo_vqe.ipynb
+      - QAOA · MaxCut: https://github.com/FieldQuantum/fieldqkit/blob/main/examples/demo_qaoa.ipynb
+      - QML · Iris 多分类: https://github.com/FieldQuantum/fieldqkit/blob/main/examples/demo_qml_iris.ipynb
+      - QNN · BAS 分布学习: https://github.com/FieldQuantum/fieldqkit/blob/main/examples/demo_qnn_bas.ipynb
+      - QNN · 无监督分布学习: https://github.com/FieldQuantum/fieldqkit/blob/main/examples/demo_qnn_unsupervised.ipynb
+      - VQE · H₂ 势能面: https://github.com/FieldQuantum/fieldqkit/blob/main/examples/demo_vqe_h2_4q.ipynb
+      - Clifford fitting 闭环: https://github.com/FieldQuantum/fieldqkit/blob/main/examples/demo_clifford_fitting.ipynb
+      - Backend 拓扑与芯片排序: https://github.com/FieldQuantum/fieldqkit/blob/main/examples/demo_backend.ipynb
+      - 含噪模拟: https://github.com/FieldQuantum/fieldqkit/blob/main/examples/demo_noisy_simulation.ipynb
+  - API:
+      - 概览: api/README.md
+      - QuantumHardwareClient: api/QuantumHardwareClient.md
+      - run_with_backend: api/run_with_backend.md
+      - 硬件发现与选择: api/hardware_discovery.md
+      - Backend: api/Backend.md
+      - Task: api/Task.md
+      - ProviderRuntime: api/provider_runtime.md
+      - Provider 适配器: api/providers.md
+      - cqlib 公共层: api/cqlib.md
+      - 凭证管理 (platform_credentials): api/platform_credentials.md
+  - 电路 (Circuit):
+      - 概览: circuit/README.md
+      - QuantumCircuit: circuit/quantumcircuit.md
+      - OpenQASM 解析: circuit/qasm.md
+      - QCIS 原生指令: circuit/qcis.md
+      - 门辅助与渲染: circuit/helpers_render.md
+      - 门矩阵与工具: circuit/matrix_utils.md
+  - 编译 (Compile):
+      - 概览: compile/README.md
+      - Transpiler: compile/transpiler.md
+      - Layout: compile/layout.md
+      - SabreRouting: compile/routing.md
+      - TranslateToBasisGates: compile/translate.md
+      - GateCompressor: compile/optimize.md
+      - DynamicalDecoupling: compile/schedule.md
+      - Decompose: compile/decompose.md
+      - DAG 工具: compile/dag.md
+  - 算法 (Algorithms):
+      - 概览: algorithms/README.md
+      - VQERunner: algorithms/vqe_runner.md
+      - QAOARunner: algorithms/qaoa_runner.md
+      - ShadowTomography: algorithms/shadow_tomography.md
+      - QML (量子机器学习): algorithms/qml.md
+      - QMLRunner: algorithms/qml_runner.md
+      - 数据编码线路: algorithms/qml_encoding.md
+      - Ansatz 线路模板: algorithms/ansatz_templates.md
+      - 线路压缩: algorithms/circuit_compression.md
+      - 优化器工具: algorithms/optimizer_utils.md
+  - 校准 (Calibration):
+      - Readout 校准: calibration/ReadoutCalibrationManager.md
+      - build_confusion_matrix: calibration/build_confusion_matrix.md
+      - 两比特随机基准 (RB): calibration/NativeTwoQubitRBManager.md
+      - 两比特过程层析: calibration/NativeTwoQubitTomographyManager.md
+  - 核心工具 (Core):
+      - 预置线路: core/circuits.md
+      - 可观测量: core/observables.md
+      - 概率/采样工具: core/utils.md
+      - Readout 缓解: core/readout.md
+      - 零噪声外推 (ZNE): core/zne.md
+      - 结果类型: core/result_types.md
+  - 模拟器 (Sim):
+      - 全态矢量 (statevector): sim/statevector.md
+      - 门矩阵 (gate matrix): sim/matrix.md
+      - MPS 张量网络: sim/mps.md
+      - MPO 过程模拟: sim/mpo.md
+      - Clifford: sim/clifford.md
+      - Clifford+T: sim/clifford_t.md
+      - 密度矩阵: sim/density_matrix.md
+      - Kraus 噪声信道: sim/noise_kraus.md
+      - 统一接口: sim/interface.md
+      - 通用工具 (common): sim/common.md
+
 theme:
   name: material
   language: zh
@@ -48,6 +128,5 @@ markdown_extensions:
 plugins:
   - search
 
-# Navigation is auto-generated from the docs/ tree (each subfolder's README.md
-# acts as its section index). External tutorial notebooks are linked from the
-# docs pages and the project README.
+# Navigation is curated explicitly above. Tutorial notebooks are linked out to
+# GitHub (rendered there); they are not part of the built site.
