@@ -12,7 +12,8 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple, TYPE_CHECKING, Un
 
 import requests
 
-from ..backend import as_int_or_none
+from ..backend import as_int_or_none, ResolvedBackend
+from ..task import QcisSubmitRequest, ProviderTaskHandle, TaskAdapter
 
 logger = logging.getLogger("cqlib")
 
@@ -1191,6 +1192,118 @@ def load_backend_config(platform: RemotePlatformClient, *, machine_name: str) ->
     return config if isinstance(config, dict) else {}
 
 
+def _as_int(value: Any, default: int) -> int:
+    """Convert *value* to ``int``, falling back to *default* on failure."""
+    try:
+        return int(value)
+    except Exception:
+        return int(default)
+
+
+class CqlibTaskAdapter(TaskAdapter):
+    """Shared QCIS task adapter for cqlib-based providers (TianYan, GuoDun).
+    """
+
+    qcis_native = True
+    provider = "cqlib"  # overridden by concrete subclasses
+
+    def __init__(self, *, client: Any, api_token: Optional[str] = None) -> None:
+        """Initialize the adapter with a client and (optional) explicit token.
+
+        Args:
+            client (*Any*): ``QuantumHardwareClient`` instance.
+            api_token (*Optional[str]*): API token; falls back to the subclass
+                default via :meth:`_default_api_token` when ``None``.
+        """
+        self._client = client
+        self._api_token = api_token or self._default_api_token()
+        self._handle_cache: Dict[str, Dict[str, Any]] = {}
+
+    def _default_api_token(self) -> Optional[str]:
+        """Return the provider's default API token (overridden by subclasses)."""
+        return None
+
+    def submit_qcis(self, submit_request: QcisSubmitRequest, backend: ResolvedBackend) -> ProviderTaskHandle:
+        """Submit a pre-converted QCIS string to the backend.
+
+        Args:
+            submit_request (*QcisSubmitRequest*): Submission request descriptor.
+            backend (*ResolvedBackend*): Hardware backend descriptor.
+
+        Returns:
+            ``ProviderTaskHandle``: Handle for tracking the submitted task.
+
+        Raises:
+            RuntimeError: platform_obj is missing in backend metadata
+        """
+        platform_obj = backend.metadata.get("platform_obj")
+        if platform_obj is None:
+            raise RuntimeError("platform_obj is missing in backend metadata")
+        options = dict(submit_request.submit_options or {})
+        max_wait_time = _as_int(options.get("max_wait_time", 3600), 3600)
+        sleep_time = _as_int(options.get("sleep_time", 5), 5)
+        submitted_task_ids = platform_obj.submit_job(circuit=submit_request.qcis, exp_name=submit_request.name, num_shots=submit_request.shots, language=QuantumLanguage.QCIS, is_verify=True)
+        task_ids = [submitted_task_ids] if isinstance(submitted_task_ids, str) else [str(q) for q in submitted_task_ids]
+        task_id = task_ids[0] if len(task_ids) == 1 else ",".join(task_ids)
+        payload = {"task_ids": task_ids, "platform_obj": platform_obj, "max_wait_time": max_wait_time, "sleep_time": sleep_time, "num_qubits": submit_request.submit_options.get("num_qubits", 0)}
+        handle = ProviderTaskHandle(provider=self.provider, task_id=task_id, payload=payload)
+        self._handle_cache[task_id] = payload
+        return handle
+
+    def query_status(self, handle: ProviderTaskHandle) -> str:
+        """Poll experiment results and return a unified status string.
+
+        Args:
+            handle (*ProviderTaskHandle*): Task handle from a prior submission.
+
+        Returns:
+            ``"Finished"`` or ``"Failed"``.
+        """
+        payload = dict(self._handle_cache.get(handle.task_id, {}))
+        payload.update(handle.payload)
+        if payload.get("result_items") is not None:
+            return "Finished"
+        result = payload["platform_obj"].query_experiment(payload["task_ids"][0] if len(payload["task_ids"]) == 1 else payload["task_ids"], max_wait_time=payload["max_wait_time"], sleep_time=payload["sleep_time"])
+        result_items = [result] if isinstance(result, dict) else [item for item in result if isinstance(item, dict)] if isinstance(result, list) else []
+        payload["result_items"] = result_items
+        self._handle_cache[handle.task_id] = payload
+        return "Finished" if result_items else "Failed"
+
+    def fetch_result(self, handle: ProviderTaskHandle) -> Dict[str, Any]:
+        """Extract measurement counts from cached experiment results.
+
+        Args:
+            handle (*ProviderTaskHandle*): Task handle from a prior submission.
+
+        Returns:
+            ``dict`` with ``"count"`` key mapping to bitstring counts.
+
+        Raises:
+            RuntimeError: f'task {handle.task_id} ended with status Failed'
+        """
+        payload = dict(self._handle_cache.get(handle.task_id, {}))
+        payload.update(handle.payload)
+        if payload.get("result_items") is None and self.query_status(handle) != "Finished":
+            raise RuntimeError(f"task {handle.task_id} ended with status Failed")
+        return {"count": extract_counts_from_result_items(payload.get("result_items", []), num_qubits=int(payload.get("num_qubits", 0) or 0))}
+
+    def cancel_task(self, handle: ProviderTaskHandle) -> None:
+        """Stop running experiments associated with the given task handle.
+
+        Args:
+            handle (*ProviderTaskHandle*): Task handle from a prior submission.
+        """
+        payload = dict(self._handle_cache.get(handle.task_id, {}))
+        payload.update(handle.payload)
+        platform_obj = payload["platform_obj"]
+        if hasattr(platform_obj, "stop_running_experiments"):
+            for qid in payload["task_ids"]:
+                try:
+                    platform_obj.stop_running_experiments(query_id=qid)
+                except Exception:
+                    continue
+
+
 __all__ = [
     "TIANYAN_HARDWARE_NAMES",
     "GUODUN_HARDWARE_NAMES",
@@ -1198,6 +1311,7 @@ __all__ = [
     "format_circuit",
     "extract_counts_from_result_items",
     "RemotePlatformClient",
+    "CqlibTaskAdapter",
     "chip_info_from_config",
     "load_cqlib_chip_info",
     "load_backend_config",

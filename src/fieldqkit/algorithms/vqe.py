@@ -11,8 +11,7 @@ from typing import Callable, Dict, List, Literal, Optional, Sequence, Tuple
 logger = logging.getLogger(__name__)
 
 import numpy as np
-from ..api.backend import Backend, resolve_provider, is_noisy_circuit_for_backend
-from ..api.quantum_platform import create_provider_runtime
+from ..api.backend import Backend, is_noisy_circuit_for_backend
 
 from ..circuit import QuantumCircuit
 
@@ -24,6 +23,7 @@ from .optimizer_utils import (
     CliffordFitMap,
     build_clifford_fit_map as _build_clifford_fit_map,
     run_variational_loop as _run_variational_loop,
+    select_backend_and_run as _select_backend_and_run,
 )
 
 AnsatzKind = Literal["hardwareefficient", "custom"]
@@ -707,82 +707,64 @@ class VQERunner:
         else:
             raise ValueError(f"unsupported model: {model}")
 
-        provider_name = resolve_provider(provider, prefer_chips)
-        use_dd = provider_name not in {"tianyan", "guodun", "tencent", "simulator", "fieldquantum"}
-        convert_single_qubit_gate_to_u = provider_name not in {"tencent", "fieldquantum"}
         submit_options = {
             "max_wait_time": int(self.max_wait_time),
             "sleep_time": int(self.sleep_time),
         }
-        runtime = create_provider_runtime(provider=provider_name, client=self.client)
-        profiles = runtime.backend_adapter.discover_hardware(
-            num_qubits=num_qubits,
-            prefer_hardware=prefer_chips,
-        )
-        logger.info("candidate chips: %s", [p.hardware_name for p in profiles])
-        if not profiles:
-            raise RuntimeError(f"no available {provider_name} hardware for num_qubits={num_qubits}")
 
-        last_error: Optional[Exception] = None
-        for profile in profiles:
-            resolved = runtime.backend_adapter.resolve_backend(
+        def _run(resolved, provider_name):
+            use_dd = provider_name not in {"tianyan", "guodun", "tencent", "simulator", "fieldquantum"}
+            convert_single_qubit_gate_to_u = provider_name not in {"tencent", "fieldquantum"}
+            return run_vqe_with_backend(
+                self.client,
+                name=name,
                 num_qubits=num_qubits,
-                prefer_hardware=[profile.hardware_name],
+                backend=resolved.backend,
+                chip_name=resolved.hardware_name,
+                hamiltonian=hamiltonian,
+                layers=self.layers,
+                shots=self.shots,
+                max_iters=self.max_iters,
+                learning_rate=self.learning_rate,
+                beta1=self.beta1,
+                beta2=self.beta2,
+                eps=self.eps,
+                shift=self.shift,
+                zne=self.zne,
+                readout_mitigation=self.readout_mitigation,
+                target_qubits=target_qubits,
+                seed=self.seed,
+                init_params=init_params,
+                callback=callback,
+                gradient_method=self.gradient_method,
+                ansatz=ansatz,
+                custom_ansatz_circuit=custom_ansatz_circuit,
+                clifford_fitting=self.clifford_fitting,
+                clifford_fitting_num_samples=self.clifford_fitting_num_samples,
+                clifford_fitting_num_non_clifford_gates=self.clifford_fitting_num_non_clifford_gates,
+                enable_block_planner=self.enable_block_planner,
+                planner_bond_cap=self.planner_bond_cap,
+                planner_trunc_tol=self.planner_trunc_tol,
+                planner_max_layers_per_block=self.planner_max_layers_per_block,
+                enable_circuit_compression=self.enable_circuit_compression,
+                compression_block_layers=self.compression_block_layers,
+                compression_optimizer_steps=self.compression_optimizer_steps,
+                compression_optimizer_lr=self.compression_optimizer_lr,
+                compression_verbose=self.compression_verbose,
+                compression_plot_loss=self.compression_plot_loss,
+                use_dd=use_dd,
+                convert_single_qubit_gate_to_u=convert_single_qubit_gate_to_u,
+                transpile=bool(self.transpile_on_client),
+                submit_options=submit_options,
             )
-            self.client.chip_name = resolved.hardware_name
-            self.client.chip_backend = resolved.backend
 
-            self.client._active_task_adapter = runtime.task_adapter
-            self.client._active_resolved_backend = resolved
-            self.client._active_num_qubits = num_qubits
-            try:
-                logger.info("running on chip: %s", resolved.hardware_name)
-                return run_vqe_with_backend(
-                    self.client,
-                    name=name,
-                    num_qubits=num_qubits,
-                    backend=resolved.backend,
-                    chip_name=resolved.hardware_name,
-                    hamiltonian=hamiltonian,
-                    layers=self.layers,
-                    shots=self.shots,
-                    max_iters=self.max_iters,
-                    learning_rate=self.learning_rate,
-                    beta1=self.beta1,
-                    beta2=self.beta2,
-                    eps=self.eps,
-                    shift=self.shift,
-                    zne=self.zne,
-                    readout_mitigation=self.readout_mitigation,
-                    target_qubits=target_qubits,
-                    seed=self.seed,
-                    init_params=init_params,
-                    callback=callback,
-                    gradient_method=self.gradient_method,
-                    ansatz=ansatz,
-                    custom_ansatz_circuit=custom_ansatz_circuit,
-                    clifford_fitting=self.clifford_fitting,
-                    clifford_fitting_num_samples=self.clifford_fitting_num_samples,
-                    clifford_fitting_num_non_clifford_gates=self.clifford_fitting_num_non_clifford_gates,
-                    enable_block_planner=self.enable_block_planner,
-                    planner_bond_cap=self.planner_bond_cap,
-                    planner_trunc_tol=self.planner_trunc_tol,
-                    planner_max_layers_per_block=self.planner_max_layers_per_block,
-                    enable_circuit_compression=self.enable_circuit_compression,
-                    compression_block_layers=self.compression_block_layers,
-                    compression_optimizer_steps=self.compression_optimizer_steps,
-                    compression_optimizer_lr=self.compression_optimizer_lr,
-                    compression_verbose=self.compression_verbose,
-                    compression_plot_loss=self.compression_plot_loss,
-                    use_dd=use_dd,
-                    convert_single_qubit_gate_to_u=convert_single_qubit_gate_to_u,
-                    transpile=bool(self.transpile_on_client),
-                    submit_options=submit_options,
-                )
-            except Exception as exc:
-                last_error = exc
-                continue
-
-        raise RuntimeError("all candidate chips failed to run VQE") from last_error
+        return _select_backend_and_run(
+            self.client,
+            provider=provider,
+            num_qubits=num_qubits,
+            prefer_chips=prefer_chips,
+            run_on_backend=_run,
+            failure_message="all candidate chips failed to run VQE",
+        )
 
 

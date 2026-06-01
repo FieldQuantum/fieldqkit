@@ -26,7 +26,7 @@
 pip install -e .
 ```
 
-> 核心依赖：Python >= 3.9，`numpy>=1.24`，`scipy>=1.10`，`networkx>=3.0`，`requests>=2.31`，`matplotlib>=3.7`，`openqasm3[parser]>=0.5`。
+> 核心依赖：Python >= 3.9，`numpy>=1.24`，`scipy>=1.10`，`networkx>=3.0`，`requests>=2.31`，`matplotlib>=3.7`，`pyyaml>=6.0`。
 
 如果需要使用**本地模拟器**（`fieldqkit.sim`），需要额外安装 PyTorch：
 

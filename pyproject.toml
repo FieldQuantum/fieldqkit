@@ -4,13 +4,13 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "fieldqkit"
-version = "0.1.0"
+version = "0.1.0.dev1"
 description = "User-facing interface for controlling quantum hardware"
 readme = "README.md"
 requires-python = ">=3.9"
 license = "Apache-2.0"
 license-files = ["LICENSE", "NOTICE", "THIRD_PARTY_NOTICES"]
-authors = [{name = "FieldQuantum Yuchen Guo"}]
+authors = [{ name = "Yuchen Guo", email = "guoyuchen@fieldquanta.com" }]
 keywords = ["quantum", "quantum-computing", "vqe", "qaoa", "quantum-hardware", "quantum-circuit"]
 classifiers = [
   "Development Status :: 3 - Alpha",
@@ -27,7 +27,6 @@ dependencies = [
   "numpy>=1.24",
   "scipy>=1.10",
   "networkx>=3.0",
-  "openqasm3[parser]>=0.5",
   "requests>=2.31",
   "matplotlib>=3.7",
   "pyyaml>=6.0",

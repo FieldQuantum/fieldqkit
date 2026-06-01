@@ -17,7 +17,8 @@ import numpy as np
 
 logger = logging.getLogger(__name__)
 
-from ..api.backend import Backend
+from ..api.backend import Backend, resolve_provider
+from ..api.quantum_platform import create_provider_runtime
 from ..circuit import QuantumCircuit
 from ..compile.optimize import GateCompressor
 
@@ -961,4 +962,64 @@ def run_variational_loop(
         "grad_history": grad_history,
         "last_expectations": last_expectations,
     }
+
+
+def select_backend_and_run(
+    client,
+    *,
+    provider: str,
+    num_qubits: int,
+    prefer_chips: Optional[Sequence[str] | str],
+    run_on_backend: Callable[[object, str], object],
+    failure_message: str,
+):
+    """Resolve a provider's candidate chips and run on the first that succeeds.
+
+    Args:
+        client: ``QuantumHardwareClient`` instance; its active-backend fields are
+            mutated for each attempted chip.
+        provider (*str*): Requested provider name (resolved via ``resolve_provider``).
+        num_qubits (*int*): Number of logical qubits.
+        prefer_chips (*Optional[Sequence[str] | str]*): Candidate chip filter.
+        run_on_backend (*Callable[[ResolvedBackend, str], T]*): Callback invoked
+            as ``run_on_backend(resolved, provider_name)`` that runs the actual
+            algorithm and returns its result.
+        failure_message (*str*): Message for the ``RuntimeError`` raised when all
+            candidate chips fail.
+
+    Returns:
+        Whatever ``run_on_backend`` returns for the first successful chip.
+
+    Raises:
+        RuntimeError: If no candidate hardware is available, or all candidates fail.
+    """
+    provider_name = resolve_provider(provider, prefer_chips)
+    runtime = create_provider_runtime(provider=provider_name, client=client)
+    profiles = runtime.backend_adapter.discover_hardware(
+        num_qubits=num_qubits,
+        prefer_hardware=prefer_chips,
+    )
+    logger.info("candidate chips: %s", [p.hardware_name for p in profiles])
+    if not profiles:
+        raise RuntimeError(f"no available {provider_name} hardware for num_qubits={num_qubits}")
+
+    last_error: Optional[Exception] = None
+    for profile in profiles:
+        resolved = runtime.backend_adapter.resolve_backend(
+            num_qubits=num_qubits,
+            prefer_hardware=[profile.hardware_name],
+        )
+        client.chip_name = resolved.hardware_name
+        client.chip_backend = resolved.backend
+        client._active_task_adapter = runtime.task_adapter
+        client._active_resolved_backend = resolved
+        client._active_num_qubits = num_qubits
+        try:
+            logger.info("running on chip: %s", resolved.hardware_name)
+            return run_on_backend(resolved, provider_name)
+        except Exception as exc:
+            last_error = exc
+            continue
+
+    raise RuntimeError(failure_message) from last_error
 
