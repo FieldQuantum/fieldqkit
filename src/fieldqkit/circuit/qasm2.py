@@ -440,6 +440,7 @@ def parse_openqasm2_to_gates(openqasm2_str):
         elif gate in ["barrier"]:
             qubits = [p for pp in positions for p in pp]
             new.append((gate, tuple(qubits)))
+            _record_qubits(qubit_used, *qubits)
         elif gate in ["measure"]:
             if len(positions[0]) != len(positions[1]):
                 raise ValueError(f"{gate} takes 2 different quantum arguments length.")

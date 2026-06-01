@@ -1,7 +1,7 @@
 r"""This module contains the Transpiler class, which is designed to convert quantum circuits
 into formats that are more suitable for execution on hardware backends.
 
-SPDX-License-Identifier: MIT
+SPDX-License-Identifier: Apache-2.0
 Original source: quarkstudio, Copyright (c) YL Feng.
 See THIRD_PARTY_NOTICES for full license text.
 """

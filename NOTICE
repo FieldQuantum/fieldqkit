@@ -1,0 +1,24 @@
+fieldqkit
+Copyright 2026 FieldQuantum Yuchen Guo
+
+This product includes software developed by FieldQuantum.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this software except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+------------------------------------------------------------------------------
+Third-party components
+------------------------------------------------------------------------------
+
+This product incorporates code derived from the following third-party projects.
+Full license texts and the list of affected files are provided in the
+THIRD_PARTY_NOTICES file distributed alongside this NOTICE.
+
+  - quarkstudio (quarkcircuit), Copyright (c) YL Feng — MIT License
+  - cqlib, Copyright (c) China Telecom Quantum Group Quantum Computing Team
+    — Apache License, Version 2.0
+  - TensorCircuit, Copyright (c) TensorCircuit Authors
+    — Apache License, Version 2.0

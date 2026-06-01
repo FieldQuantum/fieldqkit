@@ -1,6 +1,6 @@
 """A toolkit for KAK and U3 decompositions.
 
-SPDX-License-Identifier: MIT
+SPDX-License-Identifier: Apache-2.0
 Original source: quarkcircuit, Copyright (c) YL Feng.
 See THIRD_PARTY_NOTICES for full license text.
 """

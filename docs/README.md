@@ -16,10 +16,10 @@
 	- 对应： [VQERunner.run_model](./algorithms/vqe_runner.md)、[observables](./core/observables.md)
 - [QAOA：demo_qaoa.ipynb](../examples/demo_qaoa.ipynb)
 	- 对应： [QAOARunner.run_model](./algorithms/qaoa_runner.md)、[observables](./core/observables.md)
-- [QML 分类：demo_qml.ipynb](../examples/demo_qml.ipynb)
-	- 对应： [QML — run_pqc_classifier](./algorithms/qml.md)
 - [QML Iris 分类：demo_qml_iris.ipynb](../examples/demo_qml_iris.ipynb)
 	- 对应： [QML — run_pqc_classifier](./algorithms/qml.md)
+- [QNN BAS 分布学习：demo_qnn_bas.ipynb](../examples/demo_qnn_bas.ipynb)
+	- 对应： [QML — run_qnn_unsupervised](./algorithms/qml.md)
 - [QNN 无监督分布学习：demo_qnn_unsupervised.ipynb](../examples/demo_qnn_unsupervised.ipynb)
 	- 对应： [QML — run_qnn_unsupervised](./algorithms/qml.md)
 - [Backend：demo_backend.ipynb](../examples/demo_backend.ipynb)
@@ -37,8 +37,8 @@
 	- [VQE：demo_vqe.ipynb](../examples/demo_vqe.ipynb)
 	- [QAOA：demo_qaoa.ipynb](../examples/demo_qaoa.ipynb)
 5. 量子机器学习：
-	- [QML 分类：demo_qml.ipynb](../examples/demo_qml.ipynb)
 	- [QML Iris：demo_qml_iris.ipynb](../examples/demo_qml_iris.ipynb)
+	- [QNN BAS：demo_qnn_bas.ipynb](../examples/demo_qnn_bas.ipynb)
 	- [QNN 无监督：demo_qnn_unsupervised.ipynb](../examples/demo_qnn_unsupervised.ipynb)
 6. 拓扑补充： [Backend：demo_backend.ipynb](../examples/demo_backend.ipynb)
 

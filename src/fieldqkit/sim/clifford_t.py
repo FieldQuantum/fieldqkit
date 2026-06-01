@@ -39,7 +39,6 @@ to keep the dictionary compact.
 
 from __future__ import annotations
 
-import cmath
 import math
 from typing import Dict, List, Optional, Sequence, Tuple
 

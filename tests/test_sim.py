@@ -20,6 +20,7 @@ from fieldqkit.sim.mps import simulate_mps
 from fieldqkit.sim.mps import simulate_counts as simulate_counts_mps
 from fieldqkit.sim.statevector import simulate_counts as simulate_counts_statevector
 from fieldqkit.sim.statevector import simulate_statevector
+from fieldqkit.sim.density_matrix import simulate_density_matrix
 
 
 # ═══════════════════════════════════════════════════════════
@@ -388,6 +389,55 @@ class TestSimulateStatevector:
         # |1> amplitude moved to |0>, then renormalized → |0>
         assert float(state[0].abs().item()) == pytest.approx(1.0, abs=1e-12)
         assert float(state[1].abs().item()) == pytest.approx(0.0, abs=1e-12)
+
+    def test_reset_from_out_of_phase_superposition(self):
+        """Reset on (|0>-|1>)/sqrt(2) must give |0>, not cancel to a zero state.
+
+        Regression test: summing the |0> and |1> amplitudes (the previous
+        implementation) cancels for this out-of-phase state and wrongly leaves
+        it unchanged. Projection onto |0> is the correct behaviour.
+        """
+        qc = QuantumCircuit(1)
+        qc.x(0)
+        qc.h(0)  # H|1> = (|0> - |1>)/sqrt(2)
+        qc.reset(0)
+        state = simulate_statevector(qc)
+        assert float(state[0].abs().item()) == pytest.approx(1.0, abs=1e-12)
+        assert float(state[1].abs().item()) == pytest.approx(0.0, abs=1e-12)
+
+    def test_reset_unentangled_consistency_across_backends(self):
+        """Statevector, MPS and density-matrix backends agree for an
+        unentangled reset (where a pure-state result is exact)."""
+        def build():
+            qc = QuantumCircuit(2)
+            qc.x(0)
+            qc.h(0)        # q0 = (|0> - |1>)/sqrt(2), unentangled
+            qc.ry(0.7, 1)  # q1 in an arbitrary unentangled state
+            qc.reset(0)    # force q0 -> |0>, q1 preserved
+            return qc
+
+        sv = simulate_statevector(build())
+        sv_probs = (sv.abs() ** 2).detach().cpu().numpy()
+
+        mps = _mps_to_statevector(simulate_mps(build()))
+        mps_probs = (mps.abs() ** 2).detach().cpu().numpy()
+
+        rho = simulate_density_matrix(build()).cpu()
+        dm_probs = torch.diag(rho).real.numpy()
+
+        assert np.allclose(sv_probs, dm_probs, atol=1e-5)
+        assert np.allclose(mps_probs, dm_probs, atol=1e-5)
+        # q0 reset to |0>: its marginal P(q0=1) must vanish.
+        assert sv_probs.reshape(2, 2)[1, :].sum() == pytest.approx(0.0, abs=1e-6)
+
+    def test_reset_pure_one_on_mps(self):
+        """MPS reset on a pure |1> must yield |0> (not a zeroed/invalid state)."""
+        qc = QuantumCircuit(1)
+        qc.x(0)
+        qc.reset(0)
+        state = _mps_to_statevector(simulate_mps(qc))
+        assert float(state[0].abs().item()) == pytest.approx(1.0, abs=1e-9)
+        assert float(state[1].abs().item()) == pytest.approx(0.0, abs=1e-9)
 
     def test_normalization(self):
         """Statevector should always have unit norm."""

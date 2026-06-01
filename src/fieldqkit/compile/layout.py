@@ -1,7 +1,7 @@
 """This module contains the Layout class, which is designed to select suitable layouts
 for quantum circuits on hardware backends.
 
-SPDX-License-Identifier: MIT
+SPDX-License-Identifier: Apache-2.0
 Original source: quarkstudio, Copyright (c) YL Feng.
 See THIRD_PARTY_NOTICES for full license text.
 """
@@ -17,7 +17,6 @@ from typing import Literal
 
 logger = logging.getLogger(__name__)
 from itertools import combinations, zip_longest, product
-from functools import partial
 from ..api.backend import Backend
 
 from ..circuit import QuantumCircuit

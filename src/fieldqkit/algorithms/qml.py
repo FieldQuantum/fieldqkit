@@ -355,6 +355,14 @@ def run_pqc_classifier(
         else:
             measurement_qubits = list(range(min(num_classes, num_qubits)))
 
+    if num_classes > 2 and len(measurement_qubits) < num_classes:
+        raise ValueError(
+            f"multiclass classification with num_classes={num_classes} needs at least "
+            f"{num_classes} measurement qubits (one logit per class), but only "
+            f"{len(measurement_qubits)} are available (num_qubits={num_qubits}). "
+            f"Increase num_qubits or pass an explicit measurement_qubits list."
+        )
+
     # ---- Build symbolic encoding ----
     features_list = [np.asarray(d, dtype=np.float64) for d, _ in train_data]
     num_features = len(features_list[0])

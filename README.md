@@ -1,6 +1,6 @@
 # Quantum Hardware Interface
 
-> 版本：0.1.0 · 许可：MIT · Python ≥ 3.9
+> 版本：0.1.0 · 许可：Apache-2.0 · Python ≥ 3.9
 
 ---
 
@@ -207,7 +207,7 @@ QuantumHardwareClient.run_auto(provider="quafu", circuit=..., observables=...)
   └─ _run_with_backend()
        ├─ Transpiler pipeline
        │    decompose → layout → route → translate → DD
-       ├─ QuantumCircuit.to_openqasm2/3
+       ├─ QuantumCircuit.to_openqasm2
        ├─ TaskAdapter.submit_openqasm()   → 提交任务
        ├─ TaskAdapter.query_status()      → 轮询状态
        ├─ TaskAdapter.fetch_result()      → 获取 counts
@@ -250,3 +250,10 @@ QuantumHardwareClient.run_auto(provider="quafu", circuit=..., observables=...)
 ## 文档 (Docs)
 
 Docs 总览见 [docs/README.md](docs/README.md)。
+
+## 许可证 (License)
+
+本项目以 [Apache License 2.0](LICENSE) 开源。
+
+项目中部分文件改编自第三方开源项目（quarkstudio / cqlib / TensorCircuit），
+相关版权与许可声明见 [THIRD_PARTY_NOTICES](THIRD_PARTY_NOTICES) 与 [NOTICE](NOTICE)。

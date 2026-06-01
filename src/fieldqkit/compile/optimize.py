@@ -1,7 +1,7 @@
 """This module contains the `GateCompressor` class, which is designed to optimize quantum circuits by
 merging or compressing adjacent gates.
 
-SPDX-License-Identifier: MIT
+SPDX-License-Identifier: Apache-2.0
 Original source: quarkstudio, Copyright (c) YL Feng.
 See THIRD_PARTY_NOTICES for full license text.
 """

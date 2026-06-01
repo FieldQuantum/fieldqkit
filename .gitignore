@@ -26,6 +26,10 @@ htmlcov/
 # Jupyter
 .ipynb_checkpoints/
 
+# Notebook-generated artifacts
+examples/_artifacts/
+examples/**/_artifacts/
+
 # IDE
 .idea/
 .vscode/

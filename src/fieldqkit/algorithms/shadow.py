@@ -49,12 +49,17 @@ def _observable_to_codes(observable: str, num_qubits: int) -> np.ndarray:
     return np.array([mapping[p] for p in pattern], dtype=int)
 
 
-def _median_of_means(values: np.ndarray, groups: int) -> Tuple[float, float]:
+def _median_of_means(
+    values: np.ndarray, groups: int, rng: Optional[np.random.Generator] = None
+) -> Tuple[float, float]:
     """Median-of-means estimator for heavy-tailed noise robustness.
 
     Args:
         values (*np.ndarray*): 1-D array of per-shot estimator values.
         groups (*int*): Number of groups for the median-of-means split.
+        rng (*Optional[np.random.Generator]*): Generator used to shuffle the
+            values before splitting. If ``None``, a fresh default generator is
+            used (non-reproducible). Defaults to ``None``.
 
     Returns:
         Tuple of ``(median, stderr)`` —the median-of-means estimate
@@ -65,7 +70,9 @@ def _median_of_means(values: np.ndarray, groups: int) -> Tuple[float, float]:
         stderr = float(values.std(ddof=1) / np.sqrt(values.size)) if values.size > 1 else 0.0
         return mean, stderr
 
-    values = np.random.permutation(values)
+    if rng is None:
+        rng = np.random.default_rng()
+    values = rng.permutation(values)
     groups = min(groups, values.size)
     splits = np.array_split(values, groups)
     means = np.array([s.mean() if s.size > 0 else 0.0 for s in splits], dtype=float)
@@ -85,6 +92,7 @@ def estimate_observables(
     num_qubits: int,
     estimator: str = "mean",
     mom_groups: Optional[int] = None,
+    rng: Optional[np.random.Generator] = None,
 ) -> Tuple[Dict[str, float], Dict[str, float]]:
     """Estimate Pauli observables from classical shadow data.
 
@@ -95,6 +103,7 @@ def estimate_observables(
         num_qubits (*int*): Number of qubits.
         estimator (*str*): Estimation method: ``'mean'`` for sample mean, ``'mom'`` for median-of-means. Defaults to ``'mean'``.
         mom_groups (*Optional[int]*): Number of groups for median-of-means. If ``None``, uses ``max(1, int(sqrt(nshots)))``. Defaults to ``None``.
+        rng (*Optional[np.random.Generator]*): Generator used by the ``'mom'`` estimator to shuffle samples. Pass a seeded generator for reproducibility. Defaults to ``None``.
 
     Returns:
         Tuple of ``(estimates, stderrs)`` where each is a
@@ -131,7 +140,7 @@ def estimate_observables(
 
         if estimator == "mom":
             groups = mom_groups if mom_groups is not None else max(1, int(np.sqrt(nshots)))
-            mean, stderr = _median_of_means(sample_values, groups)
+            mean, stderr = _median_of_means(sample_values, groups, rng=rng)
         else:
             mean = float(sample_values.mean())
             if nshots > 1:
@@ -280,6 +289,7 @@ def run_shadow_with_backend(
         num_qubits=num_qubits,
         estimator=estimator,
         mom_groups=mom_groups,
+        rng=rng,
     )
 
     estimates = estimates_1
@@ -295,6 +305,7 @@ def run_shadow_with_backend(
             num_qubits=num_qubits,
             estimator=estimator,
             mom_groups=mom_groups,
+            rng=rng,
         )
         estimates = {
             obs: float(zne_linear_extrapolate(estimates_1[obs], estimates_3[obs]))

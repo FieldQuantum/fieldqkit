@@ -669,18 +669,37 @@ def _norm2_mps(mps: Sequence[torch.Tensor]) -> torch.Tensor:
 
 
 def _apply_reset_mps(mps: List[torch.Tensor], qubit: int) -> None:
-    """Apply a reset operation on a single qubit of the MPS, projecting it to |0⟩.
+    """Apply a reset operation on a single qubit of the MPS, forcing it to |0⟩.
 
-    Zeros the |1⟩ component of the target site tensor and renormalizes
-    the MPS to preserve unit norm.
+    Mirrors the statevector backend's two-branch reset so the two agree:
+
+    * If ``P(qubit=0) > 0``, project onto |0⟩ (zero the |1⟩ component) and
+      renormalize.
+    * If ``P(qubit=0) == 0`` (the qubit is certainly |1⟩), move the |1⟩ branch
+      into |0⟩ — equivalent to applying X — so a pure |1⟩ resets to |0⟩ instead
+      of collapsing to a zero (invalid) state.
 
     Args:
         mps (*List[torch.Tensor]*): MPS site tensor list (modified in-place).
         qubit (*int*): Target qubit index to reset.
     """
-    t = mps[qubit].clone()
-    t[:, 1, :] = 0.0
-    mps[qubit] = t
+    t = mps[qubit]
+
+    # Probability of measuring |0⟩ on the target qubit = squared norm of the
+    # state with the |1⟩ component zeroed.
+    proj0 = t.clone()
+    proj0[:, 1, :] = 0.0
+    probe = list(mps)
+    probe[qubit] = proj0
+    p0 = float(_norm2_mps(probe).detach().cpu().item())
+
+    if p0 > 1e-12:
+        mps[qubit] = proj0
+    else:
+        # Qubit is certainly |1⟩: move that branch into |0⟩ (apply X).
+        new_t = torch.zeros_like(t)
+        new_t[:, 0, :] = t[:, 1, :]
+        mps[qubit] = new_t
 
     n2 = _norm2_mps(mps)
     if float(n2.detach().cpu().item()) > 0.0:

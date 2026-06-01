@@ -1,5 +1,5 @@
 {
-  "schema": "quantum_control.hamiltonian.v1",
+  "schema": "fieldqkit.hamiltonian.v1",
   "generated_at_utc": "2026-03-11T13:02:37.033878+00:00",
   "molecule": "H2",
   "R_input": 2.2,

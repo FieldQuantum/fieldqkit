@@ -934,11 +934,8 @@ def run_variational_loop(
         grad_norm = float(np.linalg.norm(grads))
         logger.info("[%s] iter %d cost=%.6f grad_norm=%.6f", tag, it, cost, grad_norm)
 
-        params, m, v = adam_update(
-            params, grads, m, v, it + 1,
-            lr=learning_rate, beta1=beta1, beta2=beta2, eps=eps,
-        )
-
+        # Record the parameters that produced ``cost``/``grads`` (i.e. before the
+        # Adam step), so best_params/params_history stay aligned with cost_history.
         cost_history.append(float(cost))
         params_history.append(params.tolist())
         grad_history.append(grads.tolist())
@@ -950,6 +947,11 @@ def run_variational_loop(
 
         if callback is not None:
             callback(it, float(cost), params)
+
+        params, m, v = adam_update(
+            params, grads, m, v, it + 1,
+            lr=learning_rate, beta1=beta1, beta2=beta2, eps=eps,
+        )
 
     return {
         "best_cost": best_cost,

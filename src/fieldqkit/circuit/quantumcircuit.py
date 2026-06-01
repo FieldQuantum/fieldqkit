@@ -1,7 +1,7 @@
 """This module contains the QuantumCircuit class, which offers an intuitive interface for designing,
-visualizing, and converting quantum circuits in various formats such as OpenQASM 2.0 and 3.0.
+visualizing, and converting quantum circuits in various formats such as OpenQASM 2.0.
 
-SPDX-License-Identifier: MIT
+SPDX-License-Identifier: Apache-2.0
 Original source: quarkcircuit, Copyright (c) YL Feng.
 See THIRD_PARTY_NOTICES for full license text.
 """
