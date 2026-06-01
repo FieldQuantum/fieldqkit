@@ -1,6 +1,6 @@
 # Quantum Hardware Interface
 
-> 版本：0.1.0 · 许可：Apache-2.0 · Python ≥ 3.9
+> 版本：0.1.0.dev2 · 许可：Apache-2.0 · Python ≥ 3.9
 
 ---
 
@@ -48,9 +48,9 @@ pip install -e .[origin]    # 核心 + pyqpanda3（本源量子云 SDK）
 pip install -e .[test]      # 核心 + pytest
 ```
 
-## 快速开始
+## 快速开始（本地模拟器，无需 token）
 
-完整示例见 [examples/demo_full.ipynb](examples/demo_full.ipynb)。
+最快的上手方式是用内置模拟器，**无需任何配置**（需安装 `[sim]` 依赖组）：
 
 ```python
 from fieldqkit import QuantumHardwareClient
@@ -59,38 +59,51 @@ client = QuantumHardwareClient()
 result = client.run_auto(
     circuit="ghz",
     name="demo",
-    num_qubits=6,
+    num_qubits=4,
+    provider="simulator",      # 纯本地模拟，无需 token
     shots=8192,
-    observables=["IIZZII", "ZZIIII"],
-    readout_mitigation=True,
+    observables=["ZZII", "IIZZ"],
     return_probabilities=True,
 )
 
-print(result.observable_values)
+print(result.observable_values)   # {'ZZII': 1.0, 'IIZZ': 1.0}
 print(result.probabilities)
 ```
 
+把 `provider` 换成 `"quafu"` / `"tianyan"` / `"guodun"` / `"tencent"` / `"origin"` / `"fieldquantum"`
+即可提交到对应的量子云平台（需先配置 token，见下文 [真机使用](#真机使用)）。完整示例见
+[examples/demo_full.ipynb](https://github.com/FieldQuantum/fieldqkit/blob/main/examples/demo_full.ipynb)。
+
 ## 真机使用
 
-使用真机前需要配置对应平台的 API 凭证。推荐通过**配置文件**管理 token：
+使用真机前需要配置对应平台的 API 凭证。任选一种方式（完整说明见 [docs/configuration.md](https://github.com/FieldQuantum/fieldqkit/blob/main/docs/configuration.md)）：
 
-### 1. 创建配置文件
-
-将项目根目录的模板文件复制为配置文件：
+**方式一 · 环境变量（pip 用户最简单）**
 
 ```bash
-cp .quantum_hw.example.yaml .quantum_hw.yaml
+export QUAFU_API_TOKEN="your-quafu-token"      # Linux/macOS
+# Windows PowerShell: $env:QUAFU_API_TOKEN = "your-quafu-token"
 ```
 
-### 2. 填入你的 token
+各平台环境变量：`QUAFU_API_TOKEN` / `TIANYAN_API_TOKEN` / `GUODUN_API_TOKEN` / `TENCENT_API_TOKEN` / `ORIGIN_API_TOKEN` / `FIELDQUANTUM_API_TOKEN`。
 
-编辑配置文件，将购买或申请到的 token 填入对应字段：
+**方式二 · 一键生成配置文件**
+
+```bash
+fieldqkit-config-init          # 在 ~/.quantum_hw.yaml 写入模板，编辑后填入 token
+```
+
+也可在 Python 中调用 `fieldqkit.init_config()`。然后编辑生成的文件：
 
 ```yaml
 credentials:
   quafu:
     api_token: "your-quafu-token-here"
 ```
+
+**方式三 · 从源码开发**：复制仓库根目录模板 `cp .quantum_hw.example.yaml .quantum_hw.yaml`。
+
+> 查找优先级：`$QUANTUM_HW_CONFIG` → 当前目录 `.quantum_hw.yaml` → `~/.quantum_hw.yaml` → 环境变量。`.quantum_hw.yaml` 已在 `.gitignore` 中排除，请勿提交真实 token。
 
 ### 各平台链接
 
@@ -218,42 +231,46 @@ QuantumHardwareClient.run_auto(provider="quafu", circuit=..., observables=...)
 
 ## 教程导航（Notebook）
 
-- [全览入门：run_auto + mitigation + 可视化](examples/demo_full.ipynb)
-- [QuantumCircuit 与 core 函数拆解](examples/demo_circuit_core.ipynb)
-- [Shadow tomography 分层教程](examples/demo_shadow.ipynb)
-- [Readout calibration + ZNE 专项](examples/demo_readout_zne.ipynb)
-- [Clifford fitting 闭环（tianyan176）](examples/demo_clifford_fitting.ipynb)
-- [VQE：顶层接口 + parameter-shift 手动梯度下降](examples/demo_vqe.ipynb)
-- [QAOA：MaxCut + 自定义哈密顿量 + VQE 对比](examples/demo_qaoa.ipynb)
-- [QML Iris：Iris 数据集多分类](examples/demo_qml_iris.ipynb)
-- [QNN BAS：Born Machine 分布学习](examples/demo_qnn_bas.ipynb)
-- [QNN 无监督：量子分布学习](examples/demo_qnn_unsupervised.ipynb)
-- [VQE H₂ 4-qubit：氢分子势能面扫描](examples/demo_vqe_h2_4q.ipynb)
-- [Backend 拓扑与芯片排序](examples/demo_backend.ipynb)
+- [全览入门：run_auto + mitigation + 可视化](https://github.com/FieldQuantum/fieldqkit/blob/main/examples/demo_full.ipynb)
+- [QuantumCircuit 与 core 函数拆解](https://github.com/FieldQuantum/fieldqkit/blob/main/examples/demo_circuit_core.ipynb)
+- [Shadow tomography 分层教程](https://github.com/FieldQuantum/fieldqkit/blob/main/examples/demo_shadow.ipynb)
+- [Readout calibration + ZNE 专项](https://github.com/FieldQuantum/fieldqkit/blob/main/examples/demo_readout_zne.ipynb)
+- [Clifford fitting 闭环（tianyan176）](https://github.com/FieldQuantum/fieldqkit/blob/main/examples/demo_clifford_fitting.ipynb)
+- [VQE：顶层接口 + parameter-shift 手动梯度下降](https://github.com/FieldQuantum/fieldqkit/blob/main/examples/demo_vqe.ipynb)
+- [QAOA：MaxCut + 自定义哈密顿量 + VQE 对比](https://github.com/FieldQuantum/fieldqkit/blob/main/examples/demo_qaoa.ipynb)
+- [QML Iris：Iris 数据集多分类](https://github.com/FieldQuantum/fieldqkit/blob/main/examples/demo_qml_iris.ipynb)
+- [QNN BAS：Born Machine 分布学习](https://github.com/FieldQuantum/fieldqkit/blob/main/examples/demo_qnn_bas.ipynb)
+- [QNN 无监督：量子分布学习](https://github.com/FieldQuantum/fieldqkit/blob/main/examples/demo_qnn_unsupervised.ipynb)
+- [VQE H₂ 4-qubit：氢分子势能面扫描](https://github.com/FieldQuantum/fieldqkit/blob/main/examples/demo_vqe_h2_4q.ipynb)
+- [Backend 拓扑与芯片排序](https://github.com/FieldQuantum/fieldqkit/blob/main/examples/demo_backend.ipynb)
 
 ## 学习路径（入门 → 进阶 → 硬件 → 优化）
 
-1. 入门：先看 [全览入门：run_auto + mitigation + 可视化](examples/demo_full.ipynb)
-2. 进阶：继续 [QuantumCircuit 与 core 函数拆解](examples/demo_circuit_core.ipynb)
-3. 硬件：再看 [Readout calibration + ZNE 专项](examples/demo_readout_zne.ipynb)
+1. 入门：先看 [全览入门：run_auto + mitigation + 可视化](https://github.com/FieldQuantum/fieldqkit/blob/main/examples/demo_full.ipynb)
+2. 进阶：继续 [QuantumCircuit 与 core 函数拆解](https://github.com/FieldQuantum/fieldqkit/blob/main/examples/demo_circuit_core.ipynb)
+3. 硬件：再看 [Readout calibration + ZNE 专项](https://github.com/FieldQuantum/fieldqkit/blob/main/examples/demo_readout_zne.ipynb)
 4. 优化：按顺序学习
-    - [Shadow tomography 分层教程](examples/demo_shadow.ipynb)
-    - [VQE：顶层接口 + parameter-shift 手动梯度下降](examples/demo_vqe.ipynb)
-    - [QAOA：MaxCut + 自定义哈密顿量 + VQE 对比](examples/demo_qaoa.ipynb)
+    - [Shadow tomography 分层教程](https://github.com/FieldQuantum/fieldqkit/blob/main/examples/demo_shadow.ipynb)
+    - [VQE：顶层接口 + parameter-shift 手动梯度下降](https://github.com/FieldQuantum/fieldqkit/blob/main/examples/demo_vqe.ipynb)
+    - [QAOA：MaxCut + 自定义哈密顿量 + VQE 对比](https://github.com/FieldQuantum/fieldqkit/blob/main/examples/demo_qaoa.ipynb)
 5. 量子机器学习：按顺序学习
-    - [QML Iris：Iris 数据集多分类](examples/demo_qml_iris.ipynb)
-    - [QNN BAS：Born Machine 分布学习](examples/demo_qnn_bas.ipynb)
-    - [QNN 无监督：量子分布学习](examples/demo_qnn_unsupervised.ipynb)
-6. VQE 进阶：[VQE H₂ 4-qubit：氢分子势能面扫描](examples/demo_vqe_h2_4q.ipynb)
-7. 硬件拓扑补充：参考 [Backend 拓扑与芯片排序](examples/demo_backend.ipynb)
+    - [QML Iris：Iris 数据集多分类](https://github.com/FieldQuantum/fieldqkit/blob/main/examples/demo_qml_iris.ipynb)
+    - [QNN BAS：Born Machine 分布学习](https://github.com/FieldQuantum/fieldqkit/blob/main/examples/demo_qnn_bas.ipynb)
+    - [QNN 无监督：量子分布学习](https://github.com/FieldQuantum/fieldqkit/blob/main/examples/demo_qnn_unsupervised.ipynb)
+6. VQE 进阶：[VQE H₂ 4-qubit：氢分子势能面扫描](https://github.com/FieldQuantum/fieldqkit/blob/main/examples/demo_vqe_h2_4q.ipynb)
+7. 硬件拓扑补充：参考 [Backend 拓扑与芯片排序](https://github.com/FieldQuantum/fieldqkit/blob/main/examples/demo_backend.ipynb)
 
 ## 文档 (Docs)
 
-Docs 总览见 [docs/README.md](docs/README.md)。
+- **用户指南**
+  - [配置凭证 (Configuration)](https://github.com/FieldQuantum/fieldqkit/blob/main/docs/configuration.md) — 环境变量 / 一键生成配置 / 查找优先级
+  - 教程 Notebook：见上文 [教程导航](#教程导航notebook) 与 [学习路径](#学习路径入门--进阶--硬件--优化)
+- **开发者参考**
+  - API 与模块参考总览见 [docs/README.md](https://github.com/FieldQuantum/fieldqkit/blob/main/docs/README.md)
 
 ## 许可证 (License)
 
-本项目以 [Apache License 2.0](LICENSE) 开源。
+本项目以 [Apache License 2.0](https://github.com/FieldQuantum/fieldqkit/blob/main/LICENSE) 开源。
 
 项目中部分文件改编自第三方开源项目（quarkstudio / cqlib / TensorCircuit），
-相关版权与许可声明见 [THIRD_PARTY_NOTICES](THIRD_PARTY_NOTICES) 与 [NOTICE](NOTICE)。
+相关版权与许可声明见 [THIRD_PARTY_NOTICES](https://github.com/FieldQuantum/fieldqkit/blob/main/THIRD_PARTY_NOTICES) 与 [NOTICE](https://github.com/FieldQuantum/fieldqkit/blob/main/NOTICE)。

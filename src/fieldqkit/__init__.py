@@ -1,8 +1,9 @@
 """Public package exports for the quantum hardware interface."""
 
-__version__ = "0.1.0"
+__version__ = "0.1.0.dev2"
 
 from .api import QuantumHardwareClient
+from .api.platform_credentials import init_config
 from .circuit import QuantumCircuit
 from .core.circuits import (
     build_ghz,
@@ -46,6 +47,7 @@ from .algorithms.qml_encoding import (
 
 __all__ = [
     "QuantumHardwareClient",
+    "init_config",
     "QuantumCircuit",
     "build_ghz",
     "build_cluster",

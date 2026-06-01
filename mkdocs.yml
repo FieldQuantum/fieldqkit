@@ -1,0 +1,53 @@
+site_name: fieldqkit
+site_description: User-facing interface for controlling quantum hardware
+site_url: https://fieldquantum.github.io/fieldqkit/
+repo_url: https://github.com/FieldQuantum/fieldqkit
+repo_name: FieldQuantum/fieldqkit
+edit_uri: edit/main/docs/
+docs_dir: docs
+
+theme:
+  name: material
+  language: zh
+  features:
+    - navigation.tracking
+    - navigation.top
+    - navigation.indexes
+    - navigation.sections
+    - search.suggest
+    - content.code.copy
+    - content.action.edit
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/weather-night
+        name: 切换到深色模式
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/weather-sunny
+        name: 切换到浅色模式
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.superfences
+  - pymdownx.details
+
+plugins:
+  - search
+
+# Navigation is auto-generated from the docs/ tree (each subfolder's README.md
+# acts as its section index). External tutorial notebooks are linked from the
+# docs pages and the project README.

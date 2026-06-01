@@ -30,6 +30,9 @@ htmlcov/
 examples/_artifacts/
 examples/**/_artifacts/
 
+# MkDocs build output
+site/
+
 # IDE
 .idea/
 .vscode/

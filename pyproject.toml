@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "fieldqkit"
-version = "0.1.0.dev1"
+version = "0.1.0.dev2"
 description = "User-facing interface for controlling quantum hardware"
 readme = "README.md"
 requires-python = ">=3.9"
@@ -42,6 +42,12 @@ origin = [
 test = [
   "pytest>=7.4",
 ]
+docs = [
+  "mkdocs-material>=9.5",
+]
+
+[project.scripts]
+fieldqkit-config-init = "fieldqkit.api.platform_credentials:_config_init_cli"
 
 [tool.setuptools]
 package-dir = {"" = "src"}
@@ -55,5 +61,5 @@ fieldqkit = ["circuit/include/*.inc"]
 [project.urls]
 Homepage = "https://github.com/FieldQuantum/fieldqkit"
 Repository = "https://github.com/FieldQuantum/fieldqkit"
-Documentation = "https://github.com/FieldQuantum/fieldqkit/tree/main/docs"
+Documentation = "https://fieldquantum.github.io/fieldqkit/"
 Issues = "https://github.com/FieldQuantum/fieldqkit/issues"

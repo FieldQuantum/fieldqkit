@@ -257,9 +257,9 @@ print(f"Generated {len(result.generated_samples)} samples")
 - [simulator interface — sample_probabilities](../sim/interface.md)
 - [statevector simulator](../sim/statevector.md)
 - [mps simulator](../sim/mps.md)
-- [QML 分类教程](../../examples/demo_qml_iris.ipynb)
-- [QNN BAS 教程](../../examples/demo_qnn_bas.ipynb)
-- [QNN 无监督教程](../../examples/demo_qnn_unsupervised.ipynb)
+- [QML 分类教程](https://github.com/FieldQuantum/fieldqkit/blob/main/examples/demo_qml_iris.ipynb)
+- [QNN BAS 教程](https://github.com/FieldQuantum/fieldqkit/blob/main/examples/demo_qnn_bas.ipynb)
+- [QNN 无监督教程](https://github.com/FieldQuantum/fieldqkit/blob/main/examples/demo_qnn_unsupervised.ipynb)
 
 ---
 

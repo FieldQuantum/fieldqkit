@@ -126,4 +126,4 @@ QAOA 与 VQE 共用 `optimizer_utils.py` 中的基础设施：
 
 - [VQERunner.run_model](./vqe_runner.md)
 - [result types — QAOAResult](../core/result_types.md)
-- [QAOA 教程 notebook](../../examples/demo_qaoa.ipynb)
+- [QAOA 教程 notebook](https://github.com/FieldQuantum/fieldqkit/blob/main/examples/demo_qaoa.ipynb)

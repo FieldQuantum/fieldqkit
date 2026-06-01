@@ -1,46 +1,55 @@
-# API 参考总览
+# 文档总览
+
+本目录分两层：**用户指南**帮助你安装、配置、跑通；**API 参考**面向二次开发。
+
+## 用户指南
+
+- [配置凭证 (Configuration)](./configuration.md) — 真机 token 的三种配置方式与查找优先级（本地模拟器无需配置）
+- 上手教程见下方 [教程入口（Notebook）](#教程入口notebook)；安装与快速开始见项目根 [README](https://github.com/FieldQuantum/fieldqkit/blob/main/README.md)
+
+## API 参考
 
 ## 教程入口（Notebook）
 
-- [全览入门：demo_full.ipynb](../examples/demo_full.ipynb)
+- [全览入门：demo_full.ipynb](https://github.com/FieldQuantum/fieldqkit/blob/main/examples/demo_full.ipynb)
 	- 对应： [QuantumHardwareClient](./api/QuantumHardwareClient.md)、[readout](./core/readout.md)、[zne](./core/zne.md)
-- [线路与 core：demo_circuit_core.ipynb](../examples/demo_circuit_core.ipynb)
+- [线路与 core：demo_circuit_core.ipynb](https://github.com/FieldQuantum/fieldqkit/blob/main/examples/demo_circuit_core.ipynb)
 	- 对应： [circuits builders](./core/circuits.md)、[observables](./core/observables.md)、[statevector simulator](./sim/statevector.md)
-- [Shadow：demo_shadow.ipynb](../examples/demo_shadow.ipynb)
+- [Shadow：demo_shadow.ipynb](https://github.com/FieldQuantum/fieldqkit/blob/main/examples/demo_shadow.ipynb)
 	- 对应： [ShadowTomography.run](./algorithms/shadow_tomography.md)、[observables](./core/observables.md)
-- [Readout + ZNE：demo_readout_zne.ipynb](../examples/demo_readout_zne.ipynb)
+- [Readout + ZNE：demo_readout_zne.ipynb](https://github.com/FieldQuantum/fieldqkit/blob/main/examples/demo_readout_zne.ipynb)
 	- 对应： [ReadoutCalibrationManager](./calibration/ReadoutCalibrationManager.md)、[readout](./core/readout.md)、[zne](./core/zne.md)
-- [Clifford fitting：demo_clifford_fitting.ipynb](../examples/demo_clifford_fitting.ipynb)
+- [Clifford fitting：demo_clifford_fitting.ipynb](https://github.com/FieldQuantum/fieldqkit/blob/main/examples/demo_clifford_fitting.ipynb)
 	- 对应： [QuantumHardwareClient.run_auto](./api/QuantumHardwareClient.md)、[clifford simulator](./sim/clifford.md)、[clifford+T simulator](./sim/clifford_t.md)
-- [VQE：demo_vqe.ipynb](../examples/demo_vqe.ipynb)
+- [VQE：demo_vqe.ipynb](https://github.com/FieldQuantum/fieldqkit/blob/main/examples/demo_vqe.ipynb)
 	- 对应： [VQERunner.run_model](./algorithms/vqe_runner.md)、[observables](./core/observables.md)
-- [QAOA：demo_qaoa.ipynb](../examples/demo_qaoa.ipynb)
+- [QAOA：demo_qaoa.ipynb](https://github.com/FieldQuantum/fieldqkit/blob/main/examples/demo_qaoa.ipynb)
 	- 对应： [QAOARunner.run_model](./algorithms/qaoa_runner.md)、[observables](./core/observables.md)
-- [QML Iris 分类：demo_qml_iris.ipynb](../examples/demo_qml_iris.ipynb)
+- [QML Iris 分类：demo_qml_iris.ipynb](https://github.com/FieldQuantum/fieldqkit/blob/main/examples/demo_qml_iris.ipynb)
 	- 对应： [QML — run_pqc_classifier](./algorithms/qml.md)
-- [QNN BAS 分布学习：demo_qnn_bas.ipynb](../examples/demo_qnn_bas.ipynb)
+- [QNN BAS 分布学习：demo_qnn_bas.ipynb](https://github.com/FieldQuantum/fieldqkit/blob/main/examples/demo_qnn_bas.ipynb)
 	- 对应： [QML — run_qnn_unsupervised](./algorithms/qml.md)
-- [QNN 无监督分布学习：demo_qnn_unsupervised.ipynb](../examples/demo_qnn_unsupervised.ipynb)
+- [QNN 无监督分布学习：demo_qnn_unsupervised.ipynb](https://github.com/FieldQuantum/fieldqkit/blob/main/examples/demo_qnn_unsupervised.ipynb)
 	- 对应： [QML — run_qnn_unsupervised](./algorithms/qml.md)
-- [Backend：demo_backend.ipynb](../examples/demo_backend.ipynb)
+- [Backend：demo_backend.ipynb](https://github.com/FieldQuantum/fieldqkit/blob/main/examples/demo_backend.ipynb)
 	- 对应： [hardware_discovery](./api/hardware_discovery.md)、[Backend](./api/Backend.md)
-- [含噪模拟：demo_noisy_simulation.ipynb](../examples/demo_noisy_simulation.ipynb)
+- [含噪模拟：demo_noisy_simulation.ipynb](https://github.com/FieldQuantum/fieldqkit/blob/main/examples/demo_noisy_simulation.ipynb)
 	- 对应： [density matrix simulator](./sim/density_matrix.md)、[noise kraus operators](./sim/noise_kraus.md)、[QuantumCircuit 噪声信道](./circuit/quantumcircuit.md)
 
 ## 学习路径（入门 → 进阶 → 硬件 → 优化）
 
-1. 入门： [全览入门：demo_full.ipynb](../examples/demo_full.ipynb)
-2. 进阶： [线路与 core：demo_circuit_core.ipynb](../examples/demo_circuit_core.ipynb)
-3. 硬件： [Readout + ZNE：demo_readout_zne.ipynb](../examples/demo_readout_zne.ipynb)
+1. 入门： [全览入门：demo_full.ipynb](https://github.com/FieldQuantum/fieldqkit/blob/main/examples/demo_full.ipynb)
+2. 进阶： [线路与 core：demo_circuit_core.ipynb](https://github.com/FieldQuantum/fieldqkit/blob/main/examples/demo_circuit_core.ipynb)
+3. 硬件： [Readout + ZNE：demo_readout_zne.ipynb](https://github.com/FieldQuantum/fieldqkit/blob/main/examples/demo_readout_zne.ipynb)
 4. 优化：
-	- [Shadow：demo_shadow.ipynb](../examples/demo_shadow.ipynb)
-	- [VQE：demo_vqe.ipynb](../examples/demo_vqe.ipynb)
-	- [QAOA：demo_qaoa.ipynb](../examples/demo_qaoa.ipynb)
+	- [Shadow：demo_shadow.ipynb](https://github.com/FieldQuantum/fieldqkit/blob/main/examples/demo_shadow.ipynb)
+	- [VQE：demo_vqe.ipynb](https://github.com/FieldQuantum/fieldqkit/blob/main/examples/demo_vqe.ipynb)
+	- [QAOA：demo_qaoa.ipynb](https://github.com/FieldQuantum/fieldqkit/blob/main/examples/demo_qaoa.ipynb)
 5. 量子机器学习：
-	- [QML Iris：demo_qml_iris.ipynb](../examples/demo_qml_iris.ipynb)
-	- [QNN BAS：demo_qnn_bas.ipynb](../examples/demo_qnn_bas.ipynb)
-	- [QNN 无监督：demo_qnn_unsupervised.ipynb](../examples/demo_qnn_unsupervised.ipynb)
-6. 拓扑补充： [Backend：demo_backend.ipynb](../examples/demo_backend.ipynb)
+	- [QML Iris：demo_qml_iris.ipynb](https://github.com/FieldQuantum/fieldqkit/blob/main/examples/demo_qml_iris.ipynb)
+	- [QNN BAS：demo_qnn_bas.ipynb](https://github.com/FieldQuantum/fieldqkit/blob/main/examples/demo_qnn_bas.ipynb)
+	- [QNN 无监督：demo_qnn_unsupervised.ipynb](https://github.com/FieldQuantum/fieldqkit/blob/main/examples/demo_qnn_unsupervised.ipynb)
+6. 拓扑补充： [Backend：demo_backend.ipynb](https://github.com/FieldQuantum/fieldqkit/blob/main/examples/demo_backend.ipynb)
 
 ## API
 
