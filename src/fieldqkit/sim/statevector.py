@@ -7,7 +7,7 @@ from typing import Dict, List, Sequence, Tuple
 import torch
 
 from ..circuit import QuantumCircuit
-from .matrix import ketn0
+from .matrix import ketn0, sim_complex_dtype
 from .common import (
     auto_sim_device,
     build_param_values_from_tensor,
@@ -132,7 +132,7 @@ def simulate_statevector(
     num_qubits = int(qc.nqubits)
     sim_device = auto_sim_device(device)
     if num_qubits <= 0:
-        return torch.tensor([1.0 + 0.0j], dtype=torch.complex128, device=sim_device)
+        return torch.tensor([1.0 + 0.0j], dtype=sim_complex_dtype(sim_device), device=sim_device)
 
     # Start from |0...0> and apply gates in circuit order.
     state = ketn0(num_qubits, device=sim_device).reshape(-1)

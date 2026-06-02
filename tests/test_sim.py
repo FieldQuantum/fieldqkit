@@ -14,6 +14,7 @@ from fieldqkit.circuit.quantumcircuit_helpers import (
     two_qubit_parameter_gates_available,
 )
 from fieldqkit.sim.common import materialize_gate_matrix, resolve_param
+from fieldqkit.sim.matrix import ketn0, sim_complex_dtype, sim_real_dtype
 import fieldqkit.sim.common as sim_common
 from fieldqkit.sim.mpo import simulate_mpo_process
 from fieldqkit.sim.mps import simulate_mps
@@ -580,6 +581,53 @@ class TestAutoSimDevice:
         d = auto_sim_device(None)
 
         assert d == torch.device("cuda:2")
+
+
+class TestSimDtype:
+    """Device-aware precision: MPS lacks float64/complex128, so the simulators
+    fall back to single precision there and keep double precision elsewhere."""
+
+    def test_complex_dtype_mps_is_single_precision(self):
+        assert sim_complex_dtype("mps") == torch.complex64
+
+    def test_real_dtype_mps_is_single_precision(self):
+        assert sim_real_dtype("mps") == torch.float32
+
+    @pytest.mark.parametrize("device", ["cpu", None])
+    def test_complex_dtype_default_is_double_precision(self, device):
+        assert sim_complex_dtype(device) == torch.complex128
+
+    @pytest.mark.parametrize("device", ["cpu", None])
+    def test_real_dtype_default_is_double_precision(self, device):
+        assert sim_real_dtype(device) == torch.float64
+
+    def test_ketn0_uses_double_precision_on_cpu(self):
+        assert ketn0(3, device="cpu").dtype == torch.complex128
+
+    @pytest.mark.skipif(
+        not (hasattr(torch.backends, "mps") and torch.backends.mps.is_available()),
+        reason="requires Apple MPS",
+    )
+    def test_ketn0_uses_single_precision_on_mps(self):
+        # ketn0 must build the state in the device-appropriate dtype, otherwise
+        # moving a complex128 |0...0> onto MPS raises a TypeError (issue #3).
+        # Allocating on MPS requires an MPS-linked torch build, hence the guard.
+        assert ketn0(3, device="mps").dtype == torch.complex64
+
+    @pytest.mark.skipif(
+        not (hasattr(torch.backends, "mps") and torch.backends.mps.is_available()),
+        reason="requires Apple MPS",
+    )
+    def test_statevector_runs_on_mps(self):
+        # End-to-end guard for issue #3: a parameterized circuit (exercises the
+        # float64 angle path) must simulate on MPS without dtype errors.
+        qc = QuantumCircuit(3)
+        qc.h(0)
+        qc.rx(0.5, 1)
+        qc.cx(0, 2)
+        state = simulate_statevector(qc, device="mps")
+        assert state.dtype == torch.complex64
+        assert state.device.type == "mps"
 
 
 class TestSinglePauli:

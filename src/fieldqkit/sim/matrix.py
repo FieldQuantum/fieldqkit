@@ -23,6 +23,36 @@ def _complex_dtype(dtype: torch.dtype | None) -> torch.dtype:
     return torch.complex128
 
 
+def sim_complex_dtype(device: torch.device | str | None) -> torch.dtype:
+    """Pick the complex dtype a backend should use on *device*.
+
+    Args:
+        device (*torch.device | str | None*): Target device. ``None`` is treated
+            as CPU (double precision).
+
+    Returns:
+        ``torch.complex64`` on MPS, otherwise ``torch.complex128``.
+    """
+    if device is not None and torch.device(device).type == "mps":
+        return torch.complex64
+    return torch.complex128
+
+
+def sim_real_dtype(device: torch.device | str | None) -> torch.dtype:
+    """Real-valued counterpart of :func:`sim_complex_dtype` for *device*.
+
+    Args:
+        device (*torch.device | str | None*): Target device. ``None`` is treated
+            as CPU (double precision).
+
+    Returns:
+        ``torch.float32`` on MPS, otherwise ``torch.float64``.
+    """
+    if device is not None and torch.device(device).type == "mps":
+        return torch.float32
+    return torch.float64
+
+
 def _as_tensor(x, *, device: torch.device | None, dtype: torch.dtype | None):
     """Convert a scalar or array to a torch tensor, preserving existing tensor dtype.
 
@@ -40,18 +70,18 @@ def _as_tensor(x, *, device: torch.device | None, dtype: torch.dtype | None):
 
 
 def _as_angle(theta, *, device: torch.device | None):
-    """Convert a rotation angle to a float64 tensor on the given device.
+    """Convert a rotation angle to a real-valued tensor on the given device.
 
     Args:
         theta: Rotation angle in radians (scalar or tensor).
         device (*torch.device | None*): Target device.
 
     Returns:
-        ``torch.Tensor`` of dtype ``float64``.
+        Real-valued ``torch.Tensor`` (``float64``, or ``float32`` on MPS).
     """
     if isinstance(theta, torch.Tensor):
         return theta.to(device=device)
-    return torch.tensor(float(theta), device=device, dtype=torch.float64)
+    return torch.tensor(float(theta), device=device, dtype=sim_real_dtype(device))
 
 
 ket0 = torch.tensor([[1.0], [0.0]], dtype=torch.complex128)
@@ -68,7 +98,7 @@ def ketn0(nqubits: int, *, device: torch.device | str | None = None) -> torch.Te
     Returns:
         Torch tensor of shape ``(2**nqubits, 1)``.
     """
-    k0 = ket0 if device is None else ket0.to(device=device)
+    k0 = ket0.to(device=device, dtype=sim_complex_dtype(device))
     state = k0
     for _ in range(nqubits - 1):
         state = torch.kron(state, k0)
@@ -85,7 +115,7 @@ def ketn1(nqubits: int, *, device: torch.device | str | None = None) -> torch.Te
     Returns:
         Torch tensor of shape ``(2**nqubits, 1)``.
     """
-    k1 = ket1 if device is None else ket1.to(device=device)
+    k1 = ket1.to(device=device, dtype=sim_complex_dtype(device))
     state = k1
     for _ in range(nqubits - 1):
         state = torch.kron(state, k1)
