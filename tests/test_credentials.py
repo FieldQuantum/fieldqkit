@@ -133,3 +133,164 @@ class TestUserConfigDiscovery:
         monkeypatch.setattr(pc, "_load_config", lambda *a, **k: {})
         monkeypatch.setenv("TIANYAN_API_TOKEN", "env-token")
         assert pc.get_tianyan_api_token() == "env-token"
+
+
+# ─────────────────────────────────────────────────────────────
+#  Credential resolution: precedence, all platforms, boundaries
+# ─────────────────────────────────────────────────────────────
+
+# (getter, platform key, config section, env var) for all six platforms.
+_PLATFORM_GETTERS = [
+    (pc.get_quafu_api_token, "quafu", "quafu", "QUAFU_API_TOKEN"),
+    (pc.get_tianyan_api_token, "tianyan", "tianyan", "TIANYAN_API_TOKEN"),
+    (pc.get_guodun_api_token, "guodun", "guodun", "GUODUN_API_TOKEN"),
+    (pc.get_tencent_api_token, "tencent", "tencent", "TENCENT_API_TOKEN"),
+    (pc.get_origin_api_token, "origin", "origin", "ORIGIN_API_TOKEN"),
+    (pc.get_fieldquantum_api_token, "fieldquantum", "fieldquantum", "FIELDQUANTUM_API_TOKEN"),
+]
+
+_ALL_ENV_VARS = [env for _, _, _, env in _PLATFORM_GETTERS]
+
+
+def _no_config(monkeypatch):
+    """Force credential lookup to behave as if no config file exists anywhere."""
+    monkeypatch.setattr(pc, "_load_config", lambda *a, **k: {})
+
+
+def _clear_all_token_env(monkeypatch):
+    for env in _ALL_ENV_VARS:
+        monkeypatch.delenv(env, raising=False)
+
+
+class TestCredentialPrecedence:
+    @pytest.mark.parametrize("getter,key,section,env", _PLATFORM_GETTERS)
+    def test_env_var_fallback_all_platforms(self, monkeypatch, getter, key, section, env):
+        """Every platform falls back to its env var when no config file exists."""
+        _no_config(monkeypatch)
+        _clear_all_token_env(monkeypatch)
+        monkeypatch.setenv(env, f"{key}-env-token")
+        assert getter() == f"{key}-env-token"
+
+    @pytest.mark.parametrize("getter,key,section,env", _PLATFORM_GETTERS)
+    def test_config_file_takes_priority_over_env(self, monkeypatch, getter, key, section, env):
+        """Config-file value wins even when the env var is also set."""
+        monkeypatch.setattr(
+            pc, "_load_config",
+            lambda *a, **k: {"credentials": {section: {"api_token": f"{key}-cfg"}}},
+        )
+        monkeypatch.setenv(env, f"{key}-env")
+        assert getter() == f"{key}-cfg"
+
+    @pytest.mark.parametrize("getter,key,section,env", _PLATFORM_GETTERS)
+    def test_empty_config_token_falls_through_to_env(self, monkeypatch, getter, key, section, env):
+        """An empty token in the config file is treated as absent (env wins)."""
+        monkeypatch.setattr(
+            pc, "_load_config",
+            lambda *a, **k: {"credentials": {section: {"api_token": ""}}},
+        )
+        monkeypatch.setenv(env, f"{key}-env-after-empty")
+        assert getter() == f"{key}-env-after-empty"
+
+    @pytest.mark.parametrize("getter,key,section,env", _PLATFORM_GETTERS)
+    def test_missing_credential_raises_helpful_error(self, monkeypatch, getter, key, section, env):
+        """With neither config nor env, a ValueError naming the env var is raised."""
+        _no_config(monkeypatch)
+        _clear_all_token_env(monkeypatch)
+        with pytest.raises(ValueError) as excinfo:
+            getter()
+        msg = str(excinfo.value)
+        assert env in msg
+        assert "fieldqkit-config-init" in msg
+
+    def test_platform_key_is_case_sensitive(self, monkeypatch):
+        """Credential map keys are lowercase; an uppercased key is unknown."""
+        with pytest.raises(KeyError):
+            pc._get_credential("QUAFU")
+
+    def test_credential_map_covers_exactly_six_platforms(self):
+        assert set(pc._CREDENTIAL_MAP) == {
+            "quafu", "tianyan", "guodun", "tencent", "origin", "fieldquantum"
+        }
+        # Labels exist for every mapped platform (used in the error message).
+        assert set(pc._PLATFORM_LABELS) == set(pc._CREDENTIAL_MAP)
+
+
+class TestConfigFileDiscoveryBoundaries:
+    def test_explicit_env_config_takes_priority(self, monkeypatch, tmp_path):
+        """$QUANTUM_HW_CONFIG points at a valid file -> its tokens are used."""
+        pytest.importorskip("yaml")
+        cfg = tmp_path / "explicit.yaml"
+        cfg.write_text(
+            "credentials:\n  guodun:\n    api_token: explicit-token\n",
+            encoding="utf-8",
+        )
+        monkeypatch.setenv("QUANTUM_HW_CONFIG", str(cfg))
+        _clear_all_token_env(monkeypatch)
+        pc._cached_config = None
+        assert pc.get_guodun_api_token() == "explicit-token"
+
+    def test_config_absent_uses_env(self, monkeypatch, tmp_path):
+        """When the only candidate is an absent file, env var is the source."""
+        # Point the explicit override at a non-existent path, and isolate
+        # home/cwd to empty tmp dirs so no real config is discovered.
+        missing = tmp_path / "does_not_exist.yaml"
+        empty_home = tmp_path / "home"
+        empty_cwd = tmp_path / "cwd"
+        empty_home.mkdir()
+        empty_cwd.mkdir()
+        monkeypatch.setattr(pc.Path, "home", staticmethod(lambda: empty_home))
+        monkeypatch.setattr(pc.Path, "cwd", staticmethod(lambda: empty_cwd))
+        # Restrict candidates to just the (missing) explicit path so the
+        # developer's real package-dir config can never be picked up.
+        monkeypatch.setattr(pc, "_iter_config_candidates", lambda: [missing])
+        _clear_all_token_env(monkeypatch)
+        monkeypatch.setenv("ORIGIN_API_TOKEN", "origin-env")
+        pc._cached_config = None
+        assert pc.get_origin_api_token() == "origin-env"
+
+    def test_malformed_yaml_handled_gracefully(self, monkeypatch, tmp_path):
+        """A malformed config file is skipped (logged, not raised)."""
+        pytest.importorskip("yaml")
+        bad = tmp_path / "bad.yaml"
+        bad.write_text("credentials: [unclosed", encoding="utf-8")
+        # Only candidate is the malformed file -> _load_config returns {} and
+        # never falls through to the developer's real config.
+        monkeypatch.setattr(pc, "_iter_config_candidates", lambda: [bad])
+        pc._cached_config = None
+        assert pc._load_config() == {}
+
+    def test_write_then_read_back_roundtrip(self, monkeypatch, tmp_path):
+        """write_example_config produces a file _load_config can discover."""
+        pytest.importorskip("yaml")
+        target = tmp_path / "roundtrip.yaml"
+        written = pc.write_example_config(target)
+        assert written == target
+        monkeypatch.setattr(pc, "_iter_config_candidates", lambda: [target])
+        pc._cached_config = None
+        cfg = pc._load_config()
+        assert set(cfg["credentials"]) == set(pc._CREDENTIAL_MAP)
+        # Template tokens are empty, so a getter on it falls back to ValueError
+        # when no env var is set.
+        _clear_all_token_env(monkeypatch)
+        with pytest.raises(ValueError):
+            pc.get_quafu_api_token()
+
+    def test_write_example_config_default_path(self, monkeypatch, tmp_path):
+        """With no path, write_example_config targets ~/.quantum_hw.yaml."""
+        fake_home = tmp_path / "home"
+        fake_home.mkdir()
+        monkeypatch.setattr(pc.Path, "home", staticmethod(lambda: fake_home))
+        written = pc.write_example_config()
+        assert written == fake_home / ".quantum_hw.yaml"
+        assert written.is_file()
+
+    def test_force_overwrites_existing_via_write_example(self, tmp_path):
+        target = tmp_path / "creds.yaml"
+        pc.write_example_config(target)
+        # FileExistsError without force.
+        with pytest.raises(FileExistsError):
+            pc.write_example_config(target)
+        # Overwrites with force.
+        target.write_text("garbage", encoding="utf-8")
+        pc.write_example_config(target, force=True)
+        assert "credentials:" in target.read_text(encoding="utf-8")

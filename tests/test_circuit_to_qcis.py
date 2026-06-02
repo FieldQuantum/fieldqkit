@@ -273,3 +273,101 @@ def test_unsupported_gate_raises():
     ).run(qc)
     with pytest.raises(NotImplementedError):
         circuit_to_qcis(translated)
+
+
+# ---------------------------------------------------------------------------
+# Boundary cases
+# ---------------------------------------------------------------------------
+
+def test_empty_circuit_produces_empty_qcis():
+    qc = QuantumCircuit(0)
+    assert circuit_to_qcis(qc) == ""
+
+
+def test_single_qubit_no_gates_produces_empty_qcis():
+    qc = QuantumCircuit(1)
+    assert circuit_to_qcis(qc) == ""
+
+
+def test_identity_gate_produces_idle_instruction():
+    qc = QuantumCircuit(1)
+    qc.id(0)
+    qcis = circuit_to_qcis(qc)
+    lines = _lines(qcis)
+    assert any(l.startswith("I Q0") for l in lines)
+
+
+def test_instruction_str_formatting():
+    from fieldqkit.circuit.qcis import Instruction
+    assert str(Instruction("cz", [0, 1])) == "CZ Q0 Q1"
+    assert str(Instruction("m", [3])) == "M Q3"
+    assert str(Instruction("i", [2], [60])) == "I Q2 60"
+
+
+def test_instruction_rz_clamps_exact_pi():
+    from fieldqkit.circuit.qcis import Instruction
+    s = str(Instruction("rz", [0], [math.pi]))
+    val = float(s.split()[-1])
+    assert -math.pi < val < math.pi
+
+
+# ---------------------------------------------------------------------------
+# Large-scale conversion
+# ---------------------------------------------------------------------------
+
+def test_wide_circuit_conversion_20_qubits():
+    n = 20
+    qc = QuantumCircuit(n)
+    for i in range(n):
+        qc.h(i)
+    for i in range(n - 1):
+        qc.cx(i, i + 1)
+    qc.measure_all()
+
+    translated = _translate(qc)
+    qcis = circuit_to_qcis(translated)
+    lines = _lines(qcis)
+
+    m_lines = [l for l in lines if l.startswith("M ")]
+    assert len(m_lines) == n
+    # n-1 CX gates each decompose through one CZ
+    cz_lines = [l for l in lines if l.startswith("CZ ")]
+    assert len(cz_lines) == n - 1
+
+
+def test_deep_circuit_conversion_many_rz():
+    n = 4
+    layers = 50
+    qc = QuantumCircuit(n)
+    for _ in range(layers):
+        for i in range(n):
+            qc.rz(0.1, i)
+
+    qcis = circuit_to_qcis(qc)
+    lines = _lines(qcis)
+    rz_lines = [l for l in lines if l.startswith("RZ ")]
+    assert len(rz_lines) == layers * n
+
+
+def test_measure_all_on_wide_circuit_emits_one_m_per_qubit():
+    n = 16
+    qc = QuantumCircuit(n)
+    for i in range(n):
+        qc.h(i)
+    qc.measure_all()
+
+    qcis = circuit_to_qcis(_translate(qc))
+    lines = _lines(qcis)
+    m_lines = [l for l in lines if l.startswith("M ")]
+    assert len(m_lines) == n
+
+
+def test_deep_multi_qubit_delay_conversion():
+    n = 10
+    qc = QuantumCircuit(n)
+    qc.delay(100, *range(n), unit="ns")
+    qcis = circuit_to_qcis(_translate(qc))
+    lines = _lines(qcis)
+    i_lines = [l for l in lines if l.startswith("I ")]
+    assert len(i_lines) == n
+    assert all(l.endswith(" 100") for l in i_lines)

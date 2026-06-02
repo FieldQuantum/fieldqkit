@@ -1412,3 +1412,241 @@ def test_circuit_aware_layout_prefers_matching_topology():
     selected = list(subgraph.nodes())
     # Should select the higher-fidelity chain (3,4,5)
     assert set(selected) == {3, 4, 5}
+
+
+# ════════════════════════════════════════════════════════════════════
+#  Appended: large-scale routing invariants & boundary cases
+# ════════════════════════════════════════════════════════════════════
+
+
+def _grid_graph(rows, cols):
+    """Build an integer-labelled rows×cols grid coupling graph."""
+    g = nx.grid_2d_graph(rows, cols)
+    mapping = {node: i for i, node in enumerate(sorted(g.nodes()))}
+    g = nx.relabel_nodes(g, mapping)
+    g.graph["normal_order"] = list(range(rows * cols))
+    return g
+
+
+def _all_two_qubit_adjacent(routed, g):
+    """Every routed cx/cz/swap must act on physically adjacent qubits."""
+    for gate in routed.gates:
+        if gate[0] in ("cx", "cz", "swap", "iswap", "ecr"):
+            assert g.has_edge(gate[1], gate[2]), (
+                f"{gate[0]}({gate[1]},{gate[2]}) on non-adjacent physical qubits"
+            )
+
+
+def test_routing_single_qubit_graph_no_swap():
+    """Boundary: 1-qubit circuit on a 1-node graph routes with no swaps."""
+    g = nx.Graph()
+    g.add_node(0)
+    g.graph["normal_order"] = [0]
+    qc = QuantumCircuit(1, 1)
+    qc.h(0)
+    qc.rz(0.5, 0)
+    qc.measure(0, 0)
+    routed = SabreRouting(g, iterations=3).run(qc)
+    assert routed.nqubits >= 1
+    assert not any(gate[0] == "swap" for gate in routed.gates)
+    assert "h" in [gate[0] for gate in routed.gates]
+
+
+def test_routing_already_adjacent_line_no_swaps():
+    """Boundary: an already-routed line circuit (trivial map) gets no swaps."""
+    g = _make_line_graph(6)
+    qc = QuantumCircuit(6, 6)
+    for i in range(5):
+        qc.cx(i, i + 1)
+    qc.measure(list(range(6)), list(range(6)))
+    for niter in (1, 5):
+        routed = SabreRouting(g, initial_mapping="trivial", iterations=niter).run(qc)
+        assert not any(gate[0] == "swap" for gate in routed.gates), f"iterations={niter}"
+        assert sum(1 for gate in routed.gates if gate[0] == "cx") == 5
+
+
+def test_routing_preserves_two_qubit_gate_count_line():
+    """Routing never adds or drops logical 2-qubit gates (only inserts swaps)."""
+    g = _make_line_graph(7)
+    qc = QuantumCircuit(7, 7)
+    pairs = [(0, 6), (1, 5), (2, 4), (0, 3), (1, 6), (2, 5)]
+    for a, b in pairs:
+        qc.cx(a, b)
+    qc.measure(list(range(7)), list(range(7)))
+    routed = SabreRouting(g, iterations=5).run(qc)
+    assert sum(1 for gate in routed.gates if gate[0] == "cx") == len(pairs)
+    _all_two_qubit_adjacent(routed, g)
+
+
+def test_routing_wide_deep_line_adjacency_invariant():
+    """Large-scale: 20-qubit, deep circuit on a line — all 2q gates adjacent."""
+    import random
+
+    random.seed(7)
+    g = _make_line_graph(20)
+    qc = QuantumCircuit(20, 20)
+    n_cx = 0
+    for _ in range(60):
+        a, b = random.sample(range(20), 2)
+        qc.cx(a, b)
+        n_cx += 1
+    qc.measure(list(range(20)), list(range(20)))
+    routed = SabreRouting(g, iterations=5).run(qc)
+    assert routed.nqubits == 20
+    _all_two_qubit_adjacent(routed, g)
+    assert sum(1 for gate in routed.gates if gate[0] == "cx") == n_cx
+
+
+def test_routing_wide_deep_grid_adjacency_invariant():
+    """Large-scale: 24-qubit deep circuit on a 4x6 grid — all 2q gates adjacent."""
+    import random
+
+    random.seed(11)
+    g = _grid_graph(4, 6)  # 24 qubits
+    qc = QuantumCircuit(24, 24)
+    n_cx = 0
+    for _ in range(70):
+        a, b = random.sample(range(24), 2)
+        qc.cx(a, b)
+        n_cx += 1
+    qc.measure(list(range(24)), list(range(24)))
+    routed = SabreRouting(g, iterations=5).run(qc)
+    assert routed.nqubits == 24
+    _all_two_qubit_adjacent(routed, g)
+    assert sum(1 for gate in routed.gates if gate[0] == "cx") == n_cx
+
+
+def test_routing_constrained_topology_forces_swaps():
+    """A line graph with conflicting long-range interactions must insert swaps."""
+    g = _make_line_graph(6)
+    qc = QuantumCircuit(6, 6)
+    pairs = [(0, 3), (1, 4), (2, 5), (0, 5), (1, 3), (2, 4), (0, 4), (1, 5)]
+    for a, b in pairs:
+        qc.cx(a, b)
+    qc.measure(list(range(6)), list(range(6)))
+    routed = SabreRouting(g, iterations=5).run(qc)
+    assert any(gate[0] == "swap" for gate in routed.gates)
+    _all_two_qubit_adjacent(routed, g)
+
+
+def test_n_trials_reduces_swaps_on_hard_circuit():
+    """More trials should never produce more swaps than a single trial."""
+    import random
+
+    g = _make_line_graph(7)
+    qc = QuantumCircuit(7, 7)
+    pairs = [(0, 6), (1, 5), (2, 4), (0, 3), (1, 6), (2, 5)]
+    for a, b in pairs:
+        qc.cx(a, b)
+    qc.measure(list(range(7)), list(range(7)))
+    for seed in range(3):
+        random.seed(seed)
+        single = SabreRouting(
+            g, iterations=5, n_trials=1, do_random_choice=True, initial_mapping="random"
+        ).run(qc)
+        random.seed(seed)
+        multi = SabreRouting(
+            g, iterations=5, n_trials=12, do_random_choice=True, initial_mapping="random"
+        ).run(qc)
+        s_single = sum(1 for gate in single.gates if gate[0] == "swap")
+        s_multi = sum(1 for gate in multi.gates if gate[0] == "swap")
+        assert s_multi <= s_single, f"seed={seed}: multi={s_multi} > single={s_single}"
+
+
+def test_routing_logical_to_physical_bijection_large():
+    """On a large line graph the logical↔physical maps stay valid bijections."""
+    g = _make_line_graph(20)
+    qc = QuantumCircuit(20, 20)
+    for i in range(0, 19, 3):
+        qc.cx(i, i + 1)
+    qc.cx(0, 19)
+    qc.measure(list(range(20)), list(range(20)))
+    routed = SabreRouting(g, iterations=5).run(qc)
+    l2p = routed.logical_to_physical
+    p2l = routed.physical_to_logical
+    assert set(l2p.values()) == set(p2l.keys())
+    assert set(l2p.keys()) == set(p2l.values())
+    for v, p in l2p.items():
+        assert p2l[p] == v
+
+
+def test_routing_grid_swaps_use_grid_edges():
+    """On a grid, inserted swaps connect physically adjacent grid qubits."""
+    import random
+
+    random.seed(5)
+    g = _grid_graph(3, 4)  # 12 qubits
+    qc = QuantumCircuit(12, 12)
+    for _ in range(40):
+        a, b = random.sample(range(12), 2)
+        qc.cx(a, b)
+    qc.measure(list(range(12)), list(range(12)))
+    routed = SabreRouting(g, iterations=5).run(qc)
+    nodes = set(g.nodes())
+    saw_swap = False
+    for gate in routed.gates:
+        if gate[0] == "swap":
+            saw_swap = True
+            assert gate[1] in nodes and gate[2] in nodes
+            assert g.has_edge(gate[1], gate[2])
+    # This deep, conflict-heavy problem requires at least one swap.
+    assert saw_swap
+
+
+# ════════════════════════════════════════════════════════════════════
+#  Appended: GateCompressor on larger circuits
+# ════════════════════════════════════════════════════════════════════
+
+
+def test_compressor_collapses_long_single_qubit_run():
+    """A long run of single-qubit gates on one qubit collapses to a single u."""
+    qc = QuantumCircuit(1, 1)
+    for _ in range(20):
+        qc.h(0)
+        qc.t(0)
+        qc.s(0)
+    gc = GateCompressor()
+    merged = gc.merge_single_qubit_runs(qc)
+    non_functional = [g for g in merged.gates if g[0] not in ("measure", "barrier")]
+    assert len(non_functional) == 1
+    assert non_functional[0][0] == "u"
+
+
+def test_compressor_preserves_unitary_wide_circuit():
+    """GateCompressor.run() preserves the unitary of a 4-qubit translated circuit."""
+    qc = QuantumCircuit(4, 4)
+    qc.h(0); qc.x(1); qc.rz(0.3, 2); qc.ry(0.4, 3)
+    qc.cz(0, 1); qc.cz(2, 3)
+    qc.h(0); qc.s(1); qc.t(2); qc.x(3)
+    qc.cz(1, 2)
+    qc.rz(0.7, 0); qc.h(3)
+    translated = TranslateToBasisGates(
+        convert_single_qubit_gate_to_u=True, two_qubit_gate_basis="cz"
+    ).run(qc)
+    compressed = GateCompressor().run(translated)
+    assert _unitary_equiv(translated, compressed)
+    # Compression should not increase the gate count.
+    assert len(compressed.gates) <= len(translated.gates)
+
+
+def test_compressor_idempotent_on_compressed_circuit():
+    """Running GateCompressor a second time does not change a compressed circuit."""
+    qc = QuantumCircuit(3, 3)
+    qc.h(0); qc.cz(0, 1); qc.x(0); qc.cz(1, 2); qc.rz(0.5, 0)
+    translated = TranslateToBasisGates(
+        convert_single_qubit_gate_to_u=True, two_qubit_gate_basis="cz"
+    ).run(qc)
+    once = GateCompressor().run(translated)
+    twice = GateCompressor().run(once)
+    assert [g[0] for g in once.gates] == [g[0] for g in twice.gates]
+    assert _unitary_equiv(once, twice)
+
+
+def test_compressor_cancels_cz_pair_through_disjoint_block():
+    """A CZ pair separated only by gates on disjoint qubits cancels."""
+    qc = QuantumCircuit(5, 5)
+    qc.cz(0, 1)
+    qc.h(2); qc.h(3); qc.cx(2, 3); qc.rz(0.3, 4)
+    qc.cz(0, 1)
+    result = GateCompressor().run(qc)
+    assert not any(g[0] == "cz" for g in result.gates)

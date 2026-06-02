@@ -414,3 +414,272 @@ class TestTomographyEndToEnd:
         ideal_choi = mgr._ptm_to_choi(np.eye(16))
         assert np.allclose(choi, ideal_choi, atol=0.15)
         assert (tmp_path / "tomo_two_qubit_simulator.json").exists()
+
+
+# ─────────────────────────────────────────────────────────────
+#  build_confusion_matrix — larger scale & invariants
+# ─────────────────────────────────────────────────────────────
+
+class TestConfusionMatrixLargeScale:
+    @pytest.mark.parametrize("n", [1, 2, 3, 6, 8])
+    def test_perfect_readout_identity_for_n_qubits(self, n):
+        """Preparing each basis state perfectly yields the identity confusion
+        matrix for up to 8 qubits (256x256)."""
+        dim = 2 ** n
+        res_list = [{format(i, f"0{n}b"): 1000} for i in range(dim)]
+        mat = build_confusion_matrix(res_list, num_qubits=n)
+        assert mat.shape == (dim, dim)
+        assert np.allclose(mat, np.eye(dim))
+
+    @pytest.mark.parametrize("n", [2, 3, 6])
+    def test_rows_are_probability_distributions(self, n):
+        """Every row of an arbitrary noisy confusion matrix is a valid
+        probability distribution (non-negative, sums to 1)."""
+        rng = np.random.default_rng(11)
+        dim = 2 ** n
+        res_list = []
+        for _ in range(dim):
+            counts = rng.integers(1, 50, size=dim)
+            res_list.append({format(j, f"0{n}b"): int(counts[j]) for j in range(dim)})
+        mat = build_confusion_matrix(res_list, num_qubits=n)
+        assert mat.shape == (dim, dim)
+        assert (mat >= 0).all()
+        assert np.allclose(mat.sum(axis=1), 1.0)
+
+    def test_noisy_two_qubit_rows_sum_to_one(self):
+        res_list = [
+            {"00": 800, "01": 100, "10": 50, "11": 50},
+            {"01": 900, "00": 100},
+            {"10": 950, "00": 50},
+            {"11": 990, "10": 10},
+        ]
+        mat = build_confusion_matrix(res_list, num_qubits=2)
+        assert np.allclose(mat.sum(axis=1), 1.0)
+        # Diagonal entries are the "prepared == measured" probabilities.
+        assert np.allclose(np.diag(mat), [0.8, 0.9, 0.95, 0.99])
+
+
+# ─────────────────────────────────────────────────────────────
+#  Readout mitigation invariants (core.readout building blocks)
+# ─────────────────────────────────────────────────────────────
+
+class TestReadoutMitigationInvariants:
+    def test_mitigation_of_perfect_calibration_is_identity(self):
+        from fieldqkit.core.readout import mitigate_readout
+        probs = np.array([0.1, 0.2, 0.3, 0.4])
+        out = mitigate_readout(probs, np.eye(4))
+        assert np.allclose(out, probs)
+
+    def test_mitigation_recovers_true_distribution(self):
+        """With the exact confusion matrix, mitigation inverts the readout
+        noise back to the true distribution."""
+        from fieldqkit.core.readout import mitigate_readout
+        # Row i = measured-given-prepared, so measured = C^T @ p_true.
+        cm = np.array([[0.9, 0.1], [0.05, 0.95]])
+        true = np.array([0.7, 0.3])
+        measured = cm.T @ true
+        recovered = mitigate_readout(measured, cm.T)
+        assert np.allclose(recovered, true, atol=1e-9)
+
+    def test_mitigation_output_is_a_distribution(self):
+        from fieldqkit.core.readout import mitigate_readout
+        cm = np.array([[0.85, 0.15], [0.2, 0.8]])
+        out = mitigate_readout(np.array([0.6, 0.4]), cm)
+        assert (out >= 0).all()
+        assert out.sum() == pytest.approx(1.0)
+
+    def test_mitigation_rejects_non_square(self):
+        from fieldqkit.core.readout import mitigate_readout
+        with pytest.raises(ValueError, match="must be square"):
+            mitigate_readout(np.array([0.5, 0.5]), np.ones((2, 3)))
+
+    @pytest.mark.parametrize("n", [1, 4, 8])
+    def test_local_confusion_kron_identity(self, n):
+        """Tensoring n identity per-qubit matrices yields the 2^n identity."""
+        from fieldqkit.core.readout import build_local_confusion_matrix
+        per = {q: np.eye(2) for q in range(n)}
+        out = build_local_confusion_matrix(per, list(range(n)))
+        dim = 2 ** n
+        assert out.shape == (dim, dim)
+        assert np.allclose(out, np.eye(dim))
+
+    def test_local_confusion_empty_raises(self):
+        from fieldqkit.core.readout import build_local_confusion_matrix
+        with pytest.raises(ValueError, match="empty"):
+            build_local_confusion_matrix({}, [])
+
+
+# ─────────────────────────────────────────────────────────────
+#  ReadoutCalibrationManager — boundary & larger scale
+# ─────────────────────────────────────────────────────────────
+
+class TestReadoutCalibrationBoundary:
+    def test_single_qubit_readout_is_identity(self, tmp_path):
+        mgr = _make_readout_manager(tmp_path)
+        result = mgr.calibrate_readout([3], shots=256, chip_name="simulator", backend=_FakeBackend())
+        assert result.target_qubits == [3]
+        mat = np.asarray(result.per_qubit_confusion[3])
+        assert mat.shape == (2, 2)
+        assert np.allclose(mat, np.eye(2))
+        # Each per-qubit confusion matrix row is a valid distribution.
+        assert np.allclose(mat.sum(axis=1), 1.0)
+
+    def test_eight_qubit_readout_all_identity(self, tmp_path):
+        """Larger-scale: calibrate 8 qubits at once; each is an identity 2x2."""
+        mgr = _make_readout_manager(tmp_path)
+        qubits = list(range(8))
+        result = mgr.calibrate_readout(qubits, shots=128, chip_name="simulator", backend=_FakeBackend())
+        assert sorted(result.target_qubits) == qubits
+        for q in qubits:
+            mat = np.asarray(result.per_qubit_confusion[q])
+            assert np.allclose(mat, np.eye(2)), f"qubit {q} not identity"
+            assert np.allclose(mat.sum(axis=1), 1.0)
+
+    def test_empty_target_qubits_returns_empty(self, tmp_path):
+        """An explicit empty qubit list calibrates nothing (no error)."""
+        mgr = _make_readout_manager(tmp_path)
+        result = mgr.calibrate_readout([], shots=128, chip_name="simulator", backend=_FakeBackend())
+        assert list(result.target_qubits) == []
+        assert result.per_qubit_confusion == {}
+
+    def test_resolve_target_qubits_missing_attribute_raises(self, tmp_path):
+        """No explicit qubits and no backend metadata -> RuntimeError."""
+        mgr = _make_readout_manager(tmp_path)
+        with pytest.raises(RuntimeError, match="qubits_with_attributes is missing"):
+            mgr.calibrate_readout(None, shots=64, chip_name="simulator", backend=_FakeBackend())
+
+
+# ─────────────────────────────────────────────────────────────
+#  NativeTwoQubitRBManager — boundary & larger scale
+# ─────────────────────────────────────────────────────────────
+
+class TestNativeTwoQubitRBExtra:
+    def test_fit_decay_empty_is_underdetermined(self, tmp_path):
+        mgr = _make_rb_manager(tmp_path)
+        fit = mgr._fit_decay([], [])
+        assert fit["p"] is None and fit["fidelity"] is None and fit["epc"] is None
+        assert fit["B"] == pytest.approx(0.25)
+
+    def test_fit_decay_single_point_is_underdetermined(self, tmp_path):
+        mgr = _make_rb_manager(tmp_path)
+        fit = mgr._fit_decay([1], [0.9])
+        assert fit["p"] is None and fit["fidelity"] is None
+
+    def test_fit_decay_parameters_in_sane_ranges(self, tmp_path):
+        """A clean decaying curve yields p in (0,1], fidelity in [0,1],
+        epc == 1 - fidelity."""
+        mgr = _make_rb_manager(tmp_path)
+        dim = 4
+        b = 1.0 / dim
+        p_true, a_true = 0.9, 0.8
+        lengths = [1, 2, 4, 8, 16, 32, 64]
+        survival = [a_true * p_true ** x + b for x in lengths]
+        fit = mgr._fit_decay(lengths, survival)
+        assert 0.0 < fit["p"] <= 1.0
+        assert 0.0 <= fit["fidelity"] <= 1.0
+        assert fit["epc"] == pytest.approx(1.0 - fit["fidelity"], abs=1e-12)
+        assert fit["A"] == pytest.approx(a_true, abs=1e-6)
+
+    @pytest.mark.parametrize("basis,scale", [("cz", 2), ("cx", 2), ("iswap", 4), ("ecr", 2)])
+    def test_long_sequence_stays_identity_per_basis(self, tmp_path, basis, scale):
+        """A length-10 forward+inverse sequence composes to identity for every
+        supported native basis, and total_length scales correctly."""
+        mgr = _make_rb_manager(tmp_path)
+        rng = np.random.default_rng(3)
+        qc, total_length = mgr._build_random_sequence([0, 1], length=10, basis_gate=basis, rng=rng)
+        assert total_length == scale * 10
+        state = simulate_statevector(qc)
+        assert float(state[0].abs().item()) == pytest.approx(1.0, abs=1e-9)
+
+    def test_simulator_rb_longer_lengths_fidelity_one(self, tmp_path):
+        """Larger-scale: longer length list still yields perfect survival and
+        unit fidelity on the noiseless simulator."""
+        mgr = _make_rb_manager(tmp_path)
+        results = mgr.calibrate_native_two_qubit_rb(
+            [(0, 1)],
+            lengths=[1, 2, 4, 8, 16],
+            num_sequences=2,
+            shots=256,
+            chip_name="simulator",
+            backend=_FakeBackend(basis="cz"),
+            readout_mitigation=False,
+            seed=0,
+        )
+        fit = results["0-1"]["fit"]
+        assert all(v == pytest.approx(1.0, abs=1e-9) for v in results["0-1"]["survival_avg"].values())
+        assert fit["fidelity"] == pytest.approx(1.0, abs=1e-6)
+        # total_lengths follow the cz scale (x2) of the requested lengths.
+        assert results["0-1"]["total_lengths"] == [2, 4, 8, 16, 32]
+
+    def test_simulator_rb_multiple_couplers_aggregated(self, tmp_path):
+        """Larger-scale: aggregate RB across several couplers in one call."""
+        mgr = _make_rb_manager(tmp_path)
+        couplers = [(0, 1), (2, 3), (4, 5)]
+        results = mgr.calibrate_native_two_qubit_rb(
+            couplers,
+            lengths=[1, 2, 4],
+            num_sequences=2,
+            shots=256,
+            chip_name="simulator",
+            backend=_FakeBackend(basis="cz"),
+            readout_mitigation=False,
+            seed=1,
+        )
+        assert set(results) == {"0-1", "2-3", "4-5"}
+        for key in results:
+            assert results[key]["fit"]["fidelity"] == pytest.approx(1.0, abs=1e-6)
+        # Every coupler's fidelity is cached for reuse.
+        assert (tmp_path / "rb_two_qubit_simulator.json").exists()
+
+    def test_rb_no_couplers_raises(self, tmp_path):
+        """No explicit couplers and no positive-fidelity couplers -> RuntimeError."""
+        mgr = _make_rb_manager(tmp_path)
+        backend = _FakeBackend(
+            basis="cz",
+            couplers_with_attributes=[(0, 1, {"fidelity": 0.0})],
+        )
+        with pytest.raises(RuntimeError, match="no available couplers"):
+            mgr.calibrate_native_two_qubit_rb(
+                None, chip_name="simulator", backend=backend, readout_mitigation=False,
+            )
+
+
+# ─────────────────────────────────────────────────────────────
+#  NativeTwoQubitTomographyManager — extra math boundaries
+# ─────────────────────────────────────────────────────────────
+
+class TestTomographyMathExtra:
+    @pytest.mark.parametrize("label", ["0", "1", "+", "-", "+i", "-i"])
+    def test_state_density_is_valid_pure_state(self, tmp_path, label):
+        """Each supported single-qubit prep label yields a trace-1, rank-1,
+        Hermitian density matrix."""
+        mgr = _make_tomo_manager(tmp_path)
+        rho = mgr._state_density(label)
+        assert rho.shape == (2, 2)
+        assert np.allclose(rho, rho.conj().T, atol=1e-12)  # Hermitian
+        assert np.trace(rho) == pytest.approx(1.0)         # trace 1
+        # Pure state: rho^2 == rho.
+        assert np.allclose(rho @ rho, rho, atol=1e-12)
+
+    @pytest.mark.parametrize("gate", ["cz", "cx", "iswap", "ecr"])
+    def test_ptm_is_orthogonal_for_each_basis(self, tmp_path, gate):
+        mgr = _make_tomo_manager(tmp_path)
+        ptm = mgr._ptm_from_unitary(gate)
+        assert ptm.shape == (16, 16)
+        assert np.allclose(ptm @ ptm.T, np.eye(16), atol=1e-9)
+
+    def test_expectations_from_probs_bell_like(self, tmp_path):
+        """Equal weight on |00> and |11> -> Z0=Z1=0 but Z0Z1=+1."""
+        mgr = _make_tomo_manager(tmp_path)
+        z0, z1, z0z1 = mgr._expectations_from_probs(np.array([0.5, 0.0, 0.0, 0.5]))
+        assert z0 == pytest.approx(0.0)
+        assert z1 == pytest.approx(0.0)
+        assert z0z1 == pytest.approx(1.0)
+
+    def test_choi_of_identity_ptm_is_hermitian_psd(self, tmp_path):
+        """The Choi matrix of the identity channel is Hermitian and PSD."""
+        mgr = _make_tomo_manager(tmp_path)
+        choi = mgr._ptm_to_choi(np.eye(16))
+        assert np.allclose(choi, choi.conj().T, atol=1e-9)
+        eigvals = np.linalg.eigvalsh(choi)
+        assert eigvals.min() > -1e-9

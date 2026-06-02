@@ -257,3 +257,170 @@ class TestEdgeCases:
 
         compiled = Transpiler(backend).run(qc, use_dd=False)
         assert compiled.nqubits >= 5
+
+    def test_empty_circuit_no_backend_passes_disabled(self):
+        """Boundary: an empty circuit compiles to nothing (no backend, no routing)."""
+        qc = QuantumCircuit(3, 3)
+        compiled = Transpiler(chip_backend=None).run(
+            qc, use_dd=False, use_sabre_routing=False
+        )
+        functional = [g for g in compiled.gates if g[0] not in ("barrier", "delay")]
+        assert functional == []
+
+    def test_empty_circuit_full_pipeline_is_unsupported(self, backend):
+        """An empty circuit cannot go through layout/routing (no active qubits).
+
+        Layout selection requests 0 qubits and raises; this is a known
+        limitation of the layout/routing passes, not asserted as correct
+        behaviour — only that the current code raises rather than silently
+        producing a wrong result.
+        """
+        qc = QuantumCircuit(3, 3)
+        with pytest.raises(Exception):
+            Transpiler(backend).run(qc, use_dd=False)
+
+
+# ══════════════════════════════════════════════════════════
+#  Large-scale: wide + deep circuits on a real topology
+# ══════════════════════════════════════════════════════════
+
+class TestLargeScalePipeline:
+    @pytest.fixture()
+    def backend(self):
+        return _build_baihua_like_chip()
+
+    def _random_2q_circuit(self, nq, depth, seed):
+        import random
+
+        random.seed(seed)
+        qc = QuantumCircuit(nq, nq)
+        for _ in range(depth):
+            a, b = random.sample(range(nq), 2)
+            qc.cx(a, b)
+        qc.measure(list(range(nq)), list(range(nq)))
+        return qc
+
+    def test_wide_deep_routes_to_native_and_adjacent(self, backend):
+        """16-qubit, 80-gate random circuit: native basis + coupling-respecting."""
+        qc = self._random_2q_circuit(16, 80, seed=3)
+        compiled = Transpiler(backend).run(qc, use_dd=False)
+        _assert_no_three_qubit_gates(compiled)
+        _assert_basis_only(compiled, "cz")
+        edges = [(u, v) for u, v, _ in backend.couplers_with_attributes]
+        _assert_connectivity(compiled, edges)
+        assert "measure" in _gate_names(compiled)
+
+    def test_wide_deep_constrained_inserts_two_qubit_gates(self, backend):
+        """A conflict-heavy circuit produces 2-qubit native gates respecting topology."""
+        qc = self._random_2q_circuit(20, 100, seed=9)
+        compiled = Transpiler(backend).run(qc, use_dd=False)
+        edges = [(u, v) for u, v, _ in backend.couplers_with_attributes]
+        _assert_connectivity(compiled, edges)
+        # The routed/translated circuit still contains 2-qubit native (cz) gates.
+        assert any(name == "cz" for name, _, _ in _two_qubit_gate_qubits(compiled))
+
+    def test_deep_single_qubit_runs_compressed(self, backend):
+        """Long single-qubit runs are compressed relative to the uncompressed run."""
+        qc = QuantumCircuit(4, 4)
+        for _ in range(15):
+            qc.h(0); qc.t(0); qc.s(0)
+            qc.x(1); qc.y(1)
+        qc.cx(0, 1)
+        qc.measure([0, 1, 2, 3], [0, 1, 2, 3])
+
+        compressed = Transpiler(backend).run(
+            qc, use_dd=False, use_gate_compressor=True, use_sabre_routing=False
+        )
+        uncompressed = Transpiler(backend).run(
+            qc, use_dd=False, use_gate_compressor=False, use_sabre_routing=False
+        )
+        n_comp = sum(1 for g in compressed.gates if g[0] == "u")
+        n_uncomp = sum(1 for g in uncompressed.gates if g[0] == "u")
+        assert n_comp < n_uncomp
+
+    def test_mixed_parametric_2q_large(self, backend):
+        """Wide circuit with parametric 2-qubit gates compiles to native basis."""
+        qc = QuantumCircuit(12, 12)
+        for i in range(0, 10, 2):
+            qc.rxx(0.3 + 0.01 * i, i, i + 1)
+            qc.rzz(0.4, i, (i + 2) % 12)
+            qc.ryy(0.5, i + 1, (i + 3) % 12)
+        qc.measure(list(range(12)), list(range(12)))
+        compiled = Transpiler(backend).run(qc, use_dd=False)
+        _assert_no_three_qubit_gates(compiled)
+        _assert_basis_only(compiled, "cz")
+        edges = [(u, v) for u, v, _ in backend.couplers_with_attributes]
+        _assert_connectivity(compiled, edges)
+
+
+# ══════════════════════════════════════════════════════════
+#  Idempotence / stability of the pipeline
+# ══════════════════════════════════════════════════════════
+
+class TestPipelineIdempotence:
+    @pytest.fixture()
+    def backend(self):
+        return _build_baihua_like_chip()
+
+    def test_translate_only_idempotent(self, backend):
+        """Re-translating an already-native circuit leaves the gate sequence stable."""
+        qc = QuantumCircuit(4, 4)
+        qc.h(0); qc.cx(0, 1); qc.cx(1, 2); qc.rz(0.4, 3)
+        qc.measure(list(range(4)), list(range(4)))
+        once = Transpiler(backend).run(
+            qc, use_dd=False, use_sabre_routing=False, use_gate_compressor=False
+        )
+        twice = Transpiler(backend).run(
+            once, use_dd=False, use_sabre_routing=False, use_gate_compressor=False
+        )
+        assert _gate_names(once) == _gate_names(twice)
+
+    def test_full_pipeline_second_pass_stays_native(self, backend):
+        """Feeding a compiled circuit back through the pipeline stays in basis."""
+        qc = QuantumCircuit(6, 6)
+        qc.h(0); qc.cx(0, 5); qc.cx(1, 4); qc.cz(2, 3)
+        qc.measure(list(range(6)), list(range(6)))
+        first = Transpiler(backend).run(qc, use_dd=False)
+        second = Transpiler(backend).run(first, use_dd=False)
+        _assert_no_three_qubit_gates(second)
+        _assert_basis_only(second, "cz")
+        edges = [(u, v) for u, v, _ in backend.couplers_with_attributes]
+        _assert_connectivity(second, edges)
+
+
+# ══════════════════════════════════════════════════════════
+#  No-backend (linear simulation layout) large-scale
+# ══════════════════════════════════════════════════════════
+
+class TestNoBackendLargeScale:
+    def test_no_backend_linear_layout_keeps_2q_adjacent(self):
+        """Without a backend, routing uses a line layout; cx gates end up adjacent."""
+        import random
+
+        random.seed(4)
+        nq = 16
+        qc = QuantumCircuit(nq, nq)
+        for _ in range(50):
+            a, b = random.sample(range(nq), 2)
+            qc.cx(a, b)
+        qc.measure(list(range(nq)), list(range(nq)))
+        compiled = Transpiler(chip_backend=None).run(
+            qc, use_dd=False, use_translate_to_basis=False, use_gate_compressor=False,
+        )
+        # The implicit line topology is 0-1-...-(nq-1).
+        for name, q0, q1 in _two_qubit_gate_qubits(compiled):
+            assert abs(q0 - q1) == 1, f"{name}({q0},{q1}) not adjacent on the line"
+
+    def test_no_backend_already_linear_no_swaps(self):
+        """A linear-chain circuit needs no swaps under the default line layout."""
+        nq = 10
+        qc = QuantumCircuit(nq, nq)
+        for i in range(nq - 1):
+            qc.cx(i, i + 1)
+        qc.measure(list(range(nq)), list(range(nq)))
+        compiled = Transpiler(chip_backend=None).run(
+            qc, use_dd=False, use_translate_to_basis=False, use_gate_compressor=False,
+            routing_initial_mapping="trivial",
+        )
+        assert not any(g[0] == "swap" for g in compiled.gates)
+        assert sum(1 for g in compiled.gates if g[0] == "cx") == nq - 1

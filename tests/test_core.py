@@ -670,3 +670,341 @@ class TestResultTypes:
         r = QMLResult(task="classification", best_loss=0.1, best_params=[0.5], loss_history=[0.5, 0.1])
         assert r.task == "classification"
         assert r.accuracy is None
+
+
+# ═══════════════════════════════════════════════════════════
+#  Large-scale and boundary cases (appended)
+# ═══════════════════════════════════════════════════════════
+
+
+class TestCircuitBuildersLargeScale:
+    def test_ghz_wide_gate_counts(self):
+        n = 64
+        qc = build_ghz(n)
+        assert qc.nqubits == n
+        gate_names = [g[0] for g in qc.gates]
+        assert gate_names.count("h") == 1
+        assert gate_names.count("cx") == n - 1
+
+    def test_cluster_wide_cz_count(self):
+        n = 32
+        qc = build_cluster(n)
+        assert qc.nqubits == n
+        gate_names = [g[0] for g in qc.gates]
+        assert gate_names.count("h") == n
+        # Layer 1: n//2 CZ, Layer 2: (n-1)//2 CZ.
+        assert gate_names.count("cz") == n // 2 + (n - 1) // 2
+
+    def test_qft_wide_gate_counts(self):
+        n = 8
+        qc = build_qft(n)
+        assert qc.nqubits == n
+        gate_names = [g[0] for g in qc.gates]
+        pairs = n * (n - 1) // 2
+        # Each controlled phase decomposes into 2 cx + 3 rz.
+        assert gate_names.count("h") == n
+        assert gate_names.count("cx") == 2 * pairs
+        assert gate_names.count("rz") == 3 * pairs
+        assert gate_names.count("swap") == n // 2
+
+    def test_qft_no_swaps_no_swap_gates(self):
+        qc = build_qft(7, with_swaps=False)
+        gate_names = [g[0] for g in qc.gates]
+        assert "swap" not in gate_names
+
+    def test_ising_trotter_steps_scale_gate_count(self):
+        n = 6
+        steps = 5
+        qc = build_ising_time_evolution(n, j=1.0, h=0.5, t=2.0, steps=steps)
+        gate_names = [g[0] for g in qc.gates]
+        assert gate_names.count("rzz") == steps * (n - 1)
+        assert gate_names.count("rx") == steps * n
+
+    def test_heisenberg_full_couplings_counts(self):
+        n = 5
+        steps = 3
+        qc = build_heisenberg_time_evolution(
+            n, t=1.0, jx=1.0, jy=1.0, jz=1.0, hz=0.3, steps=steps
+        )
+        gate_names = [g[0] for g in qc.gates]
+        assert gate_names.count("rxx") == steps * (n - 1)
+        assert gate_names.count("ryy") == steps * (n - 1)
+        assert gate_names.count("rzz") == steps * (n - 1)
+        assert gate_names.count("rz") == steps * n
+
+    def test_xxz_counts(self):
+        n = 5
+        steps = 2
+        qc = build_xxz_time_evolution(n, t=1.0, jxy=1.0, jz=0.5, hz=0.0, steps=steps)
+        gate_names = [g[0] for g in qc.gates]
+        assert gate_names.count("rxx") == steps * (n - 1)
+        assert gate_names.count("ryy") == steps * (n - 1)
+        assert gate_names.count("rzz") == steps * (n - 1)
+        # hz == 0 -> no longitudinal rz rotations.
+        assert "rz" not in gate_names
+
+    def test_xy_counts_no_zz(self):
+        n = 6
+        steps = 2
+        qc = build_xy_time_evolution(n, t=1.0, jx=1.0, jy=1.0, hz=0.0, steps=steps)
+        gate_names = [g[0] for g in qc.gates]
+        assert gate_names.count("rxx") == steps * (n - 1)
+        assert gate_names.count("ryy") == steps * (n - 1)
+        assert "rzz" not in gate_names
+
+
+class TestObservablesBoundaryAndLargeScale:
+    def test_pauli_expectation_identity_invariant_wide(self):
+        rng = np.random.default_rng(0)
+        samples = rng.integers(0, 2, size=(5000, 12))
+        # Identity on every qubit always yields +1 regardless of samples.
+        assert pauli_expectation(samples, "I" * 12) == pytest.approx(1.0)
+
+    def test_pauli_expectation_full_weight_z_all_zero(self):
+        samples = np.zeros((200, 10), dtype=int)
+        # All-zero outcomes -> every Z eigenvalue +1 -> parity +1.
+        assert pauli_expectation(samples, "Z" * 10) == pytest.approx(1.0)
+
+    def test_pauli_expectation_single_one_flips_parity(self):
+        samples = np.zeros((50, 8), dtype=int)
+        samples[:, 3] = 1  # one qubit always reads 1
+        # Full-weight Z parity with an odd number of -1 eigenvalues -> -1.
+        assert pauli_expectation(samples, "Z" * 8) == pytest.approx(-1.0)
+
+    def test_pauli_expectation_x_basis_bits(self):
+        # After basis rotation, X is read like Z from the 0/1 bits.
+        samples = np.array([[0], [1], [0], [1]])
+        assert pauli_expectation(samples, "X") == pytest.approx(0.0)
+
+    def test_group_observables_all_z_single_group(self):
+        obs = ["Z" + str(i) for i in range(10)]
+        groups = group_observables(obs, num_qubits=10)
+        assert len(groups) == 1
+        assert len(groups[0]["observables"]) == 10
+        assert groups[0]["basis"] == ["Z"] * 10
+
+    def test_group_observables_disjoint_qubits_merge(self):
+        # Different Paulis on disjoint qubits are mutually compatible.
+        groups = group_observables(["X0", "Y1", "Z2", "X3"], num_qubits=4)
+        assert len(groups) == 1
+        assert groups[0]["basis"] == ["X", "Y", "Z", "X"]
+
+    def test_group_observables_conflict_on_same_qubit(self):
+        # X0 and Z0 conflict on qubit 0 -> two groups.
+        groups = group_observables(["X0", "Z0"], num_qubits=2)
+        assert len(groups) == 2
+
+    def test_group_observables_many_returns_all(self):
+        obs = ["XX", "YY", "ZZ", "XX", "ZZ"]
+        groups = group_observables(obs, num_qubits=2)
+        total = sum(len(g["observables"]) for g in groups)
+        assert total == len(obs)
+
+    def test_pauli_basis_pattern_all_identity_wide(self):
+        pattern = pauli_basis_pattern("I" * 16, num_qubits=16)
+        assert pattern == ["I"] * 16
+
+    def test_shift_pauli_string_roundtrip_support(self):
+        shifted = shift_pauli_string("X0 Z2 Y5", 10)
+        assert pauli_support(shifted) == [10, 12, 15]
+
+    def test_apply_basis_rotations_full_pattern(self):
+        from fieldqkit.circuit import QuantumCircuit
+
+        qc = QuantumCircuit(3)
+        apply_measurement_basis_rotations(qc, ["X", "Y", "Z"], target_qubits=[0, 1, 2])
+        gate_names = [g[0] for g in qc.gates]
+        # X -> h ; Y -> sdg, h ; Z -> nothing.
+        assert gate_names == ["h", "sdg", "h"]
+
+    def test_apply_basis_rotations_identity_is_noop(self):
+        from fieldqkit.circuit import QuantumCircuit
+
+        qc = QuantumCircuit(4)
+        apply_measurement_basis_rotations(qc, ["I", "I", "I", "I"], target_qubits=[0, 1, 2, 3])
+        assert qc.gates == []
+
+
+class TestReadoutLargeScaleAndBoundary:
+    def test_identity_confusion_matrix_no_op_8q(self):
+        n = 8
+        cm = np.eye(2**n)
+        rng = np.random.default_rng(1)
+        probs = rng.dirichlet(np.ones(2**n))
+        result = mitigate_readout(probs, cm)
+        np.testing.assert_array_almost_equal(result, probs)
+
+    def test_build_local_confusion_matrix_8q_identity(self):
+        n = 8
+        per_qubit = {i: np.eye(2) for i in range(n)}
+        cm = build_local_confusion_matrix(per_qubit, list(range(n)))
+        assert cm.shape == (2**n, 2**n)
+        np.testing.assert_array_almost_equal(cm, np.eye(2**n))
+
+    def test_build_local_confusion_matrix_kron_chain(self):
+        rng = np.random.default_rng(2)
+        per_qubit = {}
+        for q in range(4):
+            row0 = rng.random(2)
+            row1 = rng.random(2)
+            per_qubit[q] = np.array([row0 / row0.sum(), row1 / row1.sum()])
+        cm = build_local_confusion_matrix(per_qubit, [0, 1, 2, 3])
+        expected = per_qubit[0]
+        for q in [1, 2, 3]:
+            expected = np.kron(expected, per_qubit[q])
+        np.testing.assert_array_almost_equal(cm, expected)
+
+    def test_unbiased_estimator_identity_cm_recovers_parity(self):
+        # With ideal (identity) readout the unbiased estimator equals the raw parity.
+        rng = np.random.default_rng(3)
+        k = 9
+        samples = rng.integers(0, 2, size=(4000, k))
+        cms = [np.eye(2)] * k
+        unbiased = expectation_from_samples_unbiased(samples, cms)
+        parity = pauli_expectation(samples, "Z" * k)
+        assert unbiased == pytest.approx(parity, abs=1e-9)
+
+    def test_unbiased_estimator_all_zero_returns_one(self):
+        samples = np.zeros((100, 10), dtype=int)
+        cms = [np.eye(2)] * 10
+        assert expectation_from_samples_unbiased(samples, cms) == pytest.approx(1.0)
+
+    def test_mitigate_observable_identity_cm_marginal_path(self):
+        from fieldqkit.core.readout import mitigate_observable_from_samples
+
+        rng = np.random.default_rng(4)
+        samples = rng.integers(0, 2, size=(500, 6))
+        per_qubit = {i: np.eye(2) for i in range(6)}
+        support = [0, 2, 4]
+        value = mitigate_observable_from_samples(
+            samples, support, per_qubit, [0, 1, 2, 3, 4, 5], marginal_max_support=10
+        )
+        expected = pauli_expectation(samples, "Z0 Z2 Z4")
+        assert value == pytest.approx(expected)
+
+    def test_mitigate_observable_identity_cm_unbiased_path(self):
+        from fieldqkit.core.readout import mitigate_observable_from_samples
+
+        rng = np.random.default_rng(5)
+        samples = rng.integers(0, 2, size=(500, 6))
+        per_qubit = {i: np.eye(2) for i in range(6)}
+        support = [0, 2, 4]
+        # Force the unbiased branch by lowering the marginal threshold.
+        value = mitigate_observable_from_samples(
+            samples, support, per_qubit, [0, 1, 2, 3, 4, 5], marginal_max_support=1
+        )
+        expected = pauli_expectation(samples, "Z0 Z2 Z4")
+        assert value == pytest.approx(expected)
+
+    def test_mitigate_observable_empty_support_returns_one(self):
+        from fieldqkit.core.readout import mitigate_observable_from_samples
+
+        samples = np.zeros((10, 4), dtype=int)
+        per_qubit = {i: np.eye(2) for i in range(4)}
+        assert mitigate_observable_from_samples(samples, [], per_qubit, [0, 1, 2, 3]) == pytest.approx(1.0)
+
+    def test_mitigate_readout_zero_probs_no_op(self):
+        probs = np.zeros(8)
+        cm = np.eye(8)
+        result = mitigate_readout(probs, cm)
+        assert result.sum() == pytest.approx(0.0)
+
+
+class TestZNELargeScale:
+    def test_cz_tripling_on_wide_cluster(self):
+        qc = build_cluster(16)
+        original_cz = sum(1 for g in qc.gates if g[0] == "cz")
+        result = apply_zne_cz_tripling(qc)
+        tripled_cz = sum(1 for g in result.gates if g[0] == "cz")
+        assert tripled_cz == 3 * original_cz
+        # Original is not mutated.
+        assert sum(1 for g in qc.gates if g[0] == "cz") == original_cz
+
+    def test_linear_extrapolate_equal_vectors(self):
+        rng = np.random.default_rng(6)
+        v = rng.random(64)
+        result = zne_linear_extrapolate(v, v)
+        np.testing.assert_array_almost_equal(result, v)
+
+    def test_linear_extrapolate_scalar_formula(self):
+        # (3*f1 - f3)/2
+        assert zne_linear_extrapolate(2.0, 1.0) == pytest.approx(2.5)
+
+
+class TestUtilsLargeScaleAndBoundary:
+    def test_get_samples_probabilities_consistency(self):
+        result = {"000": 10, "111": 30}
+        samples = get_samples(result, 3)
+        assert samples.shape == (40, 3)
+        probs = get_probabilities(result, 3)
+        assert probs[0] == pytest.approx(0.25)  # "000"
+        assert probs[7] == pytest.approx(0.75)  # "111"
+        assert probs.sum() == pytest.approx(1.0)
+
+    def test_get_probabilities_from_samples_empty_wide(self):
+        probs = get_probabilities_from_samples(np.zeros((0, 8), dtype=int), 8)
+        assert probs.shape == (2**8,)
+        assert probs.sum() == pytest.approx(0.0)
+
+    def test_get_probabilities_from_samples_normalized_large(self):
+        rng = np.random.default_rng(7)
+        samples = rng.integers(0, 2, size=(20000, 6))
+        probs = get_probabilities_from_samples(samples, 6)
+        assert probs.shape == (2**6,)
+        assert probs.sum() == pytest.approx(1.0)
+
+    def test_marginal_samples_large(self):
+        rng = np.random.default_rng(8)
+        samples = rng.integers(0, 2, size=(1000, 12))
+        marginal = marginal_samples(samples, [3, 7, 11])
+        assert marginal.shape == (1000, 3)
+        np.testing.assert_array_equal(marginal[:, 0], samples[:, 3])
+        np.testing.assert_array_equal(marginal[:, 2], samples[:, 11])
+
+    def test_marginal_samples_empty_support_zero_columns(self):
+        samples = np.zeros((25, 9), dtype=int)
+        marginal = marginal_samples(samples, [])
+        assert marginal.shape == (25, 0)
+
+    def test_local_probabilities_length(self):
+        rng = np.random.default_rng(9)
+        samples = rng.integers(0, 2, size=(1000, 12))
+        probs = get_local_probabilities_from_samples(samples, [3, 7, 11])
+        assert probs.shape == (2**3,)
+        assert probs.sum() == pytest.approx(1.0)
+
+    def test_local_probabilities_empty_support(self):
+        samples = np.zeros((5, 4), dtype=int)
+        probs = get_local_probabilities_from_samples(samples, [])
+        np.testing.assert_array_almost_equal(probs, [1.0])
+
+    def test_expectation_from_probabilities_all_zero_state_wide(self):
+        n = 8
+        probs = np.zeros(2**n)
+        probs[0] = 1.0  # |00..0>
+        exp = expectation_from_probabilities(probs, list(range(n)))
+        assert exp == pytest.approx(1.0)
+
+    def test_expectation_from_probabilities_empty_support(self):
+        probs = np.array([0.3, 0.7])
+        assert expectation_from_probabilities(probs, []) == pytest.approx(1.0)
+
+
+class TestResultTypesAppended:
+    def test_calibration_result_fields(self):
+        r = CalibrationResult(
+            target_qubits=[0, 1],
+            per_qubit_confusion={0: [[1.0, 0.0], [0.0, 1.0]], 1: [[0.9, 0.1], [0.1, 0.9]]},
+        )
+        assert r.target_qubits == [0, 1]
+        assert r.per_qubit_confusion[1][0][0] == 0.9
+
+    def test_qaoa_result_defaults(self):
+        r = QAOAResult(best_cost=-2.0, best_params=[0.1, 0.2], cost_history=[-1.0, -2.0])
+        assert r.params_history is None
+        assert r.best_cost == -2.0
+
+    def test_qbm_result_defaults(self):
+        r = QBMResult(best_loss=0.5, best_params=[0.0], loss_history=[0.9, 0.5])
+        assert r.generated_samples is None
+        assert r.test_loss_history is None

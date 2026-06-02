@@ -827,3 +827,193 @@ class TestCliffordTBranching:
         ref = _statevector_expectations(qc_ref, ["XYZ", "ZZZ"])
         for obs in ["XYZ", "ZZZ"]:
             assert got[obs] == pytest.approx(ref[obs], abs=1e-7)
+
+
+# ═══════════════════════════════════════════════════════════
+#  Partial-measurement projection (interface dispatch)
+#
+#  fieldqkit.sim.simulate_counts (the interface-level entry that
+#  client.run_auto uses) samples the full statevector from the chosen
+#  engine (SV/MPS/DM) and then projects counts onto the classical-bit
+#  subspace defined by the circuit's measure gates: each measured qubit
+#  maps to its cbit, unmeasured qubits are marginalized out.  These tests
+#  lock that behavior across all three engines.
+# ═══════════════════════════════════════════════════════════
+
+
+@pytest.fixture
+def restore_sim_config():
+    """Snapshot and restore the global simulator config around a test."""
+    from fieldqkit.sim import get_sim_config, set_sim_config
+
+    cfg = get_sim_config()
+    yield
+    set_sim_config(
+        mps_threshold_qubits=cfg["mps_threshold_qubits"],
+        max_bond_dim=cfg["max_bond_dim"],
+    )
+
+
+def _bell_with_spectator(meas_q, meas_c):
+    """Bell pair on q0,q1; q2 forced to |1>, q3 stays |0>; partial measure."""
+    qc = QuantumCircuit(4)
+    qc.h(0)
+    qc.cx(0, 1)
+    qc.x(2)
+    qc.measure(meas_q, meas_c)
+    return qc
+
+
+class TestPartialMeasurementProjection:
+    def test_statevector_subset_marginalizes_unmeasured(self):
+        from fieldqkit.sim import simulate_counts
+
+        counts = simulate_counts(_bell_with_spectator([0, 1], [0, 1]), 4000, seed=1)
+        assert set(counts) <= {"00", "11"}          # q2/q3 marginalized away
+        assert set(counts) == {"00", "11"}          # both Bell branches present
+        assert all(len(k) == 2 for k in counts)     # width = #cbits, not #qubits
+        assert sum(counts.values()) == 4000
+
+    def test_qubit_to_cbit_mapping_is_honored(self):
+        from fieldqkit.sim import simulate_counts
+
+        # cbit0 <- q1 (Bell, 0/1), cbit1 <- q2 (always 1).
+        counts = simulate_counts(_bell_with_spectator([1, 2], [0, 1]), 4000, seed=1)
+        assert set(counts) == {"01", "11"}
+        assert all(k[1] == "1" for k in counts)      # cbit1 (q2) pinned to 1
+
+    def test_full_measure_preserves_cbit_positions(self):
+        from fieldqkit.sim import simulate_counts
+
+        counts = simulate_counts(_bell_with_spectator([0, 1, 2, 3], [0, 1, 2, 3]), 4000, seed=1)
+        assert set(counts) == {"0010", "1110"}       # cbit2=q2=1, cbit3=q3=0
+        assert all(len(k) == 4 for k in counts)
+
+    def test_sparse_cbit_indices_zero_fill_gaps(self):
+        from fieldqkit.sim import simulate_counts
+
+        # q0->cbit0, q1->cbit2; cbit1 is never written -> stays 0; width=3.
+        counts = simulate_counts(_bell_with_spectator([0, 1], [0, 2]), 4000, seed=1)
+        assert set(counts) == {"000", "101"}
+        assert all(len(k) == 3 and k[1] == "0" for k in counts)
+
+    def test_projection_equals_manual_marginalization(self):
+        from fieldqkit.sim import simulate_counts
+
+        partial = simulate_counts(_bell_with_spectator([0, 1], [0, 1]), 6000, seed=7)
+        full = simulate_counts(_bell_with_spectator([0, 1, 2, 3], [0, 1, 2, 3]), 6000, seed=7)
+        marginal = {}
+        for bits, c in full.items():
+            marginal[bits[:2]] = marginal.get(bits[:2], 0) + c   # keep cbits 0,1
+        assert partial == marginal
+
+    def test_density_matrix_engine_projects(self):
+        from fieldqkit.sim import simulate_counts
+
+        qc = QuantumCircuit(4)
+        qc.h(0); qc.cx(0, 1); qc.x(2)
+        qc.depolarize1(0.0, 0)                        # routes to DM backend, no-op strength
+        qc.measure([0, 1], [0, 1])
+        counts = simulate_counts(qc, 4000, seed=1)
+        assert set(counts) == {"00", "11"}
+        assert all(len(k) == 2 for k in counts)
+
+    def test_mps_engine_projects(self, restore_sim_config):
+        from fieldqkit.sim import set_sim_config, simulate_counts
+
+        set_sim_config(mps_threshold_qubits=1)        # force MPS for a small circuit
+        counts = simulate_counts(_bell_with_spectator([1, 2], [0, 1]), 4000, seed=1)
+        assert set(counts) == {"01", "11"}
+
+    def test_no_measure_gate_returns_full_width(self):
+        from fieldqkit.sim import simulate_counts
+
+        qc = QuantumCircuit(3)
+        qc.h(0); qc.cx(0, 1); qc.x(2)
+        counts = simulate_counts(qc, 2000, seed=1)
+        assert all(len(k) == 3 for k in counts)       # no projection without measure
+        assert set(counts) == {"001", "111"}
+
+    def test_compaction_then_projection_uses_dense_indices(self):
+        """Sparse physical qubits + partial measure: compaction remaps measure
+        qubits into the dense space while preserving the cbit assignment."""
+        from fieldqkit.api.client import QuantumHardwareClient
+        from fieldqkit.sim import simulate_counts
+
+        client = QuantumHardwareClient()
+        qc_phys = QuantumCircuit(8)
+        qc_phys.h(3); qc_phys.cx(3, 5); qc_phys.x(7)
+        qc_phys.measure([3, 5], [0, 1])               # measure two of the three used qubits
+        qc_sim, _ = client._compact_for_sim(qc_phys, target_qubits=[3, 5, 7])
+        counts = simulate_counts(qc_sim, 4000, seed=1)
+        assert set(counts) == {"00", "11"}            # Bell on the two measured qubits
+        assert all(len(k) == 2 for k in counts)
+
+
+# ═══════════════════════════════════════════════════════════
+#  Large-scale / boundary simulation
+# ═══════════════════════════════════════════════════════════
+
+
+def _ghz(n: int) -> QuantumCircuit:
+    qc = QuantumCircuit(n)
+    qc.h(0)
+    for q in range(n - 1):
+        qc.cx(q, q + 1)
+    return qc
+
+
+class TestSimulationScaleAndBoundaries:
+    def test_large_statevector_ghz_is_normalized(self):
+        state = simulate_statevector(_ghz(12))
+        assert state.numel() == 2 ** 12
+        norm = float((state.abs() ** 2).sum().item())
+        assert norm == pytest.approx(1.0, abs=1e-9)
+        # Only the all-0 and all-1 amplitudes are populated.
+        probs = (state.abs() ** 2).real
+        assert float(probs[0].item()) == pytest.approx(0.5, abs=1e-9)
+        assert float(probs[-1].item()) == pytest.approx(0.5, abs=1e-9)
+
+    def test_large_statevector_counts_only_ghz_branches(self):
+        from fieldqkit.sim import simulate_counts
+
+        counts = simulate_counts(_ghz(12), 5000, seed=3)
+        assert set(counts) == {"0" * 12, "1" * 12}
+        assert sum(counts.values()) == 5000
+
+    def test_mps_large_ghz_matches_expected_branches(self, restore_sim_config):
+        from fieldqkit.sim import set_sim_config, simulate_counts
+
+        set_sim_config(mps_threshold_qubits=8)        # 18 > 8 -> MPS engine
+        counts = simulate_counts(_ghz(18), 3000, seed=5)
+        assert set(counts) <= {"0" * 18, "1" * 18}
+        assert set(counts) == {"0" * 18, "1" * 18}
+
+    def test_single_qubit_circuit(self):
+        from fieldqkit.sim import simulate_counts
+
+        qc = QuantumCircuit(1)
+        qc.x(0)
+        counts = simulate_counts(qc, 256, seed=0)
+        assert counts == {"1": 256}
+
+    def test_shots_one_returns_single_outcome(self):
+        from fieldqkit.sim import simulate_counts
+
+        counts = simulate_counts(_ghz(4), 1, seed=0)
+        assert sum(counts.values()) == 1
+        assert len(counts) == 1
+
+    def test_identity_observable_is_one_large(self):
+        from fieldqkit.sim.statevector import expectation_pauli
+
+        state = simulate_statevector(_ghz(10))
+        val = expectation_pauli(state, "I" * 10, num_qubits=10)
+        assert complex(val).real == pytest.approx(1.0, abs=1e-9)
+
+    def test_seeded_counts_are_reproducible(self):
+        from fieldqkit.sim import simulate_counts
+
+        a = simulate_counts(_ghz(6), 2000, seed=42)
+        b = simulate_counts(_ghz(6), 2000, seed=42)
+        assert a == b

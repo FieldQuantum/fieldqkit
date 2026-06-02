@@ -572,6 +572,9 @@ def run_pqc_classifier(
             if test_loss_val is not None:
                 msg += f" test_loss={test_loss_val:.6f}"
             logger.info("%s", msg)
+
+        if callback is not None:
+            callback(it, loss_val)
     if method == "autograd":
         train_z = _get_z_autograd(
             _build_state, _expectation_pauli, full_symbolic_template,

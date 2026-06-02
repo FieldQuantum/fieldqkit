@@ -307,3 +307,141 @@ class TestTaskAdapter:
         adapter._platform = stub
         handle = ProviderTaskHandle(provider="fieldquantum", task_id="1", payload={})
         assert adapter.fetch_result(handle) == {"count": {}}
+
+
+# ─────────────────────────────────────────────────────────────
+#  Added: large-scale & boundary-case tests
+# ─────────────────────────────────────────────────────────────
+#
+# Append-only tests. They follow the existing conventions: the autouse
+# ``_patch_token`` fixture removes the credential requirement, and all HTTP is
+# replaced by in-memory FakeSession/FakeResponse or stub platforms. No network.
+
+
+# -- Boundary: missing credential surfaces a clear error --
+
+def test_platform_requires_credential(monkeypatch):
+    """When no token is configured the platform construction raises clearly."""
+    from fieldqkit.api import platform_credentials as pc
+
+    # Undo the autouse patch and ensure no config/env credential is present.
+    monkeypatch.setattr(fq, "get_fieldquantum_api_token", pc.get_fieldquantum_api_token)
+    monkeypatch.setattr(pc, "_load_config", lambda *a, **k: {})
+    monkeypatch.delenv("FIELDQUANTUM_API_TOKEN", raising=False)
+    with pytest.raises(ValueError, match="Credential for FieldQuantum"):
+        FieldQuantumPlatform()
+
+
+# -- Boundary: malformed / partial server responses --
+
+class TestResponseHandlingBoundary:
+    def test_http_error_falls_back_to_reason_when_no_body(self):
+        platform, _ = _platform_with_session()
+        resp = FakeResponse(503, raise_json=True, reason="Service Unavailable")
+        with pytest.raises(RuntimeError, match="HTTP 503: Service Unavailable"):
+            platform._raise_for_response(resp)
+
+    def test_submit_job_missing_task_id_raises_keyerror(self):
+        platform, session = _platform_with_session()
+        session.post_response = FakeResponse(200, {"status": "submitted"})  # no task_id
+        with pytest.raises(KeyError):
+            platform.submit_job({"mode": "sample", "qasm": "...", "shots": 1})
+
+    def test_fetch_task_result_missing_result_key_raises(self):
+        platform, session = _platform_with_session()
+        session.result_response = FakeResponse(200, {"task_id": 1, "status": "finished"})
+        with pytest.raises(RuntimeError, match="unexpected result payload"):
+            platform.fetch_task_result("1")
+
+    def test_query_task_status_http_error(self):
+        platform, session = _platform_with_session()
+        session.status_response = FakeResponse(404, {"message": "no such task"})
+        with pytest.raises(RuntimeError, match="HTTP 404: no such task"):
+            platform.query_task_status("999")
+
+
+# -- Boundary: backend adapter clamps and large qubit counts --
+
+class TestBackendAdapterLargeScale:
+    def test_resolve_backend_large_qubit_count(self):
+        adapter = FieldQuantumBackendAdapter()
+        resolved = adapter.resolve_backend(num_qubits=64)
+        assert resolved.hardware_name == "fieldquantum_sim"
+        # Synthetic linear chain: N qubits, N-1 couplers.
+        assert len(resolved.backend.qubits_with_attributes) == 64
+        assert len(resolved.backend.couplers_with_attributes) == 63
+        assert resolved.profile.nqubits_available == 64
+
+    def test_resolve_backend_negative_clamped_to_one(self):
+        adapter = FieldQuantumBackendAdapter()
+        resolved = adapter.resolve_backend(num_qubits=-5)
+        # nq clamped to >= 1.
+        assert len(resolved.backend.qubits_with_attributes) == 1
+
+    def test_resolve_backend_metadata_carries_platform(self):
+        adapter = FieldQuantumBackendAdapter(num_qubits=4)
+        resolved = adapter.resolve_backend(num_qubits=4)
+        assert isinstance(resolved.metadata.get("platform_obj"), FieldQuantumPlatform)
+
+
+# -- Large-scale: counts wrapping & aggregation --
+
+class TestLargeCounts:
+    def test_fetch_result_wraps_large_counts_dict(self):
+        adapter = FieldQuantumTaskAdapter(client=None)
+        stub = _StubPlatform()
+        # A wide measurement distribution over 1024 distinct bitstrings.
+        big = {format(i, "010b"): (i + 1) for i in range(1024)}
+        stub.result = {"counts": big}
+        adapter._platform = stub
+        handle = ProviderTaskHandle(provider="fieldquantum", task_id="1", payload={})
+        out = adapter.fetch_result(handle)
+        assert out["count"] == big
+        assert len(out["count"]) == 1024
+        assert sum(out["count"].values()) == sum(range(1, 1025))
+
+    def test_platform_fetch_task_result_large_counts_passthrough(self):
+        platform, session = _platform_with_session()
+        big = {format(i, "08b"): 100 for i in range(256)}
+        session.result_response = FakeResponse(
+            200, {"task_id": 1, "status": "finished", "result": {"counts": big}}
+        )
+        result = platform.fetch_task_result("1")
+        assert result["counts"] == big
+        assert sum(result["counts"].values()) == 256 * 100
+
+
+# -- Invariant: status normalisation across all raw states (adapter level) --
+
+class TestAdapterStatusInvariant:
+    @pytest.mark.parametrize("raw,expected", [
+        ("submitted", "Running"),
+        ("pending", "Running"),
+        ("queued", "Running"),
+        ("running", "Running"),
+        ("finished", "Finished"),
+        ("failed", "Failed"),
+        ("error", "Failed"),
+        ("totally_unknown", "Running"),  # unknown -> keep polling
+    ])
+    def test_query_status_maps_all_states(self, raw, expected):
+        adapter = FieldQuantumTaskAdapter(client=None)
+        stub = _StubPlatform()
+        stub.raw_status = raw
+        adapter._platform = stub
+        handle = ProviderTaskHandle(provider="fieldquantum", task_id="1", payload={})
+        assert adapter.query_status(handle) == expected
+
+
+# -- Boundary: submit_openqasm falls back to its own platform when backend has none --
+
+def test_submit_openqasm_uses_adapter_platform_when_backend_missing():
+    adapter = FieldQuantumTaskAdapter(client=None)
+    stub = _StubPlatform()
+    adapter._platform = stub  # backend metadata carries no platform_obj
+    backend = types.SimpleNamespace(metadata={})
+    req = types.SimpleNamespace(qasm="OPENQASM 2.0;", shots=512)
+    handle = adapter.submit_openqasm(req, backend)
+    assert handle.provider == "fieldquantum"
+    assert handle.task_id == "777"
+    assert stub.submitted == {"mode": "sample", "qasm": "OPENQASM 2.0;", "shots": 512}

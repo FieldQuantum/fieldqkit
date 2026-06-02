@@ -1855,3 +1855,535 @@ def test_list_available_hardware_dispatches_to_origin(monkeypatch, fake_origin_s
     rows = bmod.list_available_hardware("origin")
     names = {r["hardware_name"] for r in rows}
     assert {"PQPUMESH8", "WK_C180"} <= names
+
+
+# ═══════════════════════════════════════════════════════════
+#  Added: large-scale & boundary-case tests
+# ═══════════════════════════════════════════════════════════
+#
+# These append-only tests exercise boundary conditions, invariants, and
+# large-scale parsing. They follow the existing conventions: no network
+# calls, dummy clients, monkeypatched adapters/loaders, and fake responses.
+
+
+def _make_fake_profile_factory():
+    """Return a ``build_hardware_profile`` replacement that derives a profile
+    from the real ``chip_info`` dict carried by the (fake) backend object.
+
+    Mirrors how the existing adapter tests stub ``build_hardware_profile`` but
+    honours the per-machine qubit count so qubit-requirement filtering works.
+    """
+
+    def _fake_build_hardware_profile(*, provider, hardware_name, backend, queue_length, raw_info):
+        chip_info = getattr(backend, "chip_info", {}) or {}
+        qubits_info = chip_info.get("qubits_info", {})
+        qubits = sorted(int(str(k).lstrip("Q")) for k in qubits_info.keys())
+        couplers = []
+        for value in chip_info.get("couplers_info", {}).values():
+            pair = value.get("qubits_index")
+            if isinstance(pair, (list, tuple)) and len(pair) == 2:
+                couplers.append((int(pair[0]), int(pair[1])))
+        basis = str(chip_info.get("global_info", {}).get("two_qubit_gate_basis", "cz")).lower()
+        return HardwareProfile(
+            provider=provider,
+            hardware_name=hardware_name,
+            nqubits_available=len(qubits),
+            two_qubit_gate_basis=basis,
+            topology=HardwareTopology(qubits=qubits, couplers=couplers),
+            calibration=HardwareCalibration(qubit_fidelity={}, coupler_fidelity={}, queue_length=queue_length),
+            raw_info=raw_info if isinstance(raw_info, dict) else {},
+        )
+
+    return _fake_build_hardware_profile
+
+
+# -- Boundary: provider runtime invalid / case-insensitive across all providers --
+
+
+def test_create_provider_runtime_simulator_returns_simulator_adapter():
+    runtime = qp.create_provider_runtime(provider="simulator", client=_DummyClient())
+    assert runtime.provider == "simulator"
+    assert isinstance(runtime.backend_adapter, bmod.SimulatorBackendAdapter)
+    assert runtime.task_adapter is None
+
+
+@pytest.mark.parametrize(
+    "provider,backend_type,task_type",
+    [
+        ("quafu", qf.QuafuBackendAdapter, qf.QuafuTaskAdapter),
+        ("tianyan", ty.TianYanBackendAdapter, ty.TianYanTaskAdapter),
+        ("guodun", gd.GuoDunBackendAdapter, gd.GuoDunTaskAdapter),
+        ("tencent", tc.TencentBackendAdapter, tc.TencentTaskAdapter),
+        ("origin", og.OriginBackendAdapter, og.OriginTaskAdapter),
+    ],
+)
+def test_provider_runtime_factory_returns_right_adapter_types(monkeypatch, provider, backend_type, task_type):
+    """Invariant: the factory wires the correct concrete adapter types per provider.
+
+    Backend/task constructors are stubbed so no credentials or network are used,
+    while the *call target* (the real class object) is still asserted.
+    """
+    import fieldqkit.api.quantum_platform as module
+
+    backend_sentinel = object()
+    task_sentinel = object()
+    monkeypatch.setattr(module, backend_type.__name__, lambda *a, **k: backend_sentinel)
+    monkeypatch.setattr(module, task_type.__name__, lambda *a, **k: task_sentinel)
+
+    runtime = module.create_provider_runtime(provider=provider, client=_DummyClient())
+    assert runtime.provider == provider
+    assert runtime.backend_adapter is backend_sentinel
+    assert runtime.task_adapter is task_sentinel
+
+
+@pytest.mark.parametrize("provider", ["QUAFU", "TianYan", "GUODUN", "Tencent", "ORIGIN", "Simulator", "FieldQuantum"])
+def test_create_provider_runtime_case_insensitive_all_providers(monkeypatch, provider):
+    """Every supported provider name resolves case-insensitively to its lower-cased form."""
+    import fieldqkit.api.quantum_platform as module
+
+    sentinel = object()
+    for name in (
+        "QuafuBackendAdapter", "QuafuTaskAdapter",
+        "TianYanBackendAdapter", "TianYanTaskAdapter",
+        "GuoDunBackendAdapter", "GuoDunTaskAdapter",
+        "TencentBackendAdapter", "TencentTaskAdapter",
+        "OriginBackendAdapter", "OriginTaskAdapter",
+        "FieldQuantumBackendAdapter", "FieldQuantumTaskAdapter",
+        "SimulatorBackendAdapter",
+    ):
+        monkeypatch.setattr(module, name, lambda *a, **k: sentinel)
+
+    runtime = module.create_provider_runtime(provider=provider, client=_DummyClient())
+    assert runtime.provider == provider.lower()
+
+
+def test_create_provider_runtime_empty_provider_name_raises():
+    with pytest.raises(ValueError, match="provider must be one of"):
+        qp.create_provider_runtime(provider="", client=_DummyClient())
+
+
+def test_list_available_hardware_provider_name_is_case_insensitive(monkeypatch):
+    import fieldqkit.api.quantum_platform.quafu as _qf
+
+    class _FakeQuafuPlatform:
+        def list_available_hardware(self):
+            return [{"provider": "quafu", "hardware_name": "chip_a", "queue_length": 1, "status": None, "is_toll": None, "raw": {}}]
+
+    monkeypatch.setattr(_qf, "QuafuPlatform", lambda: _FakeQuafuPlatform())
+    rows = qp.list_available_hardware("QuAfU")
+    assert rows[0]["hardware_name"] == "chip_a"
+
+
+def test_list_available_hardware_empty_string_provider_raises():
+    with pytest.raises(ValueError, match="provider must be one of"):
+        qp.list_available_hardware("")
+
+
+# -- Boundary: empty / missing credentials surface a clear error --
+
+
+def test_missing_quafu_credential_raises_clear_error(monkeypatch):
+    from fieldqkit.api import platform_credentials as pc
+
+    monkeypatch.setattr(pc, "_load_config", lambda *a, **k: {})
+    monkeypatch.delenv("QUAFU_API_TOKEN", raising=False)
+    with pytest.raises(ValueError, match="Credential for Quafu"):
+        pc.get_quafu_api_token()
+
+
+def test_empty_string_credential_treated_as_missing(monkeypatch):
+    from fieldqkit.api import platform_credentials as pc
+
+    # config has an empty string token -> falls through to env -> error
+    monkeypatch.setattr(pc, "_load_config", lambda *a, **k: {"credentials": {"tencent": {"api_token": ""}}})
+    monkeypatch.delenv("TENCENT_API_TOKEN", raising=False)
+    with pytest.raises(ValueError, match="Credential for Tencent"):
+        pc.get_tencent_api_token()
+
+
+def test_credential_env_var_used_when_config_empty(monkeypatch):
+    from fieldqkit.api import platform_credentials as pc
+
+    monkeypatch.setattr(pc, "_load_config", lambda *a, **k: {})
+    monkeypatch.setenv("ORIGIN_API_TOKEN", "env-origin-token")
+    assert pc.get_origin_api_token() == "env-origin-token"
+
+
+def test_load_cqlib_chip_info_empty_name_raises():
+    with pytest.raises(ValueError, match="chip_name cannot be empty"):
+        cq.load_cqlib_chip_info("   ")
+
+
+# -- Boundary: empty backend list / no candidate chips --
+
+
+def test_discover_hardware_empty_list_falls_back_to_default(monkeypatch):
+    monkeypatch.setattr(bmod, "build_hardware_profile", _make_fake_profile_factory())
+    monkeypatch.setattr(
+        bmod,
+        "_build_backend_for_chip",
+        lambda name, *, num_qubits: types.SimpleNamespace(
+            chip_info={
+                "qubits_info": {f"Q{i}": {"fidelity": 1.0} for i in range(5)},
+                "couplers_info": {},
+                "global_info": {"two_qubit_gate_basis": "cz"},
+            },
+            two_qubit_gate_basis="cz",
+        ),
+    )
+
+    class _EmptyPlatform:
+        def list_available_hardware(self):
+            return []
+
+    adapter = qf.QuafuBackendAdapter(platform_obj=_EmptyPlatform())
+    profiles = adapter.discover_hardware(num_qubits=2)
+    # No listed chips -> fall back to default_hardware_name ("Baihua").
+    assert [p.hardware_name for p in profiles] == ["Baihua"]
+
+
+def test_resolve_backend_raises_when_no_chip_satisfies_num_qubits(monkeypatch):
+    monkeypatch.setattr(bmod, "build_hardware_profile", _make_fake_profile_factory())
+    monkeypatch.setattr(
+        bmod,
+        "_build_backend_for_chip",
+        lambda name, *, num_qubits: types.SimpleNamespace(
+            chip_info={
+                "qubits_info": {f"Q{i}": {"fidelity": 1.0} for i in range(2)},
+                "couplers_info": {},
+                "global_info": {"two_qubit_gate_basis": "cz"},
+            },
+            two_qubit_gate_basis="cz",
+        ),
+    )
+
+    class _SmallPlatform:
+        def list_available_hardware(self):
+            return [{"provider": "quafu", "hardware_name": "tiny", "queue_length": 0, "status": None, "is_toll": None, "raw": {}}]
+
+    adapter = qf.QuafuBackendAdapter(platform_obj=_SmallPlatform())
+    with pytest.raises(RuntimeError, match="no available chips satisfy"):
+        adapter.resolve_backend(num_qubits=99)
+
+
+def test_backend_adapter_discover_picks_lowest_queue_first_when_preferred(monkeypatch):
+    """resolve_backend selects the first preferred candidate (a valid backend)."""
+    monkeypatch.setattr(bmod, "build_hardware_profile", _make_fake_profile_factory())
+    monkeypatch.setattr(
+        bmod,
+        "_build_backend_for_chip",
+        lambda name, *, num_qubits: types.SimpleNamespace(
+            chip_info={
+                "qubits_info": {f"Q{i}": {"fidelity": 1.0} for i in range(8)},
+                "couplers_info": {},
+                "global_info": {"two_qubit_gate_basis": "cz"},
+            },
+            two_qubit_gate_basis="cz",
+        ),
+    )
+
+    class _Platform:
+        def list_available_hardware(self):
+            return [
+                {"provider": "quafu", "hardware_name": "chip_a", "queue_length": 9, "status": None, "is_toll": None, "raw": {}},
+                {"provider": "quafu", "hardware_name": "chip_b", "queue_length": 1, "status": None, "is_toll": None, "raw": {}},
+            ]
+
+    adapter = qf.QuafuBackendAdapter(platform_obj=_Platform())
+    resolved = adapter.resolve_backend(num_qubits=4, prefer_hardware=["chip_b", "chip_a"])
+    assert resolved.hardware_name == "chip_b"
+    assert resolved.provider == "quafu"
+
+
+# -- Boundary: malformed / partial provider responses handled gracefully --
+
+
+def test_quafu_loader_returns_none_for_empty_response(monkeypatch):
+    class _Resp:
+        def __init__(self, data):
+            self.content = json.dumps(data).encode()
+
+    class _Session:
+        def get(self, url):
+            del url
+            return _Resp({})
+
+    monkeypatch.setattr(qf.requests, "Session", _Session)
+    assert qf.load_quafu_chip_info("Baihua") is None
+
+
+def test_quafu_loader_ignores_malformed_qubit_and_coupler_entries(monkeypatch):
+    payload = {
+        "qubits_info": {
+            "Q0": {"fidelity": 0.99},
+            "Q1": "not-a-dict",
+            "Q2": {"fidelity": "garbage"},
+        },
+        "couplers_info": {
+            "C0": {"qubits_index": [0], "fidelity": 0.99},          # wrong length
+            "C1": {"qubits_index": ["x", "y"], "fidelity": 0.99},   # non-int
+            "C2": {"qubits_index": [0, 2], "fidelity": 0.95},       # valid
+        },
+        "global_info": {"two_qubit_gate_basis": "cz"},
+    }
+
+    class _Resp:
+        def __init__(self, data):
+            self.content = json.dumps(data).encode()
+
+    class _Session:
+        def get(self, url):
+            del url
+            return _Resp(payload)
+
+    monkeypatch.setattr(qf.requests, "Session", _Session)
+    chip_info = qf.load_quafu_chip_info("Baihua")
+    # Q1 (non-dict) is dropped; Q0 and Q2 kept (Q2's bad fidelity defaults to 1.0).
+    assert set(chip_info["qubits_info"].keys()) == {"Q0", "Q2"}
+    assert chip_info["qubits_info"]["Q2"]["fidelity"] == 1.0
+    # Only the valid coupler survives.
+    assert list(chip_info["couplers_info"].keys()) == ["C2"]
+
+
+def test_cqlib_extract_counts_raises_on_zero_results():
+    from fieldqkit.api.quantum_platform.cqlib import extract_counts_from_result_items
+
+    with pytest.raises(RuntimeError, match="failed to extract counts"):
+        extract_counts_from_result_items([], num_qubits=3)
+
+
+def test_cqlib_extract_counts_skips_malformed_rows():
+    from fieldqkit.api.quantum_platform.cqlib import extract_counts_from_result_items
+
+    items = [
+        {"resultStatus": [["hdr"], [0, 1], "bad-row", [1, 0], [2, 0]]},  # "bad-row" and [2,0] skipped
+        {"resultStatus": [["hdr"], [0, 1]]},
+    ]
+    counts = extract_counts_from_result_items(items, num_qubits=2)
+    # Valid rows: [0,1] (x2) and [1,0] (x1); the [2,0] non-binary row is dropped.
+    assert counts == {"01": 2, "10": 1}
+
+
+def test_cqlib_query_status_failed_on_empty_result_items():
+    from fieldqkit.api.quantum_platform.cqlib import CqlibTaskAdapter
+    from fieldqkit.api.task import ProviderTaskHandle
+
+    class _Platform:
+        def query_experiment(self, query_id, max_wait_time, sleep_time):
+            del query_id, max_wait_time, sleep_time
+            return []
+
+    class _Adapter(CqlibTaskAdapter):
+        provider = "tianyan"
+
+        def _default_api_token(self):
+            return "k"
+
+    adapter = _Adapter(client=_DummyClient(), api_token="k")
+    handle = ProviderTaskHandle(
+        provider="tianyan",
+        task_id="x",
+        payload={"platform_obj": _Platform(), "task_ids": ["x"], "max_wait_time": 1, "sleep_time": 0, "num_qubits": 2},
+    )
+    assert adapter.query_status(handle) == "Failed"
+
+
+def test_quafu_fetch_result_raises_when_count_missing():
+    client = _DummyClient()
+    # Override result to omit the "count" key.
+    client.tmgr.result = lambda tid: {"no_count": True}
+    adapter = qf.QuafuTaskAdapter(client=client)
+    backend = ResolvedBackend(
+        provider="quafu",
+        hardware_name="chip",
+        backend="b",
+        metadata={"platform_obj": client.tmgr},
+    )
+    handle = adapter.submit_openqasm(
+        ut.OpenQasmSubmitRequest(name="n", qasm="OPENQASM 2.0;", shots=10, chip_name="chip"),
+        backend,
+    )
+    with pytest.raises(RuntimeError, match="missing count"):
+        adapter.fetch_result(handle)
+
+
+# -- Invariant: result-status mapping (Tencent) for all known states --
+
+
+@pytest.mark.parametrize(
+    "raw_state,expected",
+    [
+        ("completed", "Finished"),
+        ("failed", "Failed"),
+        ("pending", "Running"),
+        ("scheduled", "Running"),
+        ("some_unknown_state", "Running"),
+    ],
+)
+def test_tencent_status_map_all_states(monkeypatch, raw_state, expected):
+    class _FakePlatform:
+        def query_task_state(self, task_id, device_name):
+            del task_id, device_name
+            return raw_state
+
+    monkeypatch.setattr(tc, "_get_tencent_token", lambda: "fake_token")
+    monkeypatch.setattr(tc, "_ensure_token", lambda token=None: "fake_token")
+
+    adapter = tc.TencentTaskAdapter(client=_DummyClient(), token="fake_token")
+    handle = ut.ProviderTaskHandle(
+        provider="tencent",
+        task_id="t",
+        payload={"platform_obj": _FakePlatform(), "device_name": "tianji_s2"},
+    )
+    assert adapter.query_status(handle) == expected
+
+
+# -- Large-scale: big topology parses and sorts correctly --
+
+
+def test_large_topology_parses_and_sorts(monkeypatch):
+    """A 64-qubit linear chip (scrambled qubit order in overview) must parse,
+    keep all couplers, and yield a sorted topology in the HardwareProfile."""
+    n = 64
+    coupler_map = {f"G{i}": [f"Q{i}", f"Q{i+1}"] for i in range(n - 1)}
+    scrambled_qubits = [f"Q{i}" for i in range(n)][::-1]  # reverse order on purpose
+    config = {
+        "disabledQubits": "",
+        "disabledCouplers": "",
+        "twoQubitGate": {"czGate": {}},
+        "overview": {"qubits": scrambled_qubits, "coupler_map": coupler_map},
+    }
+    chip_info = cq.chip_info_from_config(config, machine_name="bigchip")
+    backend = Backend(chip_info)
+
+    assert len(backend.qubits_with_attributes) == n
+    assert len(backend.couplers_with_attributes) == n - 1
+
+    profile = bmod.build_hardware_profile(
+        provider="tianyan",
+        hardware_name="bigchip",
+        backend=backend,
+        queue_length=12,
+        raw_info=backend.chip_info,
+    )
+    assert profile.nqubits_available == n
+    assert profile.topology.qubits == sorted(profile.topology.qubits)
+    assert profile.topology.qubits == list(range(n))
+    assert len(profile.topology.couplers) == n - 1
+    assert profile.two_qubit_gate_basis == "cz"
+    assert profile.calibration.queue_length == 12
+
+
+def test_large_topology_respects_disabled_qubits_and_couplers():
+    n = 32
+    coupler_map = {f"G{i}": [f"Q{i}", f"Q{i+1}"] for i in range(n - 1)}
+    config = {
+        "disabledQubits": "Q5,Q6",
+        "disabledCouplers": "G10",
+        "twoQubitGate": {"iswapGate": {}},
+        "overview": {"qubits": [f"Q{i}" for i in range(n)], "coupler_map": coupler_map},
+    }
+    chip_info = cq.chip_info_from_config(config, machine_name="dis")
+    qubit_ids = sorted(int(k[1:]) for k in chip_info["qubits_info"].keys())
+    assert 5 not in qubit_ids and 6 not in qubit_ids
+    # Couplers G4 (Q4-Q5), G5 (Q5-Q6), G6 (Q6-Q7) drop (touch disabled qubits),
+    # plus G10 is explicitly disabled.
+    pairs = sorted(tuple(c["qubits_index"]) for c in chip_info["couplers_info"].values())
+    assert (5, 6) not in pairs
+    assert (10, 11) not in pairs
+    assert chip_info["global_info"]["two_qubit_gate_basis"] == "iswap"
+
+
+def test_large_counts_dict_aggregates_correctly():
+    """extract_counts_from_result_items aggregates many shots into a single dict
+    whose total equals the number of measured rows."""
+    from fieldqkit.api.quantum_platform.cqlib import extract_counts_from_result_items
+
+    rows = []
+    rows += [[0, 0, 0, 0]] * 500
+    rows += [[1, 1, 1, 1]] * 300
+    rows += [[0, 1, 0, 1]] * 224
+    matrix = [["h0", "h1", "h2", "h3"]] + rows
+    counts = extract_counts_from_result_items([{"resultStatus": matrix}], num_qubits=4)
+    assert counts == {"0000": 500, "1111": 300, "0101": 224}
+    assert sum(counts.values()) == 1024
+
+
+def test_simulator_backend_adapter_builds_large_chip():
+    adapter = bmod.SimulatorBackendAdapter()
+    resolved = adapter.resolve_backend(num_qubits=50)
+    assert resolved.hardware_name == "Simulator"
+    assert len(resolved.backend.qubits_with_attributes) == 50
+    # Linear-chain synthetic topology -> 49 couplers.
+    assert len(resolved.backend.couplers_with_attributes) == 49
+
+
+# -- Large-scale: many observables routed through the simulator run path --
+
+
+def test_many_observables_through_simulator_run_path():
+    """Route 10 observables through the real local-simulator run path
+    (no network). A GHZ state gives ZZ...Z parity = 1 and single-qubit Z ~ 0."""
+    client = QuantumHardwareClient()
+    n = 6
+    qc = QuantumCircuit(n)
+    qc.h(0)
+    for i in range(n - 1):
+        qc.cx(i, i + 1)
+
+    observables = [f"Z{i}" for i in range(n)] + ["Z" * n, "X0", "Y1", "Z0 Z1"]
+    result = client._run_with_backend(
+        qc,
+        name="many_obs_sim",
+        num_qubits=n,
+        backend=Backend("simulator"),
+        chip_name="simulator",
+        shots=4096,
+        observables=observables,
+        transpile=False,
+        print_true=False,
+    )
+
+    assert set(result.observable_values.keys()) == set(observables)
+    # Full-weight Z parity on a GHZ state is exactly +1.
+    assert result.observable_values["Z" * n] == pytest.approx(1.0)
+
+
+def test_simulator_zero_results_empty_circuit_probabilities_normalize():
+    """An empty circuit measured returns a normalized probability vector."""
+    client = QuantumHardwareClient()
+    qc = QuantumCircuit(3)
+    qc.measure_all()
+    qc_norm = client._normalize_input_circuit(qc, 3, observables=None)
+    result = client._run_with_backend(
+        qc_norm,
+        name="empty_probs",
+        num_qubits=3,
+        backend=Backend("simulator"),
+        chip_name="simulator",
+        shots=1024,
+        transpile=False,
+        observables=None,
+        return_probabilities=True,
+        print_true=False,
+    )
+    probs = result.probabilities[0]
+    assert len(probs) == 8  # 2**3
+    assert sum(probs) == pytest.approx(1.0)
+    # |000> only.
+    assert probs[0] == pytest.approx(1.0)
+
+
+def test_run_auto_fieldquantum_routes_to_fieldquantum_runtime(monkeypatch):
+    backend_adapter = _FakeBackendAdapter(provider="fieldquantum")
+    task_adapter = _FakeTaskAdapter()
+    seen = _install_runtime_mocks(monkeypatch, backend_adapter=backend_adapter, task_adapter=task_adapter)
+    run_seen = _install_run_with_backend_mock(monkeypatch)
+
+    client = QuantumHardwareClient()
+    qc = QuantumCircuit(2)
+    client.run_auto(circuit=qc, name="fq_job", num_qubits=2, provider="fieldquantum", print_true=False)
+
+    assert seen["provider"] == "fieldquantum"
+    assert backend_adapter.calls[0]["num_qubits"] == 2
+    assert run_seen["name"] == "fq_job"

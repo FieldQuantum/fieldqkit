@@ -241,3 +241,239 @@ measure b[0] -> c[1];
     parse_openqasm2_to_gates(qasm)
     captured = capsys.readouterr()
     assert captured.out == ""
+
+
+# ═══════════════════════════════════════════════════════════
+#  Boundary cases
+# ═══════════════════════════════════════════════════════════
+
+
+def test_empty_circuit_exports_zero_registers():
+    qc = QuantumCircuit()
+    assert qc.nqubits == 0
+    assert qc.ncbits == 0
+    assert qc.gates == []
+    assert qc.qubits == []
+
+    qasm = qc.to_openqasm2()
+    assert qasm.startswith("OPENQASM 2.0;")
+    assert "qreg q[0];" in qasm
+    assert "creg c[0];" in qasm
+
+
+def test_single_qubit_default_ncbits_matches_nqubits():
+    qc = QuantumCircuit(1)
+    assert qc.nqubits == 1
+    assert qc.ncbits == 1
+
+
+def test_single_gate_circuit_records_one_gate():
+    qc = QuantumCircuit(1, 1)
+    ret = qc.h(0)
+    assert ret is qc
+    assert qc.gates == [("h", 0)]
+    assert qc.qubits == [0]
+
+
+def test_constructor_rejects_more_than_two_args():
+    with pytest.raises(ValueError):
+        QuantumCircuit(1, 2, 3)
+
+
+def test_out_of_range_qubit_index_raises():
+    qc = QuantumCircuit(2, 2)
+    with pytest.raises(ValueError, match="out of range"):
+        qc.h(2)
+    with pytest.raises(ValueError, match="out of range"):
+        qc.cx(0, 5)
+
+
+def test_duplicate_qubit_args_raise_conflict():
+    qc = QuantumCircuit(2, 2)
+    with pytest.raises(ValueError, match="conflict"):
+        qc.cx(1, 1)
+    with pytest.raises(ValueError, match="conflict"):
+        qc.swap(0, 0)
+
+
+def test_ccx_duplicate_indices_raise():
+    qc = QuantumCircuit(3, 3)
+    with pytest.raises(ValueError, match="conflict"):
+        qc.ccx(0, 1, 0)
+
+
+def test_measure_mismatched_lengths_raise():
+    qc = QuantumCircuit(2, 2)
+    with pytest.raises(ValueError):
+        qc.measure([0, 1], [0])
+
+
+def test_barrier_duplicate_qubits_raise():
+    qc = QuantumCircuit(3, 3)
+    with pytest.raises(ValueError):
+        qc.barrier(0, 0, 1)
+
+
+def test_remove_gate_and_remove_barrier_are_noop_on_empty():
+    qc = QuantumCircuit(1, 1)
+    assert qc.remove_barrier() is qc
+    assert qc.gates == []
+    assert qc.remove_gate("h") is qc
+    assert qc.gates == []
+
+
+# ═══════════════════════════════════════════════════════════
+#  Counting / introspection helpers
+# ═══════════════════════════════════════════════════════════
+
+
+def test_count_gate_ncz_and_qubits_in_use():
+    qc = QuantumCircuit(3, 3)
+    qc.h(0).h(1).cx(0, 1).rzz(0.1, 1, 2)
+
+    assert qc.count_gate("h") == 2
+    assert qc.count_gate("cx") == 1
+    assert qc.count_gate("nonexistent") == 0
+    # cx + rzz both count as two-qubit gates
+    assert qc.ncz == 2
+    assert qc.qubits_in_use == [0, 1, 2]
+
+
+def test_remove_barrier_and_remove_gate_filter_named_gates():
+    qc = QuantumCircuit(2, 2)
+    qc.h(0).barrier(0, 1).x(1).barrier(0, 1)
+    assert qc.count_gate("barrier") == 2
+
+    qc.remove_barrier()
+    assert qc.count_gate("barrier") == 0
+    assert qc.gates == [("h", 0), ("x", 1)]
+
+    qc.remove_gate("h")
+    assert qc.gates == [("x", 1)]
+
+
+# ═══════════════════════════════════════════════════════════
+#  Large-scale construction
+# ═══════════════════════════════════════════════════════════
+
+
+def test_wide_circuit_construction_50_qubits():
+    n = 50
+    qc = QuantumCircuit(n, n)
+    for i in range(n):
+        qc.h(i)
+    for i in range(n - 1):
+        qc.cx(i, i + 1)
+
+    assert qc.nqubits == n
+    assert len(qc.qubits) == n
+    assert qc.count_gate("h") == n
+    assert qc.count_gate("cx") == n - 1
+
+
+def test_deep_circuit_construction_hundreds_of_gates():
+    n = 6
+    layers = 100
+    qc = QuantumCircuit(n, n)
+    for d in range(layers):
+        for i in range(n):
+            qc.rz(0.01 * d, i)
+        for i in range(n - 1):
+            qc.cx(i, i + 1)
+
+    assert len(qc.gates) == layers * (n + (n - 1))
+    assert qc.count_gate("rz") == layers * n
+    assert qc.count_gate("cx") == layers * (n - 1)
+
+
+def test_wide_circuit_openqasm_export_has_one_line_per_gate():
+    n = 30
+    qc = QuantumCircuit(n, n)
+    for i in range(n):
+        qc.h(i)
+
+    qasm = qc.to_openqasm2()
+    h_lines = [ln for ln in qasm.splitlines() if ln.startswith("h q[")]
+    assert len(h_lines) == n
+    assert f"qreg q[{n}];" in qasm
+
+
+def test_adjust_index_large_offset_shifts_every_index():
+    n = 10
+    qc = QuantumCircuit(n, n)
+    for i in range(n):
+        qc.h(i)
+
+    qc.adjust_index(100)
+
+    assert qc.nqubits == n + 100
+    assert qc.qubits == list(range(100, 100 + n))
+    assert qc.gates[0] == ("h", 100)
+    assert qc.gates[-1] == ("h", 100 + n - 1)
+
+
+def test_mapping_to_others_identity_preserves_gates():
+    qc = QuantumCircuit(3, 3)
+    qc.h(0).cx(0, 1).cx(1, 2)
+    original = list(qc.gates)
+
+    qc.mapping_to_others({0: 0, 1: 1, 2: 2})
+
+    assert qc.gates == original
+
+
+def test_deepcopy_is_independent():
+    a = QuantumCircuit(2, 2)
+    a.h(0)
+    b = a.deepcopy()
+    b.x(1)
+
+    assert len(a.gates) == 1
+    assert len(b.gates) == 2
+    assert a.gates == [("h", 0)]
+
+
+# ═══════════════════════════════════════════════════════════
+#  OpenQASM round-trip invariants (large)
+# ═══════════════════════════════════════════════════════════
+
+
+def test_openqasm_roundtrip_idempotent_when_all_qubits_used():
+    n = 8
+    qc = QuantumCircuit(n, n)
+    for i in range(n):
+        qc.h(i)
+    for i in range(n - 1):
+        qc.cx(i, i + 1)
+    for i in range(n):
+        qc.rz(0.1 * i, i)
+    qc.measure(list(range(n)), list(range(n)))
+
+    s1 = qc.to_openqasm2()
+    qc2 = QuantumCircuit().from_openqasm2(s1)
+    s2 = qc2.to_openqasm2()
+
+    assert s1 == s2
+
+
+def test_openqasm_roundtrip_preserves_gate_semantics_large():
+    n = 12
+    qc = QuantumCircuit(n, n)
+    for i in range(n):
+        qc.h(i)
+    for i in range(0, n - 1, 2):
+        qc.cx(i, i + 1)
+
+    s1 = qc.to_openqasm2()
+    qc2 = QuantumCircuit().from_openqasm2(s1)
+
+    assert qc2.count_gate("h") == n
+    assert qc2.count_gate("cx") == n // 2
+    assert qc2.to_openqasm2() == s1
+
+
+def test_symbolic_openqasm_keeps_unbound_parameters():
+    qc = QuantumCircuit(1, 1)
+    qc.rx("theta", 0)
+    qasm = qc.to_openqasm2(symbolic=True)
+    assert "rx(theta) q[0];" in qasm
