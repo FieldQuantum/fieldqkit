@@ -182,21 +182,20 @@ def normalize_hardware_rows(*, provider: str, records: List[Dict[str, Any]]) -> 
     return rows
 
 
-def extract_counts_from_result_items(result_items: Sequence[Dict[str, Any]], *, num_qubits: int) -> Dict[str, int]:
-    """Merge measurement counts from result-item matrices, padding bit-strings to *num_qubits* width.
+def extract_counts_from_result_items(result_items: Sequence[Dict[str, Any]]) -> Dict[str, int]:
+    """Merge measurement counts from result-item matrices.
 
     Args:
         result_items (*Sequence[Dict[str, Any]]*): List of result-item dicts from the platform response.
-        num_qubits (*int*): Number of qubits.
 
     Returns:
-        Merged measurement counts dictionary.
+        Merged measurement counts dictionary, keyed by the bit-strings exactly
+        as returned by the platform.
 
     Raises:
         RuntimeError: failed to extract counts from platform result payload
     """
     merged: Dict[str, int] = {}
-    width = max(int(num_qubits), 1)
     for item in result_items:
         matrix = item.get("resultStatus")
         if not isinstance(matrix, list) or len(matrix) < 2:
@@ -208,13 +207,9 @@ def extract_counts_from_result_items(result_items: Sequence[Dict[str, Any]], *, 
                 bits = [int(v) for v in row]
             except Exception:
                 continue
-            if any(v not in (0, 1) for v in bits):
+            if not bits or any(v not in (0, 1) for v in bits):
                 continue
             bitstring = "".join(str(v) for v in bits)
-            if len(bitstring) < width:
-                bitstring = bitstring.rjust(width, "0")
-            elif len(bitstring) > width:
-                bitstring = bitstring[-width:]
             merged[bitstring] = merged.get(bitstring, 0) + 1
 
     if merged:
@@ -1245,7 +1240,7 @@ class CqlibTaskAdapter(TaskAdapter):
         submitted_task_ids = platform_obj.submit_job(circuit=submit_request.qcis, exp_name=submit_request.name, num_shots=submit_request.shots, language=QuantumLanguage.QCIS, is_verify=True)
         task_ids = [submitted_task_ids] if isinstance(submitted_task_ids, str) else [str(q) for q in submitted_task_ids]
         task_id = task_ids[0] if len(task_ids) == 1 else ",".join(task_ids)
-        payload = {"task_ids": task_ids, "platform_obj": platform_obj, "max_wait_time": max_wait_time, "sleep_time": sleep_time, "num_qubits": submit_request.submit_options.get("num_qubits", 0)}
+        payload = {"task_ids": task_ids, "platform_obj": platform_obj, "max_wait_time": max_wait_time, "sleep_time": sleep_time}
         handle = ProviderTaskHandle(provider=self.provider, task_id=task_id, payload=payload)
         self._handle_cache[task_id] = payload
         return handle
@@ -1285,7 +1280,7 @@ class CqlibTaskAdapter(TaskAdapter):
         payload.update(handle.payload)
         if payload.get("result_items") is None and self.query_status(handle) != "Finished":
             raise RuntimeError(f"task {handle.task_id} ended with status Failed")
-        return {"count": extract_counts_from_result_items(payload.get("result_items", []), num_qubits=int(payload.get("num_qubits", 0) or 0))}
+        return {"count": extract_counts_from_result_items(payload.get("result_items", []))}
 
     def cancel_task(self, handle: ProviderTaskHandle) -> None:
         """Stop running experiments associated with the given task handle.

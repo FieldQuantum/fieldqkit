@@ -19,7 +19,7 @@
 
 ### auto_sim_device(device=None)
 
-- 自动选择仿真设备，优先级：显式 `device` > Apple Metal（MPS） > 利用率最低的 CUDA 设备 > CPU。
+- 自动选择仿真设备，优先级：显式 `device` > 利用率最低的 CUDA 设备 > CPU。
 - 参数：
   - `device`: 显式指定的 torch device 或字符串（`'cpu'`/`'cuda'`）；若 `None`，按上述优先级自动探测。
 - 多 CUDA 卡时按 NVML 计算利用率挑选最空闲的卡，利用率并列（或 NVML 不可用）时再比较空闲显存。

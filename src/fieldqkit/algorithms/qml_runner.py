@@ -114,7 +114,6 @@ class QMLRunner:
 
             self.client._active_task_adapter = runtime.task_adapter
             self.client._active_resolved_backend = resolved
-            self.client._active_num_qubits = num_qubits
             try:
                 logger.info("running on chip: %s", resolved.hardware_name)
                 return func(

@@ -157,7 +157,6 @@ class ReadoutCalibrationManager:
 						circuit=qct,
 						shots=shots,
 						chip_name=chip_name,
-						submit_options={"num_qubits": 1},
 					)
 					self._last_pending_task_id = task_id
 					pending.append((task_id, q, bits))

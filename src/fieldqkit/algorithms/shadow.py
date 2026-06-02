@@ -428,7 +428,6 @@ class ShadowTomography:
             }
             self.client._active_task_adapter = runtime.task_adapter
             self.client._active_resolved_backend = resolved
-            self.client._active_num_qubits = num_qubits
 
             try:
                 return run_shadow_with_backend(

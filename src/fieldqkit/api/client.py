@@ -68,7 +68,6 @@ class QuantumHardwareClient:
 		self.chip_backend = None
 		self._active_task_adapter: Optional[TaskAdapter] = None
 		self._active_resolved_backend = None
-		self._active_num_qubits: Optional[int] = None
 		# For sequential task submission (tianyan provider does not support batch submission)
 		self._last_pending_task_id: Optional[object] = None
 
@@ -235,8 +234,6 @@ class QuantumHardwareClient:
 		"""
 		resolved_chip_name = self._resolve_chip_name(chip_name)
 		options = dict(submit_options or {})
-		if self._active_num_qubits is not None:
-			options["num_qubits"] = self._active_num_qubits
 
 		# Add timestamp suffix to avoid task name collision
 		timestamp = int(time.time() * 1000)
@@ -361,8 +358,6 @@ class QuantumHardwareClient:
 		"""
 		resolved_chip_name = self._resolve_chip_name(chip_name)
 		options = dict(submit_options or {})
-		if self._active_num_qubits is not None:
-			options["num_qubits"] = self._active_num_qubits
 
 		timestamp = int(time.time() * 1000)
 		task_name = f"{name}_{timestamp}"
@@ -601,7 +596,6 @@ class QuantumHardwareClient:
 			self.chip_backend = backend
 			self._active_task_adapter = runtime.task_adapter
 			self._active_resolved_backend = resolved
-			self._active_num_qubits = num_qubits
 			logger.info("auto-provisioned runtime for provider=%s chip=%s", inferred, chip_name)
 
 		# Precompute observable support for local expectations and mitigation.
@@ -972,7 +966,6 @@ class QuantumHardwareClient:
 		}
 		self._active_task_adapter = runtime.task_adapter
 		self._active_resolved_backend = resolved_backend
-		self._active_num_qubits = num_qubits
 
 		# When Clifford fitting is requested with observables, transpile once
 		# on the client and reuse the same template for both the main run

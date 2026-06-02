@@ -72,7 +72,7 @@
 - 默认 dtype: torch.complex128（态张量）
 - 自动设备选择（`auto_sim_device`）：
   - 如果显式传入 device，优先使用
-  - 否则按 Apple Metal（MPS） > 利用率最低的 CUDA > CPU 顺序探测
+  - 否则按 利用率最低的 CUDA > CPU 顺序探测
 
 ## 与接口层关系
 

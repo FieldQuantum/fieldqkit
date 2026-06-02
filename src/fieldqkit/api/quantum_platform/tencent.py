@@ -476,7 +476,6 @@ class TencentTaskAdapter(TaskAdapter):
         payload = {
             "platform_obj": platform_obj,
             "device_name": submit_request.chip_name,
-            "num_qubits": submit_request.submit_options.get("num_qubits", 0),
         }
         return ProviderTaskHandle(
             provider=self.provider,

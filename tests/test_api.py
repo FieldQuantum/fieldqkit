@@ -2149,7 +2149,7 @@ def test_cqlib_extract_counts_raises_on_zero_results():
     from fieldqkit.api.quantum_platform.cqlib import extract_counts_from_result_items
 
     with pytest.raises(RuntimeError, match="failed to extract counts"):
-        extract_counts_from_result_items([], num_qubits=3)
+        extract_counts_from_result_items([])
 
 
 def test_cqlib_extract_counts_skips_malformed_rows():
@@ -2159,9 +2159,23 @@ def test_cqlib_extract_counts_skips_malformed_rows():
         {"resultStatus": [["hdr"], [0, 1], "bad-row", [1, 0], [2, 0]]},  # "bad-row" and [2,0] skipped
         {"resultStatus": [["hdr"], [0, 1]]},
     ]
-    counts = extract_counts_from_result_items(items, num_qubits=2)
+    counts = extract_counts_from_result_items(items)
     # Valid rows: [0,1] (x2) and [1,0] (x1); the [2,0] non-binary row is dropped.
     assert counts == {"01": 2, "10": 1}
+
+
+def test_cqlib_extract_counts_width_comes_from_payload():
+    """Counts keep the platform's measured bit-width; a single measured qubit
+    stays width-1 and is never padded to a run-wide qubit count. This guards the
+    readout-calibration regression where a clobbered width diluted the |1> row.
+    """
+    from fieldqkit.api.quantum_platform.cqlib import extract_counts_from_result_items
+
+    # One measured qubit, prepared |1>: 9 shots read 1, 1 shot reads 0.
+    matrix = [["Q36"]] + [[1]] * 9 + [[0]] * 1
+    counts = extract_counts_from_result_items([{"resultStatus": matrix}])
+    assert counts == {"1": 9, "0": 1}
+    assert all(len(k) == 1 for k in counts)
 
 
 def test_cqlib_query_status_failed_on_empty_result_items():
@@ -2304,7 +2318,7 @@ def test_large_counts_dict_aggregates_correctly():
     rows += [[1, 1, 1, 1]] * 300
     rows += [[0, 1, 0, 1]] * 224
     matrix = [["h0", "h1", "h2", "h3"]] + rows
-    counts = extract_counts_from_result_items([{"resultStatus": matrix}], num_qubits=4)
+    counts = extract_counts_from_result_items([{"resultStatus": matrix}])
     assert counts == {"0000": 500, "1111": 300, "0101": 224}
     assert sum(counts.values()) == 1024
 

@@ -26,7 +26,7 @@ class QuantumLanguage(Enum):
 
 - 作用：将平台记录转为统一硬件行结构。
 
-### `extract_counts_from_result_items(result_items, *, num_qubits) -> Dict[str, int]`
+### `extract_counts_from_result_items(result_items) -> Dict[str, int]`
 
 - 作用：从平台实验结果中提取并合并 bitstring 计数。
 - 行为：优先读取 `resultStatus` 矩阵；失败时回退读取 `count` 字段。

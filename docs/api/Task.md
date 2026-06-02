@@ -72,7 +72,6 @@ class ProviderTaskHandle:
 
 | 键 | 类型 | 说明 |
 |---|---|---|
-| `num_qubits` | `int` | 由 `QuantumHardwareClient` 自动注入（来自 `_active_num_qubits`），下游 adapter 可用于校验或合成 chip_info。 |
 | `max_wait_time` | `int` | 任务轮询最大等待时间（秒），透传到 `query_experiment(...)` 之类的接口。默认 3600。 |
 | `sleep_time` | `int` | 轮询间隔（秒），默认 5。 |
 
@@ -250,7 +249,7 @@ req = OpenQasmSubmitRequest(
     qasm=qasm,
     shots=1024,
     chip_name="Baihua",
-    submit_options={"num_qubits": 4},
+    submit_options={"max_wait_time": 3600, "sleep_time": 5},
 )
 
 handle = task_adapter.submit_openqasm(req, resolved)

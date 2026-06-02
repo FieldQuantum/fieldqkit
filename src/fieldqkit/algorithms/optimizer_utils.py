@@ -1013,7 +1013,6 @@ def select_backend_and_run(
         client.chip_backend = resolved.backend
         client._active_task_adapter = runtime.task_adapter
         client._active_resolved_backend = resolved
-        client._active_num_qubits = num_qubits
         try:
             logger.info("running on chip: %s", resolved.hardware_name)
             return run_on_backend(resolved, provider_name)
