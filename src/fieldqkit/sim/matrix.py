@@ -53,6 +53,25 @@ def sim_real_dtype(device: torch.device | str | None) -> torch.dtype:
     return torch.float64
 
 
+def to_sim_tensor(t: torch.Tensor, device: torch.device | str | None) -> torch.Tensor:
+    """Move *t* onto *device*, clamping double precision the device can't hold.
+
+    Args:
+        t (*torch.Tensor*): Tensor to relocate.
+        device (*torch.device | str | None*): Target device. ``None`` leaves the
+            tensor on its current device.
+
+    Returns:
+        ``torch.Tensor`` on *device* with a device-supported dtype.
+    """
+    if device is not None and torch.device(device).type == "mps":
+        if t.dtype == torch.float64:
+            return t.to(device=device, dtype=torch.float32)
+        if t.dtype == torch.complex128:
+            return t.to(device=device, dtype=torch.complex64)
+    return t.to(device=device)
+
+
 def _as_tensor(x, *, device: torch.device | None, dtype: torch.dtype | None):
     """Convert a scalar or array to a torch tensor, preserving existing tensor dtype.
 
@@ -80,7 +99,7 @@ def _as_angle(theta, *, device: torch.device | None):
         Real-valued ``torch.Tensor`` (``float64``, or ``float32`` on MPS).
     """
     if isinstance(theta, torch.Tensor):
-        return theta.to(device=device)
+        return to_sim_tensor(theta, device)
     return torch.tensor(float(theta), device=device, dtype=sim_real_dtype(device))
 
 

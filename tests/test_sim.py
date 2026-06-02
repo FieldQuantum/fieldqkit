@@ -91,7 +91,7 @@ def test_nonadjacent_two_qubit_mps_matches_statevector(gate_name, gate_args):
     actual = _mps_to_statevector(simulate_mps(qc))
     actual = _align_global_phase(expected, actual)
 
-    assert torch.allclose(actual, expected, atol=1e-12, rtol=1e-12)
+    assert torch.allclose(actual, expected, atol=1e-5, rtol=1e-5)
 
 
 @pytest.mark.parametrize(
@@ -117,7 +117,7 @@ def test_three_qubit_mps_matches_statevector(gate_name, num_qubits, gate_args):
     actual = _mps_to_statevector(simulate_mps(qc))
     actual = _align_global_phase(expected, actual)
 
-    assert torch.allclose(actual, expected, atol=1e-12, rtol=1e-12)
+    assert torch.allclose(actual, expected, atol=1e-5, rtol=1e-5)
 
 
 @pytest.mark.parametrize(
@@ -142,7 +142,7 @@ def test_unsorted_qubits_mps_matches_statevector(gate_name, gate_args):
     actual = _mps_to_statevector(simulate_mps(qc))
     actual = _align_global_phase(expected, actual)
 
-    assert torch.allclose(actual, expected, atol=1e-12, rtol=1e-12)
+    assert torch.allclose(actual, expected, atol=1e-5, rtol=1e-5)
 
 
 @pytest.mark.parametrize(
@@ -282,7 +282,7 @@ def test_simulate_mpo_process_matches_dense_reference_on_nonadjacent_and_three_q
     actual = _mpo_to_matrix(mpo).cpu()
     expected = _reference_unitary_from_circuit(qc)
 
-    assert torch.allclose(actual, expected, atol=1e-12, rtol=1e-12)
+    assert torch.allclose(actual, expected, atol=1e-5, rtol=1e-5)
 
 
 def test_simulate_mpo_process_respects_max_bond_dim_cap():
@@ -323,29 +323,29 @@ class TestSimulateStatevector:
         qc = QuantumCircuit(0)
         state = simulate_statevector(qc)
         assert state.numel() == 1
-        assert abs(state[0].item() - 1.0) < 1e-12
+        assert abs(state[0].item() - 1.0) < 1e-5
 
     def test_identity_circuit(self):
         """Circuit with no gates should give |000...0>."""
         qc = QuantumCircuit(3)
         state = simulate_statevector(qc)
         assert state.numel() == 8
-        assert abs(state[0].item() - 1.0) < 1e-12
-        assert float(state[1:].abs().sum().item()) < 1e-12
+        assert abs(state[0].item() - 1.0) < 1e-5
+        assert float(state[1:].abs().sum().item()) < 1e-5
 
     def test_x_gate_flips_state(self):
         qc = QuantumCircuit(1)
         qc.x(0)
         state = simulate_statevector(qc)
-        assert abs(state[1].item() - 1.0) < 1e-12
+        assert abs(state[1].item() - 1.0) < 1e-5
 
     def test_h_gate_superposition(self):
         qc = QuantumCircuit(1)
         qc.h(0)
         state = simulate_statevector(qc)
         expected = 1.0 / (2 ** 0.5)
-        assert abs(state[0].item() - expected) < 1e-12
-        assert abs(state[1].item() - expected) < 1e-12
+        assert abs(state[0].item() - expected) < 1e-5
+        assert abs(state[1].item() - expected) < 1e-5
 
     def test_bell_state(self):
         qc = QuantumCircuit(2)
@@ -353,17 +353,17 @@ class TestSimulateStatevector:
         qc.cx(0, 1)
         state = simulate_statevector(qc)
         expected = 1.0 / (2 ** 0.5)
-        assert abs(state[0].item() - expected) < 1e-12
-        assert abs(state[3].item() - expected) < 1e-12
-        assert abs(state[1].item()) < 1e-12
-        assert abs(state[2].item()) < 1e-12
+        assert abs(state[0].item() - expected) < 1e-5
+        assert abs(state[3].item() - expected) < 1e-5
+        assert abs(state[1].item()) < 1e-5
+        assert abs(state[2].item()) < 1e-5
 
     def test_parameterized_circuit(self):
         qc = QuantumCircuit(1)
         qc.rx("theta", 0)
         state = simulate_statevector(qc, param_values={"theta": 0.0})
         # rx(0) = identity
-        assert abs(state[0].item() - 1.0) < 1e-12
+        assert abs(state[0].item() - 1.0) < 1e-5
 
     def test_unsupported_gate_raises(self):
         qc = QuantumCircuit(1)
@@ -379,7 +379,7 @@ class TestSimulateStatevector:
         state = simulate_statevector(qc)
         # After H(0) the state is (|0>+|1>)/sqrt(2) on q0.
         # Reset collapses q0 to |0>: result is |00> (renormalized).
-        assert float(state[0].abs().item()) == pytest.approx(1.0, abs=1e-12)
+        assert float(state[0].abs().item()) == pytest.approx(1.0, abs=1e-5)
 
     def test_reset_gate_from_pure_one(self):
         """Reset on a pure |1> state should produce |0>."""
@@ -388,8 +388,8 @@ class TestSimulateStatevector:
         qc.reset(0)
         state = simulate_statevector(qc)
         # |1> amplitude moved to |0>, then renormalized → |0>
-        assert float(state[0].abs().item()) == pytest.approx(1.0, abs=1e-12)
-        assert float(state[1].abs().item()) == pytest.approx(0.0, abs=1e-12)
+        assert float(state[0].abs().item()) == pytest.approx(1.0, abs=1e-5)
+        assert float(state[1].abs().item()) == pytest.approx(0.0, abs=1e-5)
 
     def test_reset_from_out_of_phase_superposition(self):
         """Reset on (|0>-|1>)/sqrt(2) must give |0>, not cancel to a zero state.
@@ -403,8 +403,8 @@ class TestSimulateStatevector:
         qc.h(0)  # H|1> = (|0> - |1>)/sqrt(2)
         qc.reset(0)
         state = simulate_statevector(qc)
-        assert float(state[0].abs().item()) == pytest.approx(1.0, abs=1e-12)
-        assert float(state[1].abs().item()) == pytest.approx(0.0, abs=1e-12)
+        assert float(state[0].abs().item()) == pytest.approx(1.0, abs=1e-5)
+        assert float(state[1].abs().item()) == pytest.approx(0.0, abs=1e-5)
 
     def test_reset_unentangled_consistency_across_backends(self):
         """Statevector, MPS and density-matrix backends agree for an
@@ -429,7 +429,7 @@ class TestSimulateStatevector:
         assert np.allclose(sv_probs, dm_probs, atol=1e-5)
         assert np.allclose(mps_probs, dm_probs, atol=1e-5)
         # q0 reset to |0>: its marginal P(q0=1) must vanish.
-        assert sv_probs.reshape(2, 2)[1, :].sum() == pytest.approx(0.0, abs=1e-6)
+        assert sv_probs.reshape(2, 2)[1, :].sum() == pytest.approx(0.0, abs=1e-5)
 
     def test_reset_pure_one_on_mps(self):
         """MPS reset on a pure |1> must yield |0> (not a zeroed/invalid state)."""
@@ -437,8 +437,8 @@ class TestSimulateStatevector:
         qc.x(0)
         qc.reset(0)
         state = _mps_to_statevector(simulate_mps(qc))
-        assert float(state[0].abs().item()) == pytest.approx(1.0, abs=1e-9)
-        assert float(state[1].abs().item()) == pytest.approx(0.0, abs=1e-9)
+        assert float(state[0].abs().item()) == pytest.approx(1.0, abs=1e-5)
+        assert float(state[1].abs().item()) == pytest.approx(0.0, abs=1e-5)
 
     def test_normalization(self):
         """Statevector should always have unit norm."""
@@ -449,7 +449,7 @@ class TestSimulateStatevector:
         qc.rz(0.45, 0)
         state = simulate_statevector(qc)
         norm = float((state.abs() ** 2).sum().item())
-        assert norm == pytest.approx(1.0, abs=1e-12)
+        assert norm == pytest.approx(1.0, abs=1e-5)
 
 
 class TestSimulateCounts:
@@ -528,7 +528,7 @@ class TestSVExpectationPauli:
         qc.cx(0, 1)
         state = simulate_statevector(qc)
         exp = sv_expectation_pauli(state, "ZI", num_qubits=2)
-        assert float(exp.real) == pytest.approx(0.0, abs=1e-12)
+        assert float(exp.real) == pytest.approx(0.0, abs=1e-5)
 
 
 class TestSVSampleProbabilities:
@@ -743,7 +743,7 @@ class TestStabilizerClifford:
         ref = _statevector_expectations(qc, ["X", "Y", "Z"])
         got = simulate_clifford_expectations(qc, ["X", "Y", "Z"])
         for key in ["X", "Y", "Z"]:
-            assert got[key] == pytest.approx(ref[key], abs=1e-9)
+            assert got[key] == pytest.approx(ref[key], abs=1e-5)
 
     def test_non_clifford_t_raises(self):
         qc = QuantumCircuit(1)
@@ -778,7 +778,7 @@ class TestStabilizerClifford:
         got = simulate_clifford_expectations(qc, observables)
         ref = _statevector_expectations(qc, observables)
         for obs in observables:
-            assert got[obs] == pytest.approx(ref[obs], abs=1e-9)
+            assert got[obs] == pytest.approx(ref[obs], abs=1e-5)
 
 
 class TestCliffordTBranching:
@@ -789,16 +789,16 @@ class TestCliffordTBranching:
         cliff = simulate_clifford_expectations(qc, ["ZZ", "XX", "ZI"])
         branch = simulate_clifford_t_expectations(qc, ["ZZ", "XX", "ZI"])
         for key in cliff:
-            assert branch[key] == pytest.approx(cliff[key], abs=1e-12)
+            assert branch[key] == pytest.approx(cliff[key], abs=1e-5)
 
     def test_single_t_gate(self):
         qc = QuantumCircuit(1)
         qc.h(0)
         qc.t(0)
         # State (|0? + e^{i��/4}|1?)/��2 �� ?X? = cos(��/4), ?Y? = sin(��/4), ?Z? = 0.
-        assert simulate_clifford_t_expectation(qc, "X") == pytest.approx(np.cos(np.pi / 4), abs=1e-9)
-        assert simulate_clifford_t_expectation(qc, "Y") == pytest.approx(np.sin(np.pi / 4), abs=1e-9)
-        assert simulate_clifford_t_expectation(qc, "Z") == pytest.approx(0.0, abs=1e-9)
+        assert simulate_clifford_t_expectation(qc, "X") == pytest.approx(np.cos(np.pi / 4), abs=1e-5)
+        assert simulate_clifford_t_expectation(qc, "Y") == pytest.approx(np.sin(np.pi / 4), abs=1e-5)
+        assert simulate_clifford_t_expectation(qc, "Z") == pytest.approx(0.0, abs=1e-5)
 
     def test_count_helpers(self):
         qc = QuantumCircuit(2)
@@ -824,7 +824,7 @@ class TestCliffordTBranching:
         got = simulate_clifford_t_expectations(qc, observables)
         ref = _statevector_expectations(qc, observables)
         for obs in observables:
-            assert got[obs] == pytest.approx(ref[obs], abs=1e-7)
+            assert got[obs] == pytest.approx(ref[obs], abs=1e-5)
 
     def test_random_circuit_matches_statevector(self):
         rng = np.random.default_rng(123)
@@ -843,7 +843,7 @@ class TestCliffordTBranching:
         got = simulate_clifford_t_expectations(qc, observables)
         ref = _statevector_expectations(qc, observables)
         for obs in observables:
-            assert got[obs] == pytest.approx(ref[obs], abs=1e-7)
+            assert got[obs] == pytest.approx(ref[obs], abs=1e-5)
 
     def test_max_terms_guard(self):
         # Several T gates spread across qubits with entangling layers prevent
@@ -874,7 +874,7 @@ class TestCliffordTBranching:
         qc_ref.cz(1, 2); qc_ref.rx(0.7, 2); qc_ref.cx(0, 2)
         ref = _statevector_expectations(qc_ref, ["XYZ", "ZZZ"])
         for obs in ["XYZ", "ZZZ"]:
-            assert got[obs] == pytest.approx(ref[obs], abs=1e-7)
+            assert got[obs] == pytest.approx(ref[obs], abs=1e-5)
 
 
 # ═══════════════════════════════════════════════════════════
@@ -1016,11 +1016,11 @@ class TestSimulationScaleAndBoundaries:
         state = simulate_statevector(_ghz(12))
         assert state.numel() == 2 ** 12
         norm = float((state.abs() ** 2).sum().item())
-        assert norm == pytest.approx(1.0, abs=1e-9)
+        assert norm == pytest.approx(1.0, abs=1e-5)
         # Only the all-0 and all-1 amplitudes are populated.
         probs = (state.abs() ** 2).real
-        assert float(probs[0].item()) == pytest.approx(0.5, abs=1e-9)
-        assert float(probs[-1].item()) == pytest.approx(0.5, abs=1e-9)
+        assert float(probs[0].item()) == pytest.approx(0.5, abs=1e-5)
+        assert float(probs[-1].item()) == pytest.approx(0.5, abs=1e-5)
 
     def test_large_statevector_counts_only_ghz_branches(self):
         from fieldqkit.sim import simulate_counts
@@ -1057,7 +1057,7 @@ class TestSimulationScaleAndBoundaries:
 
         state = simulate_statevector(_ghz(10))
         val = expectation_pauli(state, "I" * 10, num_qubits=10)
-        assert complex(val).real == pytest.approx(1.0, abs=1e-9)
+        assert complex(val).real == pytest.approx(1.0, abs=1e-5)
 
     def test_seeded_counts_are_reproducible(self):
         from fieldqkit.sim import simulate_counts

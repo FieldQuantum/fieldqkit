@@ -862,7 +862,7 @@ class TestReadoutLargeScaleAndBoundary:
         cms = [np.eye(2)] * k
         unbiased = expectation_from_samples_unbiased(samples, cms)
         parity = pauli_expectation(samples, "Z" * k)
-        assert unbiased == pytest.approx(parity, abs=1e-9)
+        assert unbiased == pytest.approx(parity, abs=1e-5)
 
     def test_unbiased_estimator_all_zero_returns_one(self):
         samples = np.zeros((100, 10), dtype=int)

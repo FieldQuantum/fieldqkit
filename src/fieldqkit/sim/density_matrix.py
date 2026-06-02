@@ -22,6 +22,7 @@ from ..circuit.quantumcircuit_helpers import (
     two_qubit_noise_channel_gates_available,
 )
 from .noise_kraus import get_kraus_ops
+from .matrix import to_sim_tensor
 
 
 def _apply_mat_left(tensor: torch.Tensor, mat: torch.Tensor, axes: Sequence[int], total_dims: int) -> torch.Tensor:
@@ -344,8 +345,11 @@ def energy_and_expectations(
 
     nqubits = int(getattr(symbolic_qc, "nqubits", 0) or 0)
     sim_device = auto_sim_device(device)
-    if hasattr(params, 'device') and params.device != sim_device:
-        params = params.to(sim_device)
+    if hasattr(params, 'device') and (
+        params.device != sim_device
+        or (sim_device.type == "mps" and params.dtype == torch.float64)
+    ):
+        params = to_sim_tensor(params, sim_device)
 
     param_values = build_param_values_from_tensor(params=params, param_names=param_names)
     state = simulate_density_matrix(symbolic_qc, param_values=param_values, device=sim_device)
