@@ -550,16 +550,21 @@ class TestAutoSimDevice:
         d = auto_sim_device(None)
         assert isinstance(d, torch.device)
 
-    def test_prefers_mps_when_available(self, monkeypatch):
-        monkeypatch.setattr(sim_common, "_mps_is_available", lambda: True)
-        monkeypatch.setattr(torch.cuda, "is_available", lambda: True)
+    def test_never_auto_selects_mps(self, monkeypatch):
+        # MPS can't hold the double-precision (complex128) sim state, so it must
+        # never be auto-selected even when available; fall back to CUDA/CPU.
+        monkeypatch.setattr(torch.cuda, "is_available", lambda: False)
 
         d = auto_sim_device(None)
 
+        assert d == torch.device("cpu")
+
+    def test_explicit_mps_is_respected(self):
+        # An explicit device is always honored, even MPS (caller's choice).
+        d = auto_sim_device("mps")
         assert d == torch.device("mps")
 
     def test_picks_least_used_cuda_device(self, monkeypatch):
-        monkeypatch.setattr(sim_common, "_mps_is_available", lambda: False)
         monkeypatch.setattr(torch.cuda, "is_available", lambda: True)
         monkeypatch.setattr(torch.cuda, "device_count", lambda: 3)
 

@@ -13,7 +13,7 @@ from .matrix import gate_matrix_dict
 
 
 def auto_sim_device(device: torch.device | str | None = None) -> torch.device:
-    """Resolve simulation device: explicit > MPS > least-utilized CUDA > CPU.
+    """Resolve simulation device: explicit > least-utilized CUDA > CPU.
 
     Args:
         device (*torch.device | str | None*): Torch device (``'cpu'`` or ``'cuda'``). Defaults to ``None``.
@@ -23,23 +23,10 @@ def auto_sim_device(device: torch.device | str | None = None) -> torch.device:
     """
     if device is not None:
         return torch.device(device)
-    if _mps_is_available():
-        return torch.device("mps")
     cuda_device = _least_used_cuda_device()
     if cuda_device is not None:
         return cuda_device
     return torch.device("cpu")
-
-
-@lru_cache(maxsize=1)
-def _mps_is_available() -> bool:
-    """Return whether PyTorch can run on Apple Metal Performance Shaders."""
-    backends = getattr(torch, "backends", None)
-    if backends is None or not hasattr(backends, "mps"):
-        return False
-    with suppress(Exception):
-        return bool(backends.mps.is_available()) and bool(backends.mps.is_built())
-    return False
 
 
 @lru_cache(maxsize=1)
