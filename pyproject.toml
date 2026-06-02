@@ -10,7 +10,7 @@ readme = "README.md"
 requires-python = ">=3.9"
 license = "Apache-2.0"
 license-files = ["LICENSE", "NOTICE", "THIRD_PARTY_NOTICES"]
-authors = [{ name = "FieldQuantum Yuchen Guo", email = "guoyuchen@fieldquanta.com" }]
+authors = [{ name = "Yuchen Guo", email = "guoyuchen@fieldquanta.com" }]
 keywords = ["quantum", "quantum-computing", "vqe", "qaoa", "quantum-hardware", "quantum-circuit"]
 classifiers = [
   "Development Status :: 3 - Alpha",
