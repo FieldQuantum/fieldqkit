@@ -262,10 +262,10 @@ class TestNativeTwoQubitRB:
         lengths = [1, 2, 4, 8, 16, 32]
         survival = [a_true * p_true ** x + b for x in lengths]
         fit = mgr._fit_decay(lengths, survival)
-        assert fit["p"] == pytest.approx(p_true, abs=1e-5)
+        assert fit["p"] == pytest.approx(p_true, abs=1e-6)
         f_avg = ((dim - 1) * p_true + 1) / dim
-        assert fit["fidelity"] == pytest.approx(f_avg, abs=1e-5)
-        assert fit["epc"] == pytest.approx(1.0 - f_avg, abs=1e-5)
+        assert fit["fidelity"] == pytest.approx(f_avg, abs=1e-6)
+        assert fit["epc"] == pytest.approx(1.0 - f_avg, abs=1e-6)
 
     def test_fit_decay_underdetermined(self, tmp_path):
         mgr = _make_rb_manager(tmp_path)
@@ -280,7 +280,7 @@ class TestNativeTwoQubitRB:
         qc, total_length = mgr._build_random_sequence([0, 1], length=5, basis_gate="cz", rng=rng)
         # forward + inverse must compose to identity -> stays in |00>.
         state = simulate_statevector(qc)
-        assert float(state[0].abs().item()) == pytest.approx(1.0, abs=1e-5)
+        assert float(state[0].abs().item()) == pytest.approx(1.0, abs=1e-9)
         # total_length scaling: cz -> 2 per layer.
         assert total_length == 2 * 5
 
@@ -318,8 +318,8 @@ class TestNativeTwoQubitRB:
         assert "0-1" in results
         fit = results["0-1"]["fit"]
         # Noiseless identity sequences -> survival 1.0 at every length -> fidelity ~ 1.
-        assert all(v == pytest.approx(1.0, abs=1e-5) for v in results["0-1"]["survival_avg"].values())
-        assert fit["fidelity"] == pytest.approx(1.0, abs=1e-5)
+        assert all(v == pytest.approx(1.0, abs=1e-9) for v in results["0-1"]["survival_avg"].values())
+        assert fit["fidelity"] == pytest.approx(1.0, abs=1e-6)
 
 
 # ─────────────────────────────────────────────────────────────
@@ -333,21 +333,21 @@ class TestTomographyMath:
         assert ptm.shape == (16, 16)
         assert np.allclose(ptm.imag if np.iscomplexobj(ptm) else 0.0, 0.0)
         # Unitary channel -> orthogonal PTM.
-        assert np.allclose(ptm @ ptm.T, np.eye(16), atol=1e-5)
+        assert np.allclose(ptm @ ptm.T, np.eye(16), atol=1e-9)
         # Trace- and identity-preserving: first row/column is e0.
         e0 = np.zeros(16); e0[0] = 1.0
-        assert np.allclose(ptm[0, :], e0, atol=1e-5)
-        assert np.allclose(ptm[:, 0], e0, atol=1e-5)
+        assert np.allclose(ptm[0, :], e0, atol=1e-9)
+        assert np.allclose(ptm[:, 0], e0, atol=1e-9)
 
     def test_ideal_error_channel_is_identity(self, tmp_path):
         mgr = _make_tomo_manager(tmp_path)
         ideal = mgr._ptm_from_unitary("cz")
         # error PTM of a perfect gate against its own ideal == identity.
         ptm_error = ideal @ np.linalg.pinv(ideal)
-        assert np.allclose(ptm_error, np.eye(16), atol=1e-5)
+        assert np.allclose(ptm_error, np.eye(16), atol=1e-9)
         choi = mgr._ptm_to_choi(ptm_error)
         # Choi matrix of any physical map is Hermitian.
-        assert np.allclose(choi, choi.conj().T, atol=1e-5)
+        assert np.allclose(choi, choi.conj().T, atol=1e-9)
 
     def test_ptm_from_unknown_name_raises(self, tmp_path):
         mgr = _make_tomo_manager(tmp_path)
@@ -479,7 +479,7 @@ class TestReadoutMitigationInvariants:
         true = np.array([0.7, 0.3])
         measured = cm.T @ true
         recovered = mitigate_readout(measured, cm.T)
-        assert np.allclose(recovered, true, atol=1e-5)
+        assert np.allclose(recovered, true, atol=1e-9)
 
     def test_mitigation_output_is_a_distribution(self):
         from fieldqkit.core.readout import mitigate_readout
@@ -577,8 +577,8 @@ class TestNativeTwoQubitRBExtra:
         fit = mgr._fit_decay(lengths, survival)
         assert 0.0 < fit["p"] <= 1.0
         assert 0.0 <= fit["fidelity"] <= 1.0
-        assert fit["epc"] == pytest.approx(1.0 - fit["fidelity"], abs=1e-5)
-        assert fit["A"] == pytest.approx(a_true, abs=1e-5)
+        assert fit["epc"] == pytest.approx(1.0 - fit["fidelity"], abs=1e-12)
+        assert fit["A"] == pytest.approx(a_true, abs=1e-6)
 
     @pytest.mark.parametrize("basis,scale", [("cz", 2), ("cx", 2), ("iswap", 4), ("ecr", 2)])
     def test_long_sequence_stays_identity_per_basis(self, tmp_path, basis, scale):
@@ -589,7 +589,7 @@ class TestNativeTwoQubitRBExtra:
         qc, total_length = mgr._build_random_sequence([0, 1], length=10, basis_gate=basis, rng=rng)
         assert total_length == scale * 10
         state = simulate_statevector(qc)
-        assert float(state[0].abs().item()) == pytest.approx(1.0, abs=1e-5)
+        assert float(state[0].abs().item()) == pytest.approx(1.0, abs=1e-9)
 
     def test_simulator_rb_longer_lengths_fidelity_one(self, tmp_path):
         """Larger-scale: longer length list still yields perfect survival and
@@ -606,8 +606,8 @@ class TestNativeTwoQubitRBExtra:
             seed=0,
         )
         fit = results["0-1"]["fit"]
-        assert all(v == pytest.approx(1.0, abs=1e-5) for v in results["0-1"]["survival_avg"].values())
-        assert fit["fidelity"] == pytest.approx(1.0, abs=1e-5)
+        assert all(v == pytest.approx(1.0, abs=1e-9) for v in results["0-1"]["survival_avg"].values())
+        assert fit["fidelity"] == pytest.approx(1.0, abs=1e-6)
         # total_lengths follow the cz scale (x2) of the requested lengths.
         assert results["0-1"]["total_lengths"] == [2, 4, 8, 16, 32]
 
@@ -627,7 +627,7 @@ class TestNativeTwoQubitRBExtra:
         )
         assert set(results) == {"0-1", "2-3", "4-5"}
         for key in results:
-            assert results[key]["fit"]["fidelity"] == pytest.approx(1.0, abs=1e-5)
+            assert results[key]["fit"]["fidelity"] == pytest.approx(1.0, abs=1e-6)
         # Every coupler's fidelity is cached for reuse.
         assert (tmp_path / "rb_two_qubit_simulator.json").exists()
 
@@ -656,17 +656,17 @@ class TestTomographyMathExtra:
         mgr = _make_tomo_manager(tmp_path)
         rho = mgr._state_density(label)
         assert rho.shape == (2, 2)
-        assert np.allclose(rho, rho.conj().T, atol=1e-5)  # Hermitian
+        assert np.allclose(rho, rho.conj().T, atol=1e-12)  # Hermitian
         assert np.trace(rho) == pytest.approx(1.0)         # trace 1
         # Pure state: rho^2 == rho.
-        assert np.allclose(rho @ rho, rho, atol=1e-5)
+        assert np.allclose(rho @ rho, rho, atol=1e-12)
 
     @pytest.mark.parametrize("gate", ["cz", "cx", "iswap", "ecr"])
     def test_ptm_is_orthogonal_for_each_basis(self, tmp_path, gate):
         mgr = _make_tomo_manager(tmp_path)
         ptm = mgr._ptm_from_unitary(gate)
         assert ptm.shape == (16, 16)
-        assert np.allclose(ptm @ ptm.T, np.eye(16), atol=1e-5)
+        assert np.allclose(ptm @ ptm.T, np.eye(16), atol=1e-9)
 
     def test_expectations_from_probs_bell_like(self, tmp_path):
         """Equal weight on |00> and |11> -> Z0=Z1=0 but Z0Z1=+1."""
@@ -680,6 +680,6 @@ class TestTomographyMathExtra:
         """The Choi matrix of the identity channel is Hermitian and PSD."""
         mgr = _make_tomo_manager(tmp_path)
         choi = mgr._ptm_to_choi(np.eye(16))
-        assert np.allclose(choi, choi.conj().T, atol=1e-5)
+        assert np.allclose(choi, choi.conj().T, atol=1e-9)
         eigvals = np.linalg.eigvalsh(choi)
-        assert eigvals.min() > -1e-5
+        assert eigvals.min() > -1e-9

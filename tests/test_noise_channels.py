@@ -640,7 +640,7 @@ class TestKrausCompleteness:
         for K in kraus:
             acc = acc + K.conj().transpose(-2, -1) @ K
         expected = torch.eye(dim, dtype=torch.complex64)
-        assert torch.allclose(acc, expected, atol=1e-5)
+        assert torch.allclose(acc, expected, atol=1e-6)
 
     def test_depolarize1_has_four_kraus(self):
         """Test single-qubit depolarizing has 4 Kraus operators (I, X, Y, Z)."""
@@ -666,9 +666,9 @@ class TestKrausCompleteness:
         for name in ("depolarize1", "x_error", "y_error", "z_error",
                      "amplitude_damping", "phase_damping"):
             kraus = get_kraus_ops(name, 0.0)
-            assert torch.allclose(kraus[0], torch.eye(2, dtype=torch.complex64), atol=1e-5)
+            assert torch.allclose(kraus[0], torch.eye(2, dtype=torch.complex64), atol=1e-6)
             for K in kraus[1:]:
-                assert torch.allclose(K, torch.zeros(2, 2, dtype=torch.complex64), atol=1e-5)
+                assert torch.allclose(K, torch.zeros(2, 2, dtype=torch.complex64), atol=1e-6)
 
 
 class TestKrausValidation:
@@ -764,7 +764,7 @@ class TestZeroNoiseEqualsNoiseless:
         noisy.phase_damping(0.0, 1)
         rho_noisy = simulate_density_matrix(noisy)
 
-        assert torch.allclose(rho_clean, rho_noisy, atol=1e-5)
+        assert torch.allclose(rho_clean, rho_noisy, atol=1e-6)
 
     def test_p0_two_qubit_depolarize_matches_noiseless(self):
         """Test depolarize2 at p=0 leaves the DM unchanged."""
@@ -776,7 +776,7 @@ class TestZeroNoiseEqualsNoiseless:
         noisy.h(0).cx(0, 1).depolarize2(0.0, 0, 1)
         rho_noisy = simulate_density_matrix(noisy)
 
-        assert torch.allclose(rho_clean, rho_noisy, atol=1e-5)
+        assert torch.allclose(rho_clean, rho_noisy, atol=1e-6)
 
 
 class TestNoiseChannelBoundaryEffects:

@@ -1466,7 +1466,7 @@ class TestNormalizeMeasurements:
         # P("00")≈0.5, P("01")≈0.5, the rest zero
         assert probs[0] > 0.3   # P(c0c1=00) ≈ 0.5
         assert probs[1] > 0.3   # P(c0c1=01) ≈ 0.5
-        assert probs[2] + probs[3] < 1e-5  # no outcomes with c0=1
+        assert probs[2] + probs[3] < 1e-9  # no outcomes with c0=1
 
     def test_run_auto_strips_measurements_with_observables(self, monkeypatch):
         backend_adapter = _FakeBackendAdapter(provider="quafu")

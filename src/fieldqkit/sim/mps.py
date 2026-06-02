@@ -21,7 +21,6 @@ from ..circuit.quantumcircuit_helpers import (
     two_qubit_parameter_gates_available,
 )
 from ..core.observables import pauli_basis_pattern
-from .matrix import sim_complex_dtype, sim_real_dtype
 from .common import (
     auto_sim_device,
     build_param_values_from_tensor,
@@ -765,14 +764,13 @@ def _sample_bits_from_mps(
     proj0 = _projector(0, dtype=dtype, device=device)
     proj1 = _projector(1, dtype=dtype, device=device)
 
-    rdtype = sim_real_dtype(device)
     left = torch.ones((int(shots), 1, 1), dtype=dtype, device=device)
     bits_all = torch.empty((int(shots), n), dtype=torch.int64, device=device)
-    default_probs = torch.tensor([1.0, 0.0], dtype=rdtype, device=device)
+    default_probs = torch.tensor([1.0, 0.0], dtype=torch.float64, device=device)
 
     for i in range(n):
         t = mps[i]
-        probs = torch.real(torch.einsum('iab,ajc,bjd,cd->ij', left, t, torch.conj(t), right[i + 1])).to(dtype=rdtype)
+        probs = torch.real(torch.einsum('iab,ajc,bjd,cd->ij', left, t, torch.conj(t), right[i + 1])).to(dtype=torch.float64)
         probs = torch.clamp(probs, min=0.0)
 
         sums = probs.sum(dim=1, keepdim=True)
@@ -856,8 +854,8 @@ def simulate_mps(
     if num_qubits <= 0:
         return []
 
+    dtype = torch.complex128
     sim_device = auto_sim_device(device)
-    dtype = sim_complex_dtype(sim_device)
     mps = _mps_zero_state(num_qubits, dtype=dtype, device=sim_device)
     dirty_start: int | None = None
     dirty_end: int | None = None

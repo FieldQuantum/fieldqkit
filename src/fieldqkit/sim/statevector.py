@@ -7,7 +7,7 @@ from typing import Dict, List, Sequence, Tuple
 import torch
 
 from ..circuit import QuantumCircuit
-from .matrix import ketn0, sim_complex_dtype, to_sim_tensor
+from .matrix import ketn0
 from .common import (
     auto_sim_device,
     build_param_values_from_tensor,
@@ -132,7 +132,7 @@ def simulate_statevector(
     num_qubits = int(qc.nqubits)
     sim_device = auto_sim_device(device)
     if num_qubits <= 0:
-        return torch.tensor([1.0 + 0.0j], dtype=sim_complex_dtype(sim_device), device=sim_device)
+        return torch.tensor([1.0 + 0.0j], dtype=torch.complex128, device=sim_device)
 
     # Start from |0...0> and apply gates in circuit order.
     state = ketn0(num_qubits, device=sim_device).reshape(-1)
@@ -312,10 +312,8 @@ def energy_and_expectations(
     """
     num_qubits = int(symbolic_qc.nqubits)
     sim_device = auto_sim_device(device)
-    if params.device != sim_device or (
-        sim_device.type == "mps" and params.dtype == torch.float64
-    ):
-        params = to_sim_tensor(params, sim_device)
+    if params.device != sim_device:
+        params = params.to(sim_device)
     param_values = build_param_values_from_tensor(params=params, param_names=param_names)
     state = simulate_statevector(symbolic_qc, param_values=param_values, device=sim_device)
     energy = torch.zeros((), dtype=params.dtype, device=params.device)

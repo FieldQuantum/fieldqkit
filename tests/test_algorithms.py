@@ -249,7 +249,7 @@ class TestIQPEncodingSymbolic:
         qc_copy = qc.deepcopy()
         qc_copy.apply_value({"x_0": 0.5, "x_1": 0.3}, deep=True)
         rz_params = [g[1] for g in qc_copy.gates if g[0] == "rz"]
-        assert any(abs(p - 0.15) < 1e-5 for p in rz_params if isinstance(p, float))
+        assert any(abs(p - 0.15) < 1e-10 for p in rz_params if isinstance(p, float))
 
 
 class TestPQCClassifierErrors:
@@ -494,7 +494,7 @@ class TestQNNUnsupervisedAutograd:
             gen_shots=32,
         )
         # Best loss should be lower than initial loss
-        assert result.best_loss <= result.loss_history[0] + 1e-5
+        assert result.best_loss <= result.loss_history[0] + 1e-6
 
     def test_generated_samples_are_binary(self):
         train = np.array([[0, 1], [1, 0]])
@@ -739,25 +739,25 @@ class TestVQEInvariants:
         """Ground state of H=Z is -1; VQE should approach it and never go below."""
         result = _run_vqe(1, [(1.0, "Z")], layers=1, max_iters=40, seed=1)
         # Energy is an expectation of Z, so it is bounded in [-1, 1].
-        assert result.best_energy >= -1.0 - 1e-5
-        assert result.best_energy <= 1.0 + 1e-5
+        assert result.best_energy >= -1.0 - 1e-6
+        assert result.best_energy <= 1.0 + 1e-6
         # Optimization should reach close to the true ground state.
         assert result.best_energy < -0.9
         # Best energy is the minimum seen across the history.
-        assert result.best_energy <= min(result.energy_history) + 1e-5
+        assert result.best_energy <= min(result.energy_history) + 1e-9
 
     def test_energy_improves_over_optimization(self):
         """Best energy should be no worse than the very first iteration's energy."""
         result = _run_vqe(1, [(1.0, "Z")], layers=1, max_iters=30, seed=5,
                           learning_rate=0.25)
-        assert result.best_energy <= result.energy_history[0] + 1e-5
+        assert result.best_energy <= result.energy_history[0] + 1e-9
 
     def test_identity_hamiltonian_is_constant_one(self):
         """H = I is a constant; ⟨H⟩ must be 1.0 regardless of parameters."""
         result = _run_vqe(2, [(1.0, "II")], layers=1, max_iters=2, seed=0)
         for e in result.energy_history:
-            assert abs(e - 1.0) < 1e-5
-        assert abs(result.best_energy - 1.0) < 1e-5
+            assert abs(e - 1.0) < 1e-6
+        assert abs(result.best_energy - 1.0) < 1e-6
 
     def test_empty_hamiltonian_autograd_raises(self):
         """An empty Hamiltonian has no differentiable energy in autograd mode.
@@ -788,7 +788,7 @@ class TestVQEInvariants:
         lower_bound = -sum(abs(c) for c, _ in ham)
         result = _run_vqe(3, ham, layers=2, max_iters=10, seed=7,
                           learning_rate=0.15)
-        assert result.best_energy >= lower_bound - 1e-5
+        assert result.best_energy >= lower_bound - 1e-6
         assert np.isfinite(result.best_energy)
 
 
@@ -801,7 +801,7 @@ class TestVQEModerateScale:
         assert len(result.best_params) == 2 * 6 * (1 + 1)
         assert np.isfinite(result.best_energy)
         # Energy must respect the spectral L1 lower bound.
-        assert result.best_energy >= -sum(abs(c) for c, _ in ham) - 1e-5
+        assert result.best_energy >= -sum(abs(c) for c, _ in ham) - 1e-6
 
 
 class TestVQEAnsatzLayout:
@@ -910,26 +910,26 @@ class TestQAOAInvariants:
         result = _run_qaoa(3, edges, p=2, max_iters=25, seed=2)
         num_edges = len(edges)
         cut_value = num_edges / 2.0 - result.best_cost
-        assert 0.0 - 1e-5 <= cut_value <= num_edges + 1e-5
+        assert 0.0 - 1e-6 <= cut_value <= num_edges + 1e-6
         # Each ZZ term has expectation in [-1, 1], so ⟨H⟩ ∈ [-1.5, 1.5].
-        assert -1.5 - 1e-5 <= result.best_cost <= 1.5 + 1e-5
+        assert -1.5 - 1e-6 <= result.best_cost <= 1.5 + 1e-6
 
     def test_single_edge_two_qubit_finds_full_cut(self):
         """A single edge can always be fully cut → cost should approach -0.5."""
         edges = [(0, 1)]
         result = _run_qaoa(2, edges, p=1, max_iters=40, seed=4)
         # Minimum possible cost is -0.5 (state |01>/|10>), giving a cut of 1.
-        assert result.best_cost >= -0.5 - 1e-5
+        assert result.best_cost >= -0.5 - 1e-6
         assert result.best_cost < 0.0  # should find a cut better than random
         cut_value = len(edges) / 2.0 - result.best_cost
-        assert cut_value <= len(edges) + 1e-5
+        assert cut_value <= len(edges) + 1e-6
 
     def test_history_lengths_and_param_count(self):
         edges = [(0, 1), (1, 2)]
         result = _run_qaoa(3, edges, p=2, max_iters=3, seed=1)
         assert len(result.cost_history) == 3
         assert len(result.best_params) == 2 * 2  # 2 params per layer * p
-        assert result.best_cost <= min(result.cost_history) + 1e-5
+        assert result.best_cost <= min(result.cost_history) + 1e-9
 
 
 class TestQAOAHamiltonianScale:
@@ -1005,7 +1005,7 @@ class TestShadowEstimator:
     def test_identity_observable_is_exactly_one(self):
         samples, bases = _single_qubit_zero_shadow(200, seed=2)
         est, _ = estimate_observables(samples, bases, ["I"], num_qubits=1)
-        assert abs(est["I"] - 1.0) < 1e-5
+        assert abs(est["I"] - 1.0) < 1e-12
 
     def test_mom_estimator_matches_mean_for_clean_data(self):
         samples, bases = _single_qubit_zero_shadow(3000, seed=3)
@@ -1045,7 +1045,7 @@ class TestMedianOfMeans:
     def test_single_group_returns_mean(self):
         values = np.array([1.0, 2.0, 3.0, 4.0])
         median, stderr = _median_of_means(values, groups=1)
-        assert abs(median - 2.5) < 1e-5
+        assert abs(median - 2.5) < 1e-12
         assert stderr >= 0.0
 
     def test_multiple_groups_close_to_mean_for_uniform_data(self):
@@ -1053,8 +1053,8 @@ class TestMedianOfMeans:
         median, stderr = _median_of_means(
             values, groups=10, rng=np.random.default_rng(0),
         )
-        assert abs(median - 0.7) < 1e-5
-        assert abs(stderr) < 1e-5
+        assert abs(median - 0.7) < 1e-9
+        assert abs(stderr) < 1e-9
 
 
 # -----------------------------------------------------------------
@@ -1124,7 +1124,7 @@ class TestEncodingParamCounts:
         qc = iqp_encoding_circuit([0.5, 0.3], num_qubits=2, reps=1)
         rz_angles = [g[1] for g in qc.gates if str(g[0]).lower() == "rz"]
         # The ZZ-coupling RZ angle is the product of the two features.
-        assert any(abs(a - 0.15) < 1e-5 for a in rz_angles if isinstance(a, float))
+        assert any(abs(a - 0.15) < 1e-9 for a in rz_angles if isinstance(a, float))
 
 
 # -----------------------------------------------------------------
@@ -1145,7 +1145,7 @@ class TestPQCClassifierAutograd:
         assert result.task == "supervised"
         assert len(result.loss_history) == 12
         assert np.isfinite(result.best_loss)
-        assert result.best_loss <= result.loss_history[0] + 1e-5
+        assert result.best_loss <= result.loss_history[0] + 1e-6
         assert 0.0 <= result.accuracy <= 1.0
 
     def test_callback_receives_each_iteration(self):
