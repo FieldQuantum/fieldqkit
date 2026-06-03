@@ -60,7 +60,7 @@
 
 ## 测试
 
-- tests/test_sim_mpo.py 覆盖：
+- tests/test_sim.py 覆盖：
   - 与稠密参考酉矩阵一致性
   - max_bond_dim 上界约束
 

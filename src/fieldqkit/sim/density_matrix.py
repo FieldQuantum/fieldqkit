@@ -111,7 +111,7 @@ def simulate_density_matrix(
     device = auto_sim_device(device)
     nqubits = int(getattr(qc, "nqubits", 0) or 0)
 
-    dtype = torch.complex64
+    dtype = torch.complex128
 
     rho = torch.zeros(2**nqubits, 2**nqubits, dtype=dtype, device=device, requires_grad=False)
     rho[0, 0] = 1.0
@@ -318,7 +318,7 @@ def energy_and_expectations(
     param_values = build_param_values_from_tensor(params=params, param_names=param_names)
     state = simulate_density_matrix(symbolic_qc, param_values=param_values, device=sim_device)
 
-    energy = torch.zeros((), dtype=params.dtype if hasattr(params, 'dtype') else torch.float32, device=sim_device)
+    energy = torch.zeros((), dtype=params.dtype if hasattr(params, 'dtype') else torch.float64, device=sim_device)
     expectations: Dict[str, float] = {}
     for coeff, obs in hamiltonian:
         exp_val = expectation_pauli_dm(state, obs, num_qubits=nqubits)

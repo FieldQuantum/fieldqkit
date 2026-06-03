@@ -136,7 +136,7 @@ class TestDensityMatrixSimulator:
         qc = QuantumCircuit(1)
         rho = simulate_density_matrix(qc).cpu()
 
-        expected = torch.zeros(2, 2, dtype=torch.complex64)
+        expected = torch.zeros(2, 2, dtype=torch.complex128)
         expected[0, 0] = 1.0
         assert torch.allclose(rho, expected, atol=1e-5)
 
@@ -149,7 +149,7 @@ class TestDensityMatrixSimulator:
         expected = torch.tensor([
             [0.5, 0.5],
             [0.5, 0.5]
-        ], dtype=torch.complex64)
+        ], dtype=torch.complex128)
         assert torch.allclose(rho, expected, atol=1e-5)
 
     def test_depolarize1_trace_preservation(self):
@@ -159,7 +159,7 @@ class TestDensityMatrixSimulator:
         rho = simulate_density_matrix(qc)
 
         trace = torch.trace(rho).real
-        assert torch.allclose(trace, torch.tensor(1.0), atol=1e-5)
+        assert torch.allclose(trace, torch.tensor(1.0, dtype=torch.float64), atol=1e-5)
 
     def test_depolarize1_maximally_mixed(self):
         """Test that p=0.75 (for 1q) leads to maximally mixed state."""
@@ -167,7 +167,7 @@ class TestDensityMatrixSimulator:
         qc.h(0).depolarize1(0.75, 0)
         rho = simulate_density_matrix(qc).cpu()
 
-        expected = 0.5 * torch.eye(2, dtype=torch.complex64)
+        expected = 0.5 * torch.eye(2, dtype=torch.complex128)
         assert torch.allclose(rho, expected, atol=1e-4)
 
     def test_amplitude_damping_collapse(self):
@@ -176,7 +176,7 @@ class TestDensityMatrixSimulator:
         qc.x(0).amplitude_damping(1.0, 0)
         rho = simulate_density_matrix(qc).cpu()
 
-        expected = torch.zeros(2, 2, dtype=torch.complex64)
+        expected = torch.zeros(2, 2, dtype=torch.complex128)
         expected[0, 0] = 1.0
         assert torch.allclose(rho, expected, atol=1e-5)
 
@@ -188,7 +188,7 @@ class TestDensityMatrixSimulator:
 
         assert rho.shape == (4, 4)
         trace = torch.trace(rho).real
-        assert torch.allclose(trace, torch.tensor(1.0), atol=1e-5)
+        assert torch.allclose(trace, torch.tensor(1.0, dtype=torch.float64), atol=1e-5)
 
 
 class TestInterfaceDispatch:
@@ -301,7 +301,7 @@ class TestNoiseChannelPhysics:
 
         assert rho.shape == (2, 2)
         trace = torch.trace(rho).real
-        assert torch.allclose(trace, torch.tensor(1.0), atol=1e-5)
+        assert torch.allclose(trace, torch.tensor(1.0, dtype=torch.float64), atol=1e-5)
         assert rho[1, 1].real < 1.0
 
     def test_amplitude_damping_no_effect_on_ground(self):
@@ -310,7 +310,7 @@ class TestNoiseChannelPhysics:
         qc.amplitude_damping(0.5, 0)
         rho = simulate_density_matrix(qc).cpu()
 
-        expected = torch.zeros(2, 2, dtype=torch.complex64)
+        expected = torch.zeros(2, 2, dtype=torch.complex128)
         expected[0, 0] = 1.0
         assert torch.allclose(rho, expected, atol=1e-5)
 
@@ -320,8 +320,8 @@ class TestNoiseChannelPhysics:
         qc.h(0).phase_damping(0.3, 0)
         rho = simulate_density_matrix(qc).cpu()
 
-        assert torch.allclose(rho[0, 0].real, torch.tensor(0.5), atol=1e-5)
-        assert torch.allclose(rho[1, 1].real, torch.tensor(0.5), atol=1e-5)
+        assert torch.allclose(rho[0, 0].real, torch.tensor(0.5, dtype=torch.float64), atol=1e-5)
+        assert torch.allclose(rho[1, 1].real, torch.tensor(0.5, dtype=torch.float64), atol=1e-5)
 
     def test_phase_damping_decays_coherence(self):
         """Test phase damping decays off-diagonal coherence."""
@@ -349,7 +349,7 @@ class TestNoiseChannelPhysics:
         rho = simulate_density_matrix(qc)
 
         trace = torch.trace(rho).real
-        assert torch.allclose(trace, torch.tensor(1.0), atol=1e-5)
+        assert torch.allclose(trace, torch.tensor(1.0, dtype=torch.float64), atol=1e-5)
 
 
 class TestHardwareValidation:
@@ -595,7 +595,7 @@ def _assert_valid_density_matrix(rho, atol=1e-5):
     assert torch.allclose(rho, rho.conj().transpose(-2, -1), atol=atol)
     # Unit trace
     trace = torch.trace(rho).real
-    assert torch.allclose(trace, torch.tensor(1.0), atol=atol)
+    assert torch.allclose(trace, torch.tensor(1.0, dtype=torch.float64), atol=atol)
     # Positive semi-definite (eigvalsh requires an exactly Hermitian input)
     rho_herm = 0.5 * (rho + rho.conj().transpose(-2, -1))
     eigs = torch.linalg.eigvalsh(rho_herm)
@@ -625,10 +625,10 @@ class TestKrausCompleteness:
     def test_kraus_sum_to_identity(self, name, param, dim):
         """Test Σ_k K_k† K_k = I for each noise channel."""
         kraus = get_kraus_ops(name, param)
-        acc = torch.zeros(dim, dim, dtype=torch.complex64)
+        acc = torch.zeros(dim, dim, dtype=torch.complex128)
         for K in kraus:
             acc = acc + K.conj().transpose(-2, -1) @ K
-        expected = torch.eye(dim, dtype=torch.complex64)
+        expected = torch.eye(dim, dtype=torch.complex128)
         assert torch.allclose(acc, expected, atol=1e-6)
 
     def test_depolarize1_has_four_kraus(self):
@@ -655,9 +655,9 @@ class TestKrausCompleteness:
         for name in ("depolarize1", "x_error", "y_error", "z_error",
                      "amplitude_damping", "phase_damping"):
             kraus = get_kraus_ops(name, 0.0)
-            assert torch.allclose(kraus[0], torch.eye(2, dtype=torch.complex64), atol=1e-6)
+            assert torch.allclose(kraus[0], torch.eye(2, dtype=torch.complex128), atol=1e-6)
             for K in kraus[1:]:
-                assert torch.allclose(K, torch.zeros(2, 2, dtype=torch.complex64), atol=1e-6)
+                assert torch.allclose(K, torch.zeros(2, 2, dtype=torch.complex128), atol=1e-6)
 
 
 class TestKrausValidation:
@@ -776,7 +776,7 @@ class TestNoiseChannelBoundaryEffects:
         qc = QuantumCircuit(1)
         qc.x_error(1.0, 0)
         rho = simulate_density_matrix(qc).cpu()
-        expected = torch.zeros(2, 2, dtype=torch.complex64)
+        expected = torch.zeros(2, 2, dtype=torch.complex128)
         expected[1, 1] = 1.0
         assert torch.allclose(rho, expected, atol=1e-5)
 
@@ -785,7 +785,7 @@ class TestNoiseChannelBoundaryEffects:
         qc = QuantumCircuit(1)
         qc.h(0).z_error(1.0, 0)
         rho = simulate_density_matrix(qc).cpu()
-        expected = torch.tensor([[0.5, -0.5], [-0.5, 0.5]], dtype=torch.complex64)
+        expected = torch.tensor([[0.5, -0.5], [-0.5, 0.5]], dtype=torch.complex128)
         assert torch.allclose(rho, expected, atol=1e-5)
 
     def test_y_error_p1_on_ground(self):
@@ -793,7 +793,7 @@ class TestNoiseChannelBoundaryEffects:
         qc = QuantumCircuit(1)
         qc.y_error(1.0, 0)
         rho = simulate_density_matrix(qc).cpu()
-        expected = torch.zeros(2, 2, dtype=torch.complex64)
+        expected = torch.zeros(2, 2, dtype=torch.complex128)
         expected[1, 1] = 1.0
         assert torch.allclose(rho, expected, atol=1e-5)
 
@@ -803,7 +803,7 @@ class TestNoiseChannelBoundaryEffects:
         qc.depolarize1(1.0, 0)
         rho = simulate_density_matrix(qc).cpu()
         expected = torch.tensor(
-            [[1.0 / 3.0, 0.0], [0.0, 2.0 / 3.0]], dtype=torch.complex64
+            [[1.0 / 3.0, 0.0], [0.0, 2.0 / 3.0]], dtype=torch.complex128
         )
         assert torch.allclose(rho, expected, atol=1e-5)
 
@@ -812,7 +812,7 @@ class TestNoiseChannelBoundaryEffects:
         qc = QuantumCircuit(1)
         qc.x(0).amplitude_damping(1.0, 0)
         rho = simulate_density_matrix(qc).cpu()
-        expected = torch.zeros(2, 2, dtype=torch.complex64)
+        expected = torch.zeros(2, 2, dtype=torch.complex128)
         expected[0, 0] = 1.0
         assert torch.allclose(rho, expected, atol=1e-5)
 
@@ -822,7 +822,7 @@ class TestNoiseChannelBoundaryEffects:
         qc.h(0).phase_damping(1.0, 0)
         rho = simulate_density_matrix(qc).cpu()
         # Populations preserved, coherences gone -> maximally mixed in this case
-        expected = 0.5 * torch.eye(2, dtype=torch.complex64)
+        expected = 0.5 * torch.eye(2, dtype=torch.complex128)
         assert torch.allclose(rho, expected, atol=1e-5)
 
 
@@ -837,7 +837,7 @@ class TestSingleChannelOnMultiQubitRegister:
         diag = torch.diag(rho).real
         # Basis order is big-endian: index 2 = |10>, index 3 = |11>.
         # Qubit 0 stays |1>; qubit 1 depolarized: P(0 on q1)=0.8, P(1 on q1)=0.2.
-        expected = torch.tensor([0.0, 0.0, 0.8, 0.2])
+        expected = torch.tensor([0.0, 0.0, 0.8, 0.2], dtype=torch.float64)
         assert torch.allclose(diag, expected, atol=1e-5)
         _assert_valid_density_matrix(rho)
 
@@ -847,7 +847,7 @@ class TestSingleChannelOnMultiQubitRegister:
         qc.x(1).amplitude_damping(1.0, 1)  # excite q1 then fully damp it
         rho = simulate_density_matrix(qc).cpu()
         # All qubits should end in |000>.
-        expected = torch.zeros(8, 8, dtype=torch.complex64)
+        expected = torch.zeros(8, 8, dtype=torch.complex128)
         expected[0, 0] = 1.0
         assert torch.allclose(rho, expected, atol=1e-5)
 
@@ -884,7 +884,7 @@ class TestRepeatedChannels:
         qc.x_error(0.5, 0).x_error(0.5, 0)
         rho = simulate_density_matrix(qc).cpu()
         diag = torch.diag(rho).real
-        assert torch.allclose(diag, torch.tensor([0.5, 0.5]), atol=1e-5)
+        assert torch.allclose(diag, torch.tensor([0.5, 0.5], dtype=torch.float64), atol=1e-5)
 
     def test_repeated_amplitude_damping_increases_decay(self):
         """Test stacking amplitude damping decays the excited population further."""
