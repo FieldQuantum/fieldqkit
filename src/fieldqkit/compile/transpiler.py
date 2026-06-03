@@ -62,7 +62,7 @@ class Transpiler:
         Args:
             qc (*QuantumCircuit*): Quantum circuit.
             target_qubits (*list | None*): Physical qubit indices for layout selection. Defaults to ``None``.
-            niter (*int*): Number of SABRE routing iterations (forward+reverse passes). Defaults to ``5``.
+            niter (*int*): Number of SABRE routing iterations (forward+reverse passes). Must be a positive odd integer. Defaults to ``5``.
             use_dd (*bool*): Whether to insert dynamical decoupling sequences into idle windows. Defaults to ``True``.
             use_three_qubit_decompose (*bool*): Whether to decompose three-qubit gates into one- and two-qubit gates. Defaults to ``True``.
             use_sabre_routing (*bool*): Whether to run SABRE routing for qubit connectivity mapping. Defaults to ``True``.

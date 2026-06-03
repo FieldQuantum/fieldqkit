@@ -179,7 +179,7 @@ def fetch_result(self, handle: ProviderTaskHandle) -> Dict[str, Any]
 }
 ```
 
-`count` 中 bitstring 为不带空格的二进制字符串（如 `"0011"`），**全 provider 统一为 little-endian**（q[0] 在最右/最低位）；大端的 provider 在 adapter 内自动翻转。
+`count` 中 bitstring 为不带空格的二进制字符串（如 `"0011"`），**全 provider 统一为 big-endian**（q[0] 在最左/最高位）；小端的 provider 在 adapter 内自动翻转。
 
 **异常：** `RuntimeError`（任务未完成或结果已过期，通常 24-48 小时）。
 
@@ -217,7 +217,7 @@ def cancel_task(self, handle: ProviderTaskHandle) -> None
 - `QuantumHardwareClient._submit_circuit_async(...)` 检查 `adapter.qcis_native`：
   - `True` → 转 QCIS 后调用 `submit_qcis(...)`
   - `False` → 转 OpenQASM 2.0 后调用 `submit_openqasm(...)`
-- `_wait_task(...)` 轮询 `query_status(...)`，直到返回 `Finished / Failed / Canceled`。
+- `_wait_task(...)` 以 `sleep_time` 为间隔轮询 `query_status(...)`，直到返回 `Finished / Failed / Canceled`；若在 `max_wait_time` 秒内仍未到达终态则抛 `TimeoutError`（防止任务卡在非终态时无限等待）。
 - `_get_task_result(...)` 通过 `fetch_result(...)` 取结果。
 
 ## 示例

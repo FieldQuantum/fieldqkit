@@ -23,7 +23,8 @@
 
 - 从 `|0...0>` 初态按门序演化。
 - `device`：torch 设备（`'cpu'` / `'cuda'`），默认 `None`（自动选择）。
-- 支持离散门、参数门和 `reset`。
+- 支持离散门与参数门。
+- **不支持 `reset`**：模拟器遇到 `reset` 会抛出 `NotImplementedError`（reset 是非酉信道，纯态后端无法正确表示纠缠比特的 reset）。含 `reset` 的电路仍可构造并提交到真机。
 - 返回一维态向量，形状 `(2**n,)`。
 
 ### `simulate_counts(qc, shots, *, seed=None, param_values=None, device=None) -> Dict[str, int]`

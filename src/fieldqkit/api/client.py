@@ -70,6 +70,8 @@ class QuantumHardwareClient:
 		self._active_resolved_backend = None
 		# For sequential task submission (tianyan provider does not support batch submission)
 		self._last_pending_task_id: Optional[object] = None
+		self._poll_max_wait: int = 3600
+		self._poll_sleep: int = 5
 
 	@staticmethod
 	def _is_openqasm2(source: str) -> bool:
@@ -406,16 +408,24 @@ class QuantumHardwareClient:
 
 		Raises:
 			RuntimeError: If active task adapter and ``ProviderTaskHandle`` are not set.
+			TimeoutError: If the task does not reach a terminal status within
+				``self._poll_max_wait`` seconds.
 		"""
 		import time
 		adapter = self._active_task_adapter
 		if adapter is None or not isinstance(task_id, ProviderTaskHandle):
 			raise RuntimeError("active task adapter and ProviderTaskHandle are required when waiting task status")
+		deadline = time.monotonic() + self._poll_max_wait
 		while True:
 			status = adapter.query_status(task_id)
 			if status in {"Finished", "Failed", "Canceled"}:
 				return status
-			time.sleep(3)
+			if time.monotonic() >= deadline:
+				raise TimeoutError(
+					f"task {task_id} did not reach a terminal status within "
+					f"{self._poll_max_wait}s (last status: {status})"
+				)
+			time.sleep(self._poll_sleep)
 
 	def _get_task_result(self, task_id):
 		"""Fetch normalized task result for current active adapter.
@@ -964,6 +974,8 @@ class QuantumHardwareClient:
 			"max_wait_time": _as_int(max_wait_time, 3600),
 			"sleep_time": _as_int(sleep_time, 5),
 		}
+		self._poll_max_wait = submit_options["max_wait_time"]
+		self._poll_sleep = submit_options["sleep_time"]
 		self._active_task_adapter = runtime.task_adapter
 		self._active_resolved_backend = resolved_backend
 

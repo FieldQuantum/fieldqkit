@@ -47,6 +47,7 @@
 - 作用：按给定基模式先做基变换，再追加测量。
 - 行为：
 	- `target_qubits=None` 时，优先使用 `qc.qubits`（保持线路内记录的 qubit 顺序）；若对象无 `qubits` 属性，再退化为 `range(len(basis_pattern))`。
+	- `target_qubits` 与 `basis_pattern` 长度必须一致，否则抛 `ValueError`。
 	- 测量映射到紧凑经典位序：`qc.measure(target_qubits, range(len(target_qubits)))`。
 
 ### `group_observables(observables: Sequence[str], num_qubits: int) -> List[Dict[str, object]]`
@@ -75,6 +76,7 @@
 - `ValueError("pauli length mismatch with num_qubits")`
 - `ValueError("pauli index out of range")`
 - `ValueError("unsupported basis op: ...")`
+- `ValueError("target_qubits length (...) does not match basis_pattern length (...)")`
 - `ValueError("samples must be 2D")`
 
 ## 示例

@@ -1153,9 +1153,6 @@ def run_qnn_conditional(
             )
             return np.asarray(res.samples[0], dtype=np.int64)
 
-    # ---- Training pair arrays ----
-    train_y_arr = np.array(train_y, dtype=np.int64)
-
     def _nll_for_pairs(x_list, y_list, theta_vals, no_grad=False):
         """Compute NLL loss over (x, y) pairs via simulator.
 

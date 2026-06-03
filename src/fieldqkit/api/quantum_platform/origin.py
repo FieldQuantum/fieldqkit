@@ -35,7 +35,7 @@ from __future__ import annotations
 import logging
 from typing import Any, Dict, List, Optional
 
-from ..backend import BackendAdapter, ResolvedBackend
+from ..backend import BackendAdapter, ResolvedBackend, ORIGIN_HARDWARE_NAMES
 from ..task import OpenQasmSubmitRequest, ProviderTaskHandle, TaskAdapter
 
 logger = logging.getLogger(__name__)
@@ -48,12 +48,6 @@ logger = logging.getLogger(__name__)
 ORIGIN_DEFAULT_URL = "http://pyqanda-admin.qpanda.cn"
 """Default OriginQ cloud admin endpoint used by pyqpanda3.qcloud."""
 
-ORIGIN_HARDWARE_NAMES = {
-    "PQPUMESH8",
-    "WK_C180",
-    "HanYuan_01",
-}
-"""Canonical OriginQ chip names observed from the live ``backends()`` listing."""
 
 ORIGIN_SIMULATOR_NAMES = {"full_amplitude", "partial_amplitude", "single_amplitude"}
 """Server-side simulator backend names exposed by the OriginQ cloud."""
@@ -427,13 +421,6 @@ class OriginPlatform:
             err = result.error_message()
             raise RuntimeError(f"OriginQ job {task_id} not finished: status={status} err={err}")
         counts = result.get_counts()
-        # OriginQ cloud returns bitstrings in little-endian order
-        # (rightmost char = q[0]), but this package's convention is
-        # big-endian (leftmost char = q[0], cf. core.utils.get_samples).
-        # Reverse each bitstring so downstream code interprets qubits
-        # consistently.  Empirically verified with an asymmetric probe
-        # circuit (X q[0] only on PQPUMESH8 → dominant '001' became
-        # '100' after reversal).
         return {str(k)[::-1]: int(v) for k, v in dict(counts).items()}
 
     # --- helpers ---------------------------------------------------------

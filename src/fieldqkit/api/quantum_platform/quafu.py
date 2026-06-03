@@ -10,33 +10,10 @@ from typing import Any, Dict, List, Literal, Optional
 import requests
 
 from ..platform_credentials import get_quafu_api_token
-from ..backend import BackendAdapter, ResolvedBackend, as_int_or_none, MIN_CONNECTED_COUPLER_FIDELITY
+from ..backend import BackendAdapter, ResolvedBackend, as_int_or_none, normalize_coordinate, MIN_CONNECTED_COUPLER_FIDELITY
 from ..task import OpenQasmSubmitRequest, ProviderTaskHandle, TaskAdapter
 
-
-def _normalize_coordinate(value: Any) -> Optional[List[float]]:
-    """Parse a coordinate value (list, tuple, or dict) into a two-element ``[x, y]`` float list.
-
-    Args:
-        value (*Any*): Raw coordinate value (list, tuple, or dict with ``x``/``y`` keys).
-
-    Returns:
-        Two-element ``[x, y]`` list, or ``None`` if parsing fails.
-    """
-    if isinstance(value, (list, tuple)) and len(value) == 2:
-        try:
-            return [float(value[0]), float(value[1])]
-        except Exception:
-            return None
-    if isinstance(value, dict):
-        x = value.get("x", value.get("X"))
-        y = value.get("y", value.get("Y"))
-        if x is not None and y is not None:
-            try:
-                return [float(x), float(y)]
-            except Exception:
-                return None
-    return None
+_HTTP_TIMEOUT = (10, 60)
 
 
 def _flip_bitstring(bs: str) -> str:
@@ -74,7 +51,8 @@ def load_quafu_chip_info(chip_name: str):
     """
     session = requests.Session()
     url = "https://quafu-sqc.baqis.ac.cn"
-    info = session.get(f"{url}/task/backendtest/{chip_name}1")
+    info = session.get(f"{url}/task/backendtest/{chip_name}1", timeout=_HTTP_TIMEOUT)
+    info.raise_for_status()
     raw = json.loads(info.content.decode())
     if not isinstance(raw, dict) or not raw:
         return None
@@ -91,7 +69,7 @@ def load_quafu_chip_info(chip_name: str):
         except Exception:
             fidelity = 1.0
         normalized_qubit = {"fidelity": fidelity}
-        coordinate = _normalize_coordinate(value.get("coordinate"))
+        coordinate = normalize_coordinate(value.get("coordinate"))
         if coordinate is not None:
             normalized_qubit["coordinate"] = coordinate
         qubits_info[str(key)] = normalized_qubit
@@ -191,13 +169,16 @@ class QuafuPlatform:
 
         Raises:
             ValueError: f'unsupported method: {method}'
+            requests.exceptions.HTTPError: If the server returns a non-2xx status.
+            requests.exceptions.Timeout: If the request exceeds ``_HTTP_TIMEOUT``.
         """
         if method == "get":
-            res = self.session.get(url, headers={"token": self.token})
+            res = self.session.get(url, headers={"token": self.token}, timeout=_HTTP_TIMEOUT)
         elif method == "post":
-            res = self.session.post(url, data=json.dumps(data), headers={"token": self.token})
+            res = self.session.post(url, data=json.dumps(data), headers={"token": self.token}, timeout=_HTTP_TIMEOUT)
         else:
             raise ValueError(f"unsupported method: {method}")
+        res.raise_for_status()
         return json.loads(res.content.decode())
 
     def verify(self):

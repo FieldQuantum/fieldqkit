@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from copy import copy
-
 
 def apply_zne_cz_tripling(qct):
 	"""Apply CZ gate tripling for simple ZNE noise scaling (scale factor 3).
@@ -14,7 +12,7 @@ def apply_zne_cz_tripling(qct):
 	Returns:
 		A copy of the circuit with each CZ gate tripled.
 	"""
-	qct_new = copy(qct)
+	qct_new = qct.deepcopy()
 	gate_list = qct_new.gates
 	gate_list_new = []
 	for gate in gate_list:

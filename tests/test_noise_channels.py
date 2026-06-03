@@ -334,24 +334,12 @@ class TestNoiseChannelPhysics:
 
         assert rho_noisy[0, 1].abs() < rho_pure[0, 1].abs()
 
-    def test_reset_to_ground_state(self):
-        """Test reset collapses |1> to |0>."""
+    def test_reset_rejected(self):
+        """Reset is not supported by the simulator backends and must raise."""
         qc = QuantumCircuit(1)
         qc.x(0).reset(0)
-        rho = simulate_density_matrix(qc).cpu()
-
-        expected = torch.zeros(2, 2, dtype=torch.complex64)
-        expected[0, 0] = 1.0
-        assert torch.allclose(rho, expected, atol=1e-5)
-
-    def test_reset_trace_preservation(self):
-        """Test reset preserves trace."""
-        qc = QuantumCircuit(1)
-        qc.h(0).reset(0)
-        rho = simulate_density_matrix(qc)
-
-        trace = torch.trace(rho).real
-        assert torch.allclose(trace, torch.tensor(1.0), atol=1e-5)
+        with pytest.raises(NotImplementedError, match="reset"):
+            simulate_density_matrix(qc)
 
     def test_depolarize2_trace_preservation(self):
         """Test two-qubit depolarizing preserves trace."""

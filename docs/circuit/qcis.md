@@ -75,7 +75,7 @@ class Instruction:
 | `rx(inp)` | Rx(θ) | Y2M · RZ(θ) · Y2P |
 | `ry(inp)` | Ry(θ) | X2P · RZ(θ) · X2M |
 | `rz(inp)` | Rz(θ) | RZ(θ)（直通） |
-| `u(inp)` | U(θ,φ,λ) | RZ(φ) · X2P · RZ(θ) · X2M · RZ(λ) |
+| `u(inp)` | U(θ,φ,λ) | RZ(λ) · X2P · RZ(θ) · X2M · RZ(φ) |
 
 #### 延时
 

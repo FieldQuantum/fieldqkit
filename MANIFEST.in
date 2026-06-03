@@ -2,6 +2,9 @@ include LICENSE
 include NOTICE
 include README.md
 include THIRD_PARTY_NOTICES
+include CONTRIBUTING.md
+include SECURITY.md
+include CHANGELOG.md
 include pyproject.toml
 
 recursive-include docs *.md

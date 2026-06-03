@@ -103,7 +103,6 @@ def xxx_decompose(
 | `rxx_decompose` | `theta: float` | H·H → CX → Rz(θ) → CX → H·H |
 | `ryy_decompose` | `theta: float` | Rx(π/2)·Rx(π/2) → CX → Rz(θ) → CX → Rx(-π/2)·Rx(-π/2) |
 | `rzz_decompose` | `theta: float` | CX → Rz(θ) → CX |
-| `cp_decompose` | `theta: float` | Rz(θ/2)·Rz(θ/2) → CX → Rz(-θ/2) → CX |
 
 所有参数化分解均使用 2 个两比特门（CX 或等效本征门）。
 
@@ -139,10 +138,6 @@ class ThreeQubitGateDecompose(TranspilerPass):
 #### `ccz_decompose(control_qubit1, control_qubit2, target_qubit) -> list`
 
 CCZ 分解：15 个门（6 CX + 7 T/T† + 2 H），结构类似 CCX 但目标比特的 H 位置不同。
-
-#### `ccx_decompose_mute_phase(control_qubit1, control_qubit2, target_qubit) -> list`
-
-**相位近似版 Toffoli**：仅 7 个门（3 CX + 4 U），通过牺牲全局相位精度换取更少的两比特门。注意返回的门序列是**反转**的（`gates[::-1]`）。
 
 ---
 

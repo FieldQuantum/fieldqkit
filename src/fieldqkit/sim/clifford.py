@@ -130,7 +130,7 @@ def _angle_mod_4_halfpi(angle: float, atol: float = 1e-8) -> Optional[int]:
     """Return ``k`` in ``{0,1,2,3}`` if ``angle ≈ k·π/2`` (mod 2π), else ``None``."""
     k = angle / (math.pi / 2.0)
     rk = round(k)
-    if abs(k - rk) < atol or abs(((k - rk) % 4) - 4) < atol:
+    if abs(k - rk) < atol:
         return int(rk) % 4
     return None
 

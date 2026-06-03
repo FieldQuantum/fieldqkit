@@ -370,74 +370,36 @@ class TestSimulateStatevector:
         with pytest.raises(ValueError, match="unsupported"):
             simulate_statevector(qc)
 
-    def test_reset_gate_from_superposition(self):
-        """Reset from a superposition state projects onto |0> and renormalizes."""
-        qc = QuantumCircuit(2)
-        qc.h(0)
-        qc.reset(0)
-        state = simulate_statevector(qc)
-        # After H(0) the state is (|0>+|1>)/sqrt(2) on q0.
-        # Reset collapses q0 to |0>: result is |00> (renormalized).
-        assert float(state[0].abs().item()) == pytest.approx(1.0, abs=1e-12)
-
-    def test_reset_gate_from_pure_one(self):
-        """Reset on a pure |1> state should produce |0>."""
+    def test_reset_rejected_by_statevector(self):
+        """The simulators do not support reset; it must raise, not silently
+        return a wrong (or only-sometimes-right) result. Reset circuits are
+        still valid for submission to real hardware."""
         qc = QuantumCircuit(1)
         qc.x(0)
         qc.reset(0)
-        state = simulate_statevector(qc)
-        # |1> amplitude moved to |0>, then renormalized → |0>
-        assert float(state[0].abs().item()) == pytest.approx(1.0, abs=1e-12)
-        assert float(state[1].abs().item()) == pytest.approx(0.0, abs=1e-12)
+        with pytest.raises(NotImplementedError, match="reset"):
+            simulate_statevector(qc)
 
-    def test_reset_from_out_of_phase_superposition(self):
-        """Reset on (|0>-|1>)/sqrt(2) must give |0>, not cancel to a zero state.
-
-        Regression test: summing the |0> and |1> amplitudes (the previous
-        implementation) cancels for this out-of-phase state and wrongly leaves
-        it unchanged. Projection onto |0> is the correct behaviour.
-        """
-        qc = QuantumCircuit(1)
-        qc.x(0)
-        qc.h(0)  # H|1> = (|0> - |1>)/sqrt(2)
-        qc.reset(0)
-        state = simulate_statevector(qc)
-        assert float(state[0].abs().item()) == pytest.approx(1.0, abs=1e-12)
-        assert float(state[1].abs().item()) == pytest.approx(0.0, abs=1e-12)
-
-    def test_reset_unentangled_consistency_across_backends(self):
-        """Statevector, MPS and density-matrix backends agree for an
-        unentangled reset (where a pure-state result is exact)."""
-        def build():
-            qc = QuantumCircuit(2)
-            qc.x(0)
-            qc.h(0)        # q0 = (|0> - |1>)/sqrt(2), unentangled
-            qc.ry(0.7, 1)  # q1 in an arbitrary unentangled state
-            qc.reset(0)    # force q0 -> |0>, q1 preserved
-            return qc
-
-        sv = simulate_statevector(build())
-        sv_probs = (sv.abs() ** 2).detach().cpu().numpy()
-
-        mps = _mps_to_statevector(simulate_mps(build()))
-        mps_probs = (mps.abs() ** 2).detach().cpu().numpy()
-
-        rho = simulate_density_matrix(build()).cpu()
-        dm_probs = torch.diag(rho).real.numpy()
-
-        assert np.allclose(sv_probs, dm_probs, atol=1e-5)
-        assert np.allclose(mps_probs, dm_probs, atol=1e-5)
-        # q0 reset to |0>: its marginal P(q0=1) must vanish.
-        assert sv_probs.reshape(2, 2)[1, :].sum() == pytest.approx(0.0, abs=1e-6)
-
-    def test_reset_pure_one_on_mps(self):
-        """MPS reset on a pure |1> must yield |0> (not a zeroed/invalid state)."""
+    def test_reset_rejected_by_mps(self):
         qc = QuantumCircuit(1)
         qc.x(0)
         qc.reset(0)
-        state = _mps_to_statevector(simulate_mps(qc))
-        assert float(state[0].abs().item()) == pytest.approx(1.0, abs=1e-9)
-        assert float(state[1].abs().item()) == pytest.approx(0.0, abs=1e-9)
+        with pytest.raises(NotImplementedError, match="reset"):
+            simulate_mps(qc)
+
+    def test_reset_rejected_by_density_matrix(self):
+        qc = QuantumCircuit(1)
+        qc.x(0)
+        qc.reset(0)
+        with pytest.raises(NotImplementedError, match="reset"):
+            simulate_density_matrix(qc)
+
+    def test_reset_rejected_by_mpo_process(self):
+        qc = QuantumCircuit(1)
+        qc.x(0)
+        qc.reset(0)
+        with pytest.raises(NotImplementedError, match="reset"):
+            simulate_mpo_process(qc)
 
     def test_normalization(self):
         """Statevector should always have unit norm."""
@@ -1022,3 +984,55 @@ class TestSimulationScaleAndBoundaries:
         a = simulate_counts(_ghz(6), 2000, seed=42)
         b = simulate_counts(_ghz(6), 2000, seed=42)
         assert a == b
+
+    def test_mps_expectation_normalized_under_truncation(self):
+        """Bond-dim truncation drops norm; <P> must be the Rayleigh quotient.
+
+        With a bond cap below what the (volume-law) state needs, <psi|psi> < 1.
+        The identity expectation must still be exactly 1, and a Pauli expectation
+        must equal <psi|P|psi> / <psi|psi> rather than the un-normalized value
+        biased low by the discarded weight.
+        """
+        from fieldqkit.sim.mps import (
+            simulate_mps,
+            expectation_pauli,
+            _expectation_with_local_ops,
+            _norm2_mps,
+            _identity2,
+        )
+        from fieldqkit.core.observables import pauli_basis_pattern
+        from fieldqkit.sim.common import single_pauli
+
+        torch.manual_seed(1)
+        n = 8
+        qc = QuantumCircuit(n)
+        for layer in range(12):
+            for q in range(n):
+                a = torch.rand(3).tolist()
+                qc.rz(a[0], q)
+                qc.ry(a[1], q)
+                qc.rz(a[2], q)
+            for q in range(layer % 2, n - 1, 2):
+                qc.cx(q, q + 1)
+
+        mps = simulate_mps(qc, max_bond_dim=4)  # state needs 16 -> real truncation
+        norm2 = float(_norm2_mps(mps).real)
+        assert norm2 < 0.99, "test circuit must actually trigger truncation"
+
+        # Identity expectation must be exactly 1 despite the lost norm.
+        idv = expectation_pauli(mps, "I" * n, num_qubits=n)
+        assert complex(idv).real == pytest.approx(1.0, abs=1e-9)
+
+        # A non-trivial Pauli must equal the explicit Rayleigh quotient.
+        pauli = "ZZIIIIII"
+        pattern = pauli_basis_pattern(pauli, num_qubits=n)
+        ops = [
+            _identity2(dtype=mps[0].dtype, device=mps[0].device)
+            if p == "I"
+            else single_pauli(p, dtype=mps[0].dtype, device=mps[0].device)
+            for p in pattern
+        ]
+        raw = complex(_expectation_with_local_ops(mps, ops))
+        expected = (raw / norm2).real
+        got = complex(expectation_pauli(mps, pauli, num_qubits=n)).real
+        assert got == pytest.approx(expected, abs=1e-9)

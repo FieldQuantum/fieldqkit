@@ -164,7 +164,7 @@ gates → initialize_lines → generate_gates_layerd → format_gates_layerd →
 
 ### `_render_lines(lines: list[str])`
 
-底层渲染函数。若在 IPython/Jupyter 环境中使用 `<pre>` HTML 输出；否则 `print` 到终端。
+底层渲染函数。若在 IPython/Jupyter 环境中，将各行包裹进一个等宽字体、可横向滚动的 `<div>`（空格转 `&nbsp;`、换行转 `<br>`）后以 HTML 输出；否则 `print` 到终端。
 
 ### `draw_circuit(lines: list[str])`
 

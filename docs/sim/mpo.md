@@ -37,7 +37,7 @@
   - 参数门：one_qubit_param/two_qubit_param
   - 功能门：barrier/measure/delay 跳过
 - reset 不支持：
-  - reset 是非酉过程，本函数会抛错。
+  - reset 是非酉过程，本函数遇到时抛出 `NotImplementedError`。含 `reset` 的电路仍可构造并提交到真机。
 
 ### max_bond_dim 行为
 

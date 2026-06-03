@@ -20,6 +20,7 @@ from fieldqkit.core.observables import (
     pauli_expectation,
     group_observables,
     apply_measurement_basis_rotations,
+    append_measurement_basis,
     _compatible_with_basis,
     _merge_basis,
 )
@@ -393,6 +394,16 @@ class TestApplyMeasurementBasisRotations:
         with pytest.raises(ValueError, match="unsupported"):
             apply_measurement_basis_rotations(qc, ["Q", "Z"], target_qubits=[0, 1])
 
+    def test_length_mismatch_raises(self):
+        # Guards against zip() silently truncating and applying rotations/measurements
+        # to the wrong qubits when target_qubits and basis_pattern differ in length.
+        from fieldqkit.circuit import QuantumCircuit
+        qc = QuantumCircuit(3)
+        with pytest.raises(ValueError, match="does not match"):
+            apply_measurement_basis_rotations(qc, ["X", "Y", "Z"], target_qubits=[0, 1])
+        with pytest.raises(ValueError, match="does not match"):
+            append_measurement_basis(qc, ["X", "Y"], target_qubits=[0, 1, 2])
+
 
 # ═══════════════════════════════════════════════════════════
 #  Readout mitigation
@@ -492,32 +503,38 @@ class TestExpectationFromSamplesUnbiased:
 
 class TestZNE:
     def test_cz_tripling_triples_cz_gates(self):
-        class MockCircuit:
-            def __init__(self):
-                self.gates = [("h", 0), ("cz", 0, 1), ("h", 1)]
+        from fieldqkit.circuit import QuantumCircuit
 
-        qc = MockCircuit()
+        qc = QuantumCircuit(2)
+        qc.h(0)
+        qc.cz(0, 1)
+        qc.h(1)
         result = apply_zne_cz_tripling(qc)
         cz_count = sum(1 for g in result.gates if g[0] == "cz")
         assert cz_count == 3
 
     def test_cz_tripling_preserves_non_cz(self):
-        class MockCircuit:
-            def __init__(self):
-                self.gates = [("h", 0), ("rx", 0.5, 0)]
+        from fieldqkit.circuit import QuantumCircuit
 
-        qc = MockCircuit()
+        qc = QuantumCircuit(1)
+        qc.h(0)
+        qc.rx(0.5, 0)
         result = apply_zne_cz_tripling(qc)
         assert len(result.gates) == 2
 
     def test_cz_tripling_does_not_mutate_original(self):
-        class MockCircuit:
-            def __init__(self):
-                self.gates = [("cz", 0, 1)]
+        from fieldqkit.circuit import QuantumCircuit
 
-        qc = MockCircuit()
-        apply_zne_cz_tripling(qc)
+        qc = QuantumCircuit(2)
+        qc.cz(0, 1)
+        result = apply_zne_cz_tripling(qc)
+        # Original gate list is untouched.
         assert len(qc.gates) == 1
+        # The result is a deep copy: mutating its state must not leak back.
+        result.qubits.append(999)
+        result.params_value["leaked"] = 1.0
+        assert 999 not in qc.qubits
+        assert "leaked" not in qc.params_value
 
     def test_linear_extrapolate_scalar(self):
         # f(0) = (3*f(1) - f(3))/2

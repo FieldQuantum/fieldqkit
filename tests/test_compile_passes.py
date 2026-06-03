@@ -8,6 +8,7 @@ from fieldqkit.compile.translate import TranslateToBasisGates
 from fieldqkit.compile.layout import Layout
 import networkx as nx
 import numpy as np
+import pytest
 
 
 def test_three_qubit_decompose_removes_three_qubit_gates():
@@ -957,23 +958,20 @@ def _make_mock_backend(n, edges, fidelities=None, node_fidelities=None, priority
     return MockBackend()
 
 
-def test_layout_collect_subgraphs_serial_fallback():
-    """Layout falls back to serial when Pool raises (simulated via monkey-patch)."""
+def test_layout_collect_subgraphs_serial():
+    """collect_all_subgraph_in_parallel enumerates size-n connected subgraphs."""
     backend = _make_mock_backend(4, [(0, 1), (1, 2), (2, 3)])
     layout = Layout(backend)
-    # Monkey-patch ncore to 0 to force Pool to fail
-    layout.ncore = 0
     subgraphs = layout.collect_all_subgraph_in_parallel(3)
     assert len(subgraphs) > 0
     for sg in subgraphs:
         assert len(sg) == 3
 
 
-def test_layout_collect_subgraph_info_serial_fallback():
-    """collect_all_subgraph_info_in_parallel also falls back gracefully."""
+def test_layout_collect_subgraph_info_serial():
+    """collect_all_subgraph_info_in_parallel returns fidelity info for subgraphs."""
     backend = _make_mock_backend(4, [(0, 1), (1, 2), (2, 3)])
     layout = Layout(backend)
-    layout.ncore = 0
     info_list = layout.collect_all_subgraph_info_in_parallel(3)
     valid = [x for x in info_list if x is not None]
     assert len(valid) > 0
@@ -1650,3 +1648,69 @@ def test_compressor_cancels_cz_pair_through_disjoint_block():
     qc.cz(0, 1)
     result = GateCompressor().run(qc)
     assert not any(g[0] == "cz" for g in result.gates)
+
+
+# --------------- Routing: semantic equivalence & iteration validation ---------------
+
+
+def _statevector_from_zero(qc):
+    """Statevector obtained by applying the circuit to |0...0> (big-endian)."""
+    return _sim_unitary(qc)[:, 0]
+
+
+def _equiv_up_to_phase(v1, v2, atol=1e-9):
+    """Vectors equal up to a global phase?"""
+    idx = int(np.argmax(np.abs(v1)))
+    if abs(v1[idx]) < 1e-12:
+        return np.allclose(v1, v2, atol=atol)
+    ratio = v2[idx] / v1[idx]
+    return np.allclose(v2, (ratio / abs(ratio)) * v1, atol=atol)
+
+
+@pytest.mark.parametrize("niter", [1, 3, 5])
+def test_routing_preserves_statevector_under_final_mapping(niter):
+    """Semantic check: the routed circuit applied to |0...0> reproduces the logical
+    circuit's statevector once the ``logical_to_physical`` output mapping is undone,
+    for every (odd) iteration count. Distinct RY angles + entanglement make the state
+    asymmetric, so a wrong qubit permutation would be caught (a bijection check alone
+    would not). Routing assumes an all-zero input, hence the statevector comparison.
+    """
+    g = _make_line_graph(5)
+    qc = QuantumCircuit(5, 5)
+    for q, ang in enumerate((0.3, 0.7, 1.1, 1.5, 1.9)):
+        qc.ry(ang, q)
+    # Non-adjacent 2q gates force SWAP insertion -> non-trivial final mapping.
+    qc.cx(0, 4)
+    qc.cx(1, 3)
+    qc.cx(0, 2)
+
+    routed = SabreRouting(g, initial_mapping="trivial", iterations=niter, n_trials=1).run(qc)
+    assert routed.nqubits == qc.nqubits
+    _all_two_qubit_adjacent(routed, g)  # routing actually produced a hardware-legal circuit
+
+    n = qc.nqubits
+    l2p = routed.logical_to_physical
+    psi_L = _statevector_from_zero(qc)
+    psi_P = _statevector_from_zero(routed)
+
+    # Re-index the physical statevector back to logical ordering: logical qubit q
+    # ends up on physical qubit l2p[q] (big-endian bit position n-1-p).
+    psi_P_as_logical = np.empty_like(psi_P)
+    for i in range(2 ** n):
+        j = 0
+        for q in range(n):
+            b = (i >> (n - 1 - q)) & 1
+            j |= b << (n - 1 - l2p[q])
+        psi_P_as_logical[i] = psi_P[j]
+
+    assert _equiv_up_to_phase(psi_L, psi_P_as_logical), f"iterations={niter}"
+
+
+@pytest.mark.parametrize("bad", [0, -1, 2, 4, 6])
+def test_routing_rejects_non_positive_or_even_iterations(bad):
+    """Even or non-positive iteration counts must raise at construction: an even count
+    makes the final gate-recording pass run backward (routing the reversed circuit),
+    and a count < 1 records no pass at all."""
+    g = _make_line_graph(3)
+    with pytest.raises(ValueError):
+        SabreRouting(g, iterations=bad)

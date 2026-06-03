@@ -89,39 +89,6 @@ def _apply_kraus_to_dm(rho: torch.Tensor, kraus_ops: list, qubits: Sequence[int]
     return rho_new
 
 
-def _apply_reset_to_dm(rho: torch.Tensor, qubit: int, n: int) -> torch.Tensor:
-    """Apply reset (measure and collapse to |0>).
-
-    Equivalent to ρ' = P0 ρ P0 + X P1 ρ P1 X on the target qubit, which maps the
-    |1><1| block onto the |0><0| block and discards all coherences involving the
-    qubit being |1>:
-
-        ρ'[...0...,...0...] = ρ[...0...,...0...] + ρ[...1...,...1...]
-
-    Args:
-        rho: Density matrix as a (2,)*2n tensor
-        qubit: Qubit index to reset
-        n: Total number of qubits
-
-    Returns:
-        Updated density matrix with qubit reset to |0>.
-    """
-    orig_shape = list(rho.shape)
-    rho = rho.reshape([2] * (2 * n))
-
-    slicer_00 = [slice(None)] * (2 * n)
-    slicer_00[qubit] = 0
-    slicer_00[n + qubit] = 0
-    slicer_11 = [slice(None)] * (2 * n)
-    slicer_11[qubit] = 1
-    slicer_11[n + qubit] = 1
-
-    out = torch.zeros_like(rho)
-    out[tuple(slicer_00)] = rho[tuple(slicer_00)] + rho[tuple(slicer_11)]
-
-    return out.reshape(orig_shape)
-
-
 def simulate_density_matrix(
     qc: QuantumCircuit,
     *,
@@ -191,8 +158,9 @@ def simulate_density_matrix(
             rho = _apply_kraus_to_dm(rho, kraus_ops, [q0, q1], nqubits)
 
         elif gate in ['reset']:
-            qubit = gate_info[1]
-            rho = _apply_reset_to_dm(rho, qubit, nqubits)
+            raise NotImplementedError(
+                "The density-matrix simulator does not support the 'reset' operation."
+            )
 
         elif gate in ['barrier', 'delay', 'measure']:
             continue

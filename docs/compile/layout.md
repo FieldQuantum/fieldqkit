@@ -32,7 +32,6 @@ class Layout:
 |---|---|---|---|
 | `priority_qubits` | `List[List[int]]` | `chip_backend.priority_qubits` | 芯片推荐比特优先级列表 |
 | `graph` | `nx.Graph` | `chip_backend.edge_filtered_graph(thres=0.6)` | 保真度过滤后的耦合图（边保真度 ≥ 0.6 的子图，同时过滤节点） |
-| `ncore` | `int` | `os.cpu_count() // 2` | 历史遗留属性；当前子图枚举为串行实现，未实际使用该值 |
 | `fidelity_mean_threshold` | `float` | 硬编码 `0.9` | 候选子图的平均保真度筛选阈值 |
 | `edge_fidelitys` | `Dict[Tuple, float]` | `nx.get_edge_attributes(graph, "fidelity")` | 边保真度字典 |
 | `algorithm_switch_threshold` | `int` | 硬编码 `10` | 小规模枚举 vs 大规模 BFS 的分界比特数 |

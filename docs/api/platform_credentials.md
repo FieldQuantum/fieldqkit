@@ -7,14 +7,18 @@
 
 ## 凭证查找优先级
 
-凭证按以下顺序查找，使用第一个找到的值：
+凭证按以下顺序查找，使用第一个找到的值（与 `_iter_config_candidates()` 实现一致）：
 
-1. **配置文件** `.quantum_hw.yaml`，按以下位置顺序搜索：
-  - 当前工作目录及其父目录
-  - 包安装目录（`fieldqkit`）及其父目录
-  - 可选显式路径：环境变量 `QUANTUM_HW_CONFIG`
+1. **配置文件**，按以下位置顺序搜索（找到第一个存在的文件即停止）：
+  1. `$QUANTUM_HW_CONFIG` 指定的文件（显式覆盖，最高优先级）
+  2. 当前工作目录及其各级父目录下的 `.quantum_hw.yaml`
+  3. 用户主目录：`~/.quantum_hw.yaml`，然后 `~/.config/fieldqkit/credentials.yaml`
+  4. 包安装目录（`fieldqkit`）及其父目录下的 `.quantum_hw.yaml`（源码 / editable 安装）
 2. **环境变量**（见下表）
 3. 以上均未找到 → 抛出 `ValueError`
+
+> 即：显式路径 > 项目内文件 > 用户主目录文件 > 包安装目录文件 > 环境变量。配置文件优先于环境变量。
+> 详见 [配置凭证](../configuration.md)。
 
 ## 配置文件格式
 

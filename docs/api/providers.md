@@ -217,7 +217,7 @@ class GuoDunBackendAdapter(BackendAdapter):
 
 **注意事项：**
 - QASM 中不可包含 `u(...)` 门和 `barrier` 指令（腾讯 QOS 解析器不支持）。`QuantumHardwareClient.run_auto` 会在 provider=tencent 时自动将 `convert_single_qubit_gate_to_u` 设为 `False`；适配器还会剥离 barrier。
-- 返回 bitstring 为 big-endian（q[0] 在最左/最高位），适配器自动翻转为本包约定的 little-endian。
+- 返回 bitstring 为 big-endian（q[0] 在最左/最高位）。
 
 ---
 
@@ -251,7 +251,7 @@ class TencentBackendAdapter(BackendAdapter):
 **关键行为：**
 - `submit_openqasm`：通过 tensorcircuit cloud API 提交 OpenQASM 2.0 线路。
 - `query_status`：轮询任务状态（`completed/failed/pending/scheduled` → `Finished/Failed/Running`）。
-- `fetch_result`：获取 counts 并自动 big-endian → little-endian 翻转。
+- `fetch_result`：获取 counts。
 - `cancel_task`：腾讯云不支持任务取消，仅记录 warning。
 
 ---

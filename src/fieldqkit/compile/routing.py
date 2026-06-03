@@ -80,7 +80,7 @@ class SabreRouting(TranspilerPass):
             subgraph (*nx.Graph*): Device coupling graph whose nodes are physical qubits.
             initial_mapping (*Literal['random', 'trivial'] | list*): Strategy or explicit list for the initial virtual-to-physical qubit mapping. Defaults to ``'trivial'``.
             do_random_choice (*bool*): If ``True``, break ties randomly when selecting SWAPs. Defaults to ``False``.
-            iterations (*int*): Number of forward/backward SABRE iterations. Defaults to ``5``.
+            iterations (*int*): Number of forward/backward SABRE passes. Must be a positive **odd** integer so that the final gate-recording pass runs forward over the original circuit (an even count would record a routing of the *reversed* circuit). Defaults to ``5``.
             heuristic (*Literal['basic', 'lookahead', 'basic_decay', 'lookahead_decay']*): SWAP scoring heuristic. Defaults to ``'lookahead_decay'``.
             max_extended_set_weight (*float*): Weight factor for the extended successor set in lookahead scoring. Defaults to ``0.5``.
             noise_aware (*bool*): Whether to use noise-aware strategies. Defaults to ``False``.
@@ -116,6 +116,10 @@ class SabreRouting(TranspilerPass):
         self.physical_qubits_index = dict(zip(list(subgraph.nodes), range(len(subgraph.nodes))))
         self.initial_mapping = initial_mapping
         self.do_random_choice = do_random_choice
+        if isinstance(iterations, bool) or not isinstance(iterations, int) or iterations < 1 or iterations % 2 == 0:
+            raise ValueError(
+                f"iterations must be a positive odd integer, got {iterations!r}."
+            )
         self.iterations = iterations
         self.heuristic = heuristic
         self.extended_successor_set = []
@@ -590,7 +594,6 @@ class SabreRouting(TranspilerPass):
             ``(new, nswap, v2p, final_p2v)`` —routed gate list, swap count, and final mappings.
         """
         self.v2p, self.p2v = self._initialize_v2p_p2v(virtual_qubits)
-        init_p2v = {p: v for v, p in self.v2p.items()}
 
         self.do_map_node_to_gate = False
         for idx in range(self.iterations):
@@ -604,12 +607,6 @@ class SabreRouting(TranspilerPass):
                 self.dag = rev_dag
 
             new, nswap = self._single_sabre_routing()
-
-            if self.iterations == 1:
-                best_p2v = init_p2v
-            else:
-                if idx == self.iterations - 2:
-                    best_p2v = {p: v for v, p in self.v2p.items()}
 
         final_p2v = {p: v for v, p in self.v2p.items()}
         return new, nswap, dict(self.v2p), final_p2v

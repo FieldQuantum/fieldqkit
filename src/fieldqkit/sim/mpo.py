@@ -367,7 +367,9 @@ def simulate_mpo_process(
 
         if gate in functional_gates_available:
             if gate == "reset":
-                raise ValueError("reset is not supported by unitary MPO process simulator")
+                raise NotImplementedError(
+                    "The MPO simulator does not support the 'reset' operation."
+                )
             continue
 
         if gate in one_qubit_gates_available:

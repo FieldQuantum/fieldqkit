@@ -742,9 +742,12 @@ def test_quafu_loader_preserves_qubit_coordinate(monkeypatch):
         def __init__(self, data):
             self.content = json.dumps(data).encode()
 
+        def raise_for_status(self):
+            pass
+
     class _Session:
-        def get(self, url):
-            del url
+        def get(self, url, timeout=None):
+            del url, timeout
             return _Resp(payload)
 
     monkeypatch.setattr(qf.requests, "Session", _Session)
@@ -772,9 +775,12 @@ def test_quafu_loader_filters_low_fidelity_coupler(monkeypatch):
         def __init__(self, data):
             self.content = json.dumps(data).encode()
 
+        def raise_for_status(self):
+            pass
+
     class _Session:
-        def get(self, url):
-            del url
+        def get(self, url, timeout=None):
+            del url, timeout
             return _Resp(payload)
 
     monkeypatch.setattr(qf.requests, "Session", _Session)
@@ -1709,6 +1715,14 @@ def test_origin_chip_names_registered_in_provider_inference():
     from fieldqkit.api.backend import infer_provider_from_chip
     assert infer_provider_from_chip("PQPUMESH8") == "origin"
     assert infer_provider_from_chip("WK_C180") == "origin"
+    assert infer_provider_from_chip("HanYuan_01") == "origin"
+
+
+def test_origin_hardware_names_single_source_of_truth():
+    # origin.py must re-export backend.py's registry, not maintain a divergent copy.
+    from fieldqkit.api import backend
+    from fieldqkit.api.quantum_platform import origin
+    assert origin.ORIGIN_HARDWARE_NAMES is backend.ORIGIN_HARDWARE_NAMES
 
 
 def test_origin_credential_helper_reads_yaml(monkeypatch, tmp_path):
@@ -2103,9 +2117,12 @@ def test_quafu_loader_returns_none_for_empty_response(monkeypatch):
         def __init__(self, data):
             self.content = json.dumps(data).encode()
 
+        def raise_for_status(self):
+            pass
+
     class _Session:
-        def get(self, url):
-            del url
+        def get(self, url, timeout=None):
+            del url, timeout
             return _Resp({})
 
     monkeypatch.setattr(qf.requests, "Session", _Session)
@@ -2131,9 +2148,12 @@ def test_quafu_loader_ignores_malformed_qubit_and_coupler_entries(monkeypatch):
         def __init__(self, data):
             self.content = json.dumps(data).encode()
 
+        def raise_for_status(self):
+            pass
+
     class _Session:
-        def get(self, url):
-            del url
+        def get(self, url, timeout=None):
+            del url, timeout
             return _Resp(payload)
 
     monkeypatch.setattr(qf.requests, "Session", _Session)

@@ -9,7 +9,6 @@ See THIRD_PARTY_NOTICES for full license text.
 from __future__ import annotations
 
 import logging
-import os
 import copy
 import networkx as nx
 import numpy as np
@@ -38,7 +37,6 @@ class Layout:
         """
         self.priority_qubits = chip_backend.priority_qubits
         self.graph = chip_backend.edge_filtered_graph(thres=0.6)
-        self.ncore = os.cpu_count() // 2
         self.fidelity_mean_threshold = 0.9
         self.edge_fidelitys = {
             (min(u, v), max(u, v)): fidelity

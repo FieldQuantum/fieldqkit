@@ -59,54 +59,6 @@ def _apply_k_qubit_gate_torch(
     return tensor.reshape(-1)
 
 
-def _apply_reset_torch(state, qubit: int, num_qubits: int):
-    """Apply a reset operation on a single qubit, forcing it to |0⟩.
-
-    Reset is the non-unitary channel that always drives the target qubit to
-    |0⟩. For a pure statevector this is realised in two cases that together
-    match the diagonal of the density-matrix backend's reset channel
-    (``ρ'[0,0] = ρ[0,0] + ρ[1,1]``):
-
-    * If the |0⟩ subspace carries probability (``P(0) > 0``), project onto it
-      and renormalize — the standard collapse, exact when the target qubit is
-      unentangled from the rest.
-    * If ``P(0) == 0`` (the qubit is certainly |1⟩, hence in a product |1⟩ with
-      the rest), move the |1⟩ branch into |0⟩ — equivalent to applying X.
-
-    Note that simply summing the |0⟩ and |1⟩ amplitudes is **wrong**: it cancels
-    for out-of-phase states such as ``(|0⟩-|1⟩)/√2`` and is not the reset channel.
-
-    Args:
-        state: Flat statevector tensor of length ``2**num_qubits``.
-        qubit (*int*): Target qubit index to reset.
-        num_qubits (*int*): Total number of qubits in the system.
-
-    Returns:
-        Renormalized statevector with the target qubit forced to |0⟩.
-    """
-    axis = qubit
-    tensor = state.reshape([2] * num_qubits).clone()
-    slicer0 = [slice(None)] * num_qubits
-    slicer1 = [slice(None)] * num_qubits
-    slicer0[axis] = 0
-    slicer1[axis] = 1
-    amp1 = tensor[tuple(slicer1)].clone()
-    amp0 = tensor[tuple(slicer0)]
-    p0 = torch.vdot(amp0.reshape(-1), amp0.reshape(-1)).real
-    if float(p0.detach().cpu().item()) > 1e-12:
-        # Project onto |0⟩.
-        tensor[tuple(slicer1)] = 0.0
-    else:
-        # Qubit is certainly |1⟩: move that branch into |0⟩ (apply X).
-        tensor[tuple(slicer0)] = amp1
-        tensor[tuple(slicer1)] = 0.0
-    state = tensor.reshape(-1)
-    norm = torch.linalg.norm(state)
-    if float(norm.detach().cpu().item()) > 0.0:
-        state = state / norm
-    return state
-
-
 def simulate_statevector(
     qc: QuantumCircuit,
     *,
@@ -143,7 +95,9 @@ def simulate_statevector(
         gate = gate_info[0]
         if gate in functional_gates_available:
             if gate == "reset":
-                state = _apply_reset_torch(state, gate_info[1], num_qubits)
+                raise NotImplementedError(
+                    "The statevector simulator does not support the 'reset' operation."
+                )
             continue
 
         if gate in one_qubit_gates_available:

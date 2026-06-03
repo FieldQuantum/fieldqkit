@@ -304,7 +304,7 @@ class BackendAdapter(ABC):
 | `GUODUN_HARDWARE_NAMES` | `chmy176`、`gd_qc1`、`gd_sim1`、`gd_test` |
 | `CQLIB_HARDWARE_NAMES` | `TIANYAN_HARDWARE_NAMES ∪ GUODUN_HARDWARE_NAMES`（共用 cqlib HTTP 客户端） |
 | `TENCENT_HARDWARE_NAMES` | `simulator:tc`、`tianji_m2`、`tianji_m2v14s2`、`tianji_m2v14s4`、`tianji_m2v15s3`、`tianji_m2v16s1`、`tianji_s2`、`tianji_s2v6`、`tianji_s2v7`、`tianxuan_s2`、`tianxuan_s2v20s1`、`tianxuan_s2v20s2` |
-| `ORIGIN_HARDWARE_NAMES` | `PQPUMESH8`、`WK_C180` |
+| `ORIGIN_HARDWARE_NAMES` | `PQPUMESH8`、`WK_C180`、`HanYuan_01` |
 | `FIELDQUANTUM_HARDWARE_NAMES` | `fieldquantum_sim` |
 | `SIMULATOR_HARDWARE_NAMES` | `Simulator`、`simulator` |
 | `TIANYAN_CLOUD_SIM_NAMES` | `supremacy_sample`、`tianyan_s`、`tianyan_sa`、`tianyan_sw`、`tianyan_swn`、`tianyan_tn`（云端模拟器，配置接口不返回拓扑，由 `_build_simulator_chip_info` 合成全连接 chip_info） |

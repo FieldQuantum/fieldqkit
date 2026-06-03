@@ -562,42 +562,6 @@ def rzz_decompose(
     return gates
 
 
-def cp_decompose(
-    theta: float,
-    control_qubit: int,
-    target_qubit: int,
-    convert_single_qubit_gate_to_u: bool,
-    two_qubit_gate_basis: Literal["cz", "cx", "iswap", "ecr"],
-) -> list:
-    """Decompose a controlled-phase CP(θ) gate into the specified two-qubit basis gate set.
-
-    Args:
-        theta (float): Rotation angle in radians.
-        control_qubit (int): Control qubit index.
-        target_qubit (int): Target qubit index.
-        convert_single_qubit_gate_to_u (bool): Whether to convert single-qubit gates to U gates.
-        two_qubit_gate_basis (Literal['cz', 'cx', 'iswap', 'ecr']): Target two-qubit basis gate.
-
-    Returns:
-        list: Decomposed gate info tuples.
-    """
-    if convert_single_qubit_gate_to_u:
-        gates = [
-            rz2u(theta / 2, control_qubit),
-            rz2u(theta / 2, target_qubit),
-        ] + cx_decompose(control_qubit, target_qubit, convert_single_qubit_gate_to_u, two_qubit_gate_basis) + [
-            rz2u(-theta / 2, target_qubit),
-        ] + cx_decompose(control_qubit, target_qubit, convert_single_qubit_gate_to_u, two_qubit_gate_basis)
-    else:
-        gates = [
-            ("rz", theta / 2, control_qubit),
-            ("rz", theta / 2, target_qubit),
-        ] + cx_decompose(control_qubit, target_qubit, convert_single_qubit_gate_to_u, two_qubit_gate_basis) + [
-            ("rz", -theta / 2, target_qubit),
-        ] + cx_decompose(control_qubit, target_qubit, convert_single_qubit_gate_to_u, two_qubit_gate_basis)
-    return gates
-
-
 def ccx_decompose(control_qubit1: int, control_qubit2: int, target_qubit: int):
     """Decompose a Toffoli (CCX) gate into single- and two-qubit gates.
 
@@ -658,29 +622,6 @@ def ccz_decompose(control_qubit1: int, control_qubit2: int, target_qubit: int):
         ("h", target_qubit),
     ]
     return gates
-
-
-def ccx_decompose_mute_phase(control_qubit1: int, control_qubit2: int, target_qubit: int):
-    """Decompose a Toffoli (CCX) gate using a relative-phase-tolerant decomposition with reduced gate count.
-
-    Args:
-        control_qubit1 (int): First control qubit index.
-        control_qubit2 (int): Second control qubit index.
-        target_qubit (int): Target qubit index.
-
-    Returns:
-        list: Decomposed gate info tuples.
-    """
-    gates = [
-        ("u", np.pi / 4, 0, 0, target_qubit),
-        ("cx", control_qubit2, target_qubit),
-        ("u", np.pi / 4, 0, 0, target_qubit),
-        ("cx", control_qubit1, target_qubit),
-        ("u", np.pi / 4, -np.pi, -np.pi, target_qubit),
-        ("cx", control_qubit2, target_qubit),
-        ("u", np.pi / 4, -np.pi, -np.pi, target_qubit),
-    ]
-    return gates[::-1]
 
 
 class ThreeQubitGateDecompose(TranspilerPass):

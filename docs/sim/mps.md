@@ -36,7 +36,8 @@
 - 支持：
   - 固定门：one_qubit/two_qubit/three_qubit
   - 参数门：one_qubit_param/two_qubit_param
-  - 功能门：reset（barrier/measure/delay 在该层不改变态）
+  - 功能门：barrier/measure/delay 在该层跳过（不改变态）
+- **不支持 `reset`**：遇到 `reset` 抛出 `NotImplementedError`（纯态后端无法正确表示纠缠比特的 reset）。含 `reset` 的电路仍可构造并提交到真机。
 - max_bond_dim:
   - None: 不做显式截断
   - int: 在脏区间触发 sweep 压缩时截断键维

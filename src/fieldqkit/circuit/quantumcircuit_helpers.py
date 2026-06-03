@@ -183,7 +183,7 @@ def convert_gate_info_to_dag_info(nqubits:int,qubits:list,gates:list,show_qubits
                 
         for qubit in qubits:
             qubit_dic[qubit] = node_info[0]
-    return np.array(node_list), np.array(edge_list)
+    return node_list, edge_list
 
 def is_multiple_of_pi(n, tolerance: float = 1e-9) -> str:
     r"""
@@ -311,14 +311,6 @@ def parse_expression(expr: str) -> float:
         denom = float(denom_str) if denom_str else 1.0
         return coef * np.pi / denom
     return _safe_eval_expression(expr)
-
-
-
-
-
-
-
-
 
 
 def initialize_lines(nqubits:int,ncbits:int,gates:list) -> tuple[list, list]:

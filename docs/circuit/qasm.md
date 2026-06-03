@@ -46,8 +46,11 @@ __all__ = [
 - 所有内置门（离散门、参数门、三比特门）
 - 噪声信道门（`depolarize1`/`depolarize2`/`x_error`/`y_error`/`z_error`/`amplitude_damping`/`phase_damping`），以 `opaque` 声明承载
 - `measure` / `barrier` / `reset`
-- `if (c == val)` 条件前缀附着
 - 自定义 `gate` / `opaque` 定义的内联展开
+
+**不支持**：
+
+- 经典条件门 `if (c == val) ...`：解析器遇到此类语句会抛出 `ValueError`。
 
 ### `parse_openqasm2_regs(openqasm2_str: str)`
 

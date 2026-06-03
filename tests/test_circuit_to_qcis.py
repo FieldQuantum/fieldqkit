@@ -6,6 +6,7 @@ instructions.
 """
 
 import math
+import numpy as np
 import pytest
 
 from fieldqkit.circuit import QuantumCircuit
@@ -27,6 +28,206 @@ def _translate(qc: QuantumCircuit, two_qubit_basis: str = "cz") -> QuantumCircui
 
 def _lines(qcis: str) -> list[str]:
     return [line.strip().upper() for line in qcis.splitlines() if line.strip()]
+
+
+# ---------------------------------------------------------------------------
+# Unitary-reconstruction oracle
+# ---------------------------------------------------------------------------
+
+_I2 = np.eye(2, dtype=complex)
+
+
+def _rx(t):
+    c, s = np.cos(t / 2), np.sin(t / 2)
+    return np.array([[c, -1j * s], [-1j * s, c]], dtype=complex)
+
+
+def _ry(t):
+    c, s = np.cos(t / 2), np.sin(t / 2)
+    return np.array([[c, -s], [s, c]], dtype=complex)
+
+
+def _rz(t):
+    return np.array([[np.exp(-0.5j * t), 0], [0, np.exp(0.5j * t)]], dtype=complex)
+
+
+# QCIS single-qubit native gates → 2x2 matrices.
+_NATIVE_1Q = {
+    "X2P": _rx(math.pi / 2),
+    "X2M": _rx(-math.pi / 2),
+    "Y2P": _ry(math.pi / 2),
+    "Y2M": _ry(-math.pi / 2),
+}
+
+
+def _expand_1q(g: np.ndarray, k: int, n: int) -> np.ndarray:
+    """Embed a 1-qubit gate on qubit ``k`` into an ``n``-qubit operator (q0 = MSB)."""
+    op = np.array([[1.0 + 0j]])
+    for q in range(n):
+        op = np.kron(op, g if q == k else _I2)
+    return op
+
+
+def _cz(a: int, b: int, n: int) -> np.ndarray:
+    """CZ between qubits ``a`` and ``b`` (symmetric) on an ``n``-qubit register."""
+    dim = 2 ** n
+    diag = np.ones(dim, dtype=complex)
+    for idx in range(dim):
+        bits = [(idx >> (n - 1 - q)) & 1 for q in range(n)]  # q0 = MSB
+        if bits[a] and bits[b]:
+            diag[idx] = -1.0
+    return np.diag(diag)
+
+
+def _native_unitary(qcis: str, n: int) -> np.ndarray:
+    """Reconstruct the n-qubit unitary realized by an emitted QCIS instruction string."""
+    U = np.eye(2 ** n, dtype=complex)
+    for line in _lines(qcis):
+        tok = line.split()
+        name = tok[0]
+        qubits = [int(t[1:]) for t in tok if t.startswith("Q")]
+        args = [float(t) for t in tok[1:] if not t.startswith("Q")]
+        if name in _NATIVE_1Q:
+            M = _expand_1q(_NATIVE_1Q[name], qubits[0], n)
+        elif name == "RZ":
+            M = _expand_1q(_rz(args[0]), qubits[0], n)
+        elif name == "CZ":
+            M = _cz(qubits[0], qubits[1], n)
+        elif name == "I":
+            continue  # idle = identity
+        elif name in ("M", "B", "RST"):
+            continue  # non-unitary / structural — ignore for unitary comparison
+        else:
+            raise AssertionError(f"Unhandled QCIS native '{name}' in line: {line}")
+        U = M @ U  # instructions apply left-to-right → left-multiply
+    return U
+
+
+def _equal_up_to_phase(A: np.ndarray, B: np.ndarray, atol: float = 1e-4) -> bool:
+    """True if A == e^{iφ} B for some global phase φ. (RZ uses pi≈round(pi,6), hence loose atol.)"""
+    idx = np.unravel_index(np.argmax(np.abs(B)), B.shape)
+    if abs(B[idx]) < 1e-9:
+        return False
+    phase = A[idx] / B[idx]
+    if abs(abs(phase) - 1.0) > 1e-3:
+        return False
+    return np.allclose(A, phase * B, atol=atol)
+
+
+# Reference (intended) unitaries, defined independently with plain numpy.
+_S2 = 1 / math.sqrt(2)
+_REF_1Q = {
+    "x": np.array([[0, 1], [1, 0]], dtype=complex),
+    "y": np.array([[0, -1j], [1j, 0]], dtype=complex),
+    "z": np.array([[1, 0], [0, -1]], dtype=complex),
+    "h": np.array([[_S2, _S2], [_S2, -_S2]], dtype=complex),
+    "s": np.array([[1, 0], [0, 1j]], dtype=complex),
+    "sdg": np.array([[1, 0], [0, -1j]], dtype=complex),
+    "t": np.array([[1, 0], [0, np.exp(1j * math.pi / 4)]], dtype=complex),
+    "tdg": np.array([[1, 0], [0, np.exp(-1j * math.pi / 4)]], dtype=complex),
+    "sx": 0.5 * np.array([[1 + 1j, 1 - 1j], [1 - 1j, 1 + 1j]], dtype=complex),
+    "sxdg": 0.5 * np.array([[1 - 1j, 1 + 1j], [1 + 1j, 1 - 1j]], dtype=complex),
+}
+
+
+def _ref_u(theta, phi, lam):
+    return np.array([
+        [np.cos(theta / 2), -np.exp(1j * lam) * np.sin(theta / 2)],
+        [np.exp(1j * phi) * np.sin(theta / 2), np.exp(1j * (phi + lam)) * np.cos(theta / 2)],
+    ], dtype=complex)
+
+
+# ---------------------------------------------------------------------------
+# Unitary-reconstruction tests (the real correctness guard)
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize("gate", list(_REF_1Q))
+def test_single_qubit_rule_reconstructs_unitary(gate):
+    """Each 1-qubit native rule must rebuild the gate's unitary (own rule, no translate)."""
+    qc = QuantumCircuit(1)
+    getattr(qc, gate)(0)
+    U = _native_unitary(circuit_to_qcis(qc), 1)
+    assert _equal_up_to_phase(U, _REF_1Q[gate]), f"{gate} QCIS decomposition is not equivalent to {gate}"
+
+
+@pytest.mark.parametrize("theta", [0.0, 0.3, math.pi / 4, math.pi / 2, 2.0, -1.1])
+def test_rx_rule_reconstructs_unitary(theta):
+    qc = QuantumCircuit(1)
+    qc.rx(theta, 0)
+    assert _equal_up_to_phase(_native_unitary(circuit_to_qcis(qc), 1), _rx(theta))
+
+
+@pytest.mark.parametrize("theta", [0.0, 0.3, math.pi / 4, math.pi / 2, 2.0, -1.1])
+def test_ry_rule_reconstructs_unitary(theta):
+    qc = QuantumCircuit(1)
+    qc.ry(theta, 0)
+    assert _equal_up_to_phase(_native_unitary(circuit_to_qcis(qc), 1), _ry(theta))
+
+
+@pytest.mark.parametrize("theta", [0.3, math.pi / 4, math.pi / 2, 2.0, -1.1])
+def test_rz_rule_reconstructs_unitary(theta):
+    qc = QuantumCircuit(1)
+    qc.rz(theta, 0)
+    assert _equal_up_to_phase(_native_unitary(circuit_to_qcis(qc), 1), _rz(theta))
+
+
+@pytest.mark.parametrize("theta,phi,lam", [
+    (0.7, 1.3, 2.1),
+    (1.1, 0.3, -0.9),
+    (2.4, -1.7, 0.5),
+    (math.pi / 3, math.pi / 4, math.pi / 6),
+    (0.0, 0.0, 0.0),
+    (math.pi / 2, 0.0, math.pi),
+])
+def test_u_rule_reconstructs_unitary(theta, phi, lam):
+    """Regression guard for the historical u arg-swap bug: U(θ,φ,λ) must round-trip."""
+    qc = QuantumCircuit(1)
+    qc.u(theta, phi, lam, 0)
+    U = _native_unitary(circuit_to_qcis(qc), 1)
+    assert _equal_up_to_phase(U, _ref_u(theta, phi, lam)), (
+        f"u({theta},{phi},{lam}) QCIS decomposition is not U(θ,φ,λ)"
+    )
+
+
+@pytest.mark.parametrize("gate,ref", [
+    ("cz", np.diag([1, 1, 1, -1]).astype(complex)),
+    ("cx", np.array([[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 0, 1], [0, 0, 1, 0]], dtype=complex)),
+    ("cy", np.array([[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 0, -1j], [0, 0, 1j, 0]], dtype=complex)),
+])
+def test_two_qubit_rule_reconstructs_unitary(gate, ref):
+    """cx/cy/cz native rules must rebuild the intended 2-qubit unitary (control q0, target q1)."""
+    qc = QuantumCircuit(2)
+    getattr(qc, gate)(0, 1)
+    U = _native_unitary(circuit_to_qcis(qc), 2)
+    assert _equal_up_to_phase(U, ref), f"{gate} QCIS decomposition is not equivalent"
+
+
+def test_swap_rule_reconstructs_unitary():
+    qc = QuantumCircuit(2)
+    qc.swap(0, 1)
+    ref = np.array([[1, 0, 0, 0], [0, 0, 1, 0], [0, 1, 0, 0], [0, 0, 0, 1]], dtype=complex)
+    assert _equal_up_to_phase(_native_unitary(circuit_to_qcis(qc), 2), ref)
+
+
+def test_ccx_rule_reconstructs_unitary():
+    qc = QuantumCircuit(3)
+    qc.ccx(0, 1, 2)
+    ref = np.eye(8, dtype=complex)
+    ref[[6, 7]] = ref[[7, 6]]  # Toffoli: flip target when both controls are 1
+    assert _equal_up_to_phase(_native_unitary(circuit_to_qcis(qc), 3), ref)
+
+
+@pytest.mark.parametrize("gate", ["x", "y", "z", "h", "s", "sdg", "t", "tdg", "sx", "sxdg"])
+def test_translate_to_u_path_reconstructs_unitary(gate):
+    """End-to-end hardware path: gate → TranslateToBasisGates (→ u) → QCIS must stay equivalent.
+
+    This is the real GuoDun/TianYan submission path (convert_single_qubit_gate_to_u=True),
+    and the one that exercises the fixed `u` rule for every single-qubit gate.
+    """
+    qc = QuantumCircuit(1)
+    getattr(qc, gate)(0)
+    U = _native_unitary(circuit_to_qcis(_translate(qc)), 1)
+    assert _equal_up_to_phase(U, _REF_1Q[gate]), f"translate→u→QCIS path corrupts {gate}"
 
 
 # ---------------------------------------------------------------------------

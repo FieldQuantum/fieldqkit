@@ -12,7 +12,7 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple, TYPE_CHECKING, Un
 
 import requests
 
-from ..backend import as_int_or_none, ResolvedBackend
+from ..backend import as_int_or_none, normalize_coordinate, ResolvedBackend
 from ..task import QcisSubmitRequest, ProviderTaskHandle, TaskAdapter
 
 logger = logging.getLogger("cqlib")
@@ -749,31 +749,6 @@ def _extract_qubit_id(value: Any) -> Optional[int]:
     return None
 
 
-def _normalize_coordinate(value: Any) -> Optional[List[float]]:
-    """Parse a two-element ``[x, y]`` coordinate from list, tuple, or dict formats.
-
-    Args:
-        value (*Any*): Raw coordinate value (list, tuple, or dict with ``x``/``y`` keys).
-
-    Returns:
-        Two-element ``[x, y]`` list, or ``None`` if parsing fails.
-    """
-    if isinstance(value, (list, tuple)) and len(value) == 2:
-        try:
-            return [float(value[0]), float(value[1])]
-        except Exception:
-            return None
-    if isinstance(value, dict):
-        x = value.get("x", value.get("X"))
-        y = value.get("y", value.get("Y"))
-        if x is not None and y is not None:
-            try:
-                return [float(x), float(y)]
-            except Exception:
-                return None
-    return None
-
-
 def _extract_qubit_coordinates(config: Dict[str, Any]) -> Dict[int, List[float]]:
     """Aggregate qubit positions from ``qubits_info`` and ``overview`` config sections.
 
@@ -791,7 +766,7 @@ def _extract_qubit_coordinates(config: Dict[str, Any]) -> Dict[int, List[float]]
             qid = _extract_qubit_id(qkey)
             if qid is None or not isinstance(qvalue, dict):
                 continue
-            coordinate = _normalize_coordinate(
+            coordinate = normalize_coordinate(
                 qvalue.get("coordinate", qvalue.get("position", qvalue.get("location")))
             )
             if coordinate is not None:
@@ -806,7 +781,7 @@ def _extract_qubit_coordinates(config: Dict[str, Any]) -> Dict[int, List[float]]
                 if qid is None:
                     continue
                 if isinstance(qitem, dict):
-                    coordinate = _normalize_coordinate(
+                    coordinate = normalize_coordinate(
                         qitem.get("coordinate", qitem.get("position", qitem.get("location", qitem)))
                     )
                     if coordinate is not None:

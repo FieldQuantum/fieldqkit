@@ -32,7 +32,6 @@ class Instruction:
             for i in self.arguments:
                 if isinstance(i, float) and self.name.lower() == "rz":
                     # GuoDun rejects RZ at exactly ±π; clamp to open interval
-                    import math
                     if abs(abs(i) - math.pi) < 1e-12:
                         i = math.copysign(math.pi - 1e-10, i)
                 instr_str += f"{i} "
@@ -214,7 +213,10 @@ class NativeQcisRules:
 
     @staticmethod
     def u(inp: Instruction):
-        """Decompose U(θ,φ,λ) gate into five native instructions: RZ, X2P, RZ, X2M, RZ.
+        """Decompose U(θ,φ,λ) gate into five native instructions: RZ(λ), X2P, RZ(θ), X2M, RZ(φ).
+
+        ``inp.arguments`` is ordered ``[θ, φ, λ]`` (matching ``QuantumCircuit.u`` and
+        ``u_mat``). The native sequence reconstructs ``U(θ,φ,λ)`` up to a global phase.
 
         Args:
             inp (Instruction): The gate instruction to decompose.
@@ -223,11 +225,11 @@ class NativeQcisRules:
             list[Instruction]: Native QCIS instructions.
         """
         return [
-            Instruction("rz", inp.qubit_index, [inp.arguments[1]]),
+            Instruction("rz", inp.qubit_index, [inp.arguments[2]]),
             Instruction("x2p", inp.qubit_index),
             Instruction("rz", inp.qubit_index, [inp.arguments[0]]),
             Instruction("x2m", inp.qubit_index),
-            Instruction("rz", inp.qubit_index, [inp.arguments[2]]),
+            Instruction("rz", inp.qubit_index, [inp.arguments[1]]),
         ]
 
     @staticmethod

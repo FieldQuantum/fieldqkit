@@ -309,6 +309,11 @@ def parse_openqasm2_to_gates(openqasm2_str):
         elif set(line) == {"\t"}:
             continue
         line_clear = line.split("//")[0].strip()
+        if re.match(r"^if\s*\(", line_clear):
+            raise ValueError(
+                "Classically-conditioned gates (\"if (c == val) ...\") are not "
+                f"supported by the OpenQASM 2.0 parser: {line_clear!r}"
+            )
         gate, params_str, qregs_str = sparse_gate_params_qregs(line_clear)
         if params_str is not None:
             params = [_parse_gate_param(p) for p in params_str.split(",")]

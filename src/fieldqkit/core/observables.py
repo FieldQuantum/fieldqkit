@@ -120,10 +120,16 @@ def apply_measurement_basis_rotations(qc, basis_pattern: Sequence[str], target_q
 		target_qubits (*Sequence[int]*): Qubit indices for partial measurement. Defaults to ``None``.
 
 	Raises:
-		ValueError: f'unsupported basis op: {op}'
+		ValueError: If ``target_qubits`` and ``basis_pattern`` have different lengths,
+			or if a basis label is not one of ``I``/``X``/``Y``/``Z``.
 	"""
 	if target_qubits is None:
 		target_qubits = qc.qubits if hasattr(qc, "qubits") else list(range(len(basis_pattern)))
+	if len(target_qubits) != len(basis_pattern):
+		raise ValueError(
+			f"target_qubits length ({len(target_qubits)}) does not match "
+			f"basis_pattern length ({len(basis_pattern)})"
+		)
 	for idx, op in zip(target_qubits, basis_pattern):
 		ops = _BASIS_ROTATION_OPS.get(op)
 		if ops is None:

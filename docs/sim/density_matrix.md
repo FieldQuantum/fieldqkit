@@ -23,13 +23,14 @@
 - 密度矩阵以 `(2,)*2n` 张量内部存储：前 n 个轴为「行」指标，后 n 个轴为「列」指标；矩阵形态为 `reshape(2**n, 2**n)`。
 - 初态为 $|0\dots0\rangle\langle0\dots0|$。
 - 默认 dtype：`torch.complex64`。
-- 酉门施加为 $\rho' = U\rho U^\dagger$；噪声信道施加为 $\rho' = \sum_k K_k\rho K_k^\dagger$；`reset` 将目标比特的 $|1\rangle\langle1|$ 块并入 $|0\rangle\langle0|$ 并丢弃相关相干项。
+- 酉门施加为 $\rho' = U\rho U^\dagger$；噪声信道施加为 $\rho' = \sum_k K_k\rho K_k^\dagger$。
+- **不支持 `reset`**：当前版本所有模拟器后端统一不支持 `reset`，遇到时抛出 `NotImplementedError`。含 `reset` 的电路仍可构造并提交到真机。
 
 ## 关键函数
 
 ### `simulate_density_matrix(qc, *, param_values=None, device=None) -> torch.Tensor`
 
-- 从 $|0\rangle\langle0|$ 按门序演化，处理酉门、参数门、三比特门、噪声信道与 `reset`。
+- 从 $|0\rangle\langle0|$ 按门序演化，处理酉门、参数门、三比特门与噪声信道。
 - `barrier` / `delay` / `measure` 在该层不改变 $\rho$。
 - `param_values`：参数名到值的映射；保留 autograd，对可微变分参数可回传梯度。
 - `device`：torch 设备（`'cpu'` / `'cuda'`），默认 `None`（自动选择）。

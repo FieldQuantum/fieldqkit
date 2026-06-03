@@ -21,7 +21,7 @@ TIANYAN_HARDWARE_NAMES = {"supremacy_sample", "tianyan-287", "tianyan176", "tian
 GUODUN_HARDWARE_NAMES = {"chmy176", "gd_qc1", "gd_sim1", "gd_test"}
 CQLIB_HARDWARE_NAMES = TIANYAN_HARDWARE_NAMES | GUODUN_HARDWARE_NAMES
 TENCENT_HARDWARE_NAMES = {"simulator:tc", "tianji_m2", "tianji_m2v14s2", "tianji_m2v14s4", "tianji_m2v15s3", "tianji_m2v16s1", "tianji_s2", "tianji_s2v6", "tianji_s2v7", "tianxuan_s2", "tianxuan_s2v20s1", "tianxuan_s2v20s2"}
-ORIGIN_HARDWARE_NAMES = {"PQPUMESH8", "WK_C180"}
+ORIGIN_HARDWARE_NAMES = {"PQPUMESH8", "WK_C180", "HanYuan_01"}
 SIMULATOR_HARDWARE_NAMES = {"Simulator", "simulator"}
 FIELDQUANTUM_HARDWARE_NAMES = {"fieldquantum_sim"}
 
@@ -637,6 +637,31 @@ def as_int_or_none(value: Any) -> Optional[int]:
         return int(value)
     except Exception:
         return None
+
+
+def normalize_coordinate(value: Any) -> Optional[List[float]]:
+    """Parse a coordinate value into a two-element ``[x, y]`` float list.
+
+    Args:
+        value (*Any*): Raw coordinate value (list, tuple, or dict with ``x``/``y`` keys).
+
+    Returns:
+        Two-element ``[x, y]`` list, or ``None`` if parsing fails.
+    """
+    if isinstance(value, (list, tuple)) and len(value) == 2:
+        try:
+            return [float(value[0]), float(value[1])]
+        except Exception:
+            return None
+    if isinstance(value, dict):
+        x = value.get("x", value.get("X"))
+        y = value.get("y", value.get("Y"))
+        if x is not None and y is not None:
+            try:
+                return [float(x), float(y)]
+            except Exception:
+                return None
+    return None
 
 
 def build_hardware_profile(

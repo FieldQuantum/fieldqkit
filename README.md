@@ -162,6 +162,8 @@ pip install -e ".[sim,test]"
 pytest
 ```
 
+详细的开发流程与代码约定见 [CONTRIBUTING.md](https://github.com/FieldQuantum/fieldqkit/blob/main/CONTRIBUTING.md)；变更历史见 [CHANGELOG.md](https://github.com/FieldQuantum/fieldqkit/blob/main/CHANGELOG.md)。如发现安全漏洞，请按 [SECURITY.md](https://github.com/FieldQuantum/fieldqkit/blob/main/SECURITY.md) 私下报告，请勿公开提交。
+
 ## 引用 (Citation)
 
 如果 `fieldqkit` 对你的研究有帮助，请引用本项目（元数据见 [CITATION.cff](https://github.com/FieldQuantum/fieldqkit/blob/main/CITATION.cff)）。

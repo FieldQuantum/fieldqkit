@@ -668,45 +668,6 @@ def _norm2_mps(mps: Sequence[torch.Tensor]) -> torch.Tensor:
     return _expectation_with_local_ops(mps, ops).real
 
 
-def _apply_reset_mps(mps: List[torch.Tensor], qubit: int) -> None:
-    """Apply a reset operation on a single qubit of the MPS, forcing it to |0⟩.
-
-    Mirrors the statevector backend's two-branch reset so the two agree:
-
-    * If ``P(qubit=0) > 0``, project onto |0⟩ (zero the |1⟩ component) and
-      renormalize.
-    * If ``P(qubit=0) == 0`` (the qubit is certainly |1⟩), move the |1⟩ branch
-      into |0⟩ — equivalent to applying X — so a pure |1⟩ resets to |0⟩ instead
-      of collapsing to a zero (invalid) state.
-
-    Args:
-        mps (*List[torch.Tensor]*): MPS site tensor list (modified in-place).
-        qubit (*int*): Target qubit index to reset.
-    """
-    t = mps[qubit]
-
-    # Probability of measuring |0⟩ on the target qubit = squared norm of the
-    # state with the |1⟩ component zeroed.
-    proj0 = t.clone()
-    proj0[:, 1, :] = 0.0
-    probe = list(mps)
-    probe[qubit] = proj0
-    p0 = float(_norm2_mps(probe).detach().cpu().item())
-
-    if p0 > 1e-12:
-        mps[qubit] = proj0
-    else:
-        # Qubit is certainly |1⟩: move that branch into |0⟩ (apply X).
-        new_t = torch.zeros_like(t)
-        new_t[:, 0, :] = t[:, 1, :]
-        mps[qubit] = new_t
-
-    n2 = _norm2_mps(mps)
-    if float(n2.detach().cpu().item()) > 0.0:
-        # Normalization can be absorbed into one site tensor.
-        mps[qubit] = mps[qubit] / torch.sqrt(n2)
-
-
 def _compute_right_envs(mps: Sequence[torch.Tensor]) -> List[torch.Tensor]:
     """Precompute right environment (partial overlap) tensors for MPS sampling.
 
@@ -921,7 +882,9 @@ def simulate_mps(
         gate = gate_info[0]
         if gate in functional_gates_available:
             if gate == "reset":
-                _apply_reset_mps(mps, int(gate_info[1]))
+                raise NotImplementedError(
+                    "The MPS simulator does not support the 'reset' operation."
+                )
             # barrier/measure/delay do not change state simulation here.
             continue
 
@@ -1020,7 +983,7 @@ def expectation_pauli(
         num_qubits (*int*): Number of qubits.
 
     Returns:
-        Scalar expectation value ``<psi|P|psi>``.
+        Scalar expectation value ``<psi|P|psi> / <psi|psi>``.
 
     Raises:
         TypeError: If *state* is not a non-empty list of MPS tensors.
@@ -1037,7 +1000,9 @@ def expectation_pauli(
             ops.append(_identity2(dtype=dtype, device=device))
         else:
             ops.append(single_pauli(op, dtype=dtype, device=device))
-    return _expectation_with_local_ops(state, ops)
+    raw = _expectation_with_local_ops(state, ops)
+    norm2 = _norm2_mps(state)
+    return raw / norm2
 
 
 def energy_and_expectations(
