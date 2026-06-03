@@ -104,8 +104,8 @@ def resolve_param(
         ``float`` resolved numeric value.
 
     Raises:
-        TypeError: f'unsupported parameter type: {type(param)}'
-        ValueError: f'missing parameter value for {name}'
+        TypeError: unsupported parameter type: {type(param)}
+        ValueError: missing parameter value for {name}
     """
     if isinstance(param, (float, int)):
         return float(param)
@@ -180,7 +180,7 @@ def single_pauli(op: str, *, dtype, device):
         ``torch.Tensor`` of shape ``(2, 2)``.
 
     Raises:
-        ValueError: f'unsupported Pauli: {op}'
+        ValueError: unsupported Pauli: {op}
     """
     if op == "X":
         return torch.tensor([[0.0, 1.0], [1.0, 0.0]], dtype=dtype, device=device)
@@ -202,7 +202,7 @@ def build_param_values_from_tensor(*, params, param_names: Sequence[str]) -> Dic
         ``Dict[str, object]`` mapping parameter names to their values.
 
     Raises:
-        ValueError: f'params length must be {expected}'
+        ValueError: params length must be {expected}
     """
     expected = len(param_names)
     if params.numel() != expected:

@@ -38,7 +38,7 @@ def mitigate_readout(probabilities: np.ndarray, confusion_matrix: np.ndarray) ->
 
 	Args:
 		probabilities (*np.ndarray*): Raw probability vector.
-		confusion_matrix (*np.ndarray*): Readout confusion matrix.
+		confusion_matrix (*np.ndarray*): Readout confusion matrix (``[measure, prepare]``).
 
 	Returns:
 		Mitigated probability vector (clipped and renormalized).

@@ -23,7 +23,7 @@ def __getattr__(name: str):
         The requested attribute from ``circuit_compression``.
 
     Raises:
-        AttributeError: f'module {__name__!r} has no attribute {name!r}'
+        AttributeError: module {__name__!r} has no attribute {name!r}
     """
     if name in _COMPRESSION_NAMES:
         from . import circuit_compression as _cc

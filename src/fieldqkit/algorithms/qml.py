@@ -29,7 +29,6 @@ from typing import (
     Union,
 )
 
-logger = logging.getLogger(__name__)
 
 import numpy as np
 
@@ -49,6 +48,8 @@ from .qml_encoding import (
     angle_encoding_circuit_symbolic,
     iqp_encoding_circuit_symbolic,
 )
+
+logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------

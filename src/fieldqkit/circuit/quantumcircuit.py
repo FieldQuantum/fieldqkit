@@ -109,7 +109,7 @@ class QuantumCircuit:
             This ``QuantumCircuit`` instance (mutated in-place).
 
         Raises:
-            ValueError: f'Unsupported gate type in adjust_index: {gate}'
+            ValueError: Unsupported gate type in adjust_index: {gate}
         """
         if cbit_offset is None:
             cbit_offset = num
@@ -199,7 +199,7 @@ class QuantumCircuit:
             ``float`` resolved value.
 
         Raises:
-            TypeError: f'Wrong param type! {param}'
+            TypeError: Wrong param type! {param}
         """
         if isinstance(param, (float, int)):
             return float(param)
@@ -250,7 +250,7 @@ class QuantumCircuit:
             Evaluated numeric result.
 
         Raises:
-            ValueError: f'unsupported parameter expression: {expr}'
+            ValueError: unsupported parameter expression: {expr}
         """
         expr = str(expr).strip().replace('π', 'pi').replace('np.pi', 'pi')
 
@@ -265,7 +265,7 @@ class QuantumCircuit:
                     ``float`` value of the parameter.
 
                 Raises:
-                    ValueError: f'please apply value for parameter {name}'
+                    ValueError: please apply value for parameter {name}
                 """
                 if name == "pi":
                     return float(np.pi)
@@ -286,7 +286,7 @@ class QuantumCircuit:
                 ``float`` evaluated result.
 
             Raises:
-                ValueError: f'unsupported parameter expression: {expr}'
+                ValueError: unsupported parameter expression: {expr}
             """
             if isinstance(node, ast.Expression):
                 return _eval(node.body)
@@ -1189,17 +1189,17 @@ Indexed format examples: "X1 Y2 Z3 Z4".
         if qubit1 == qubit2:
             raise ValueError("qubit1 and qubit2 must be different")
         rots1, rots2 = kak_decompose(unitary)
-        self.u3_for_unitary(rots1[0], qubit1)
-        self.u3_for_unitary(h_mat @ rots2[0], qubit2)
+        self.u3_for_unitary(rots1[0], qubit2)
+        self.u3_for_unitary(h_mat @ rots2[0], qubit1)
         self.gates.append(('cz', qubit1, qubit2))
-        self.u3_for_unitary(rots1[1], qubit1)
-        self.u3_for_unitary(h_mat @ rots2[1] @ h_mat, qubit2)
+        self.u3_for_unitary(rots1[1], qubit2)
+        self.u3_for_unitary(h_mat @ rots2[1] @ h_mat, qubit1)
         self.gates.append(('cz', qubit1, qubit2))
-        self.u3_for_unitary(rots1[2], qubit1)
-        self.u3_for_unitary(h_mat @ rots2[2] @ h_mat, qubit2)
-        self.gates.append(('cz', qubit1, qubit2))        
-        self.u3_for_unitary(rots1[3], qubit1)
-        self.u3_for_unitary(rots2[3] @ h_mat, qubit2)
+        self.u3_for_unitary(rots1[2], qubit2)
+        self.u3_for_unitary(h_mat @ rots2[2] @ h_mat, qubit1)
+        self.gates.append(('cz', qubit1, qubit2))
+        self.u3_for_unitary(rots1[3], qubit2)
+        self.u3_for_unitary(rots2[3] @ h_mat, qubit1)
         self._add_qubits(qubit1,qubit2)
         return self
 

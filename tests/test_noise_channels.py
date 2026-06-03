@@ -2,7 +2,8 @@
 
 import numpy as np
 import pytest
-import torch
+
+torch = pytest.importorskip("torch")
 
 from fieldqkit.circuit import QuantumCircuit
 from fieldqkit.sim import (

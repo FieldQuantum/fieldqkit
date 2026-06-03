@@ -143,7 +143,7 @@ def get_qcgraph_edges(gates):
         list: List of (qubit1, qubit2) edge tuples.
 
     Raises:
-        ValueError: f'wrong gate type {gate}'
+        ValueError: wrong gate type {gate}
     """
     edges = []
     for gate_info in gates:

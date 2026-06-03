@@ -18,7 +18,7 @@ from .core.observables import pauli_expectation
 from .core.readout import mitigate_readout
 from .calibration import ReadoutCalibrationManager, NativeTwoQubitRBManager, NativeTwoQubitTomographyManager
 from .core.types import QAOAResult, QMLResult, QBMResult, ShadowResult, VQEResult, RunResult, CalibrationResult
-from .core.zne import apply_zne_cz_tripling
+from .core.zne import apply_zne_cz_tripling, zne_linear_extrapolate
 from .algorithms.shadow import ShadowTomography, estimate_observables, run_shadow_with_backend
 from .algorithms.vqe import (
     VQERunner,
@@ -62,6 +62,7 @@ __all__ = [
     "NativeTwoQubitRBManager",
     "NativeTwoQubitTomographyManager",
     "apply_zne_cz_tripling",
+    "zne_linear_extrapolate",
     "ShadowTomography",
     "ShadowResult",
     "estimate_observables",

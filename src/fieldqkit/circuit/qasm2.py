@@ -84,7 +84,7 @@ def parse_openqasm2_custom_gates(openqasm2_str: str):
         ``(custom_gates_dict, cleaned_qasm)`` tuple.
 
     Raises:
-        ValueError: f'parse error {name} !'
+        ValueError: parse error {name} !
     """
     def parse_instruction(line: str):
         """Parse a single gate instruction line into a tuple.
@@ -96,7 +96,7 @@ def parse_openqasm2_custom_gates(openqasm2_str: str):
             Tuple of ``(gate_name, *params, *qargs)`` or ``None``.
 
         Raises:
-            ValueError: f'parse error {name} !'
+            ValueError: parse error {name} !
         """
         line = line.strip().rstrip(";")
         pattern = r"^(\w+)\s*(?:\(([^)]*)\))?\s*(.*)$"

@@ -11,8 +11,6 @@ from __future__ import annotations
 import logging
 from copy import deepcopy
 
-logger = logging.getLogger(__name__)
-
 from ..api.backend import Backend
 
 from ..circuit import QuantumCircuit
@@ -23,6 +21,8 @@ from .translate import TranslateToBasisGates
 from .optimize import GateCompressor
 from .schedule import DynamicalDecoupling
 from .dag import split_qubits
+
+logger = logging.getLogger(__name__)
 
 
 class Transpiler:

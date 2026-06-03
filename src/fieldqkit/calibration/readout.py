@@ -7,7 +7,6 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable, Dict, List, Optional, Sequence, Tuple
 
-logger = logging.getLogger(__name__)
 
 import numpy as np
 
@@ -16,6 +15,8 @@ from ..core.types import CalibrationResult
 from ..core.utils import get_probabilities
 from ..api.backend import Backend
 from ._cache import cache_file, cache_is_fresh, load_timestamped_payload, save_timestamped_payload
+
+logger = logging.getLogger(__name__)
 
 
 def build_confusion_matrix(res_list: Sequence[Dict[str, int]], num_qubits: int) -> np.ndarray:
@@ -26,13 +27,13 @@ def build_confusion_matrix(res_list: Sequence[Dict[str, int]], num_qubits: int) 
 		num_qubits (*int*): Number of qubits.
 
 	Returns:
-		NumPy array of shape ``(2**num_qubits, 2**num_qubits)`` representing the confusion matrix.
+		NumPy array of shape ``(2**num_qubits, 2**num_qubits)`` representing the confusion matrix (measure | prepare).
 	"""
 	dim = 2**num_qubits
 	mat = np.zeros((dim, dim), dtype=float)
 	for i, res in enumerate(res_list):
 		probs = get_probabilities(res, num_qubits)
-		mat[i, :] = probs
+		mat[:, i] = probs
 	return mat
 
 

@@ -7,7 +7,6 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable, Dict, List, Optional, Sequence, Tuple
 
-logger = logging.getLogger(__name__)
 
 import numpy as np
 
@@ -19,6 +18,8 @@ from ..core.utils import get_probabilities
 from ._cache import cache_file, cache_is_fresh, load_timestamped_payload, save_timestamped_payload
 from ._coupler_utils import coupler_key, resolve_positive_fidelity_couplers
 from .readout import ReadoutCalibrationManager
+
+logger = logging.getLogger(__name__)
 
 
 class NativeTwoQubitTomographyManager:
@@ -290,7 +291,7 @@ class NativeTwoQubitTomographyManager:
 			2×2 density matrix as ``np.ndarray``.
 
 		Raises:
-			ValueError: f'unsupported state label: {label}'
+			ValueError: unsupported state label: {label}
 		"""
 		entries = self._STATE_VECTORS.get(label)
 		if entries is None:
@@ -307,7 +308,7 @@ class NativeTwoQubitTomographyManager:
 			qubit (*int*): Target qubit index.
 
 		Raises:
-			ValueError: f'unsupported state label: {label}'
+			ValueError: unsupported state label: {label}
 		"""
 		ops = self._STATE_PREP_OPS.get(label)
 		if ops is None:
@@ -335,7 +336,7 @@ class NativeTwoQubitTomographyManager:
 			q2 (*int*): Second qubit index.
 
 		Raises:
-			ValueError: f'unsupported two-qubit gate: {gate}'
+			ValueError: unsupported two-qubit gate: {gate}
 		"""
 		canonical_gate = "cx" if gate in {"cnot", "cx"} else gate
 		method_name = self._TWO_QUBIT_GATE_METHODS.get(canonical_gate)

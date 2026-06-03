@@ -6,7 +6,6 @@ import logging
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Sequence, Tuple, Union
 
-logger = logging.getLogger(__name__)
 
 import numpy as np
 
@@ -16,6 +15,8 @@ from ..circuit import QuantumCircuit
 from ..core.observables import pauli_basis_pattern
 from ..core.types import ShadowResult
 from ..core.zne import zne_linear_extrapolate
+
+logger = logging.getLogger(__name__)
 
 
 _BASIS_CHOICES = ("X", "Y", "Z")

@@ -936,6 +936,42 @@ def test_gatecompressor_preserves_semantics_across_cx():
     assert np.isclose(overlap, 1.0), f"GateCompressor changed semantics (overlap={overlap})"
 
 
+def test_dag_round_trip_preserves_semantics():
+    """qc2dag -> dag2qc must preserve circuit semantics.
+    """
+    from fieldqkit.compile.dag import qc2dag, dag2qc
+    from fieldqkit.sim.statevector import simulate_statevector
+
+    qc = QuantumCircuit(3)
+    qc.h(0)
+    qc.cx(0, 1)
+    qc.rz(0.5, 2)
+    qc.ry(0.3, 1)
+    qc.ccx(0, 1, 2)
+    qc.cx(2, 0)
+    qc.qubits = [0, 1, 2]
+
+    rt = dag2qc(qc2dag(qc))
+    sv0 = simulate_statevector(qc, device="cpu").detach().cpu().numpy()
+    sv1 = simulate_statevector(rt, device="cpu").detach().cpu().numpy()
+    assert np.allclose(sv0, sv1, atol=1e-12)
+    assert sorted(map(str, qc.gates)) == sorted(map(str, rt.gates))
+
+
+def test_dag_round_trip_splits_measure_per_qubit():
+    """dag2qc emits one measure node per qubit but preserves the qubit->cbit map."""
+    from fieldqkit.compile.dag import qc2dag, dag2qc
+
+    qc = QuantumCircuit(3, 3)
+    qc.h(0)
+    qc.measure([0, 1, 2], [0, 1, 2])
+    qc.qubits = [0, 1, 2]
+
+    rt = dag2qc(qc2dag(qc))
+    pairs = {(g[1][0], g[2][0]) for g in rt.gates if g[0] == "measure"}
+    assert pairs == {(0, 0), (1, 1), (2, 2)}
+
+
 # --------------- Layout: Pool fallback & subgraph enumeration ---------------
 
 def _make_mock_backend(n, edges, fidelities=None, node_fidelities=None, priority_qubits=None):

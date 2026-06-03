@@ -8,7 +8,6 @@ import logging
 from dataclasses import dataclass
 from typing import Callable, Dict, List, Literal, Optional, Sequence, Tuple
 
-logger = logging.getLogger(__name__)
 
 import numpy as np
 from ..api.backend import Backend, is_noisy_circuit_for_backend
@@ -25,6 +24,8 @@ from .optimizer_utils import (
     run_variational_loop as _run_variational_loop,
     select_backend_and_run as _select_backend_and_run,
 )
+
+logger = logging.getLogger(__name__)
 
 AnsatzKind = Literal["hardwareefficient", "custom"]
 
@@ -198,7 +199,7 @@ def _extract_names_from_expr(expr: str) -> List[str]:
             node: AST node to inspect (``Expression``, ``Name``, etc.).
 
         Raises:
-            ValueError: f'unsupported symbolic parameter expression: {expr}'
+            ValueError: unsupported symbolic parameter expression: {expr}
         """
         if isinstance(node, ast.Expression):
             _walk(node.body)

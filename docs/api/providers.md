@@ -194,7 +194,7 @@ class GuoDunBackendAdapter(BackendAdapter):
 
 ### `TencentPlatform` 类
 
-**作用：** 腾讯量子云客户端，基于 `tensorcircuit.cloud`。
+**作用：** 腾讯量子云客户端，基于腾讯量子云 REST API。
 
 **初始化：** 需提供 API token（配置文件 `credentials.tencent.api_token` → `TENCENT_API_TOKEN` 环境变量）。
 
@@ -249,7 +249,7 @@ class TencentBackendAdapter(BackendAdapter):
 **作用：** 腾讯量子云任务适配器（OpenQASM 提交）。
 
 **关键行为：**
-- `submit_openqasm`：通过 tensorcircuit cloud API 提交 OpenQASM 2.0 线路。
+- `submit_openqasm`：通过腾讯量子云 REST API 提交 OpenQASM 2.0 线路。
 - `query_status`：轮询任务状态（`completed/failed/pending/scheduled` → `Finished/Failed/Running`）。
 - `fetch_result`：获取 counts。
 - `cancel_task`：腾讯云不支持任务取消，仅记录 warning。

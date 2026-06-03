@@ -168,7 +168,7 @@ class QuafuPlatform:
             ``dict`` parsed JSON response.
 
         Raises:
-            ValueError: f'unsupported method: {method}'
+            ValueError: unsupported method: {method}
             requests.exceptions.HTTPError: If the server returns a non-2xx status.
             requests.exceptions.Timeout: If the request exceeds ``_HTTP_TIMEOUT``.
         """
@@ -241,7 +241,7 @@ class QuafuPlatform:
             ``dict`` parsed JSON task result.
 
         Raises:
-            TimeoutError: f'Task {tid} result timeout after {timeout} seconds
+            TimeoutError: Task {tid} result timeout after {timeout} seconds
         """
         if timeout:
             st = time.time()

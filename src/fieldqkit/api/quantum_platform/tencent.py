@@ -118,13 +118,6 @@ def _ensure_token(token: Optional[str] = None) -> str:
 # Device / chip info queries
 # ---------------------------------------------------------------------------
 
-TENCENT_CHIPS = {
-    "tianji_s2": "tianji_s2",
-    "tianji_m2": "tianji_m2",
-    "tianxuan_s2": "tianxuan_s2",
-}
-
-
 def _list_devices(token: str) -> List[str]:
     """Return device id strings from Tencent cloud.
 
@@ -149,7 +142,7 @@ def _get_device_properties(device_name: str, token: str) -> Dict[str, Any]:
         Device properties ``dict`` with normalised ``bits`` and ``links``.
 
     Raises:
-        ValueError: f'No device with the name: {device_name}'
+        ValueError: No device with the name: {device_name}
     """
     r = _post_json("device/detail", token=token, json={"id": device_name})
     if "device" not in r:
@@ -530,5 +523,5 @@ class TencentTaskAdapter(TaskAdapter):
         Args:
             handle (*ProviderTaskHandle*): Task handle from a prior submission.
         """
-        # Tencent cloud API does not expose a cancel endpoint in tensorcircuit
+        # Tencent cloud REST API does not expose a cancel endpoint
         logger.warning("Tencent provider does not support task cancellation")

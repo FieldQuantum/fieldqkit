@@ -125,7 +125,6 @@ compile_tn_1d(
 
 - 作用：核心张量网络优化器，接收已有的 MPS/MPO 张量目标，用浅层 HEA 逼近。
 - 优化器：Adam，两阶段（主优化 + 可选 refine）。
-- 初始化策略：3 组候选初始参数（1 组 warm start + 2 组随机），按 fidelity 选最优种子。
 - `compress_circuit_with_hybrid_objective` 是对此函数的上层包装。
 
 ### `build_compression_transform`

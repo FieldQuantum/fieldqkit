@@ -23,22 +23,6 @@ def _complex_dtype(dtype: torch.dtype | None) -> torch.dtype:
     return torch.complex128
 
 
-def _as_tensor(x, *, device: torch.device | None, dtype: torch.dtype | None):
-    """Convert a scalar or array to a torch tensor, preserving existing tensor dtype.
-
-    Args:
-        x: Scalar, list, or existing tensor.
-        device (*torch.device | None*): Target device.
-        dtype (*torch.dtype | None*): Target dtype (applied to complex tensors; ignored for real tensors).
-
-    Returns:
-        ``torch.Tensor`` on the specified device.
-    """
-    if isinstance(x, torch.Tensor):
-        return x.to(device=device, dtype=dtype if x.is_complex() else x.dtype)
-    return torch.tensor(x, device=device, dtype=dtype)
-
-
 def _as_angle(theta, *, device: torch.device | None):
     """Convert a rotation angle to a float64 tensor on the given device.
 

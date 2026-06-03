@@ -93,7 +93,7 @@ class DynamicalDecoupling(TranspilerPass):
             ``QuantumCircuit`` with DD sequences inserted into idle windows.
 
         Raises:
-            ValueError: f'Sequence {sequence} is not support now!'
+            ValueError: Sequence {sequence} is not support now!
         """
         if sequence == "XY4":
             sequence_length = 4

@@ -17,6 +17,8 @@ from fieldqkit.algorithms.qaoa import (
     run_qaoa_with_backend,
 )
 from fieldqkit.algorithms.vqe import build_ising_hamiltonian, run_vqe_with_backend
+from fieldqkit.algorithms.shadow import run_shadow_with_backend
+from fieldqkit.api.client import QuantumHardwareClient
 from fieldqkit.algorithms.qml_encoding import (
     angle_encoding_circuit,
     angle_encoding_circuit_symbolic,
@@ -219,6 +221,44 @@ def test_vqe_autograd_custom_ansatz_supports_division_expression_param():
 
     assert len(result.energy_history) == 2
     assert np.isfinite(result.best_energy)
+
+
+def test_vqe_parameter_shift_converges_on_simulator():
+    """End-to-end ``parameter-shift`` VQE on the statevector simulator.
+    """
+    client = QuantumHardwareClient()
+    qc = QuantumCircuit(1)
+    qc.ry("theta", 0)
+
+    result = run_vqe_with_backend(
+        client,
+        name="vqe_pshift",
+        num_qubits=1,
+        backend=Backend("Simulator"),
+        chip_name="Simulator",
+        hamiltonian=[(1.0, "Z")],
+        layers=1,
+        shots=8192,
+        max_iters=20,
+        learning_rate=0.3,
+        beta1=0.9,
+        beta2=0.98,
+        eps=1e-8,
+        shift=np.pi / 2,
+        zne=False,
+        readout_mitigation=False,
+        seed=3,
+        gradient_method="parameter-shift",
+        ansatz="custom",
+        custom_ansatz_circuit=qc,
+        transpile=False,
+        init_params=[0.4],
+    )
+
+    assert len(result.energy_history) == 20
+    # Started near +cos(0.4)=+0.92; must descend close to the true minimum -1.
+    assert result.best_energy < -0.9
+    assert result.best_energy < result.energy_history[0]
 
 
 # ═══════════════════════════════════════════════════════════
@@ -1014,6 +1054,37 @@ class TestShadowEstimator:
             estimator="mom", rng=np.random.default_rng(99),
         )
         assert abs(est["Z"] - 1.0) < 0.15
+
+
+class TestRunShadowWithBackend:
+    def test_estimates_bell_observables_on_simulator(self):
+        """End-to-end shadow-tomography orchestration through the real
+        ``_run_with_backend`` on the simulator.
+        """
+        client = QuantumHardwareClient()
+        bell = QuantumCircuit(2)
+        bell.h(0)
+        bell.cx(0, 1)
+
+        res = run_shadow_with_backend(
+            client,
+            bell,
+            name="shadow_e2e",
+            num_qubits=2,
+            backend=Backend("Simulator"),
+            chip_name="Simulator",
+            shots=4000,
+            shots_per_basis=1,
+            observables=["ZZ", "XX", "ZI"],
+            seed=1,
+            transpile=False,
+        )
+
+        est = res.observable_estimates
+        assert est["ZZ"] == pytest.approx(1.0, abs=0.15)
+        assert est["XX"] == pytest.approx(1.0, abs=0.15)
+        assert est["ZI"] == pytest.approx(0.0, abs=0.15)
+        assert res.num_samples == 4000
 
     def test_empty_samples_returns_empty_dicts(self):
         est, err = estimate_observables(

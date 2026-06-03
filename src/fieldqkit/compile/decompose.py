@@ -394,8 +394,8 @@ def iswap_decompose(
                 s2u(qubit1),
                 s2u(qubit2),
                 h2u(qubit1),
-            ] + cx_decompose(qubit1, qubit2, convert_single_qubit_gate_to_u, two_qubit_gate_basis) + [
-            ] + cx_decompose(qubit2, qubit1, convert_single_qubit_gate_to_u, two_qubit_gate_basis) + [
+            ] + cx_decompose(qubit1, qubit2, convert_single_qubit_gate_to_u, two_qubit_gate_basis) \
+              + cx_decompose(qubit2, qubit1, convert_single_qubit_gate_to_u, two_qubit_gate_basis) + [
                 h2u(qubit2),
             ]
         else:
@@ -403,8 +403,8 @@ def iswap_decompose(
                 ("s", qubit1),
                 ("s", qubit2),
                 ("h", qubit1),
-            ] + cx_decompose(qubit1, qubit2, convert_single_qubit_gate_to_u, two_qubit_gate_basis) + [
-            ] + cx_decompose(qubit2, qubit1, convert_single_qubit_gate_to_u, two_qubit_gate_basis) + [
+            ] + cx_decompose(qubit1, qubit2, convert_single_qubit_gate_to_u, two_qubit_gate_basis) \
+              + cx_decompose(qubit2, qubit1, convert_single_qubit_gate_to_u, two_qubit_gate_basis) + [
                 ("h", qubit2),
             ]
 

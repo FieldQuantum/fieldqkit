@@ -92,23 +92,6 @@
 
 ---
 
-## 源文件统计
-
-| 文件 | 行数 | 核心类/函数 |
-|---|---|---|
-| `transpiler.py` | 182 | `Transpiler` |
-| `layout.py` | 674 | `Layout` |
-| `routing.py` | 655 | `SabreRouting` |
-| `optimize.py` | 819 | `GateCompressor` |
-| `decompose.py` | 712 | `ThreeQubitGateDecompose` + 10 个两比特门分解 + 13 个 1Q→U 转换 |
-| `schedule.py` | 211 | `DynamicalDecoupling` |
-| `translate.py` | 160 | `TranslateToBasisGates` |
-| `dag.py` | 223 | `qc2dag` / `dag2qc` / `qc2graph` / `split_qubits` |
-| `basepasses.py` | 29 | `TranspilerPass`（ABC） |
-| **合计** | **3,665** | |
-
----
-
 ## 相关页面
 
 - [docs 索引](../README.md)

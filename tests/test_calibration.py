@@ -180,16 +180,17 @@ class TestCouplerUtils:
 
 class TestBuildConfusionMatrix:
     def test_perfect_readout_is_identity(self):
-        # Row i = probabilities measured when preparing basis state i.
+        # Column j = probabilities measured when preparing basis state j.
         res_list = [{"0": 1000}, {"1": 1000}]
         mat = build_confusion_matrix(res_list, num_qubits=1)
         assert np.allclose(mat, np.eye(2))
 
-    def test_noisy_readout_rows_are_distributions(self):
+    def test_noisy_readout_columns_are_distributions(self):
+        # mat[i, j] = P(measure i | prepare j): each column is a distribution.
         res_list = [{"0": 900, "1": 100}, {"0": 50, "1": 950}]
         mat = build_confusion_matrix(res_list, num_qubits=1)
         assert mat.shape == (2, 2)
-        assert np.allclose(mat.sum(axis=1), 1.0)
+        assert np.allclose(mat.sum(axis=0), 1.0)
         assert mat[0, 0] == pytest.approx(0.9)
         assert mat[1, 1] == pytest.approx(0.95)
 
@@ -432,8 +433,8 @@ class TestConfusionMatrixLargeScale:
         assert np.allclose(mat, np.eye(dim))
 
     @pytest.mark.parametrize("n", [2, 3, 6])
-    def test_rows_are_probability_distributions(self, n):
-        """Every row of an arbitrary noisy confusion matrix is a valid
+    def test_columns_are_probability_distributions(self, n):
+        """Every column of an arbitrary noisy confusion matrix is a valid
         probability distribution (non-negative, sums to 1)."""
         rng = np.random.default_rng(11)
         dim = 2 ** n
@@ -444,9 +445,9 @@ class TestConfusionMatrixLargeScale:
         mat = build_confusion_matrix(res_list, num_qubits=n)
         assert mat.shape == (dim, dim)
         assert (mat >= 0).all()
-        assert np.allclose(mat.sum(axis=1), 1.0)
+        assert np.allclose(mat.sum(axis=0), 1.0)
 
-    def test_noisy_two_qubit_rows_sum_to_one(self):
+    def test_noisy_two_qubit_columns_sum_to_one(self):
         res_list = [
             {"00": 800, "01": 100, "10": 50, "11": 50},
             {"01": 900, "00": 100},
@@ -454,7 +455,7 @@ class TestConfusionMatrixLargeScale:
             {"11": 990, "10": 10},
         ]
         mat = build_confusion_matrix(res_list, num_qubits=2)
-        assert np.allclose(mat.sum(axis=1), 1.0)
+        assert np.allclose(mat.sum(axis=0), 1.0)
         # Diagonal entries are the "prepared == measured" probabilities.
         assert np.allclose(np.diag(mat), [0.8, 0.9, 0.95, 0.99])
 
@@ -474,12 +475,36 @@ class TestReadoutMitigationInvariants:
         """With the exact confusion matrix, mitigation inverts the readout
         noise back to the true distribution."""
         from fieldqkit.core.readout import mitigate_readout
-        # Row i = measured-given-prepared, so measured = C^T @ p_true.
-        cm = np.array([[0.9, 0.1], [0.05, 0.95]])
+        # cm[i, j] = P(measure i | prepare j), so measured = cm @ p_true.
+        cm = np.array([[0.9, 0.05], [0.1, 0.95]])
         true = np.array([0.7, 0.3])
-        measured = cm.T @ true
-        recovered = mitigate_readout(measured, cm.T)
+        measured = cm @ true
+        recovered = mitigate_readout(measured, cm)
         assert np.allclose(recovered, true, atol=1e-9)
+
+    def test_mitigation_recovers_asymmetric_readout(self):
+        """Regression: asymmetric readout error must be inverted correctly.
+        """
+        from fieldqkit.core.readout import mitigate_readout
+        # cm[i, j] = P(measure i | prepare j): perfect on |0>, 20% bit-flip on |1>.
+        cm = np.array([[1.0, 0.2], [0.0, 0.8]])
+        true = np.array([0.0, 1.0])
+        measured = cm @ true  # = [0.2, 0.8]
+        recovered = mitigate_readout(measured, cm)
+        assert np.allclose(recovered, true, atol=1e-9)
+
+    def test_unbiased_estimator_recovers_asymmetric_expectation(self):
+        """Regression: the sample-based unbiased estimator must give the right
+        expectation under asymmetric readout error."""
+        from fieldqkit.core.readout import expectation_from_samples_unbiased
+
+        # cm[i, j] = P(measure i | prepare j); true state |1> has <Z> = -1.
+        cm = np.array([[1.0, 0.2], [0.0, 0.8]])
+        rng = np.random.default_rng(0)
+        # True |1>: measured 1 with prob 0.8, measured 0 with prob 0.2.
+        bits = (rng.random(400_000) < 0.8).astype(int).reshape(-1, 1)
+        est = expectation_from_samples_unbiased(bits, [cm])
+        assert est == pytest.approx(-1.0, abs=5e-3)
 
     def test_mitigation_output_is_a_distribution(self):
         from fieldqkit.core.readout import mitigate_readout
@@ -521,8 +546,8 @@ class TestReadoutCalibrationBoundary:
         mat = np.asarray(result.per_qubit_confusion[3])
         assert mat.shape == (2, 2)
         assert np.allclose(mat, np.eye(2))
-        # Each per-qubit confusion matrix row is a valid distribution.
-        assert np.allclose(mat.sum(axis=1), 1.0)
+        # Each per-qubit confusion matrix column is a valid distribution.
+        assert np.allclose(mat.sum(axis=0), 1.0)
 
     def test_eight_qubit_readout_all_identity(self, tmp_path):
         """Larger-scale: calibrate 8 qubits at once; each is an identity 2x2."""

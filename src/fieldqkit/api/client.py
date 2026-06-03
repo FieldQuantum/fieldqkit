@@ -6,7 +6,6 @@ import logging
 import time
 from typing import Dict, List, Optional, Sequence, Tuple, Union
 
-logger = logging.getLogger(__name__)
 from copy import deepcopy
 from pathlib import Path
 
@@ -44,6 +43,8 @@ from ..calibration.readout import ReadoutCalibrationManager
 from ..core.types import RunResult
 from ..core.utils import get_probabilities_from_samples, get_samples
 from ..core.zne import apply_zne_cz_tripling, zne_linear_extrapolate
+
+logger = logging.getLogger(__name__)
 
 
 def simulate_counts(*args, **kwargs):
@@ -158,7 +159,7 @@ class QuantumHardwareClient:
 			Constructed ``QuantumCircuit``.
 
 		Raises:
-			ValueError: f'unsupported circuit kind: {kind}'
+			ValueError: unsupported circuit kind: {kind}
 		"""
 		kind = kind.lower()
 		if kind == "ghz":
@@ -390,7 +391,6 @@ class QuantumHardwareClient:
 		This is used for sequential submission mode (tianyan provider).
 		Does nothing if no task was previously submitted.
 		"""
-		import time
 		if self._last_pending_task_id is not None:
 			status = self._wait_task(self._last_pending_task_id)
 			if status != "Finished":
@@ -411,7 +411,6 @@ class QuantumHardwareClient:
 			TimeoutError: If the task does not reach a terminal status within
 				``self._poll_max_wait`` seconds.
 		"""
-		import time
 		adapter = self._active_task_adapter
 		if adapter is None or not isinstance(task_id, ProviderTaskHandle):
 			raise RuntimeError("active task adapter and ProviderTaskHandle are required when waiting task status")

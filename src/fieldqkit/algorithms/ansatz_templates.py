@@ -27,7 +27,7 @@ def build_hardware_efficient_ansatz(
         Constructed ``QuantumCircuit``.
 
     Raises:
-        ValueError: f'params length must be {expected} (2 * num_qubits * (layers + 1))'
+        ValueError: params length must be {expected} (2 * num_qubits * (layers + 1))
     """
     expected = 2 * num_qubits * (layers + 1)
     if len(params) != expected:
@@ -74,7 +74,7 @@ def build_hardware_efficient_ansatz_symbolic(
         Constructed ``QuantumCircuit``.
 
     Raises:
-        ValueError: f'param_names length must be {expected} (2 * num_qubits * (layers + 1))'
+        ValueError: param_names length must be {expected} (2 * num_qubits * (layers + 1))
     """
     expected = 2 * num_qubits * (layers + 1)
     if len(param_names) != expected:

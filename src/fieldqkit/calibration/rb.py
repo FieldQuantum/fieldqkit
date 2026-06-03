@@ -7,7 +7,6 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable, Dict, List, Optional, Sequence, Tuple
 
-logger = logging.getLogger(__name__)
 
 import numpy as np
 
@@ -18,6 +17,8 @@ from ..api.backend import Backend
 from ._cache import cache_file, cache_is_fresh, load_timestamped_payload, save_timestamped_payload
 from ._coupler_utils import coupler_key, resolve_positive_fidelity_couplers
 from .readout import ReadoutCalibrationManager
+
+logger = logging.getLogger(__name__)
 
 
 class NativeTwoQubitRBManager:
@@ -261,7 +262,7 @@ class NativeTwoQubitRBManager:
 			Tuple of ``(circuit, total_length)`` where *total_length* is the effective gate count.
 
 		Raises:
-			ValueError: f'unsupported two-qubit basis gate: {basis_gate}'
+			ValueError: unsupported two-qubit basis gate: {basis_gate}
 		"""
 		qc = QuantumCircuit(max(qubits) + 1)
 		# Pauli-only single-qubit twirl for native two-qubit RB.
@@ -303,7 +304,7 @@ class NativeTwoQubitRBManager:
 			qubit (*int*): Target qubit index.
 
 		Raises:
-			ValueError: f'unsupported single-qubit gate: {gate_name}'
+			ValueError: unsupported single-qubit gate: {gate_name}
 		"""
 		if gate_name == "id":
 			return
@@ -361,7 +362,7 @@ class NativeTwoQubitRBManager:
 			q2 (*int*): Second qubit index in the coupler pair.
 
 		Raises:
-			ValueError: f'unsupported two-qubit gate: {gate}'
+			ValueError: unsupported two-qubit gate: {gate}
 		"""
 		canonical = self._canonical_two_qubit_gate(gate)
 		if canonical not in {"cz", "cx", "iswap", "ecr"}:
@@ -381,7 +382,7 @@ class NativeTwoQubitRBManager:
 			q2 (*int*): Second qubit index.
 
 		Raises:
-			ValueError: f'unsupported two-qubit gate: {gate}'
+			ValueError: unsupported two-qubit gate: {gate}
 		"""
 		canonical = self._canonical_two_qubit_gate(gate)
 		if canonical == "iswap":

@@ -15,12 +15,13 @@ from typing import Callable, Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
 
-logger = logging.getLogger(__name__)
 
 from ..api.backend import Backend, resolve_provider
 from ..api.quantum_platform import create_provider_runtime
 from ..circuit import QuantumCircuit
 from ..compile.optimize import GateCompressor
+
+logger = logging.getLogger(__name__)
 
 Hamiltonian = List[Tuple[float, str]]
 CliffordFitMap = Dict[str, Tuple[float, float]]

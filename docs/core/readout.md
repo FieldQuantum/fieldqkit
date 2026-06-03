@@ -21,8 +21,9 @@
 ### `mitigate_readout(probabilities, confusion_matrix) -> np.ndarray`
 
 - 作用：通过 confusion matrix 伪逆做 readout 概率缓解。
+- 约定：`confusion_matrix[i, j] = P(测得 i | 制备 j)`（即 `[measure, prepare]`）
 - 数值处理：
-	- 先 `pinv @ p`。
+	- 先 `pinv(confusion_matrix) @ p`。
 	- 再裁剪到 `[0,1]`。
 	- 最后归一化（若总和非零）。
 

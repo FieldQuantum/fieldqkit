@@ -294,7 +294,7 @@ def simulate_mpo_process(
         List of ``torch.Tensor`` site tensors with shape ``[Dl, pout, Dr, pin]``.
 
     Raises:
-        ValueError: f'unsupported gate for simulator: {gate}'
+        ValueError: unsupported gate for simulator: {gate}
     """
     num_qubits = int(qc.nqubits)
     if num_qubits <= 0:

@@ -53,7 +53,7 @@ class SabreRouting(TranspilerPass):
 | `subgraph` | `nx.Graph` | — | 物理比特耦合子图（由 `Layout.select_layout` 返回）。需包含 `graph["normal_order"]` 属性。 |
 | `initial_mapping` | `str \| list` | `"trivial"` | 初始映射策略。`"trivial"` = 按物理比特顺序一一对应；`"random"` = 随机打乱物理比特后映射；`list` = 显式映射列表（长度必须等于物理比特数）。 |
 | `do_random_choice` | `bool` | `False` | SWAP 候选中有多个最优时是否随机选择。`False` 时取第一个（确定性）。 |
-| `iterations` | `int` | `5` | SABRE 前后向迭代次数。偶数次正向遍历 DAG，奇数次反向遍历。越多结果越稳定。 |
+| `iterations` | `int` | `5` | SABRE 前后向迭代次数。必须为**正奇数**，否则抛 `ValueError`。越多结果越稳定。 |
 | `heuristic` | `str` | `"lookahead_decay"` | 启发式函数名称（详见下方）。 |
 | `max_extended_set_weight` | `float` | `0.5` | lookahead 启发式中，前瞻集权重系数 $W$ 的上界。实际 $W = \min(0.5,\, |E|/|F|)$。 |
 | `noise_aware` | `bool` | `False` | 是否使用保真度加权距离矩阵。 |

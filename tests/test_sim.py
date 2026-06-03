@@ -265,6 +265,53 @@ def _reference_unitary_from_circuit(qc):
 
 
 # ═══════════════════════════════════════════════════════════
+#  KAK two-qubit decomposition
+# ═══════════════════════════════════════════════════════════
+
+
+def _haar_unitary(dim, seed):
+    """Deterministic Haar-random unitary via QR of a complex Gaussian matrix."""
+    import numpy as np
+
+    rng = np.random.default_rng(seed)
+    z = rng.standard_normal((dim, dim)) + 1j * rng.standard_normal((dim, dim))
+    q, r = np.linalg.qr(z)
+    # Fix the phase of each column so the decomposition is genuinely Haar.
+    return q * (np.diag(r) / np.abs(np.diag(r)))
+
+
+@pytest.mark.parametrize("seed", [0, 1, 7, 42, 99])
+def test_kak_for_unitary_reconstructs_unitary(seed):
+    """kak_for_unitary(U, 0, 1) must implement U itself (qubit1 = high bit),
+    not SWAP.U.SWAP. A symmetric/separable U would mask the qubit-order bug,
+    so use a generic entangling Haar-random unitary."""
+    import numpy as np
+    from fieldqkit.circuit.utils import is_equiv_unitary
+
+    U = _haar_unitary(4, seed)
+    qc = QuantumCircuit(2)
+    qc.kak_for_unitary(U, 0, 1)
+    actual = _reference_unitary_from_circuit(qc).cpu().numpy()
+    assert is_equiv_unitary(U, actual)
+
+
+def test_kak_for_unitary_respects_qubit_order():
+    """Swapping the target qubits must conjugate by SWAP: kak_for_unitary(U, 1, 0)
+    treats qubit 1 as the high bit, i.e. implements SWAP @ U @ SWAP."""
+    import numpy as np
+    from fieldqkit.circuit.utils import is_equiv_unitary
+
+    SWAP = np.array(
+        [[1, 0, 0, 0], [0, 0, 1, 0], [0, 1, 0, 0], [0, 0, 0, 1]], dtype=complex
+    )
+    U = _haar_unitary(4, seed=12345)
+    qc = QuantumCircuit(2)
+    qc.kak_for_unitary(U, 1, 0)
+    actual = _reference_unitary_from_circuit(qc).cpu().numpy()
+    assert is_equiv_unitary(SWAP @ U @ SWAP, actual)
+
+
+# ═══════════════════════════════════════════════════════════
 #  MPO tests
 # ═══════════════════════════════════════════════════════════
 
@@ -589,9 +636,9 @@ class TestResolveParam:
             resolve_param(qc, [1, 2, 3])
 
 
-# �T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T
+# ═══════════════════════════════════════════════════════════
 #  Clifford & Clifford+T Heisenberg-picture simulators
-# �T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T�T
+# ═══════════════════════════════════════════════════════════
 
 import numpy as np
 
@@ -647,7 +694,7 @@ class TestStabilizerClifford:
         qc.h(0)
         qc.s(0)
         qc.h(0)
-        # H S H |0? = (|0? + i|1?)/��2  �� ?X?=0, ?Y?=1, ?Z?=0.
+        # H S H |0> = (|0> + i|1>)/sqrt(2)  ->  <X>=0, <Y>=1, <Z>=0.
         assert simulate_clifford_expectation(qc, "X") == pytest.approx(0.0)
         assert simulate_clifford_expectation(qc, "Y") == pytest.approx(-1.0)
         assert simulate_clifford_expectation(qc, "Z") == pytest.approx(0.0)
@@ -714,7 +761,7 @@ class TestCliffordTBranching:
         qc = QuantumCircuit(1)
         qc.h(0)
         qc.t(0)
-        # State (|0? + e^{i��/4}|1?)/��2 �� ?X? = cos(��/4), ?Y? = sin(��/4), ?Z? = 0.
+        # State (|0> + e^{i*pi/4}|1>)/sqrt(2)  ->  <X>=cos(pi/4), <Y>=sin(pi/4), <Z>=0.
         assert simulate_clifford_t_expectation(qc, "X") == pytest.approx(np.cos(np.pi / 4), abs=1e-9)
         assert simulate_clifford_t_expectation(qc, "Y") == pytest.approx(np.sin(np.pi / 4), abs=1e-9)
         assert simulate_clifford_t_expectation(qc, "Z") == pytest.approx(0.0, abs=1e-9)

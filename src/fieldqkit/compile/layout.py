@@ -14,7 +14,6 @@ import networkx as nx
 import numpy as np
 from typing import Literal
 
-logger = logging.getLogger(__name__)
 from itertools import combinations, zip_longest, product
 from ..api.backend import Backend
 
@@ -24,6 +23,8 @@ from ..circuit.quantumcircuit_helpers import (
     two_qubit_parameter_gates_available,
 )
 from .dag import split_qubits
+
+logger = logging.getLogger(__name__)
 
 
 class Layout:
@@ -562,7 +563,6 @@ Lower is better.
                     logger.warning("Layout selection failed: %s", e)
                 if physical_qubits_layout:
                     break
-                    break
             if physical_qubits_layout == []:
                 raise ValueError("Unable to find a suitable layout.")
             return physical_qubits_layout
@@ -629,10 +629,6 @@ Lower is better.
                         )
             subgraph = self.graph.subgraph(target_qubits).copy()
             subgraph.graph["normal_order"] = target_qubits
-            if len(subgraph.edges()) > 0:
-                subgraph_fidelity = np.array([self.edge_fidelitys[(min(edge), max(edge))] for edge in subgraph.edges])
-                fidelity_mean = np.mean(subgraph_fidelity)
-                fidelity_var = np.var(subgraph_fidelity)
             return subgraph
 
         if use_chip_priority:

@@ -6,7 +6,6 @@ import logging
 from dataclasses import dataclass
 from typing import Callable, Dict, List, Literal, Optional, Sequence, Tuple
 
-logger = logging.getLogger(__name__)
 
 import numpy as np
 
@@ -20,6 +19,8 @@ from .optimizer_utils import (
     run_variational_loop as _run_variational_loop,
     select_backend_and_run as _select_backend_and_run,
 )
+
+logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------

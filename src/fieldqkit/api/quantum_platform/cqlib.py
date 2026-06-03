@@ -255,7 +255,7 @@ def _reconnect_on_failure(func, max_retries=2, retry_delay=1):
         Wrapped function with automatic retry and re-login logic.
 
     Raises:
-        CqlibRequestError: f'function:[{func.__name__}] Max retries exceeded. Attemp...
+        CqlibRequestError: function:[{func.__name__}] Max retries exceeded. Attemp...
         last_error: If an error condition is met.
     """
     @functools.wraps(func)
@@ -270,7 +270,7 @@ def _reconnect_on_failure(func, max_retries=2, retry_delay=1):
             Return value of the wrapped function.
 
         Raises:
-            CqlibRequestError: f'function:[{func.__name__}] Max retries exceeded. Attemp...
+            CqlibRequestError: function:[{func.__name__}] Max retries exceeded. Attemp...
             last_error: If an error condition is met.
         """
         retries = 0
@@ -550,7 +550,7 @@ class RemotePlatformClient:
             Configuration ``dict``.
 
         Raises:
-            ValueError: f"The machine '{machine}' is not supported.
+            ValueError: The machine '{machine}' is not supported.
         """
         if not machine:
             machine = self.machine_name
@@ -691,7 +691,7 @@ class RemotePlatformClient:
             Parsed JSON response ``dict``.
 
         Raises:
-            CqlibRequestError: f'Request API failed: {res.text}
+            CqlibRequestError: Request API failed: {res.text}
         """
         url = f"{self.SCHEME}://{self.DOMAIN}{path}"
         headers = {"basicToken": self.access_token, "Authorization": f"Bearer {self.access_token}"}
@@ -1089,7 +1089,7 @@ def _infer_provider_from_chip_name(chip_name: str) -> str:
         Provider name string (``"tianyan"`` or ``"guodun"``).
 
     Raises:
-        ValueError: f'Wrong chip name! {chip_name}'
+        ValueError: Wrong chip name! {chip_name}
     """
     normalized = str(chip_name).strip()
     if normalized in TIANYAN_HARDWARE_NAMES:
@@ -1249,7 +1249,7 @@ class CqlibTaskAdapter(TaskAdapter):
             ``dict`` with ``"count"`` key mapping to bitstring counts.
 
         Raises:
-            RuntimeError: f'task {handle.task_id} ended with status Failed'
+            RuntimeError: task {handle.task_id} ended with status Failed
         """
         payload = dict(self._handle_cache.get(handle.task_id, {}))
         payload.update(handle.payload)

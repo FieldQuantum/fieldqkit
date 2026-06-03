@@ -2421,3 +2421,35 @@ def test_run_auto_fieldquantum_routes_to_fieldquantum_runtime(monkeypatch):
     assert seen["provider"] == "fieldquantum"
     assert backend_adapter.calls[0]["num_qubits"] == 2
     assert run_seen["name"] == "fq_job"
+
+
+class TestRunWithBackendMitigationIntegration:
+    """End-to-end ZNE + readout-mitigation pipeline through the *real*
+    ``_run_with_backend`` on the statevector simulator (no mocking).
+    """
+
+    def test_zne_and_readout_mitigation_recover_bell_expectations(self):
+        pytest.importorskip("torch")
+        client = QuantumHardwareClient()
+        bell = QuantumCircuit(2)
+        bell.h(0)
+        bell.cx(0, 1)
+
+        res = client._run_with_backend(
+            bell,
+            "mit_e2e",
+            2,
+            backend=Backend("Simulator"),
+            chip_name="Simulator",
+            shots=4096,
+            zne=True,
+            readout_mitigation=True,
+            observables=["ZZ", "XX", "ZI"],
+            transpile=False,
+        )
+
+        assert res.observable_values["ZZ"] == pytest.approx(1.0, abs=0.1)
+        assert res.observable_values["XX"] == pytest.approx(1.0, abs=0.1)
+        assert res.observable_values["ZI"] == pytest.approx(0.0, abs=0.1)
+        # Raw (pre-mitigation) values are populated alongside the mitigated ones.
+        assert set(res.observable_values_raw) == {"ZZ", "XX", "ZI"}

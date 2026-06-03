@@ -6,7 +6,6 @@ import logging
 from dataclasses import dataclass
 from typing import Dict, List, Literal, Optional, Sequence, Tuple
 
-logger = logging.getLogger(__name__)
 
 import numpy as np
 import torch
@@ -24,6 +23,8 @@ from ..circuit.quantumcircuit_helpers import (
 )
 from ..sim.mpo import simulate_mpo_process
 from ..sim.mps import simulate_mps
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -590,7 +591,7 @@ def compress_circuit_with_hybrid_objective(
         optimizer_lr (*float*): Learning rate for the Adam optimizer.
         objective_mode (*Literal['mps', 'mpo']*): ``'mps'`` for state infidelity, ``'mpo'`` for process infidelity. Defaults to ``'mps'``.
         bond_cap (*int*): Maximum bond dimension for MPS/MPO truncation.
-        warm_start_params (*Optional[np.ndarray]*): Optional initial parameters; used as one of the seed candidates.
+        warm_start_params (*Optional[np.ndarray]*): Optional initial parameters; used as the seed when provided and length-matching, otherwise a fixed-seed random init is used.
         device (*torch.device | str | None*): Torch device. Defaults to ``None`` (CPU).
         verbose (*bool*): Forward per-step optimization progress logging to
             :func:`compile_tn_1d`. Defaults to ``False`` (silent).
