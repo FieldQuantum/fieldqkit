@@ -1,0 +1,4397 @@
+
+<!doctype html>
+<html lang="zh" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="User-facing interface for controlling quantum hardware">
+      
+      
+      
+        <link rel="canonical" href="https://fieldquantum.github.io/fieldqkit/api/providers/">
+      
+      
+        <link rel="prev" href="../provider_runtime/">
+      
+      
+        <link rel="next" href="../cqlib/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+    
+    
+      
+        <title>Provider 适配器 - fieldqkit</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.484c7ddc.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#providers" class="md-skip">
+          跳转至
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="页眉">
+    <a href="../.." title="fieldqkit" class="md-header__button md-logo" aria-label="fieldqkit" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            fieldqkit
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Provider 适配器
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="切换到深色模式"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="切换到深色模式" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m17.75 4.09-2.53 1.94.91 3.06-2.63-1.81-2.63 1.81.91-3.06-2.53-1.94L12.44 4l1.06-3 1.06 3zm3.5 6.91-1.64 1.25.59 1.98-1.7-1.17-1.7 1.17.59-1.98L15.75 11l2.06-.05L18.5 9l.69 1.95zm-2.28 4.95c.83-.08 1.72 1.1 1.19 1.85-.32.45-.66.87-1.08 1.27C15.17 23 8.84 23 4.94 19.07c-3.91-3.9-3.91-10.24 0-14.14.4-.4.82-.76 1.27-1.08.75-.53 1.93.36 1.85 1.19-.27 2.86.69 5.83 2.89 8.02a9.96 9.96 0 0 0 8.02 2.89m-1.64 2.02a12.08 12.08 0 0 1-7.8-3.47c-2.17-2.19-3.33-5-3.49-7.82-2.81 3.14-2.7 7.96.31 10.98 3.02 3.01 7.84 3.12 10.98.31"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="切换到浅色模式"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="切换到浅色模式" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 7a5 5 0 0 1 5 5 5 5 0 0 1-5 5 5 5 0 0 1-5-5 5 5 0 0 1 5-5m0 2a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3m0-7 2.39 3.42C13.65 5.15 12.84 5 12 5s-1.65.15-2.39.42zM3.34 7l4.16-.35A7.2 7.2 0 0 0 5.94 8.5c-.44.74-.69 1.5-.83 2.29zm.02 10 1.76-3.77a7.131 7.131 0 0 0 2.38 4.14zM20.65 7l-1.77 3.79a7.02 7.02 0 0 0-2.38-4.15zm-.01 10-4.14.36c.59-.51 1.12-1.14 1.54-1.86.42-.73.69-1.5.83-2.29zM12 22l-2.41-3.44c.74.27 1.55.44 2.41.44.82 0 1.63-.17 2.37-.44z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="搜索" placeholder="搜索" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="查找">
+        
+        <button type="reset" class="md-search__icon md-icon" title="清空当前内容" aria-label="清空当前内容" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            正在初始化搜索引擎
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/FieldQuantum/fieldqkit" title="前往仓库" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    FieldQuantum/fieldqkit
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="导航栏" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="fieldqkit" class="md-nav__button md-logo" aria-label="fieldqkit" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    fieldqkit
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/FieldQuantum/fieldqkit" title="前往仓库" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    FieldQuantum/fieldqkit
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    首页
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    配置凭证 (Configuration)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    教程 (Notebooks)
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    教程 (Notebooks)
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="https://github.com/FieldQuantum/fieldqkit/blob/main/examples/demo_full.ipynb" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    全览入门 · run_auto + 缓解 + 可视化
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="https://github.com/FieldQuantum/fieldqkit/blob/main/examples/demo_circuit_core.ipynb" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QuantumCircuit 与 core 拆解
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="https://github.com/FieldQuantum/fieldqkit/blob/main/examples/demo_readout_zne.ipynb" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Readout 校准 + ZNE
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="https://github.com/FieldQuantum/fieldqkit/blob/main/examples/demo_shadow.ipynb" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Shadow tomography
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="https://github.com/FieldQuantum/fieldqkit/blob/main/examples/demo_vqe.ipynb" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    VQE 顶层接口 + 手动梯度
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="https://github.com/FieldQuantum/fieldqkit/blob/main/examples/demo_qaoa.ipynb" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QAOA · MaxCut
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="https://github.com/FieldQuantum/fieldqkit/blob/main/examples/demo_qml_iris.ipynb" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QML · Iris 多分类
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="https://github.com/FieldQuantum/fieldqkit/blob/main/examples/demo_qnn_bas.ipynb" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QNN · BAS 分布学习
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="https://github.com/FieldQuantum/fieldqkit/blob/main/examples/demo_qnn_unsupervised.ipynb" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QNN · 无监督分布学习
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="https://github.com/FieldQuantum/fieldqkit/blob/main/examples/demo_vqe_h2_4q.ipynb" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    VQE · H₂ 势能面
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="https://github.com/FieldQuantum/fieldqkit/blob/main/examples/demo_clifford_fitting.ipynb" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Clifford fitting 闭环
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="https://github.com/FieldQuantum/fieldqkit/blob/main/examples/demo_backend.ipynb" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Backend 拓扑与芯片排序
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="https://github.com/FieldQuantum/fieldqkit/blob/main/examples/demo_noisy_simulation.ipynb" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    含噪模拟
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" checked>
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_4" id="__nav_4_label" tabindex="">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    API
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../QuantumHardwareClient/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QuantumHardwareClient
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../run_with_backend/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    run_with_backend
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../hardware_discovery/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    硬件发现与选择
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../Backend/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Backend
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../Task/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Task
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../provider_runtime/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ProviderRuntime
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Provider 适配器
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Provider 适配器
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="目录">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      目录
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        概览
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#quafu" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Quafu 平台
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Quafu 平台">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#quafuplatform" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        QuafuPlatform 类
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#quafubackendadapter" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        QuafuBackendAdapter 类
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#quafutaskadapter" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        QuafuTaskAdapter 类
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#tianyan" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TianYan 平台
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="TianYan 平台">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tianyanplatform" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TianYanPlatform 类
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tianyanbackendadapter" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TianYanBackendAdapter 类
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tianyantaskadapter" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TianYanTaskAdapter 类
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#guodun" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GuoDun 平台
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="GuoDun 平台">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#guodunplatform" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GuoDunPlatform 类
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#guodunbackendadapter" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GuoDunBackendAdapter 类
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#guoduntaskadapter" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GuoDunTaskAdapter 类
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#tencent" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tencent 平台
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Tencent 平台">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tencentplatform" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TencentPlatform 类
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tencentbackendadapter" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TencentBackendAdapter 类
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tencenttaskadapter" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TencentTaskAdapter 类
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#origin" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Origin 平台（本源量子）
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Origin 平台（本源量子）">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#originplatform" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        OriginPlatform 类
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#originbackendadapter" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        OriginBackendAdapter 类
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#origintaskadapter" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        OriginTaskAdapter 类
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#fieldquantum" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        FieldQuantum 平台（量坤云端模拟器）
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="FieldQuantum 平台（量坤云端模拟器）">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#fieldquantumplatform" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        FieldQuantumPlatform 类
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#fieldquantumbackendadapter" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        FieldQuantumBackendAdapter 类
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#fieldquantumtaskadapter" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        FieldQuantumTaskAdapter 类
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        平台选择与创建
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        相关页面
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cqlib/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    cqlib 公共层
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../platform_credentials/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    凭证管理 (platform_credentials)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../circuit/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    电路 (Circuit)
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_5" id="__nav_5_label" tabindex="">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    电路 (Circuit)
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../circuit/quantumcircuit/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QuantumCircuit
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../circuit/qasm/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    OpenQASM 解析
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../circuit/qcis/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QCIS 原生指令
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../circuit/helpers_render/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    门辅助与渲染
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../circuit/matrix_utils/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    门矩阵与工具
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../compile/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    编译 (Compile)
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_6" id="__nav_6_label" tabindex="">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    编译 (Compile)
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../compile/transpiler/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Transpiler
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../compile/layout/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Layout
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../compile/routing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SabreRouting
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../compile/translate/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    TranslateToBasisGates
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../compile/optimize/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    GateCompressor
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../compile/schedule/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    DynamicalDecoupling
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../compile/decompose/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Decompose
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../compile/dag/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    DAG 工具
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../algorithms/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    算法 (Algorithms)
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_7" id="__nav_7_label" tabindex="">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    算法 (Algorithms)
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../algorithms/vqe_runner/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    VQERunner
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../algorithms/qaoa_runner/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QAOARunner
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../algorithms/shadow_tomography/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ShadowTomography
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../algorithms/qml/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QML (量子机器学习)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../algorithms/qml_runner/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QMLRunner
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../algorithms/qml_encoding/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    数据编码线路
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../algorithms/ansatz_templates/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ansatz 线路模板
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../algorithms/circuit_compression/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    线路压缩
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../algorithms/optimizer_utils/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    优化器工具
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_8" >
+        
+          
+          <label class="md-nav__link" for="__nav_8" id="__nav_8_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    校准 (Calibration)
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_8_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_8">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    校准 (Calibration)
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../calibration/ReadoutCalibrationManager/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Readout 校准
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../calibration/build_confusion_matrix/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    build_confusion_matrix
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../calibration/NativeTwoQubitRBManager/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    两比特随机基准 (RB)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../calibration/NativeTwoQubitTomographyManager/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    两比特过程层析
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_9" >
+        
+          
+          <label class="md-nav__link" for="__nav_9" id="__nav_9_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    核心工具 (Core)
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_9_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_9">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    核心工具 (Core)
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../core/circuits/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    预置线路
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../core/observables/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    可观测量
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../core/utils/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    概率/采样工具
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../core/readout/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Readout 缓解
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../core/zne/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    零噪声外推 (ZNE)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../core/result_types/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    结果类型
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_10" >
+        
+          
+          <label class="md-nav__link" for="__nav_10" id="__nav_10_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    模拟器 (Sim)
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_10_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_10">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    模拟器 (Sim)
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../sim/statevector/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    全态矢量 (statevector)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../sim/matrix/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    门矩阵 (gate matrix)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../sim/mps/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MPS 张量网络
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../sim/mpo/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    MPO 过程模拟
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../sim/clifford/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Clifford
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../sim/clifford_t/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Clifford+T
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../sim/density_matrix/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    密度矩阵
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../sim/noise_kraus/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Kraus 噪声信道
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../sim/interface/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    统一接口
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../sim/common/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    通用工具 (common)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="目录">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      目录
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        概览
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#quafu" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Quafu 平台
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Quafu 平台">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#quafuplatform" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        QuafuPlatform 类
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#quafubackendadapter" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        QuafuBackendAdapter 类
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#quafutaskadapter" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        QuafuTaskAdapter 类
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#tianyan" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TianYan 平台
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="TianYan 平台">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tianyanplatform" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TianYanPlatform 类
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tianyanbackendadapter" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TianYanBackendAdapter 类
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tianyantaskadapter" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TianYanTaskAdapter 类
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#guodun" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GuoDun 平台
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="GuoDun 平台">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#guodunplatform" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GuoDunPlatform 类
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#guodunbackendadapter" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GuoDunBackendAdapter 类
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#guoduntaskadapter" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GuoDunTaskAdapter 类
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#tencent" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tencent 平台
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Tencent 平台">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tencentplatform" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TencentPlatform 类
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tencentbackendadapter" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TencentBackendAdapter 类
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tencenttaskadapter" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TencentTaskAdapter 类
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#origin" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Origin 平台（本源量子）
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Origin 平台（本源量子）">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#originplatform" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        OriginPlatform 类
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#originbackendadapter" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        OriginBackendAdapter 类
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#origintaskadapter" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        OriginTaskAdapter 类
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#fieldquantum" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        FieldQuantum 平台（量坤云端模拟器）
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="FieldQuantum 平台（量坤云端模拟器）">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#fieldquantumplatform" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        FieldQuantumPlatform 类
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#fieldquantumbackendadapter" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        FieldQuantumBackendAdapter 类
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#fieldquantumtaskadapter" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        FieldQuantumTaskAdapter 类
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        平台选择与创建
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        相关页面
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+    <a href="https://github.com/FieldQuantum/fieldqkit/edit/main/docs/api/providers.md" title="编辑此页" class="md-content__button md-icon" rel="edit">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M10 20H6V4h7v5h5v3.1l2-2V8l-6-6H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h4zm10.2-7c.1 0 .3.1.4.2l1.3 1.3c.2.2.2.6 0 .8l-1 1-2.1-2.1 1-1c.1-.1.2-.2.4-.2m0 3.9L14.1 23H12v-2.1l6.1-6.1z"/></svg>
+    </a>
+  
+  
+
+
+<h1 id="providers">providers<a class="headerlink" href="#providers" title="Permanent link">&para;</a></h1>
+<h2 id="_1">概览<a class="headerlink" href="#_1" title="Permanent link">&para;</a></h2>
+<ul>
+<li>模块：</li>
+<li><code>fieldqkit.api.quantum_platform.quafu</code></li>
+<li><code>fieldqkit.api.quantum_platform.tianyan</code></li>
+<li><code>fieldqkit.api.quantum_platform.guodun</code></li>
+<li><code>fieldqkit.api.quantum_platform.tencent</code></li>
+<li><code>fieldqkit.api.quantum_platform.origin</code></li>
+<li><code>fieldqkit.api.quantum_platform.fieldquantum</code></li>
+<li>作用：分别实现六家 provider 的硬件列表查询、任务提交、状态查询和结果归一化。</li>
+<li>通用约定：每家 provider 提供三件套 —— <code>XxxPlatform</code>（直接 HTTP / SDK 客户端）、<code>XxxBackendAdapter</code>（实现 <code>BackendAdapter</code> 的 <code>discover_hardware / resolve_backend</code>）、<code>XxxTaskAdapter</code>（实现 <code>TaskAdapter</code> 的 <code>submit_* / query_status / fetch_result / cancel_task</code>）。</li>
+</ul>
+<blockquote>
+<p><strong>提交语言：</strong> Quafu / Tencent / Origin / FieldQuantum 走 <code>submit_openqasm</code>（OpenQASM 2.0）；TianYan / GuoDun 在 <code>TaskAdapter</code> 上把 <code>qcis_native = True</code>，由 <code>QuantumHardwareClient</code> 改走 <code>submit_qcis</code>（客户端把 <code>QuantumCircuit</code> 直接转 QCIS 后提交，绕过 OpenQASM 中间表示）。</p>
+</blockquote>
+<h2 id="quafu">Quafu 平台<a class="headerlink" href="#quafu" title="Permanent link">&para;</a></h2>
+<h3 id="quafuplatform"><code>QuafuPlatform</code> 类<a class="headerlink" href="#quafuplatform" title="Permanent link">&para;</a></h3>
+<p><strong>作用：</strong> Quafu 平台客户端，管理硬件列表、HTTP 请求和任务查询。</p>
+<p><strong>初始化：</strong> 单例模式，<code>QuafuPlatform()</code> 在构造时通过 <a href="../platform_credentials/"><code>get_quafu_api_token()</code></a> 拿到 token（配置文件 → <code>QUAFU_API_TOKEN</code> 环境变量）。</p>
+<p><strong>关键方法：</strong></p>
+<table>
+<thead>
+<tr>
+<th>方法</th>
+<th>签名</th>
+<th>返回</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>verify</code></td>
+<td><code>verify()</code></td>
+<td><code>dict</code></td>
+<td>验证当前 API 会话。</td>
+</tr>
+<tr>
+<td><code>list_available_hardware</code></td>
+<td><code>list_available_hardware()</code></td>
+<td><code>List[Dict[str, Any]]</code></td>
+<td>返回统一硬件行：<code>hardware_name</code>、<code>queue_length</code>、<code>provider</code> 等。</td>
+</tr>
+<tr>
+<td><code>request</code></td>
+<td><code>request(url, data={}, method="get")</code></td>
+<td><code>dict</code></td>
+<td>底层 HTTP 请求包装。</td>
+</tr>
+<tr>
+<td><code>query</code></td>
+<td><code>query(tid=2, chips="Baihua", status="Finished,Failed", start=..., end=..., offset=0, limit=10, sort="submitTime", order="desc")</code></td>
+<td><code>dict</code></td>
+<td>列出已提交任务。</td>
+</tr>
+<tr>
+<td><code>result</code></td>
+<td><code>result(tid: int, timeout: float = 0.0)</code></td>
+<td><code>dict</code></td>
+<td>取任务结果，可选阻塞轮询。</td>
+</tr>
+<tr>
+<td><code>status</code></td>
+<td><code>status(tid: int = 0)</code></td>
+<td><code>dict</code></td>
+<td>查询任务状态。</td>
+</tr>
+<tr>
+<td><code>delete</code></td>
+<td><code>delete(tid: int)</code></td>
+<td><code>dict</code></td>
+<td>删除任务记录。</td>
+</tr>
+<tr>
+<td><code>cancel</code></td>
+<td><code>cancel(tid: int)</code></td>
+<td><code>dict</code></td>
+<td>取消运行中的任务。</td>
+</tr>
+<tr>
+<td><code>run</code></td>
+<td><code>run(task: dict, repeat: int = 1)</code></td>
+<td><code>int</code></td>
+<td>提交线路任务并返回任务 ID。</td>
+</tr>
+</tbody>
+</table>
+<p><strong><code>result</code> 参数详解：</strong></p>
+<table>
+<thead>
+<tr>
+<th>参数</th>
+<th>类型</th>
+<th style="text-align: right;">默认值</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>tid</code></td>
+<td><code>int</code></td>
+<td style="text-align: right;">-</td>
+<td>Quafu 平台任务 ID。</td>
+</tr>
+<tr>
+<td><code>timeout</code></td>
+<td><code>float</code></td>
+<td style="text-align: right;"><code>0.0</code></td>
+<td>最大等待秒数；<code>0</code> 时只发一次请求不轮询。</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h3 id="quafubackendadapter"><code>QuafuBackendAdapter</code> 类<a class="headerlink" href="#quafubackendadapter" title="Permanent link">&para;</a></h3>
+<p><strong>签名：</strong>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="k">class</span><span class="w"> </span><span class="nc">QuafuBackendAdapter</span><span class="p">(</span><span class="n">BackendAdapter</span><span class="p">):</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">machine_name</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">platform_obj</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">QuafuPlatform</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span>
+</code></pre></div></p>
+<p><strong>属性：</strong>
+- <code>provider = "quafu"</code>
+- <code>default_hardware_name = "Baihua"</code></p>
+<p><strong>参数：</strong></p>
+<table>
+<thead>
+<tr>
+<th>参数</th>
+<th>类型</th>
+<th style="text-align: right;">默认值</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>machine_name</code></td>
+<td><code>Optional[str]</code></td>
+<td style="text-align: right;"><code>None</code></td>
+<td>指定默认芯片（不提供则由 <code>resolve_backend</code> 自动挑选）。</td>
+</tr>
+<tr>
+<td><code>platform_obj</code></td>
+<td><code>Optional[QuafuPlatform]</code></td>
+<td style="text-align: right;"><code>None</code></td>
+<td>复用已有的平台单例；<code>None</code> 时新建。</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h3 id="quafutaskadapter"><code>QuafuTaskAdapter</code> 类<a class="headerlink" href="#quafutaskadapter" title="Permanent link">&para;</a></h3>
+<p><strong>作用：</strong> Quafu 侧任务适配器（OpenQASM 提交，<code>qcis_native = False</code>）。</p>
+<p><strong>关键方法：</strong></p>
+<table>
+<thead>
+<tr>
+<th>方法</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>submit_openqasm(submit_request, backend)</code></td>
+<td>通过 <code>platform_obj.run(...)</code> 提交任务，返回 <code>ProviderTaskHandle</code>。</td>
+</tr>
+<tr>
+<td><code>query_status(handle)</code></td>
+<td>返回标准状态字符串（<code>Running / Finished / Failed / Canceled</code>）。</td>
+</tr>
+<tr>
+<td><code>fetch_result(handle)</code></td>
+<td>返回含 <code>"count"</code> 字段的标准化字典。</td>
+</tr>
+<tr>
+<td><code>cancel_task(handle)</code></td>
+<td>调用 <code>platform_obj.cancel(tid)</code>。</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="tianyan">TianYan 平台<a class="headerlink" href="#tianyan" title="Permanent link">&para;</a></h2>
+<h3 id="tianyanplatform"><code>TianYanPlatform</code> 类<a class="headerlink" href="#tianyanplatform" title="Permanent link">&para;</a></h3>
+<p><strong>继承：</strong> <code>RemotePlatformClient</code>（见 <a href="../cqlib/">cqlib</a>）</p>
+<p><strong>作用：</strong> 天衍远程平台 HTTP 客户端。</p>
+<p><strong>初始化：</strong> <code>TianYanPlatform(login_key, auto_login=True, machine_name=None)</code>，<code>login_key</code> 一般通过 <code>get_tianyan_api_token()</code> 解析（配置文件 → <code>TIANYAN_API_TOKEN</code>）。</p>
+<p><strong>关键方法（在 <code>RemotePlatformClient</code> 基础上）：</strong></p>
+<table>
+<thead>
+<tr>
+<th>方法</th>
+<th>签名</th>
+<th>返回</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>list_available_hardware</code></td>
+<td><code>list_available_hardware()</code></td>
+<td><code>List[Dict]</code></td>
+<td>通过 <code>query_quantum_computer_records()</code> 拉取并 <code>normalize_hardware_rows("tianyan", ...)</code>。</td>
+</tr>
+<tr>
+<td><code>query_experiment</code></td>
+<td><code>query_experiment(query_id, max_wait_time=120, sleep_time=5)</code></td>
+<td><code>list</code></td>
+<td>轮询查询结果（继承自 <code>RemotePlatformClient</code>）。</td>
+</tr>
+<tr>
+<td><code>submit_job</code></td>
+<td><code>submit_job(circuit, num_shots=12000, language=QuantumLanguage.QCIS, ...)</code></td>
+<td><code>query_ids</code></td>
+<td>提交 QCIS 线路。</td>
+</tr>
+<tr>
+<td><code>download_config</code></td>
+<td><code>download_config(read_time=None, machine=None)</code></td>
+<td><code>dict</code></td>
+<td>下载硬件标定快照。</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h3 id="tianyanbackendadapter"><code>TianYanBackendAdapter</code> 类<a class="headerlink" href="#tianyanbackendadapter" title="Permanent link">&para;</a></h3>
+<p><strong>签名：</strong>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="k">class</span><span class="w"> </span><span class="nc">TianYanBackendAdapter</span><span class="p">(</span><span class="n">BackendAdapter</span><span class="p">):</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">machine_name</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">api_token</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span>
+</code></pre></div></p>
+<p><strong>属性：</strong>
+- <code>provider = "tianyan"</code>
+- <code>default_hardware_name = "tianyan176"</code></p>
+<p><strong>参数：</strong></p>
+<table>
+<thead>
+<tr>
+<th>参数</th>
+<th>类型</th>
+<th style="text-align: right;">默认值</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>machine_name</code></td>
+<td><code>Optional[str]</code></td>
+<td style="text-align: right;"><code>None</code></td>
+<td>指定芯片。</td>
+</tr>
+<tr>
+<td><code>api_token</code></td>
+<td><code>Optional[str]</code></td>
+<td style="text-align: right;"><code>None</code></td>
+<td>TianYan 登录密钥；<code>None</code> 时由 <code>get_tianyan_api_token()</code> 解析。</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h3 id="tianyantaskadapter"><code>TianYanTaskAdapter</code> 类<a class="headerlink" href="#tianyantaskadapter" title="Permanent link">&para;</a></h3>
+<p><strong>作用：</strong> TianYan 侧任务适配器（QCIS 提交，<code>qcis_native = True</code>）。</p>
+<p><strong>关键行为：</strong>
+- <code>submit_qcis(submit_request, backend)</code>：调用 <code>platform.submit_job(circuit=qcis_text, language=QuantumLanguage.QCIS, num_shots=...)</code> 拿到 <code>query_id</code> 并封装成 <code>ProviderTaskHandle</code>。
+- <code>query_status(handle)</code>：调用 <code>query_experiment(...)</code> 并缓存最近一次结果以避免重复轮询。
+- <code>fetch_result(handle)</code>：用 <code>extract_counts_from_result_items(...)</code> 归一化 counts。
+- <code>cancel_task(handle)</code>：通过 <code>stop_running_experiments(query_id=...)</code> 终止任务。</p>
+<hr />
+<h2 id="guodun">GuoDun 平台<a class="headerlink" href="#guodun" title="Permanent link">&para;</a></h2>
+<h3 id="guodunplatform"><code>GuoDunPlatform</code> 类<a class="headerlink" href="#guodunplatform" title="Permanent link">&para;</a></h3>
+<p><strong>继承：</strong> <code>RemotePlatformClient</code></p>
+<p><strong>作用：</strong> 国盾远程平台 HTTP 客户端。</p>
+<p><strong>关键方法（GuoDun 特有）：</strong></p>
+<table>
+<thead>
+<tr>
+<th>方法</th>
+<th>签名</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>list_available_hardware</code></td>
+<td><code>list_available_hardware()</code></td>
+<td>返回国盾硬件列表（统一行结构）。</td>
+</tr>
+<tr>
+<td><code>re_execute_task</code></td>
+<td><code>re_execute_task(query_id=None, lab_id=None)</code></td>
+<td>重新执行已提交任务，返回服务端响应 <code>data</code>。</td>
+</tr>
+<tr>
+<td><code>stop_running_experiments</code></td>
+<td><code>stop_running_experiments(lab_id=None, query_id=None)</code></td>
+<td>停止运行中的实验。</td>
+</tr>
+<tr>
+<td><code>create_waveform_data</code></td>
+<td><code>create_waveform_data(circuit, circuit_name=None) -&gt; int</code></td>
+<td>为线路生成波形数据，返回波形 ID。</td>
+</tr>
+<tr>
+<td><code>query_waveform_data</code></td>
+<td><code>query_waveform_data(query_id: int) -&gt; str</code></td>
+<td>查询波形数据状态。</td>
+</tr>
+</tbody>
+</table>
+<p><code>re_execute_task</code> / <code>stop_running_experiments</code> 须至少提供 <code>lab_id</code> 或 <code>query_id</code>，否则抛 <code>ValueError("Please provide lab_id or query_id.")</code>。</p>
+<hr />
+<h3 id="guodunbackendadapter"><code>GuoDunBackendAdapter</code> 类<a class="headerlink" href="#guodunbackendadapter" title="Permanent link">&para;</a></h3>
+<p><strong>签名：</strong>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="k">class</span><span class="w"> </span><span class="nc">GuoDunBackendAdapter</span><span class="p">(</span><span class="n">BackendAdapter</span><span class="p">):</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">machine_name</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">api_token</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span>
+</code></pre></div></p>
+<p><strong>属性：</strong>
+- <code>provider = "guodun"</code>
+- <code>default_hardware_name = "gd_qc1"</code></p>
+<p><strong>参数：</strong></p>
+<table>
+<thead>
+<tr>
+<th>参数</th>
+<th>类型</th>
+<th style="text-align: right;">默认值</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>machine_name</code></td>
+<td><code>Optional[str]</code></td>
+<td style="text-align: right;"><code>None</code></td>
+<td>指定芯片。</td>
+</tr>
+<tr>
+<td><code>api_token</code></td>
+<td><code>Optional[str]</code></td>
+<td style="text-align: right;"><code>None</code></td>
+<td>国盾登录密钥；<code>None</code> 时由 <code>get_guodun_api_token()</code> 解析。</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h3 id="guoduntaskadapter"><code>GuoDunTaskAdapter</code> 类<a class="headerlink" href="#guoduntaskadapter" title="Permanent link">&para;</a></h3>
+<p><strong>作用：</strong> GuoDun 侧任务适配器（QCIS 提交，<code>qcis_native = True</code>）。</p>
+<p><strong>关键行为：</strong>
+- <code>submit_qcis(submit_request, backend)</code>：调用 <code>platform.submit_job(circuit=qcis_text, language=QuantumLanguage.QCIS, ...)</code> 拿到 <code>query_id</code>。
+- <code>query_status(handle)</code>：轮询 <code>query_experiment(...)</code>。
+- <code>fetch_result(handle)</code>：用 <code>extract_counts_from_result_items(...)</code> 归一化 counts。
+- <code>cancel_task(handle)</code>：调用 <code>stop_running_experiments(query_id=...)</code>。</p>
+<hr />
+<h2 id="tencent">Tencent 平台<a class="headerlink" href="#tencent" title="Permanent link">&para;</a></h2>
+<h3 id="tencentplatform"><code>TencentPlatform</code> 类<a class="headerlink" href="#tencentplatform" title="Permanent link">&para;</a></h3>
+<p><strong>作用：</strong> 腾讯量子云客户端，基于腾讯量子云 REST API。</p>
+<p><strong>初始化：</strong> 需提供 API token（配置文件 <code>credentials.tencent.api_token</code> → <code>TENCENT_API_TOKEN</code> 环境变量）。</p>
+<p><strong>关键方法：</strong></p>
+<table>
+<thead>
+<tr>
+<th>方法</th>
+<th>签名</th>
+<th>返回</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>list_available_hardware</code></td>
+<td><code>list_available_hardware()</code></td>
+<td><code>List[Dict]</code></td>
+<td>返回统一硬件行。</td>
+</tr>
+<tr>
+<td><code>submit_task</code></td>
+<td><code>submit_task(source, device_name, shots=1024)</code></td>
+<td><code>str</code></td>
+<td>提交 OpenQASM 2.0 任务，返回任务 ID。</td>
+</tr>
+<tr>
+<td><code>query_task_state</code></td>
+<td><code>query_task_state(task_id, device_name)</code></td>
+<td><code>str</code></td>
+<td>查询任务状态。</td>
+</tr>
+<tr>
+<td><code>fetch_task_result</code></td>
+<td><code>fetch_task_result(task_id, device_name)</code></td>
+<td><code>Dict[str, int]</code></td>
+<td>获取测量计数。</td>
+</tr>
+</tbody>
+</table>
+<p><strong><code>submit_task</code> 参数：</strong></p>
+<table>
+<thead>
+<tr>
+<th>参数</th>
+<th>类型</th>
+<th style="text-align: right;">默认值</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>source</code></td>
+<td><code>str</code></td>
+<td style="text-align: right;">-</td>
+<td>OpenQASM 2.0 线路字符串。</td>
+</tr>
+<tr>
+<td><code>device_name</code></td>
+<td><code>str</code></td>
+<td style="text-align: right;">-</td>
+<td>目标设备名称（如 <code>tianji_s2</code>）。</td>
+</tr>
+<tr>
+<td><code>shots</code></td>
+<td><code>int</code></td>
+<td style="text-align: right;"><code>1024</code></td>
+<td>测量次数。</td>
+</tr>
+</tbody>
+</table>
+<p><strong>注意事项：</strong>
+- QASM 中不可包含 <code>u(...)</code> 门和 <code>barrier</code> 指令（腾讯 QOS 解析器不支持）。<code>QuantumHardwareClient.run_auto</code> 会在 provider=tencent 时自动将 <code>convert_single_qubit_gate_to_u</code> 设为 <code>False</code>；适配器还会剥离 barrier。
+- 返回 bitstring 为 big-endian（q[0] 在最左/最高位）。</p>
+<hr />
+<h3 id="tencentbackendadapter"><code>TencentBackendAdapter</code> 类<a class="headerlink" href="#tencentbackendadapter" title="Permanent link">&para;</a></h3>
+<p><strong>签名：</strong>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="k">class</span><span class="w"> </span><span class="nc">TencentBackendAdapter</span><span class="p">(</span><span class="n">BackendAdapter</span><span class="p">):</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">machine_name</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">token</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span>
+</code></pre></div></p>
+<p><strong>属性：</strong>
+- <code>provider = "tencent"</code>
+- <code>default_hardware_name = "tianji_s2"</code></p>
+<p><strong>支持芯片：</strong> <code>simulator:tc</code>、<code>tianji_m2/_m2v14s2/_m2v14s4/_m2v15s3/_m2v16s1</code>、<code>tianji_s2/_s2v6/_s2v7</code>、<code>tianxuan_s2/_s2v20s1/_s2v20s2</code>（以平台实际在线为准）。</p>
+<p><strong>参数：</strong></p>
+<table>
+<thead>
+<tr>
+<th>参数</th>
+<th>类型</th>
+<th style="text-align: right;">默认值</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>machine_name</code></td>
+<td><code>Optional[str]</code></td>
+<td style="text-align: right;"><code>None</code></td>
+<td>指定芯片。</td>
+</tr>
+<tr>
+<td><code>token</code></td>
+<td><code>Optional[str]</code></td>
+<td style="text-align: right;"><code>None</code></td>
+<td>API token；<code>None</code> 时从凭证管理器读取。</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h3 id="tencenttaskadapter"><code>TencentTaskAdapter</code> 类<a class="headerlink" href="#tencenttaskadapter" title="Permanent link">&para;</a></h3>
+<p><strong>作用：</strong> 腾讯量子云任务适配器（OpenQASM 提交）。</p>
+<p><strong>关键行为：</strong>
+- <code>submit_openqasm</code>：通过腾讯量子云 REST API 提交 OpenQASM 2.0 线路。
+- <code>query_status</code>：轮询任务状态（<code>completed/failed/pending/scheduled</code> → <code>Finished/Failed/Running</code>）。
+- <code>fetch_result</code>：获取 counts。
+- <code>cancel_task</code>：腾讯云不支持任务取消，仅记录 warning。</p>
+<hr />
+<h2 id="origin">Origin 平台（本源量子）<a class="headerlink" href="#origin" title="Permanent link">&para;</a></h2>
+<blockquote>
+<p><strong>前置依赖：</strong> 使用 Origin provider 前需安装 <code>pyqpanda3</code>：<code>pip install pyqpanda3</code> 或 <code>pip install -e .[origin]</code>。</p>
+</blockquote>
+<h3 id="originplatform"><code>OriginPlatform</code> 类<a class="headerlink" href="#originplatform" title="Permanent link">&para;</a></h3>
+<p><strong>作用：</strong> 本源量子云客户端，封装 <code>pyqpanda3.qcloud.QCloudService</code>，对接 OriginQ 公有云（https://qcloud.originqc.com.cn/）。</p>
+<p><strong>初始化：</strong></p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="n">OriginPlatform</span><span class="p">(</span><span class="n">token</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">url</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">ORIGIN_DEFAULT_URL</span><span class="p">)</span>
+</code></pre></div>
+<p><strong>关键方法：</strong></p>
+<table>
+<thead>
+<tr>
+<th>方法</th>
+<th>签名</th>
+<th>返回</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>list_available_hardware</code></td>
+<td><code>list_available_hardware()</code></td>
+<td><code>List[Dict]</code></td>
+<td>返回在线硬件列表（不含服务端模拟器）。</td>
+</tr>
+<tr>
+<td><code>submit_task</code></td>
+<td><code>submit_task(source, device_name, shots=1024)</code></td>
+<td><code>str</code></td>
+<td>提交 OpenQASM 2.0 任务，返回 job id。</td>
+</tr>
+<tr>
+<td><code>query_task_state</code></td>
+<td><code>query_task_state(task_id, device_name)</code></td>
+<td><code>str</code></td>
+<td>查询任务统一状态字符串。</td>
+</tr>
+<tr>
+<td><code>fetch_task_result</code></td>
+<td><code>fetch_task_result(task_id, device_name)</code></td>
+<td><code>Dict[str, int]</code></td>
+<td>获取测量计数。</td>
+</tr>
+</tbody>
+</table>
+<p><strong>注意事项：</strong>
+- OpenQASM 2.0 由 <code>pyqpanda3.intermediate_compiler.convert_qasm_string_to_qprog</code> 转为 QProg 再提交。
+- 默认关闭服务端的 mapping / optimization / amend，确保比特对应关系与本地转译一致。
+- 返回 bitstring 已从 little-endian（OriginQ 默认）翻转为本包约定的 big-endian。</p>
+<hr />
+<h3 id="originbackendadapter"><code>OriginBackendAdapter</code> 类<a class="headerlink" href="#originbackendadapter" title="Permanent link">&para;</a></h3>
+<p><strong>签名：</strong>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="k">class</span><span class="w"> </span><span class="nc">OriginBackendAdapter</span><span class="p">(</span><span class="n">BackendAdapter</span><span class="p">):</span>
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">machine_name</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">token</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">url</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="n">ORIGIN_DEFAULT_URL</span><span class="p">)</span>
+</code></pre></div></p>
+<p><strong>属性：</strong>
+- <code>provider = "origin"</code>
+- <code>default_hardware_name = "WK_C180"</code></p>
+<p><strong>支持芯片：</strong> <code>PQPUMESH8</code>、<code>WK_C180</code>（以平台实际在线为准）。</p>
+<p><strong>参数：</strong></p>
+<table>
+<thead>
+<tr>
+<th>参数</th>
+<th>类型</th>
+<th style="text-align: right;">默认值</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>machine_name</code></td>
+<td><code>Optional[str]</code></td>
+<td style="text-align: right;"><code>None</code></td>
+<td>指定芯片。</td>
+</tr>
+<tr>
+<td><code>token</code></td>
+<td><code>Optional[str]</code></td>
+<td style="text-align: right;"><code>None</code></td>
+<td>API token；<code>None</code> 时由 <code>get_origin_api_token()</code> 解析。</td>
+</tr>
+<tr>
+<td><code>url</code></td>
+<td><code>str</code></td>
+<td style="text-align: right;"><code>ORIGIN_DEFAULT_URL</code></td>
+<td>云服务端 URL。</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h3 id="origintaskadapter"><code>OriginTaskAdapter</code> 类<a class="headerlink" href="#origintaskadapter" title="Permanent link">&para;</a></h3>
+<p><strong>作用：</strong> 本源量子云任务适配器（OpenQASM 提交）。</p>
+<p><strong>关键行为：</strong>
+- <code>submit_openqasm</code>：将 OpenQASM 2.0 转换为 QProg 后通过 pyqpanda3 提交。
+- <code>query_status</code>：轮询任务状态（<code>FINISHED/FAILED/WAITING/QUEUING/COMPUTING</code> → <code>Finished/Failed/Running</code>）。
+- <code>fetch_result</code>：获取 counts 并自动 little-endian → big-endian 翻转。
+- <code>cancel_task</code>：OriginQ SDK 不支持任务取消，仅记录 warning。</p>
+<hr />
+<h2 id="fieldquantum">FieldQuantum 平台（量坤云端模拟器）<a class="headerlink" href="#fieldquantum" title="Permanent link">&para;</a></h2>
+<blockquote>
+<p><strong>简介：</strong> 量坤云端模拟器（FieldQuantum Cloud Simulator）是云端托管的无噪声模拟服务，特别适合在没有真机配额或需要快速验证变分算法时使用。<strong>梯度计算下放到服务端</strong>（<code>expectation</code> 模式自动做 parameter-shift），可显著降低本地资源占用。</p>
+<ul>
+<li>服务端口：<code>https://api.fieldquantum.tech/api/v1/fieldquantum</code>（可被环境变量 <code>FIELDQUANTUM_SERVER_URL</code> 覆盖）</li>
+<li>认证方式：HTTP Bearer，token 形如 <code>fq_&lt;32hex&gt;</code>，从 <a href="https://fieldquantum.tech/account/api-token/">https://fieldquantum.tech/account/api-token/</a> 申请</li>
+<li>默认硬件名：<code>fieldquantum_sim</code>（合成全连接拓扑，按 <code>num_qubits</code> 动态生成）</li>
+</ul>
+</blockquote>
+<h3 id="fieldquantumplatform"><code>FieldQuantumPlatform</code> 类<a class="headerlink" href="#fieldquantumplatform" title="Permanent link">&para;</a></h3>
+<p><strong>作用：</strong> FieldQuantum 云端模拟器的 HTTP 客户端，封装任务提交、状态查询、结果拉取，以及 <code>expectation</code> 模式的端到端阻塞调用。</p>
+<p><strong>初始化：</strong></p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="n">FieldQuantumPlatform</span><span class="p">()</span>
+</code></pre></div>
+<ul>
+<li>服务端 URL 取自模块级 <code>FIELDQUANTUM_DEFAULT_URL</code>（环境变量 <code>FIELDQUANTUM_SERVER_URL</code> 覆盖）。</li>
+<li>Bearer token 在构造时通过 <a href="../platform_credentials/"><code>get_fieldquantum_api_token()</code></a> 解析（配置文件 → <code>FIELDQUANTUM_API_TOKEN</code> 环境变量）。</li>
+</ul>
+<p><strong>REST 端点（仅供参考）：</strong></p>
+<table>
+<thead>
+<tr>
+<th>端点</th>
+<th>方法</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>/task/run</code></td>
+<td>POST</td>
+<td>提交任务，返回 <code>{"task_id", "status": "submitted"}</code>。</td>
+</tr>
+<tr>
+<td><code>/task/status/{task_id}</code></td>
+<td>GET</td>
+<td>查询任务原始状态。</td>
+</tr>
+<tr>
+<td><code>/task/result/{task_id}</code></td>
+<td>GET</td>
+<td>获取已完成任务结果；HTTP 425 表示尚未就绪。</td>
+</tr>
+</tbody>
+</table>
+<p><strong>关键方法：</strong></p>
+<table>
+<thead>
+<tr>
+<th>方法</th>
+<th>签名</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>submit_job</code></td>
+<td><code>submit_job(payload: dict) -&gt; str</code></td>
+<td>POST <code>/task/run</code>，返回服务端 <code>task_id</code>（字符串）。<code>payload</code> 必含 <code>"mode"</code>。</td>
+</tr>
+<tr>
+<td><code>query_task_status</code></td>
+<td><code>query_task_status(task_id: str) -&gt; str</code></td>
+<td>GET <code>/task/status/{id}</code>，返回原始状态字符串（<code>submitted/queued/running/finished/failed/error</code>）。</td>
+</tr>
+<tr>
+<td><code>fetch_task_result</code></td>
+<td><code>fetch_task_result(task_id: str) -&gt; dict</code></td>
+<td>GET <code>/task/result/{id}</code>，返回 <code>result</code> 字段内容；HTTP 425 → <code>RuntimeError("not ready")</code>。</td>
+</tr>
+<tr>
+<td><code>run_expectation</code></td>
+<td><code>run_expectation(qasm, param_names, param_values, hamiltonian, *, poll_interval=3.0, timeout=600.0) -&gt; dict</code></td>
+<td>提交 <code>expectation</code> 任务并阻塞轮询，返回 <code>{"energy", "expectations", "gradients"}</code>。服务端完成参数移位。</td>
+</tr>
+</tbody>
+</table>
+<p><strong>两种 mode 的返回字段：</strong></p>
+<table>
+<thead>
+<tr>
+<th><code>mode</code></th>
+<th>服务端返回 <code>result</code> 字段</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>sample</code></td>
+<td><code>{"counts": {...}}</code></td>
+<td><code>run_auto</code> / Shadow 等需要测量计数的场景。</td>
+</tr>
+<tr>
+<td><code>expectation</code></td>
+<td><code>{"energy": float, "expectations": [...], "gradients": [...]}</code></td>
+<td>VQE / QAOA / QML 的服务端梯度评估。</td>
+</tr>
+</tbody>
+</table>
+<p><strong><code>run_expectation</code> 参数：</strong></p>
+<table>
+<thead>
+<tr>
+<th>参数</th>
+<th>类型</th>
+<th style="text-align: right;">默认值</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>qasm</code></td>
+<td><code>str</code></td>
+<td style="text-align: right;">-</td>
+<td>含符号参数的 OpenQASM 2.0 模板（如 <code>rx(theta_0) q[0];</code>）。</td>
+</tr>
+<tr>
+<td><code>param_names</code></td>
+<td><code>List[str]</code></td>
+<td style="text-align: right;">-</td>
+<td>参数名列表，与 <code>param_values</code> 一一对应。</td>
+</tr>
+<tr>
+<td><code>param_values</code></td>
+<td><code>List[float]</code></td>
+<td style="text-align: right;">-</td>
+<td>当前参数数值。</td>
+</tr>
+<tr>
+<td><code>hamiltonian</code></td>
+<td><code>List[Dict]</code></td>
+<td style="text-align: right;">-</td>
+<td>哈密顿量项，格式 <code>[{"coeff": float, "pauli": str}, ...]</code>。</td>
+</tr>
+<tr>
+<td><code>poll_interval</code></td>
+<td><code>float</code></td>
+<td style="text-align: right;"><code>3.0</code></td>
+<td>状态轮询间隔（服务端建议 ≥ 3s）。</td>
+</tr>
+<tr>
+<td><code>timeout</code></td>
+<td><code>float</code></td>
+<td style="text-align: right;"><code>600.0</code></td>
+<td>阻塞硬超时（秒），超过抛 <code>TimeoutError</code>。</td>
+</tr>
+</tbody>
+</table>
+<p><strong>状态归一化：</strong> 适配器内 <code>_STATUS_MAP</code> 将服务端状态映射为本项目统一状态：</p>
+<table>
+<thead>
+<tr>
+<th>服务端状态</th>
+<th>统一状态</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>submitted</code> / <code>pending</code> / <code>queued</code> / <code>running</code></td>
+<td><code>Running</code></td>
+</tr>
+<tr>
+<td><code>finished</code></td>
+<td><code>Finished</code></td>
+</tr>
+<tr>
+<td><code>failed</code> / <code>error</code></td>
+<td><code>Failed</code></td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h3 id="fieldquantumbackendadapter"><code>FieldQuantumBackendAdapter</code> 类<a class="headerlink" href="#fieldquantumbackendadapter" title="Permanent link">&para;</a></h3>
+<p><strong>签名：</strong>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="k">class</span><span class="w"> </span><span class="nc">FieldQuantumBackendAdapter</span><span class="p">(</span><span class="n">BackendAdapter</span><span class="p">):</span>
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">num_qubits</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">16</span><span class="p">)</span>
+</code></pre></div></p>
+<p><strong>属性：</strong>
+- <code>provider = "fieldquantum"</code>
+- <code>default_hardware_name = "fieldquantum_sim"</code></p>
+<p><strong>参数：</strong></p>
+<table>
+<thead>
+<tr>
+<th>参数</th>
+<th>类型</th>
+<th style="text-align: right;">默认值</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>num_qubits</code></td>
+<td><code>int</code></td>
+<td style="text-align: right;"><code>16</code></td>
+<td>合成芯片默认比特数；<code>resolve_backend</code> 实际使用调用时传入的 <code>num_qubits</code>。</td>
+</tr>
+</tbody>
+</table>
+<p><strong>说明：</strong> 构造时即建立 <code>FieldQuantumPlatform</code> 实例（要求 token 已配置）。<code>resolve_backend</code> 根据请求的 <code>num_qubits</code> 动态构建合成 chip_info（全连接、保真度 1.0）。</p>
+<hr />
+<h3 id="fieldquantumtaskadapter"><code>FieldQuantumTaskAdapter</code> 类<a class="headerlink" href="#fieldquantumtaskadapter" title="Permanent link">&para;</a></h3>
+<p><strong>作用：</strong> FieldQuantum 侧任务适配器（<code>sample</code> 模式）。</p>
+<p><strong>关键行为：</strong>
+- <code>submit_openqasm</code>：以 <code>{"mode": "sample", "qasm": ..., "shots": ...}</code> POST 到 <code>/task/run</code>，返回 <code>ProviderTaskHandle(provider="fieldquantum", task_id=...)</code>。
+- <code>query_status</code>：调用 <code>query_task_status</code> 并经 <code>_STATUS_MAP</code> 归一化为 <code>Running / Finished / Failed</code>。
+- <code>fetch_result</code>：返回 <code>{"count": result["counts"]}</code>，与其它 provider 保持字段一致。
+- 该适配器不实现 <code>cancel_task</code>（服务端暂未暴露取消接口）。</p>
+<blockquote>
+<p>变分算法在 <code>provider="fieldquantum"</code> 下会优先走 <code>FieldQuantumPlatform.run_expectation</code> 拿到服务端梯度，因此调用栈一般不经过 <code>FieldQuantumTaskAdapter</code>。</p>
+</blockquote>
+<hr />
+<h2 id="_2">平台选择与创建<a class="headerlink" href="#_2" title="Permanent link">&para;</a></h2>
+<p>通过 <code>create_provider_runtime(provider, client)</code> 工厂函数（见 <a href="../provider_runtime/">provider_runtime</a>），根据 provider 名称自动创建适配器对（支持 <code>quafu / tianyan / guodun / tencent / origin / fieldquantum / simulator</code>）：</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">fieldqkit.api.quantum_platform</span><span class="w"> </span><span class="kn">import</span> <span class="n">create_provider_runtime</span>
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">fieldqkit.api.client</span><span class="w"> </span><span class="kn">import</span> <span class="n">QuantumHardwareClient</span>
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>
+<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="n">client</span> <span class="o">=</span> <span class="n">QuantumHardwareClient</span><span class="p">()</span>
+<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a><span class="n">runtime</span> <span class="o">=</span> <span class="n">create_provider_runtime</span><span class="p">(</span><span class="n">provider</span><span class="o">=</span><span class="s2">&quot;quafu&quot;</span><span class="p">,</span> <span class="n">client</span><span class="o">=</span><span class="n">client</span><span class="p">)</span>
+<a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a><span class="c1"># 返回 ProviderRuntime(</span>
+<a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a><span class="c1">#     backend_adapter=QuafuBackendAdapter(...),</span>
+<a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a><span class="c1">#     task_adapter=QuafuTaskAdapter(...),</span>
+<a id="__codelineno-8-9" name="__codelineno-8-9" href="#__codelineno-8-9"></a><span class="c1"># )</span>
+</code></pre></div>
+<h2 id="_3">相关页面<a class="headerlink" href="#_3" title="Permanent link">&para;</a></h2>
+<ul>
+<li><a href="../Task/">Task</a></li>
+<li><a href="../cqlib/">cqlib</a></li>
+<li><a href="../platform_credentials/">platform_credentials</a></li>
+<li><a href="../provider_runtime/">provider_runtime</a></li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  回到页面顶部
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tracking", "navigation.top", "navigation.indexes", "navigation.sections", "search.suggest", "content.code.copy", "content.action.edit"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "\u5df2\u590d\u5236", "clipboard.copy": "\u590d\u5236", "search.result.more.one": "\u5728\u8be5\u9875\u4e0a\u8fd8\u6709 1 \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.more.other": "\u5728\u8be5\u9875\u4e0a\u8fd8\u6709 # \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.none": "\u6ca1\u6709\u627e\u5230\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.one": "\u627e\u5230 1 \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.other": "# \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.placeholder": "\u952e\u5165\u4ee5\u5f00\u59cb\u641c\u7d22", "search.result.term.missing": "\u7f3a\u5c11", "select.version": "\u9009\u62e9\u5f53\u524d\u7248\u672c"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+    
+  </body>
+</html>
