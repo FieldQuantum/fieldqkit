@@ -97,6 +97,7 @@ compress_circuit_with_hybrid_objective(
 		bond_cap: int,
 		warm_start_params: Optional[np.ndarray],
 		device: torch.device | str | None = None,
+		verbose: bool = False,
 ) -> Tuple[QuantumCircuit, np.ndarray, Dict[str, object]]
 ```
 
@@ -117,9 +118,10 @@ compile_tn_1d(
 		optimizer_steps: int,
 		optimizer_lr: float,
 		objective_mode: Literal["mps", "mpo"] = "mps",
-		bond_cap: int,
-		warm_start_params: Optional[np.ndarray],
+		bond_cap: Optional[int] = None,
+		warm_start_params: Optional[np.ndarray] = None,
 		device: torch.device | str | None = None,
+		verbose: bool = False,
 ) -> Tuple[QuantumCircuit, np.ndarray, Dict[str, object]]
 ```
 
@@ -149,6 +151,7 @@ build_compression_transform(
 		compression_plot_loss: bool = False,
 		tag: str = "compress",
 		convert_single_qubit_gate_to_u: bool = True,
+		transpile: bool = True,
 ) -> dict
 ```
 

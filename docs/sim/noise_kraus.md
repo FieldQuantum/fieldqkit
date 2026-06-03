@@ -6,7 +6,7 @@
 
 ## 概览
 
-该模块提供噪声信道的 Kraus 算符构造函数，供 [density matrix simulator](./density_matrix.md) 在演化含噪线路时调用。每个信道都是保迹的（CPTP），即 $\sum_k K_k^\dagger K_k = I$。算符以 `torch.complex64` 张量返回，可指定 `dtype` / `device`。
+该模块提供噪声信道的 Kraus 算符构造函数，供 [density matrix simulator](./density_matrix.md) 在演化含噪线路时调用。每个信道都是保迹的（CPTP），即 $\sum_k K_k^\dagger K_k = I$。算符以 `torch.complex128` 张量返回，可指定 `dtype` / `device`。
 
 ## 信道与 Kraus 算符
 
@@ -24,7 +24,7 @@
 
 ## 分发入口
 
-### `get_kraus_ops(gate_name, param, *, dtype=torch.complex64, device=None) -> list`
+### `get_kraus_ops(gate_name, param, *, dtype=torch.complex128, device=None) -> list`
 
 - 按 `gate_name` 返回对应信道的 Kraus 算符列表。
 - 支持：`'depolarize1'`、`'depolarize2'`、`'x_error'`、`'y_error'`、`'z_error'`、`'amplitude_damping'`、`'phase_damping'`。
@@ -39,7 +39,7 @@ from fieldqkit.sim.noise_kraus import get_kraus_ops
 
 kraus = get_kraus_ops("amplitude_damping", 0.3)
 total = sum(K.conj().T @ K for K in kraus)
-print(torch.allclose(total, torch.eye(2, dtype=torch.complex64)))  # True（保迹）
+print(torch.allclose(total, torch.eye(2, dtype=torch.complex128)))  # True（保迹）
 ```
 
 ## 相关页面

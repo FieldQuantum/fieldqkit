@@ -22,7 +22,7 @@
 
 - 密度矩阵以 `(2,)*2n` 张量内部存储：前 n 个轴为「行」指标，后 n 个轴为「列」指标；矩阵形态为 `reshape(2**n, 2**n)`。
 - 初态为 $|0\dots0\rangle\langle0\dots0|$。
-- 默认 dtype：`torch.complex64`。
+- 默认 dtype：`torch.complex128`。
 - 酉门施加为 $\rho' = U\rho U^\dagger$；噪声信道施加为 $\rho' = \sum_k K_k\rho K_k^\dagger$。
 - **不支持 `reset`**：当前版本所有模拟器后端统一不支持 `reset`，遇到时抛出 `NotImplementedError`。含 `reset` 的电路仍可构造并提交到真机。
 

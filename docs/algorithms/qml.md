@@ -283,5 +283,5 @@ print(f"Generated {len(result.generated_samples)} samples")
 from fieldqkit.algorithms.qml_runner import QMLRunner
 
 runner = QMLRunner(client=client, layers=2, max_iters=100)
-result = runner.run_classifier(train_data=train, test_data=test, num_qubits=4)
+result = runner.run_classifier(name="clf", num_qubits=4, train_data=train, test_data=test)
 ```

@@ -147,16 +147,18 @@ print(circuit_to_qcis(qc))
 # M Q1
 ```
 
-### 使用自定义分解规则
+### 分解规则
+
+QCIS 的门分解规则集中定义在 `NativeQcisRules` 中（每个门对应一个静态方法，返回 `Instruction` 列表）。
 
 ```python
-from fieldqkit.circuit.qcis import NativeQcisRules, Instruction, circuit_to_qcis
+from fieldqkit.circuit.qcis import NativeQcisRules, Instruction
 
-class MyRules(NativeQcisRules):
-    @staticmethod
-    def h(inp):
-        # 自定义 H 门分解
-        return [Instruction("x2p", inp.qubit_index), Instruction("rz", inp.qubit_index, [NativeQcisRules.pi / 2])]
+# NativeQcisRules 中每个门的分解形如：
+# @staticmethod
+# def h(inp):
+#     return [Instruction("y2m", inp.qubit_index),
+#             Instruction("rz", inp.qubit_index, [NativeQcisRules.pi])]
 ```
 
 ---

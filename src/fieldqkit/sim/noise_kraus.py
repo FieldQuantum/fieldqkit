@@ -3,7 +3,7 @@
 import torch
 
 
-def _pauli_matrices_torch(dtype=torch.complex64, device=None):
+def _pauli_matrices_torch(dtype=torch.complex128, device=None):
     """Return single-qubit Pauli matrices as torch tensors."""
     I = torch.tensor([[1, 0], [0, 1]], dtype=dtype, device=device)
     X = torch.tensor([[0, 1], [1, 0]], dtype=dtype, device=device)
@@ -12,7 +12,7 @@ def _pauli_matrices_torch(dtype=torch.complex64, device=None):
     return I, X, Y, Z
 
 
-def depolarize1_kraus(p: float, *, dtype=torch.complex64, device=None) -> list:
+def depolarize1_kraus(p: float, *, dtype=torch.complex128, device=None) -> list:
     """Kraus operators for single-qubit depolarizing channel.
 
     ρ' = (1-p)ρ + (p/3)(Xρ X + Yρ Y + Zρ Z)
@@ -37,7 +37,7 @@ def depolarize1_kraus(p: float, *, dtype=torch.complex64, device=None) -> list:
     return [K0, K1, K2, K3]
 
 
-def depolarize2_kraus(p: float, *, dtype=torch.complex64, device=None) -> list:
+def depolarize2_kraus(p: float, *, dtype=torch.complex128, device=None) -> list:
     """Kraus operators for two-qubit depolarizing channel.
 
     ρ' = (1-p)ρ + (p/15)·sum_{P ≠ I⊗I} P ρ P†
@@ -72,7 +72,7 @@ def depolarize2_kraus(p: float, *, dtype=torch.complex64, device=None) -> list:
     return kraus
 
 
-def x_error_kraus(p: float, *, dtype=torch.complex64, device=None) -> list:
+def x_error_kraus(p: float, *, dtype=torch.complex128, device=None) -> list:
     """Kraus operators for single-qubit bit-flip (X) error.
 
     ρ' = (1-p)ρ + p·Xρ X
@@ -95,7 +95,7 @@ def x_error_kraus(p: float, *, dtype=torch.complex64, device=None) -> list:
     return [K0, K1]
 
 
-def y_error_kraus(p: float, *, dtype=torch.complex64, device=None) -> list:
+def y_error_kraus(p: float, *, dtype=torch.complex128, device=None) -> list:
     """Kraus operators for single-qubit Y error.
 
     ρ' = (1-p)ρ + p·Yρ Y
@@ -118,7 +118,7 @@ def y_error_kraus(p: float, *, dtype=torch.complex64, device=None) -> list:
     return [K0, K1]
 
 
-def z_error_kraus(p: float, *, dtype=torch.complex64, device=None) -> list:
+def z_error_kraus(p: float, *, dtype=torch.complex128, device=None) -> list:
     """Kraus operators for single-qubit phase-flip (Z) error.
 
     ρ' = (1-p)ρ + p·Zρ Z
@@ -141,7 +141,7 @@ def z_error_kraus(p: float, *, dtype=torch.complex64, device=None) -> list:
     return [K0, K1]
 
 
-def amplitude_damping_kraus(gamma: float, *, dtype=torch.complex64, device=None) -> list:
+def amplitude_damping_kraus(gamma: float, *, dtype=torch.complex128, device=None) -> list:
     """Kraus operators for amplitude damping (energy dissipation).
 
     Models decay of excited state to ground state.
@@ -163,7 +163,7 @@ def amplitude_damping_kraus(gamma: float, *, dtype=torch.complex64, device=None)
     return [K0, K1]
 
 
-def phase_damping_kraus(gamma: float, *, dtype=torch.complex64, device=None) -> list:
+def phase_damping_kraus(gamma: float, *, dtype=torch.complex128, device=None) -> list:
     """Kraus operators for phase damping (dephasing).
 
     Models loss of coherence without energy dissipation.
@@ -185,13 +185,13 @@ def phase_damping_kraus(gamma: float, *, dtype=torch.complex64, device=None) -> 
     return [K0, K1]
 
 
-def get_kraus_ops(gate_name: str, param: float, *, dtype=torch.complex64, device=None) -> list:
+def get_kraus_ops(gate_name: str, param: float, *, dtype=torch.complex128, device=None) -> list:
     """Return Kraus operators for a named noise channel.
 
     Args:
         gate_name (str): Name of the noise channel (e.g., 'depolarize1', 'x_error').
         param (float): Channel parameter (probability or damping coefficient).
-        dtype (torch.dtype): Torch data type. Defaults to ``torch.complex64``.
+        dtype (torch.dtype): Torch data type. Defaults to ``torch.complex128``.
         device: Torch device. Defaults to ``None``.
 
     Returns:
