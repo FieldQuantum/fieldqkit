@@ -28,7 +28,7 @@
 pip install fieldqkit
 ```
 
-> 核心依赖：Python >= 3.9，`numpy>=1.24`，`scipy>=1.10`，`networkx>=3.0`，`requests>=2.31`，`matplotlib>=3.7`，`pyyaml>=6.0`。
+> 核心依赖：Python >= 3.10，`numpy>=1.24`，`scipy>=1.10`，`networkx>=3.0`，`requests>=2.31`，`matplotlib>=3.7`，`pyyaml>=6.0`。
 
 按需安装可选依赖组：
 

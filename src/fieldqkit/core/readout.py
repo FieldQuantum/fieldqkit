@@ -61,7 +61,7 @@ def expectation_from_samples_unbiased(local_samples: np.ndarray, local_confusion
 	"""Unbiased readout-mitigated parity estimator from local samples.
 
 	This estimator avoids building a full $2^k$ marginal when support size $k$ is large,
-at the cost of higher variance.
+	at the cost of higher variance.
 
 	Args:
 		local_samples (*np.ndarray*): 2-D array of shape ``(nshots, k)`` with 0/1 outcomes.

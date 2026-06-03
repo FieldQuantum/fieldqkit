@@ -38,7 +38,7 @@ cd fieldqkit
 pip install -e ".[sim,test]"        # 模拟器 + 测试依赖
 ```
 
-> 要求 Python >= 3.9（支持 3.9 / 3.10 / 3.11 / 3.12）。
+> 要求 Python >= 3.10（支持 3.10 / 3.11 / 3.12）。
 > 接入本源量子云的相关代码需额外安装 `pip install -e ".[origin]"`（`pyqpanda3`）。
 
 ### 3. 运行测试

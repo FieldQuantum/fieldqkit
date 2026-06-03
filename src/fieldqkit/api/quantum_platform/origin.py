@@ -18,9 +18,7 @@ Why we depend on pyqpanda3:
 
 OpenQASM 2.0 → QProg conversion is provided by
 ``pyqpanda3.intermediate_compiler.convert_qasm_string_to_qprog`` (also a
-compiled C++ implementation).  Source:
-``D:\\Programs\\anaconda\\envs\\quantum\\Lib\\site-packages\\pyqpanda3\\intermediate_compiler\\intermediate_compiler.pyi``
-(``pyqpanda3 >= 0.3``).
+compiled C++ implementation).
 
 Endpoints exercised (all via pyqpanda3 SDK):
     QCloudService(api_key, url).backends()      -> dict[str, bool]
