@@ -309,16 +309,29 @@ def _query_task_state(task_id: str, token: str) -> str:
     return _get_task_detail(task_id, token).get("state", "pending")
 
 
-def _fetch_task_results_blocking(task_id: str, token: str) -> Dict[str, int]:
+def _fetch_task_results_blocking(
+    task_id: str,
+    token: str,
+    *,
+    poll_interval: float = 0.5,
+    timeout: float = 600.0,
+) -> Dict[str, int]:
     """Poll until task completes, then return counts dict.
 
     Args:
         task_id (*str*): Task identifier.
         token (*str*): API authentication token.
+        poll_interval (*float*): Base seconds between status polls. Defaults to ``0.5``.
+        timeout (*float*): Hard timeout in seconds. Defaults to ``600.0``.
 
     Returns:
         Measurement counts ``dict`` mapping bitstrings to counts.
+
+    Raises:
+        TimeoutError: Task did not reach a terminal state within ``timeout`` seconds.
+        RuntimeError: Task reported a failed state.
     """
+    deadline = time.monotonic() + timeout
     tries = 0
     while True:
         detail = _get_task_detail(task_id, token)
@@ -327,7 +340,11 @@ def _fetch_task_results_blocking(task_id: str, token: str) -> Dict[str, int]:
             return detail.get("results", {})
         if state == "failed":
             raise RuntimeError(f"Tencent task {task_id} failed: {detail.get('err', '')}")
-        time.sleep(0.5 + tries / 10)
+        if time.monotonic() >= deadline:
+            raise TimeoutError(
+                f"Tencent task {task_id} did not complete within {timeout}s (last state: {state})"
+            )
+        time.sleep(poll_interval + tries / 10)
         tries += 1
 
 
@@ -403,17 +420,18 @@ class TencentPlatform:
         """
         return _query_task_state(task_id, self._token)
 
-    def fetch_task_result(self, task_id: str, device_name: str) -> Dict[str, int]:
+    def fetch_task_result(self, task_id: str, device_name: str, *, timeout: float = 600.0) -> Dict[str, int]:
         """Block until the task completes and return measurement counts.
 
         Args:
             task_id (*str*): Task identifier.
             device_name (*str*): Device identifier (unused, kept for interface consistency).
+            timeout (*float*): Hard timeout in seconds. Defaults to ``600.0``.
 
         Returns:
             Measurement counts ``dict`` mapping bitstrings to counts.
         """
-        return _fetch_task_results_blocking(task_id, self._token)
+        return _fetch_task_results_blocking(task_id, self._token, timeout=timeout)
 
 
 class TencentBackendAdapter(BackendAdapter):

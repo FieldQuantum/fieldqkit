@@ -136,6 +136,7 @@ class NativeTwoQubitRBManager:
 			per_qubit_confusion = {k: np.asarray(v) for k, v in cal.per_qubit_confusion.items()}
 
 		results: Dict[str, Dict[str, object]] = {}
+		computed: Dict[str, Dict[str, object]] = {}
 
 		for q1, q2 in couplers:
 			pending: List[Tuple[int, object]] = []
@@ -238,9 +239,11 @@ class NativeTwoQubitRBManager:
 					"fit": fit,
 				}
 			logger.info("Coupler %s: fidelity=%s", key, results[key]['fit']['fidelity'])
+			computed[key] = results[key]
 
-			# Cache stores fidelity only to keep payload minimal.
-			self._save_rb_cache(results, chip_name=chip_name)
+		# Cache stores fidelity only to keep payload minimal.
+		if computed:
+			self._save_rb_cache(computed, chip_name=chip_name)
 		return results
 
 	def _build_random_sequence(

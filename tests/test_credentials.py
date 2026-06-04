@@ -116,6 +116,11 @@ class TestUserConfigDiscovery:
         # Isolate from the developer's real cwd/home and any env tokens.
         monkeypatch.setattr(pc.Path, "home", staticmethod(lambda: fake_home))
         monkeypatch.setattr(pc.Path, "cwd", staticmethod(lambda: fake_cwd))
+        _real_iter = pc._iter_config_candidates
+        monkeypatch.setattr(
+            pc, "_iter_config_candidates",
+            lambda: [p for p in _real_iter() if str(p).startswith(str(tmp_path))],
+        )
         monkeypatch.delenv("QUANTUM_HW_CONFIG", raising=False)
         for env in ("QUAFU_API_TOKEN", "TIANYAN_API_TOKEN", "GUODUN_API_TOKEN",
                     "TENCENT_API_TOKEN", "ORIGIN_API_TOKEN", "FIELDQUANTUM_API_TOKEN"):

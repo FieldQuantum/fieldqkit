@@ -516,8 +516,6 @@ Lower is better.
         queue = [(start_node, 0)]
         while queue and len(visited) < nqubits:
             current_node, depth = queue.pop(0)
-            if depth >= nqubits - 1:
-                continue
             for neighbor in one_subgraph.neighbors(current_node):
                 if neighbor not in visited:
                     visited.add(neighbor)

@@ -39,6 +39,8 @@ def _parse_pauli_string(pauli: str, num_qubits: int | None = None) -> List[Tuple
 			num_qubits = len(tokens[0])
 		if len(tokens[0]) != num_qubits:
 			raise ValueError("pauli length mismatch with num_qubits")
+		if any(ch.upper() not in {"I", "X", "Y", "Z"} for ch in tokens[0]):
+			raise ValueError(f"unsupported Pauli in {tokens[0]!r}")
 		return [(i, p.upper()) for i, p in enumerate(tokens[0]) if p.upper() != "I"]
 
 	# Indexed form: "Z0 X2 Y3" (order doesn't matter).

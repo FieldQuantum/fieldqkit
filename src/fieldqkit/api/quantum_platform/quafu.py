@@ -17,7 +17,7 @@ _HTTP_TIMEOUT = (10, 60)
 
 
 def _flip_bitstring(bs: str) -> str:
-    """Reverse a bitstring to convert big-endian to little-endian.
+    """Reverse a bitstring to convert little-endian to big-endian.
 
     Args:
         bs (*str*): Bitstring to reverse.
