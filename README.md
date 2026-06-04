@@ -14,13 +14,13 @@
 
 | 目标 | 说明 |
 |---|---|
-| **统一硬件访问** | 单一 `QuantumHardwareClient` 对接多平台（夸父/天衍/国盾/腾讯/本源/FieldQuantum） |
+| **统一硬件访问** | 单一 `QuantumHardwareClient` 对接多平台（夸父/天衍/国盾/腾讯/本源） |
 | **自动编译** | 逻辑电路 → 物理芯片的完整转译流程 |
-| **误差缓解** | Readout 校准 + 零噪声外推（ZNE） |
+| **误差缓解** | Readout 校准 + 零噪声外推（ZNE）+ Clifford 拟合 |
 | **变分算法** | VQE、QAOA、Shadow Tomography、QML |
 | **量子机器学习** | PQC 监督分类 + 无监督 QNN 分布学习 |
 | **硬件校准** | Readout、原生两比特 RB、过程层析 |
-| **高效仿真** | 全态矢量 + MPS + MPO，支持梯度计算 |
+| **高效仿真** | 全态矢量 + 密度矩阵 + Clifford + MPS + MPO，支持梯度计算 |
 
 ## 安装
 
