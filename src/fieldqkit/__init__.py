@@ -1,6 +1,6 @@
 """Public package exports for the quantum hardware interface."""
 
-__version__ = "0.1.0"
+__version__ = "0.1.1"
 
 from .api import QuantumHardwareClient
 from .api.platform_credentials import init_config

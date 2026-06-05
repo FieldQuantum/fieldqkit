@@ -4,6 +4,12 @@
 
 格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.1.1] - 2026-06-05
+
+### 修订
+
+- 修正第三方代码的署名与许可声明：在各改编文件中内嵌上游完整许可文本（quarkcircuit / quarkstudio 原为 MIT，SPDX 标注 `Apache-2.0 AND MIT`；cqlib / TensorCircuit 为 Apache-2.0），并更正 `THIRD_PARTY_NOTICES`、`NOTICE` 中的作者、年份与项目归属。
+
 ## [0.1.0] - 2026-06-04
 
 首次公开发布。

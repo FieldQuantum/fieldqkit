@@ -1,4 +1,22 @@
-"""Shared cqlib-style platform helpers for TianYan and GuoDun providers."""
+"""Shared cqlib-style platform helpers for TianYan and GuoDun providers.
+
+SPDX-License-Identifier: Apache-2.0
+Modified from cqlib by FieldQuantum; this file has been altered from the original
+and is redistributed as part of fieldqkit. The original cqlib notice follows:
+
+This code is part of cqlib.
+
+Copyright (C) 2024 China Telecom Quantum Group, QuantumCTek Co., Ltd.,
+Center for Excellence in Quantum Information and Quantum Physics.
+
+This code is licensed under the Apache License, Version 2.0. You may
+obtain a copy of this license in the LICENSE file in the root directory
+of this source tree or at http://www.apache.org/licenses/LICENSE-2.0.
+
+Any modifications or derivative works of this code must retain this
+copyright notice, and modified files need to carry a notice indicating
+that they have been altered from the originals.
+"""
 
 from __future__ import annotations
 

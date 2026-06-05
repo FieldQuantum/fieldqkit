@@ -172,5 +172,5 @@ pytest
 
 本项目以 [Apache License 2.0](https://github.com/FieldQuantum/fieldqkit/blob/main/LICENSE) 开源。
 
-项目中部分文件改编自第三方开源项目（quarkstudio / cqlib / TensorCircuit），
+项目中部分文件改编自第三方开源项目（quarkcircuit / quarkstudio / cqlib / TensorCircuit），
 相关版权与许可声明见 [THIRD_PARTY_NOTICES](https://github.com/FieldQuantum/fieldqkit/blob/main/THIRD_PARTY_NOTICES) 与 [NOTICE](https://github.com/FieldQuantum/fieldqkit/blob/main/NOTICE)。

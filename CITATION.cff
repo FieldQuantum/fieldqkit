@@ -8,13 +8,12 @@ abstract: >-
   tomography / QML), and a built-in PyTorch simulator with autodiff.
 type: software
 authors:
-  - given-names: Yuchen
-    family-names: Guo
+  - name: FieldQuantum
     email: guoyuchen@fieldquanta.com
 repository-code: "https://github.com/FieldQuantum/fieldqkit"
 url: "https://fieldquantum.github.io/fieldqkit/"
 license: Apache-2.0
-version: 0.1.0
+version: 0.1.1
 keywords:
   - quantum computing
   - quantum hardware

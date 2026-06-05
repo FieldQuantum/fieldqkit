@@ -1,4 +1,8 @@
 """Tencent quantum cloud provider direct REST integration.
+
+SPDX-License-Identifier: Apache-2.0
+Modified from TensorCircuit, Copyright (c) The TensorCircuit Authors.
+This file has been altered from the original. See THIRD_PARTY_NOTICES.
 """
 
 from __future__ import annotations
