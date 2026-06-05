@@ -13,6 +13,9 @@ Files modified from quarkcircuit:
   - src/fieldqkit/circuit/quantumcircuit_helpers.py
   - src/fieldqkit/circuit/matrix.py
   - src/fieldqkit/circuit/utils.py
+  - src/fieldqkit/circuit/qasm2.py
+  - src/fieldqkit/circuit/render.py
+  - src/fieldqkit/api/backend.py
   - src/fieldqkit/compile/__init__.py
   - src/fieldqkit/compile/basepasses.py
   - src/fieldqkit/compile/dag.py
