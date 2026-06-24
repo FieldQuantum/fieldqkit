@@ -12,6 +12,36 @@ from ..circuit import QuantumCircuit
 from .matrix import gate_matrix_dict
 
 
+# --- gradient checkpointing -------------------------------------------------
+GRAD_CHECKPOINT_THRESHOLD_QUBITS: int | None = 20
+
+
+def params_require_grad(param_values) -> bool:
+    """True if any symbolic parameter value is a grad-tracking tensor."""
+    if not param_values:
+        return False
+    return any(
+        isinstance(v, torch.Tensor) and v.requires_grad
+        for v in param_values.values()
+    )
+
+
+def grad_checkpoint_enabled(num_qubits: int, param_values) -> bool:
+    """Whether the gate loop should be gradient-checkpointed.
+
+    Only kicks in for differentiable runs (some parameter requires grad and
+    grad is enabled) at/above the configured qubit threshold; the sampling /
+    inference paths therefore pay nothing.
+    """
+    thr = GRAD_CHECKPOINT_THRESHOLD_QUBITS
+    return (
+        thr is not None
+        and torch.is_grad_enabled()
+        and int(num_qubits) >= int(thr)
+        and params_require_grad(param_values)
+    )
+
+
 def auto_sim_device(device: torch.device | str | None = None) -> torch.device:
     """Resolve simulation device: explicit > least-utilized CUDA > CPU.
 
@@ -54,10 +84,14 @@ def _cuda_utilization_percent(device_index: int) -> int | None:
 
 
 def _cuda_free_memory_bytes(device_index: int) -> int | None:
-    """Return free CUDA memory for a device, or ``None`` if unavailable."""
+    """Return free CUDA memory for a device, or ``None`` if unavailable.
+    """
+    pynvml = _pynvml_module()
+    if pynvml is None:
+        return None
     with suppress(Exception):
-        free_bytes, _total_bytes = torch.cuda.mem_get_info(device_index)
-        return int(free_bytes)
+        handle = pynvml.nvmlDeviceGetHandleByIndex(device_index)
+        return int(pynvml.nvmlDeviceGetMemoryInfo(handle).free)
     return None
 
 

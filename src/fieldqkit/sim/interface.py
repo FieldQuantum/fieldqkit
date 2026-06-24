@@ -40,10 +40,12 @@ def get_sim_config() -> dict:
         ``dict`` with keys ``'mps_threshold_qubits'`` and ``'max_bond_dim'``.
     """
     from . import mps as _mps_mod
+    from . import common as _common_mod
 
     return {
         "mps_threshold_qubits": MPS_THRESHOLD_QUBITS,
         "max_bond_dim": _mps_mod.MAX_BOND_DIM,
+        "grad_checkpoint_threshold_qubits": _common_mod.GRAD_CHECKPOINT_THRESHOLD_QUBITS,
     }
 
 
@@ -51,6 +53,7 @@ def set_sim_config(
     *,
     mps_threshold_qubits: Optional[int] = None,
     max_bond_dim: Optional[int] = _UNSET,  # type: ignore[assignment]
+    grad_checkpoint_threshold_qubits: Optional[int] = _UNSET,  # type: ignore[assignment]
 ) -> None:
     """Update simulator hyper-parameters at runtime.
 
@@ -61,6 +64,10 @@ def set_sim_config(
         max_bond_dim (*int | None*): Maximum MPS bond dimension.  Pass ``None``
             to disable truncation.  Omitting the argument (internal sentinel)
             leaves the value unchanged.
+        grad_checkpoint_threshold_qubits (*int | None*): Qubit count at/above
+            which differentiable simulation gradient-checkpoints the gate loop
+            (~2x time for O(sqrt(n_gates)) saved states).  Pass ``None`` to
+            disable checkpointing.  Omitting the argument leaves it unchanged.
 
     Example::
 
@@ -69,6 +76,7 @@ def set_sim_config(
     """
     global MPS_THRESHOLD_QUBITS
     from . import mps as _mps_mod
+    from . import common as _common_mod
 
     if mps_threshold_qubits is not None:
         if not isinstance(mps_threshold_qubits, int) or mps_threshold_qubits < 1:
@@ -80,6 +88,15 @@ def set_sim_config(
             if not isinstance(max_bond_dim, int) or max_bond_dim < 1:
                 raise ValueError("max_bond_dim must be a positive integer or None")
         _mps_mod.MAX_BOND_DIM = max_bond_dim
+
+    if grad_checkpoint_threshold_qubits is not _UNSET:
+        if grad_checkpoint_threshold_qubits is not None:
+            if (not isinstance(grad_checkpoint_threshold_qubits, int)
+                    or grad_checkpoint_threshold_qubits < 1):
+                raise ValueError(
+                    "grad_checkpoint_threshold_qubits must be a positive integer or None"
+                )
+        _common_mod.GRAD_CHECKPOINT_THRESHOLD_QUBITS = grad_checkpoint_threshold_qubits
 
 
 def _extract_measurements(qc: QuantumCircuit):

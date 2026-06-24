@@ -168,9 +168,9 @@ class FieldQuantumPlatform:
         """Retrieve the result of a finished task.
 
         Returns:
-            Unwrapped result payload (the contents of the server's
-            ``"result"`` field). For ``sample`` mode this contains
-            ``"counts"``; for ``expectation`` mode it contains
+            The flat execution payload, unwrapped from the server's
+            ``{"ok", "resource", "result"}`` envelope. For ``sample`` mode
+            this contains ``"counts"``; for ``expectation`` mode it contains
             ``"energy"`` / ``"expectations"`` / ``"gradients"``.
 
         Raises:
@@ -200,6 +200,13 @@ class FieldQuantumPlatform:
             raise RuntimeError(
                 f"FieldQuantum task {task_id}: unexpected result payload {data!r}"
             )
+        if "ok" in result and isinstance(result.get("result"), dict):
+            if not result.get("ok", True):
+                raise RuntimeError(
+                    f"FieldQuantum task {task_id} failed: "
+                    f"{self._extract_error(result, 'unknown')}"
+                )
+            result = result["result"]
         return result
 
     def run_expectation(

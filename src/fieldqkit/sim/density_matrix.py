@@ -4,10 +4,12 @@ from __future__ import annotations
 from typing import Dict, Optional, Sequence
 
 import torch
+from torch.utils.checkpoint import checkpoint
 
 from ..circuit import QuantumCircuit
 from .common import (
     auto_sim_device,
+    grad_checkpoint_enabled,
     materialize_gate_matrix,
     resolve_param,
     single_pauli,
@@ -117,7 +119,36 @@ def simulate_density_matrix(
     rho[0, 0] = 1.0
     rho = rho.reshape([2] * (2 * nqubits))
 
-    for gate_info in getattr(qc, "gates", []):
+    gates = list(getattr(qc, "gates", []))
+
+    # Large differentiable runs: segment the gate sequence and recompute in
+    # backward (gradient checkpointing) -> O(sqrt(n_gates)) saved density
+    # matrices instead of O(n_gates).  Sampling / inference is untouched.
+    if grad_checkpoint_enabled(nqubits, param_values) and len(gates) > 1:
+        chunk = max(1, int(len(gates) ** 0.5))
+        for i in range(0, len(gates), chunk):
+            rho = checkpoint(
+                _apply_dm_gate_block,
+                rho, gates[i:i + chunk], qc, param_values, nqubits, dtype, device,
+                use_reentrant=False,
+            )
+    else:
+        rho = _apply_dm_gate_block(
+            rho, gates, qc, param_values, nqubits, dtype, device,
+        )
+
+    rho = rho.reshape(2**nqubits, 2**nqubits)
+    return rho
+
+
+def _apply_dm_gate_block(rho, gates, qc, param_values, nqubits, dtype, device):
+    """Apply a contiguous block of gates / channels to the DM tensor ``rho``.
+
+    Operates on the ``(2,)*2n`` reshaped density matrix and returns it in the
+    same shape.  Extracted from :func:`simulate_density_matrix` so a block can
+    be wrapped in :func:`torch.utils.checkpoint.checkpoint`.
+    """
+    for gate_info in gates:
         gate = gate_info[0]
 
         if gate in one_qubit_gates_available:
@@ -168,7 +199,6 @@ def simulate_density_matrix(
         else:
             raise ValueError(f"Unsupported gate for DM simulator: {gate}")
 
-    rho = rho.reshape(2**nqubits, 2**nqubits)
     return rho
 
 
@@ -218,6 +248,32 @@ def simulate_noisy_counts(
     return out
 
 
+def apply_pauli_left_dm(
+    state,
+    pauli: str,
+    *,
+    num_qubits: int,
+) -> torch.Tensor:
+    """Return ``P rho`` (as a ``(2^n, 2^n)`` matrix) for a Pauli string.
+    """
+    from ..core.observables import pauli_basis_pattern
+
+    rho = state.reshape(2**num_qubits, 2**num_qubits)
+    dtype = rho.dtype
+    device = rho.device
+
+    rho_tensor = rho.reshape([2] * (2 * num_qubits))
+    pattern = pauli_basis_pattern(pauli, num_qubits=num_qubits)
+    for qubit, op in enumerate(pattern):
+        if op == 'I':
+            continue
+        P_qubit = single_pauli(op, dtype=dtype, device=device)
+        # Apply P_qubit to row-axis (qubit) of the DM tensor
+        rho_tensor = _apply_mat_left(rho_tensor, P_qubit, [qubit], 2 * num_qubits)
+
+    return rho_tensor.reshape(2**num_qubits, 2**num_qubits)
+
+
 def expectation_pauli_dm(
     state,
     pauli: str,
@@ -234,26 +290,9 @@ def expectation_pauli_dm(
     Returns:
         ``torch.Tensor`` scalar expectation value (real for Hermitian Pauli).
     """
-    from ..core.observables import pauli_basis_pattern
-
-    rho = state.reshape(2**num_qubits, 2**num_qubits)
-
-    dtype = rho.dtype
-    device = rho.device
-
-    rho_tensor = rho.reshape([2] * (2 * num_qubits))
-    pattern = pauli_basis_pattern(pauli, num_qubits=num_qubits)
-    for qubit, op in enumerate(pattern):
-        if op == 'I':
-            continue
-        P_qubit = single_pauli(op, dtype=dtype, device=device)
-        # Apply P_qubit to row-axis (qubit) of the DM tensor
-        rho_tensor = _apply_mat_left(rho_tensor, P_qubit, [qubit], 2 * num_qubits)
-
-    # Reshape back to matrix form and compute trace
-    rho_final = rho_tensor.reshape(2**num_qubits, 2**num_qubits)
-    expectation = torch.trace(rho_final)
-    return expectation.real
+    return torch.trace(
+        apply_pauli_left_dm(state, pauli, num_qubits=num_qubits)
+    ).real
 
 
 def sample_probabilities_dm(
@@ -318,10 +357,12 @@ def energy_and_expectations(
     param_values = build_param_values_from_tensor(params=params, param_names=param_names)
     state = simulate_density_matrix(symbolic_qc, param_values=param_values, device=sim_device)
 
-    energy = torch.zeros((), dtype=params.dtype if hasattr(params, 'dtype') else torch.float64, device=sim_device)
+    dim = 2**nqubits
+    h_rho = torch.zeros((dim, dim), dtype=state.dtype, device=sim_device)
     expectations: Dict[str, float] = {}
     for coeff, obs in hamiltonian:
-        exp_val = expectation_pauli_dm(state, obs, num_qubits=nqubits)
-        energy = energy + float(coeff) * exp_val
-        expectations[obs] = float(exp_val.detach().cpu().item())
+        p_rho = apply_pauli_left_dm(state, obs, num_qubits=nqubits)
+        h_rho = h_rho + float(coeff) * p_rho
+        expectations[obs] = float(torch.trace(p_rho).real.detach().cpu().item())
+    energy = torch.trace(h_rho).real
     return energy, expectations

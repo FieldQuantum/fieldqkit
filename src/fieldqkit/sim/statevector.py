@@ -5,12 +5,14 @@ from __future__ import annotations
 from typing import Dict, List, Sequence, Tuple
 
 import torch
+from torch.utils.checkpoint import checkpoint
 
 from ..circuit import QuantumCircuit
 from .matrix import ketn0
 from .common import (
     auto_sim_device,
     build_param_values_from_tensor,
+    grad_checkpoint_enabled,
     materialize_gate_matrix,
     resolve_param,
     single_pauli,
@@ -90,8 +92,35 @@ def simulate_statevector(
     state = ketn0(num_qubits, device=sim_device).reshape(-1)
     dtype = state.dtype
     device = state.device
+    gates = list(qc.gates)
 
-    for gate_info in qc.gates:
+    # For large differentiable runs, segment the gate sequence and recompute
+    # intermediates in backward (gradient checkpointing): O(sqrt(n_gates))
+    # saved states instead of O(n_gates).  Sampling / inference is untouched.
+    if grad_checkpoint_enabled(num_qubits, param_values) and len(gates) > 1:
+        chunk = max(1, int(len(gates) ** 0.5))
+        for i in range(0, len(gates), chunk):
+            state = checkpoint(
+                _apply_gate_block,
+                state, gates[i:i + chunk], qc, param_values,
+                num_qubits, dtype, device,
+                use_reentrant=False,
+            )
+    else:
+        state = _apply_gate_block(
+            state, gates, qc, param_values, num_qubits, dtype, device,
+        )
+
+    return state
+
+
+def _apply_gate_block(state, gates, qc, param_values, num_qubits, dtype, device):
+    """Apply a contiguous block of circuit gates to ``state`` (in order).
+
+    Extracted from :func:`simulate_statevector` so a block can be wrapped in
+    :func:`torch.utils.checkpoint.checkpoint`.
+    """
+    for gate_info in gates:
         gate = gate_info[0]
         if gate in functional_gates_available:
             if gate == "reset":
@@ -173,16 +202,46 @@ def simulate_counts(
         generator.manual_seed(int(seed))
     else:
         generator.seed()  # a fresh Generator is otherwise deterministic
-    samples = torch.multinomial(probs, num_samples=shots, replacement=True, generator=generator)
-    counts = torch.bincount(samples, minlength=probs.numel())
 
+    # Inverse-CDF sampling via searchsorted. Unlike torch.multinomial, this has
+    # no 2**24-category limit, so it scales past 24 qubits. The CDF is built in
+    # float64 to preserve resolution between tiny probabilities at large N.
+    cdf = torch.cumsum(probs.double(), dim=0)
+    cdf[-1] = 1.0  # guard against float rounding leaving the last edge < 1
+    u = torch.rand(shots, device=probs.device, dtype=torch.float64, generator=generator)
+    samples = torch.searchsorted(cdf, u, right=True)
+    samples = samples.clamp_(max=probs.numel() - 1)
+
+    # Tally only the outcomes that were actually drawn (<= shots distinct), which
+    # avoids materialising a length-2**num_qubits bincount and looping over it.
+    idxs, counts = torch.unique(samples, return_counts=True)
     out: Dict[str, int] = {}
-    for idx, count in enumerate(counts.tolist()):
-        if count == 0:
-            continue
+    for idx, count in zip(idxs.tolist(), counts.tolist()):
         bits = format(idx, f"0{num_qubits}b")
         out[bits] = int(count)
     return out
+
+
+def apply_pauli_string(
+    state,
+    pauli: str,
+    *,
+    num_qubits: int,
+):
+    """Return ``P|psi>`` for a Pauli string via local operator application.
+    """
+    pattern = pauli_basis_pattern(pauli, num_qubits=num_qubits)
+    acted = state
+    for idx, op in enumerate(pattern):
+        if op == "I":
+            continue
+        acted = _apply_k_qubit_gate_torch(
+            acted,
+            single_pauli(op, dtype=state.dtype, device=state.device),
+            [idx],
+            num_qubits,
+        )
+    return acted
 
 
 def expectation_pauli(
@@ -202,18 +261,7 @@ def expectation_pauli(
         ``torch.Tensor`` scalar (complex) expectation value ``<psi|P|psi>``.
         For real Hamiltonians take ``.real``.
     """
-    pattern = pauli_basis_pattern(pauli, num_qubits=num_qubits)
-    acted = state
-    for idx, op in enumerate(pattern):
-        if op == "I":
-            continue
-        acted = _apply_k_qubit_gate_torch(
-            acted,
-            single_pauli(op, dtype=state.dtype, device=state.device),
-            [idx],
-            num_qubits,
-        )
-    return torch.vdot(state, acted)
+    return torch.vdot(state, apply_pauli_string(state, pauli, num_qubits=num_qubits))
 
 
 def sample_probabilities(
@@ -270,10 +318,12 @@ def energy_and_expectations(
         params = params.to(sim_device)
     param_values = build_param_values_from_tensor(params=params, param_names=param_names)
     state = simulate_statevector(symbolic_qc, param_values=param_values, device=sim_device)
-    energy = torch.zeros((), dtype=params.dtype, device=params.device)
+
+    h_psi = torch.zeros_like(state)
     expectations: dict[str, float] = {}
     for coeff, obs in hamiltonian:
-        exp_val = expectation_pauli(state, obs, num_qubits=num_qubits).real
-        energy = energy + float(coeff) * exp_val
-        expectations[obs] = float(exp_val.detach().cpu().item())
+        acted = apply_pauli_string(state, obs, num_qubits=num_qubits)
+        h_psi = h_psi + float(coeff) * acted
+        expectations[obs] = float(torch.vdot(state, acted).real.detach().cpu().item())
+    energy = torch.vdot(state, h_psi).real
     return energy, expectations
