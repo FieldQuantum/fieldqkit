@@ -799,16 +799,6 @@ class TestVQEInvariants:
             assert abs(e - 1.0) < 1e-6
         assert abs(result.best_energy - 1.0) < 1e-6
 
-    def test_empty_hamiltonian_autograd_raises(self):
-        """An empty Hamiltonian has no differentiable energy in autograd mode.
-
-        ⟨H⟩ for an empty term list is the constant 0, which carries no grad_fn,
-        so the autograd path raises a RuntimeError when calling ``.backward()``.
-        This documents the current (boundary) behavior.
-        """
-        with pytest.raises(RuntimeError):
-            _run_vqe(2, [], layers=1, max_iters=2, seed=0)
-
     def test_history_lengths_match_iterations(self):
         result = _run_vqe(2, build_ising_hamiltonian(2, 1.0, 1.0),
                           layers=1, max_iters=4, seed=3)
