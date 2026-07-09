@@ -51,7 +51,22 @@ class ComplexSVD(torch.autograd.Function):
         Returns:
             Tuple of (U, S, Vh) singular value decomposition.
         """
-        u, s, vh = torch.linalg.svd(input_tensor, full_matrices=False)
+        try:
+            u, s, vh = torch.linalg.svd(input_tensor, full_matrices=False)
+        except torch._C._LinAlgError:
+            # The default driver (LAPACK gesdd on CPU) can hard-fail on
+            # ill-conditioned / repeated-singular-value matrices -- common for
+            # truncated MPS bonds.  (CUDA cuSOLVER auto-falls-back instead of
+            # raising.)  Retry with the slower but robust QR-based 'gesvd'.
+            import numpy as np
+            import scipy.linalg
+            arr = input_tensor.detach().cpu().numpy()
+            uu, ss, vv = scipy.linalg.svd(
+                arr, full_matrices=False, lapack_driver="gesvd")
+            dev = input_tensor.device
+            u = torch.as_tensor(np.ascontiguousarray(uu), device=dev)
+            s = torch.as_tensor(np.ascontiguousarray(ss), device=dev)
+            vh = torch.as_tensor(np.ascontiguousarray(vv), device=dev)
         ctx.save_for_backward(input_tensor, u, s, vh)
         return u, s, vh
 
@@ -878,7 +893,29 @@ def simulate_mps(
         dirty_start = None
         dirty_end = None
 
+    def _renormalize() -> None:
+        """Pin the canonical-center tensor to unit norm to stop amplitude drift.
+
+        Truncated SVDs are not norm-preserving, so over tens of thousands of gates
+        the state amplitude drifts and can under/overflow to non-finite values --
+        which then crash the next SVD ("input contained non-finite values"),
+        especially at aggressive ``max_bond_dim``.  The canonical center carries
+        the state weight, so rescaling ``mps[canon_center]`` to unit Frobenius
+        norm keeps the amplitude O(1) and stops the drift.  Only ``O(chi^2)`` (a
+        single tensor norm), so it is cheap enough to run frequently.  Sampling
+        probabilities are unaffected (they renormalize at sample time).  Guarded
+        so an already-degenerate norm is a safe no-op.
+        """
+        nrm = mps[canon_center].norm()
+        if bool(torch.isfinite(nrm)) and float(nrm) > 1e-30:
+            mps[canon_center] = mps[canon_center] / nrm.to(mps[canon_center].dtype)
+
+    renorm_every = 1000
+    gate_count = 0
     for gate_info in qc.gates:
+        gate_count += 1
+        if gate_count % renorm_every == 0:
+            _renormalize()
         gate = gate_info[0]
         if gate in functional_gates_available:
             if gate == "reset":
