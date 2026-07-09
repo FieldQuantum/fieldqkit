@@ -3,7 +3,7 @@
 ## 概览
 
 - 模块：`fieldqkit.api.platform_credentials`
-- 作用：集中管理六家量子云平台（夸父 / 天衍 / 国盾 / 腾讯 / 本源 / 量坤）的 API 凭证，支持配置文件和环境变量两种方式。
+- 作用：集中管理七家量子云平台（夸父 / 天衍 / 国盾 / 腾讯 / 本源 / 量坤 / 逻辑比特）的 API 凭证，支持配置文件和环境变量两种方式。
 
 ## 凭证查找优先级
 
@@ -35,6 +35,8 @@ credentials:
   origin:
     api_token: "your-token"
   fieldquantum:
+    api_token: "your-token"
+  logicalqubit:
     api_token: "your-token"
 ```
 
@@ -95,6 +97,17 @@ cp .quantum_hw.example.yaml .quantum_hw.yaml
 | 环境变量 | `FIELDQUANTUM_API_TOKEN` |
 | 返回值 | FieldQuantum API token 字符串 |
 | 申请地址 | [https://fieldquantum.tech/account/api-token/](https://fieldquantum.tech/account/api-token/) |
+
+### `get_logicalqubit_api_token() -> str`
+
+| 项目 | 说明 |
+|---|---|
+| 配置路径 | `credentials.logicalqubit.api_token` |
+| 环境变量 | `LOGICALQUBIT_API_TOKEN` |
+| 返回值 | LogicalQubit API token 字符串（形如 `qk_<...>`） |
+| 申请地址 | [https://cloud.logicalqubit.com/](https://cloud.logicalqubit.com/) |
+
+> 服务端地址固定为 `https://cloud.logicalqubit.com`（与其它 provider 一致，写死在 `LogicalQubitPlatform` 中）。
 
 ### `reload_config() -> None`
 

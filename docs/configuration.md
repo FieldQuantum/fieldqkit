@@ -15,7 +15,7 @@ result = client.run_auto(
 print(result.observable_values)
 ```
 
-只有当你要**提交到真实量子云平台**（夸父 / 天衍 / 国盾 / 腾讯 / 本源 / 量坤）时，才需要配置该平台的 API token。下面三种方式任选其一。
+只有当你要**提交到真实量子云平台**（夸父 / 天衍 / 国盾 / 腾讯 / 本源 / 量坤 / 逻辑比特）时，才需要配置该平台的 API token。下面三种方式任选其一。
 
 ---
 
@@ -31,6 +31,7 @@ print(result.observable_values)
 | 腾讯 Tencent | `TENCENT_API_TOKEN` | https://quantum.tencent.com/cloud/ |
 | 本源 Origin | `ORIGIN_API_TOKEN` | https://qcloud.originqc.com.cn/ |
 | 量坤 FieldQuantum | `FIELDQUANTUM_API_TOKEN` | https://fieldquantum.tech/ |
+| 逻辑比特 LogicalQubit | `LOGICALQUBIT_API_TOKEN` | https://cloud.logicalqubit.com/ |
 
 ```bash
 # Linux / macOS

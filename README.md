@@ -1,6 +1,6 @@
 # fieldqkit
 
-**A user-facing Python interface for controlling quantum hardware.** One unified API across multiple quantum-cloud platforms (Quafu / TianYan / GuoDun / Tencent / Origin / FieldQuantum), automatic transpilation, error mitigation (readout + ZNE), variational algorithms (VQE / QAOA / Shadow tomography / QML), and a built-in PyTorch simulator with autodiff. Full documentation: <https://fieldquantum.github.io/fieldqkit/>.
+**A user-facing Python interface for controlling quantum hardware.** One unified API across multiple quantum-cloud platforms (Quafu / TianYan / GuoDun / Tencent / Origin / FieldQuantum / LogicalQubit), automatic transpilation, error mitigation (readout + ZNE), variational algorithms (VQE / QAOA / Shadow tomography / QML), and a built-in PyTorch simulator with autodiff. Full documentation: <https://fieldquantum.github.io/fieldqkit/>.
 
 > 面向用户的**量子硬件控制接口**：统一多平台访问 · 自动编译 · 误差缓解 · 变分算法 · 内置 PyTorch 模拟器（支持自动微分）。
 
@@ -8,13 +8,13 @@
 
 ## 项目定位
 
-`fieldqkit` 是一个面向用户的**量子硬件控制接口**，提供从量子线路构建、编译转译、提交执行、误差缓解到变分算法的完整工作流。项目以统一 API 屏蔽多量子云平台（夸父 / 天衍 / 国盾 / 腾讯 / 本源）的差异，并内置基于 PyTorch 的本地模拟器，支持自动微分和大规模张量网络仿真。
+`fieldqkit` 是一个面向用户的**量子硬件控制接口**，提供从量子线路构建、编译转译、提交执行、误差缓解到变分算法的完整工作流。项目以统一 API 屏蔽多量子云平台（夸父 / 天衍 / 国盾 / 腾讯 / 本源 / 逻辑比特）的差异，并内置基于 PyTorch 的本地模拟器，支持自动微分和大规模张量网络仿真。
 
 核心目标：
 
 | 目标 | 说明 |
 |---|---|
-| **统一硬件访问** | 单一 `QuantumHardwareClient` 对接多平台（夸父/天衍/国盾/腾讯/本源） |
+| **统一硬件访问** | 单一 `QuantumHardwareClient` 对接多平台（夸父/天衍/国盾/腾讯/本源/逻辑比特） |
 | **自动编译** | 逻辑电路 → 物理芯片的完整转译流程 |
 | **误差缓解** | Readout 校准 + 零噪声外推（ZNE）+ Clifford 拟合 |
 | **变分算法** | VQE、QAOA、Shadow Tomography、QML |
@@ -64,7 +64,7 @@ print(result.observable_values)   # {'ZZII': 1.0, 'IIZZ': 1.0}
 print(result.probabilities)
 ```
 
-把 `provider` 换成 `"quafu"` / `"tianyan"` / `"guodun"` / `"tencent"` / `"origin"` / `"fieldquantum"`
+把 `provider` 换成 `"quafu"` / `"tianyan"` / `"guodun"` / `"tencent"` / `"origin"` / `"fieldquantum"` / `"logicalqubit"`
 即可提交到对应的量子云平台（需先配置 token，见下文 [真机使用](#真机使用)）。完整示例见
 [examples/demo_full.ipynb](https://github.com/FieldQuantum/fieldqkit/blob/main/examples/demo_full.ipynb)。
 
@@ -79,7 +79,7 @@ export QUAFU_API_TOKEN="your-quafu-token"      # Linux/macOS
 # Windows PowerShell: $env:QUAFU_API_TOKEN = "your-quafu-token"
 ```
 
-各平台环境变量：`QUAFU_API_TOKEN` / `TIANYAN_API_TOKEN` / `GUODUN_API_TOKEN` / `TENCENT_API_TOKEN` / `ORIGIN_API_TOKEN` / `FIELDQUANTUM_API_TOKEN`。
+各平台环境变量：`QUAFU_API_TOKEN` / `TIANYAN_API_TOKEN` / `GUODUN_API_TOKEN` / `TENCENT_API_TOKEN` / `ORIGIN_API_TOKEN` / `FIELDQUANTUM_API_TOKEN` / `LOGICALQUBIT_API_TOKEN`。
 
 **方式二 · 一键生成配置文件**
 
@@ -106,6 +106,7 @@ credentials:
 - 国盾量子云： https://quantumctek-cloud.com/
 - 腾讯量子云： https://quantum.tencent.com/cloud/
 - 本源量子云： https://qcloud.originqc.com.cn/
+- 逻辑比特量子云： https://cloud.logicalqubit.com/
 - 量坤云端模拟器： https://fieldquantum.tech/
 
 各平台政策不同，优先推荐使用夸父量子云的免费资源（不限时）进行体验和学习。

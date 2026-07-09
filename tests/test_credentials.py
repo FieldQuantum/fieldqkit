@@ -35,7 +35,7 @@ class TestWriteExampleConfig:
         target = pc.write_example_config(tmp_path / "creds.yaml")
         data = yaml.safe_load(target.read_text(encoding="utf-8"))
         assert set(data["credentials"]) == {
-            "quafu", "tianyan", "guodun", "tencent", "origin", "fieldquantum"
+            "quafu", "tianyan", "guodun", "tencent", "origin", "fieldquantum", "logicalqubit"
         }
         # All tokens start empty.
         assert all(v["api_token"] == "" for v in data["credentials"].values())
@@ -212,9 +212,9 @@ class TestCredentialPrecedence:
         with pytest.raises(KeyError):
             pc._get_credential("QUAFU")
 
-    def test_credential_map_covers_exactly_six_platforms(self):
+    def test_credential_map_covers_exactly_seven_platforms(self):
         assert set(pc._CREDENTIAL_MAP) == {
-            "quafu", "tianyan", "guodun", "tencent", "origin", "fieldquantum"
+            "quafu", "tianyan", "guodun", "tencent", "origin", "fieldquantum", "logicalqubit"
         }
         # Labels exist for every mapped platform (used in the error message).
         assert set(pc._PLATFORM_LABELS) == set(pc._CREDENTIAL_MAP)

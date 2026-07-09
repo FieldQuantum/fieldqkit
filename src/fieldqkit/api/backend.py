@@ -49,6 +49,7 @@ GUODUN_HARDWARE_NAMES = {"chmy176", "gd_qc1", "gd_sim1", "gd_test"}
 CQLIB_HARDWARE_NAMES = TIANYAN_HARDWARE_NAMES | GUODUN_HARDWARE_NAMES
 TENCENT_HARDWARE_NAMES = {"simulator:tc", "tianji_m2", "tianji_m2v14s2", "tianji_m2v14s4", "tianji_m2v15s3", "tianji_m2v16s1", "tianji_s2", "tianji_s2v6", "tianji_s2v7", "tianxuan_s2", "tianxuan_s2v20s1", "tianxuan_s2v20s2"}
 ORIGIN_HARDWARE_NAMES = {"PQPUMESH8", "WK_C180", "HanYuan_01"}
+LOGICALQUBIT_HARDWARE_NAMES = {"QZ02", "MQ02", "QZ01-surface_code", "QZ01-repetition_code", "AGate-100"}
 SIMULATOR_HARDWARE_NAMES = {"Simulator", "simulator"}
 FIELDQUANTUM_HARDWARE_NAMES = {"fieldquantum_sim"}
 
@@ -239,6 +240,10 @@ class Backend:
             from .quantum_platform.origin import load_origin_chip_info
             self.chip_name = str(chip)
             self.chip_info = load_origin_chip_info(self.chip_name)
+        elif chip in LOGICALQUBIT_HARDWARE_NAMES:
+            from .quantum_platform.logicalqubit import load_logicalqubit_chip_info
+            self.chip_name = str(chip)
+            self.chip_info = load_logicalqubit_chip_info(self.chip_name)
         elif chip in SIMULATOR_HARDWARE_NAMES:
             self.chip_name = "Simulator"
             self.chip_info = _build_simulator_chip_info()
@@ -833,7 +838,12 @@ def list_available_hardware(provider: str) -> List[Dict[str, Any]]:
 
         return FieldQuantumPlatform().list_available_hardware()
 
-    raise ValueError("provider must be one of: 'quafu', 'tianyan', 'guodun', 'tencent', 'origin', or 'fieldquantum'")
+    if provider_name == "logicalqubit":
+        from .quantum_platform.logicalqubit import LogicalQubitPlatform
+
+        return LogicalQubitPlatform().list_available_hardware()
+
+    raise ValueError("provider must be one of: 'quafu', 'tianyan', 'guodun', 'tencent', 'origin', 'fieldquantum', or 'logicalqubit'")
 
 
 # ---------------------------------------------------------------------------
@@ -851,6 +861,7 @@ _register_chips("tianyan", TIANYAN_HARDWARE_NAMES)
 _register_chips("guodun", GUODUN_HARDWARE_NAMES)
 _register_chips("tencent", TENCENT_HARDWARE_NAMES)
 _register_chips("origin", ORIGIN_HARDWARE_NAMES)
+_register_chips("logicalqubit", LOGICALQUBIT_HARDWARE_NAMES)
 _register_chips("simulator", SIMULATOR_HARDWARE_NAMES)
 _register_chips("fieldquantum", FIELDQUANTUM_HARDWARE_NAMES)
 

@@ -12,7 +12,7 @@ from pathlib import Path
 import numpy as np
 from .quantum_platform import create_provider_runtime
 from .backend import Backend, resolve_provider
-from .task import OpenQasmSubmitRequest, QcisSubmitRequest, ProviderTaskHandle, TaskAdapter
+from .task import OpenQasmSubmitRequest, QcisSubmitRequest, NativeCircuitSubmitRequest, ProviderTaskHandle, TaskAdapter
 
 from ..circuit import QuantumCircuit
 
@@ -304,6 +304,14 @@ class QuantumHardwareClient:
 			``ProviderTaskHandle`` for tracking the submitted task.
 		"""
 		adapter = self._active_task_adapter
+		if adapter is not None and bool(getattr(adapter, "native_ir", False)):
+			return self._submit_native_async(
+				name=name,
+				circuit=circuit,
+				shots=shots,
+				chip_name=chip_name,
+				submit_options=submit_options,
+			)
 		if adapter is not None and bool(getattr(adapter, "qcis_native", False)):
 			from ..circuit.qcis import circuit_to_qcis
 			return self._submit_qcis_async(
@@ -384,6 +392,56 @@ class QuantumHardwareClient:
 			backend,
 		)
 		return handle
+
+	def _submit_native_async(
+		self,
+		name: str,
+		circuit,
+		shots: int,
+		chip_name: Optional[str] = None,
+		submit_options: Optional[Dict[str, object]] = None,
+	):
+		"""Submit a native ``QuantumCircuit`` object (no string serialization).
+
+		Used by providers whose adapter sets ``native_ir=True`` (e.g. LogicalQubit):
+		the circuit object is handed to the adapter, which builds its own IR.
+
+		Args:
+			name (*str*): Experiment name or job label.
+			circuit (*QuantumCircuit*): Transpiled circuit to submit.
+			shots (*int*): Number of measurement shots.
+			chip_name (*Optional[str]*): Name of the target chip. Defaults to ``None``.
+			submit_options (*Optional[Dict[str, object]]*): Extra submission options. Defaults to ``None``.
+
+		Returns:
+			``ProviderTaskHandle`` for tracking the submitted task.
+
+		Raises:
+			RuntimeError: active task adapter is required before submitting a native circuit
+		"""
+		resolved_chip_name = self._resolve_chip_name(chip_name)
+		options = dict(submit_options or {})
+		timestamp = int(time.time() * 1000)
+		task_name = f"{name}_{timestamp}"
+
+		adapter = self._active_task_adapter
+		backend = self._active_resolved_backend
+		if adapter is None or backend is None:
+			raise RuntimeError(
+				"active task adapter is required before submitting a native circuit; "
+				"call run_auto() or _run_with_backend() first to provision a runtime"
+			)
+
+		return adapter.submit_native_circuit(
+			NativeCircuitSubmitRequest(
+				name=task_name,
+				circuit=circuit,
+				shots=shots,
+				chip_name=resolved_chip_name,
+				submit_options=options,
+			),
+			backend,
+		)
 
 	def _wait_for_last_task(self) -> None:
 		"""Wait for the previously submitted task to complete.
@@ -916,7 +974,7 @@ class QuantumHardwareClient:
 			circuit (*Union[str, QuantumCircuit]*): Quantum circuit to execute.
 			name (*str*): Experiment name for the submission.
 			num_qubits (*int*): Number of qubits.
-			provider (*str*): Platform provider name. One of ``"quafu"``, ``"tianyan"``, ``"guodun"``, ``"tencent"``, ``"origin"``, ``"fieldquantum"``, ``"simulator"`` (case-insensitive). If ``prefer_chips`` contains a known chip name, the inferred provider overrides this argument. Defaults to ``'quafu'``.
+			provider (*str*): Platform provider name. One of ``"quafu"``, ``"tianyan"``, ``"guodun"``, ``"tencent"``, ``"origin"``, ``"fieldquantum"``, ``"logicalqubit"``, ``"simulator"`` (case-insensitive). If ``prefer_chips`` contains a known chip name, the inferred provider overrides this argument. Defaults to ``'quafu'``.
 			shots (*int*): Number of measurement shots. Defaults to ``8192``.
 			zne (*bool*): Whether to apply zero-noise extrapolation. Defaults to ``False``.
 			readout_mitigation (*bool*): Whether to apply readout error mitigation. Defaults to ``False``.
@@ -940,7 +998,7 @@ class QuantumHardwareClient:
 		# Normalize input circuit; strip measurements only when observables conflict.
 		qc = self._normalize_input_circuit(circuit, num_qubits, observables=observables)
 		provider = resolve_provider(provider, prefer_chips)
-		use_dd = provider not in {"tianyan", "guodun", "tencent", "simulator", "fieldquantum"}
+		use_dd = provider not in {"tianyan", "guodun", "tencent", "simulator", "fieldquantum", "logicalqubit"}
 		# Tencent QOS parser doesn't understand u(...) gates; keep native h/rz/x/y/z.
 		convert_single_qubit_gate_to_u = provider not in {"tencent", "fieldquantum"}
 

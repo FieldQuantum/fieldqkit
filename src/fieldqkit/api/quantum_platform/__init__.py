@@ -23,6 +23,12 @@ from .origin import (
     OriginTaskAdapter,
     ORIGIN_DEFAULT_URL,
 )
+from .logicalqubit import (
+    LogicalQubitPlatform,
+    LogicalQubitBackendAdapter,
+    LogicalQubitTaskAdapter,
+    LOGICALQUBIT_DEFAULT_URL,
+)
 
 
 @dataclass
@@ -88,7 +94,13 @@ def create_provider_runtime(*, provider: str, client: Any) -> ProviderRuntime:
             backend_adapter=OriginBackendAdapter(),
             task_adapter=OriginTaskAdapter(client=client),
         )
-    raise ValueError("provider must be one of: 'quafu', 'tianyan', 'guodun', 'tencent', 'simulator', 'fieldquantum', or 'origin'")
+    if provider_name == "logicalqubit":
+        return ProviderRuntime(
+            provider=provider_name,
+            backend_adapter=LogicalQubitBackendAdapter(),
+            task_adapter=LogicalQubitTaskAdapter(client=client),
+        )
+    raise ValueError("provider must be one of: 'quafu', 'tianyan', 'guodun', 'tencent', 'simulator', 'fieldquantum', 'origin', or 'logicalqubit'")
 
 
 __all__ = [
@@ -118,4 +130,8 @@ __all__ = [
     "OriginBackendAdapter",
     "OriginTaskAdapter",
     "ORIGIN_DEFAULT_URL",
+    "LogicalQubitPlatform",
+    "LogicalQubitBackendAdapter",
+    "LogicalQubitTaskAdapter",
+    "LOGICALQUBIT_DEFAULT_URL",
 ]

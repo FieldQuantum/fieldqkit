@@ -9,10 +9,11 @@
   - `fieldqkit.api.quantum_platform.tencent`
   - `fieldqkit.api.quantum_platform.origin`
   - `fieldqkit.api.quantum_platform.fieldquantum`
-- 作用：分别实现六家 provider 的硬件列表查询、任务提交、状态查询和结果归一化。
+  - `fieldqkit.api.quantum_platform.logicalqubit`
+- 作用：分别实现七家 provider 的硬件列表查询、任务提交、状态查询和结果归一化。
 - 通用约定：每家 provider 提供三件套 —— `XxxPlatform`（直接 HTTP / SDK 客户端）、`XxxBackendAdapter`（实现 `BackendAdapter` 的 `discover_hardware / resolve_backend`）、`XxxTaskAdapter`（实现 `TaskAdapter` 的 `submit_* / query_status / fetch_result / cancel_task`）。
 
-> **提交语言：** Quafu / Tencent / Origin / FieldQuantum 走 `submit_openqasm`（OpenQASM 2.0）；TianYan / GuoDun 在 `TaskAdapter` 上把 `qcis_native = True`，由 `QuantumHardwareClient` 改走 `submit_qcis`（客户端把 `QuantumCircuit` 直接转 QCIS 后提交，绕过 OpenQASM 中间表示）。
+> **提交语言：** Quafu / Tencent / Origin / FieldQuantum 走 `submit_openqasm`（OpenQASM 2.0）；TianYan / GuoDun 在 `TaskAdapter` 上把 `qcis_native = True`，由 `QuantumHardwareClient` 改走 `submit_qcis`（客户端把 `QuantumCircuit` 直接转 QCIS 后提交，绕过 OpenQASM 中间表示）；LogicalQubit 则把 `native_ir = True`，由客户端改走 `submit_native_circuit`——直接把 `QuantumCircuit` 交给适配器，在其内部转成平台自有的 JSON 指令 IR（单比特门 → 一条原生 `su2`，两比特门 → `cz`），绕过任何字符串序列化。
 
 ## Quafu 平台
 
@@ -424,9 +425,74 @@ class FieldQuantumBackendAdapter(BackendAdapter):
 
 ---
 
+## LogicalQubit 平台（逻辑比特）
+
+> **简介：** 逻辑比特量子云（LogicalQubit，https://cloud.logicalqubit.com/）是真实超导 QPU 云平台。本 provider **不依赖厂商 `lqcloud` SDK**，直接对接其 JSON REST API（协议由该 SDK 逆向而来）。
+>
+> - 服务端口：`https://cloud.logicalqubit.com`
+> - 认证方式：`X-API-Key` 请求头，token 形如 `qk_<...>`，从 [https://cloud.logicalqubit.com/](https://cloud.logicalqubit.com/) 申请
+> - 默认硬件名：`QZ02`；已登记芯片：`QZ02` / `MQ02` / `QZ01-surface_code` / `QZ01-repetition_code` / `AGate-100`
+> - 两比特原生门：`cz`；单比特统一以原生 `su2`（任意 2×2 酉矩阵）提交
+
+### REST 端点（逆向自厂商 SDK）
+
+| 端点 | 方法 | 说明 |
+|---|---|---|
+| `/api/v1/qpus` | GET | 列出全部后端，含 `topology.coupling_map` / `qubit_coordinates` / `properties.qubit_metrics` 等完整拓扑与标定。 |
+| `/api/v1/tasks/async` | POST | 提交任务，body 为 `{"command": {...}, "qpu_name": ...}`，返回 `{task_id, status, queue_position}`。 |
+| `/api/v1/tasks/async/{task_id}` | GET | 查询状态并内嵌 `result`（无独立 result 端点）。 |
+| `/api/v1/jobs/{task_id}/cancel` | POST | 取消任务。 |
+
+### `LogicalQubitPlatform` 类
+
+**作用：** 直连 REST 客户端，负责后端发现、任务提交、状态轮询、结果归一化，带瞬态错误指数退避重试与 `Idempotency-Key`。
+
+**关键方法：**
+
+| 方法 | 签名 | 说明 |
+|---|---|---|
+| `get_qpus` | `get_qpus(*, refresh=False)` | GET `/api/v1/qpus`（结果缓存）。 |
+| `get_backend_config` | `get_backend_config(name)` | 从缓存列表按名过滤单个后端 config。 |
+| `list_available_hardware` | `list_available_hardware()` | 返回统一硬件行。 |
+| `submit` | `submit(command, chip_name) -> str` | POST 提交 `run_circuit` 命令，返回 `task_id`。 |
+| `status` | `status(task_id) -> str` | 返回服务端原始状态（小写）。 |
+| `result_counts` | `result_counts(task_id) -> Dict[str, int]` | 取已完成任务的测量计数（自动兼容 `counts` / `memory` 两种格式）。 |
+
+**辅助函数：**
+
+- `load_logicalqubit_chip_info(chip_name, ...)`：把 `/api/v1/qpus` 的 `coupling_map` / 坐标 / `xeb_fidelity` / `measure_f0,measure_f1` 归一化为 `Backend` 用的 `chip_info`。
+- `circuit_to_lqcloud_command(qc, *, two_state_readout, shots)`：转译后电路 → JSON 指令 IR（单比特门算成 2×2 矩阵发 `su2`、`cz` 原生、前置 `reset`、measure 前补 `barrier`、`measure2` 后端在每个 measure 前插 `x21`、物理比特稠密化 + `initial_layout`、≥12 测量比特切 `memory` 并把 shots 裁到 50000）。
+- `prime_readout_cache(backend, chip_name)`：用厂商 `measure_f0/measure_f1` 直接构造每比特 2×2 混淆矩阵 `[[f0,1-f1],[1-f0,f1]]` 写入 `api/.cache/readout_<chip>.json`，从而**跳过在真机上跑 readout 校准电路**。
+
+### `LogicalQubitBackendAdapter` 类
+
+**签名：**
+```python
+class LogicalQubitBackendAdapter(BackendAdapter):
+    def __init__(self, *, machine_name: Optional[str] = None, token: Optional[str] = None, url: Optional[str] = None)
+```
+
+**属性：**
+- `provider = "logicalqubit"`
+- `default_hardware_name = "QZ02"`
+
+**说明：** `resolve_backend` 复用基类默认实现，并在选定后端后调用 `prime_readout_cache` 预写厂商读出混淆矩阵。
+
+### `LogicalQubitTaskAdapter` 类
+
+**作用：** 逻辑比特任务适配器（`native_ir = True`，走 `submit_native_circuit`）。
+
+**关键行为：**
+- `submit_native_circuit`：按后端 `supported_measurement_types` 决定是否 2 态读出，调 `circuit_to_lqcloud_command` 生成 IR 后 `platform.submit(...)`。
+- `query_status`：`queued/pending/running → Running`、`completed → Finished`、`failed → Failed`、`cancelled → Canceled`。
+- `fetch_result`：返回 `{"count": counts}`。**counts 已是大端（clbit0 在最左），与本包约定一致，无需翻转**（已在 QZ02 真机核对）。
+- `cancel_task`：POST `/api/v1/jobs/{task_id}/cancel`。
+
+---
+
 ## 平台选择与创建
 
-通过 `create_provider_runtime(provider, client)` 工厂函数（见 [provider_runtime](./provider_runtime.md)），根据 provider 名称自动创建适配器对（支持 `quafu / tianyan / guodun / tencent / origin / fieldquantum / simulator`）：
+通过 `create_provider_runtime(provider, client)` 工厂函数（见 [provider_runtime](./provider_runtime.md)），根据 provider 名称自动创建适配器对（支持 `quafu / tianyan / guodun / tencent / origin / fieldquantum / logicalqubit / simulator`）：
 
 ```python
 from fieldqkit.api.quantum_platform import create_provider_runtime

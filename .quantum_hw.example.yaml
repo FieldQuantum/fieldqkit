@@ -33,3 +33,7 @@ credentials:
   # FieldQuantum 云端高性能模拟器 — https://fieldquantum.tech/
   fieldquantum:
     api_token: ""
+
+  # 逻辑比特量子云 LogicalQubit — https://cloud.logicalqubit.com/  (token 形如 qk_<...>)
+  logicalqubit:
+    api_token: ""

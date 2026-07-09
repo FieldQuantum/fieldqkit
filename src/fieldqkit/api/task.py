@@ -28,6 +28,18 @@ class QcisSubmitRequest:
 
 
 @dataclass
+class NativeCircuitSubmitRequest:
+    """Carries an un-serialized ``QuantumCircuit`` for providers whose SDK/API
+    consumes a native circuit/IR object rather than an OpenQASM or QCIS string.
+    """
+    name: str
+    circuit: Any
+    shots: int
+    chip_name: str
+    submit_options: Dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass
 class ProviderTaskHandle:
     provider: str
     task_id: str
@@ -37,6 +49,25 @@ class ProviderTaskHandle:
 class TaskAdapter(ABC):
     provider: str
     qcis_native: bool = False
+    # When True the client hands the QuantumCircuit object straight to
+    # :meth:`submit_native_circuit` (via NativeCircuitSubmitRequest) instead of
+    # serializing it to OpenQASM/QCIS. Used by providers that build their own IR.
+    native_ir: bool = False
+
+    def submit_native_circuit(self, submit_request: "NativeCircuitSubmitRequest", backend: ResolvedBackend) -> "ProviderTaskHandle":
+        """Submit a native circuit object and return a task handle.
+
+        Args:
+            submit_request (*NativeCircuitSubmitRequest*): Submission request carrying the circuit object.
+            backend (*ResolvedBackend*): Hardware backend descriptor.
+
+        Returns:
+            ``ProviderTaskHandle`` for tracking the submitted task.
+
+        Raises:
+            NotImplementedError: {self.provider} submit_native_circuit is not implemented
+        """
+        raise NotImplementedError(f"{self.provider} submit_native_circuit is not implemented")
 
     def submit_openqasm(self, submit_request: OpenQasmSubmitRequest, backend: ResolvedBackend) -> ProviderTaskHandle:
         """Submit an OpenQASM program and return a task handle.

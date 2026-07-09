@@ -146,6 +146,7 @@ _CREDENTIAL_MAP: Dict[str, tuple[str, str, str]] = {
     "tencent": ("tencent", "api_token",  "TENCENT_API_TOKEN"),
     "origin":  ("origin",  "api_token",  "ORIGIN_API_TOKEN"),
     "fieldquantum": ("fieldquantum", "api_token", "FIELDQUANTUM_API_TOKEN"),
+    "logicalqubit": ("logicalqubit", "api_token", "LOGICALQUBIT_API_TOKEN"),
 }
 
 _PLATFORM_LABELS: Dict[str, str] = {
@@ -155,6 +156,7 @@ _PLATFORM_LABELS: Dict[str, str] = {
     "tencent": "Tencent (腾讯) – https://quantum.tencent.com/cloud/",
     "origin":  "Origin (本源) – https://qcloud.originqc.com.cn/",
     "fieldquantum": "FieldQuantum (量坤) – https://fieldquantum.tech/",
+    "logicalqubit": "LogicalQubit (逻辑比特) – https://cloud.logicalqubit.com/",
 }
 
 
@@ -269,6 +271,18 @@ def get_fieldquantum_api_token() -> str:
     return _get_credential("fieldquantum")
 
 
+def get_logicalqubit_api_token() -> str:
+    """Return LogicalQubit API token (config file → ``LOGICALQUBIT_API_TOKEN`` env var).
+
+    Returns:
+        API token string of the form ``qk_<...>``.
+
+    Raises:
+        ValueError: If no credential is found.
+    """
+    return _get_credential("logicalqubit")
+
+
 # ---------------------------------------------------------------------------
 # Config scaffolding (for pip-installed users without the source-tree template)
 # ---------------------------------------------------------------------------
@@ -308,6 +322,10 @@ credentials:
 
   # FieldQuantum 云端模拟器 — https://fieldquantum.tech/  (token 形如 fq_<32hex>)
   fieldquantum:
+    api_token: ""
+
+  # 逻辑比特量子云 LogicalQubit — https://cloud.logicalqubit.com/  (token 形如 qk_<...>)
+  logicalqubit:
     api_token: ""
 """
 

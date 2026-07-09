@@ -30,7 +30,7 @@ class ProviderRuntime:
 
 | 参数 | 类型 | 必填 | 说明 |
 |---|---|:---:|---|
-| `provider` | `str` | 是 | 支持 `quafu/tianyan/guodun/tencent/origin/fieldquantum/simulator`。 |
+| `provider` | `str` | 是 | 支持 `quafu/tianyan/guodun/tencent/origin/fieldquantum/logicalqubit/simulator`。 |
 | `client` | `Any` | 是 | 当前 `QuantumHardwareClient` 实例（供 task adapter 绑定上下文）。 |
 
 ### 返回值
@@ -43,11 +43,12 @@ class ProviderRuntime:
 - `tencent`：`TencentBackendAdapter` + `TencentTaskAdapter`
 - `origin`：`OriginBackendAdapter` + `OriginTaskAdapter`
 - `fieldquantum`：`FieldQuantumBackendAdapter` + `FieldQuantumTaskAdapter`（量坤云端模拟器）
+- `logicalqubit`：`LogicalQubitBackendAdapter` + `LogicalQubitTaskAdapter`（逻辑比特量子云，直连 REST）
 - `simulator`：`SimulatorBackendAdapter` + `task_adapter=None`（本地模拟器，无需 token）
 
 ### 异常
 
-- `ValueError("provider must be one of: 'quafu', 'tianyan', 'guodun', 'tencent', 'simulator', 'fieldquantum', or 'origin'")`
+- `ValueError("provider must be one of: 'quafu', 'tianyan', 'guodun', 'tencent', 'simulator', 'fieldquantum', 'origin', or 'logicalqubit'")`
 
 ## 示例
 
