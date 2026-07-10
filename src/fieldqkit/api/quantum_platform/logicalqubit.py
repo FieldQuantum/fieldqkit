@@ -27,6 +27,7 @@ no bit-reversal is applied (verified against QZ02 hardware).
 from __future__ import annotations
 
 import logging
+import os
 import time
 import uuid
 from typing import Any, Dict, List, Optional, Sequence
@@ -42,8 +43,17 @@ logger = logging.getLogger(__name__)
 LOGICALQUBIT_DEFAULT_URL = "https://cloud.logicalqubit.com"
 
 _HTTP_TIMEOUT = (10, 300)
-_MAX_RETRIES = 5
+_MAX_RETRIES = 5                       # default; override via env LQ_MAX_RETRIES
 _RETRY_STATUS = {408, 425, 429, 500, 502, 503, 504}
+# Transient transport errors worth retrying (matches the vendor SDK).
+_RETRY_EXC = (
+    requests.exceptions.ConnectionError,
+    requests.exceptions.Timeout,
+    requests.exceptions.ChunkedEncodingError,
+)
+# gzip the request body above this size — mirrors the vendor SDK, and cuts the
+# probabilistic large-POST stalls seen on this network path (~295 KB circuits).
+_GZIP_MIN_SIZE = 1024
 
 # Per-shot (memory) policy — mirrors the vendor SDK's per_shot_config.
 _PER_SHOT_QUBIT_THRESHOLD = 12
@@ -87,25 +97,52 @@ class LogicalQubitPlatform:
     def _request(self, method: str, path: str, json_body: Any = None) -> Any:
         url = f"{self._url}{path}"
         last_exc: Optional[Exception] = None
-        for attempt in range(_MAX_RETRIES):
-            headers = {}
-            if method.upper() == "POST":
-                headers["Idempotency-Key"] = uuid.uuid4().hex
+        # ONE idempotency key for ALL retries of this logical call: if a POST
+        # reached the server and executed (billed) but its response was lost to a
+        # timeout, the retry must carry the SAME key so the server de-duplicates
+        # it instead of creating (and billing) a second job.  A fresh key per
+        # attempt is a double-submission/double-bill bug.
+        idem_key = uuid.uuid4().hex if method.upper() == "POST" else None
+        # gzip large POST bodies (vendor-parity): shrinks the several-MB circuit
+        # payloads that otherwise stall probabilistically on this network path.
+        req_kwargs, gzip_headers = self._encode_body(json_body)
+        # Retry budget is env-overridable (LQ_MAX_RETRIES) so a flaky VPN can ask
+        # for many attempts without a code patch; back-off is capped so a high
+        # count doesn't blow up wall-clock.
+        max_retries = int(os.environ.get("LQ_MAX_RETRIES") or _MAX_RETRIES)
+        for attempt in range(max_retries):
+            headers = {"Idempotency-Key": idem_key} if idem_key else {}
+            headers.update(gzip_headers)
             try:
                 resp = self._session.request(
-                    method.upper(), url, json=json_body, headers=headers, timeout=_HTTP_TIMEOUT
+                    method.upper(), url, headers=headers, timeout=_HTTP_TIMEOUT,
+                    **req_kwargs,
                 )
-                if resp.status_code in _RETRY_STATUS and attempt < _MAX_RETRIES - 1:
-                    time.sleep(min(30.0, 0.5 * (2 ** attempt)))
+                if resp.status_code in _RETRY_STATUS and attempt < max_retries - 1:
+                    time.sleep(min(5.0, 0.5 * (2 ** attempt)))
                     continue
                 resp.raise_for_status()
                 return resp.json()
-            except (requests.exceptions.ConnectionError, requests.exceptions.Timeout) as exc:
+            except _RETRY_EXC as exc:
                 last_exc = exc
-                if attempt < _MAX_RETRIES - 1:
-                    time.sleep(min(30.0, 0.5 * (2 ** attempt)))
+                if attempt < max_retries - 1:
+                    time.sleep(min(5.0, 0.5 * (2 ** attempt)))
                     continue
-        raise RuntimeError(f"LogicalQubit request {method} {path} failed after {_MAX_RETRIES} retries") from last_exc
+        raise RuntimeError(f"LogicalQubit request {method} {path} failed after {max_retries} retries") from last_exc
+
+    @staticmethod
+    def _encode_body(json_body: Any):
+        """Return (request_kwargs, extra_headers): gzip the JSON body when it is
+        large, else send it uncompressed as ``json=``."""
+        if json_body is None:
+            return {}, {}
+        import gzip
+        import json as _json
+        raw = _json.dumps(json_body, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+        if len(raw) < _GZIP_MIN_SIZE:
+            return {"json": json_body}, {}
+        return ({"data": gzip.compress(raw)},
+                {"Content-Encoding": "gzip", "Content-Type": "application/json"})
 
     # -- backend discovery ---------------------------------------------
 
@@ -270,6 +307,13 @@ def load_logicalqubit_chip_info(
         coord = _coord(qid)
         if coord is not None:
             entry["coordinate"] = coord
+        # Coherence times (calibration) -- passed through for layout scoring.
+        for key in ("t1", "t2", "t2_star"):
+            if key in m:
+                try:
+                    entry[key] = float(m[key])
+                except (TypeError, ValueError):
+                    pass
         # Readout confusion inputs, used to prime the readout cache.
         if "measure_f0" in m:
             try:
@@ -283,6 +327,20 @@ def load_logicalqubit_chip_info(
                 pass
         qubits_info[f"Q{qid}"] = entry
 
+    # Per-coupler two-qubit gate fidelity, keyed by the (a,b) pair.  Calibration
+    # rows without a "qubits" field (aggregate/stray entries) are ignored.
+    cz_by_pair: Dict[frozenset, float] = {}
+    for c in (props.get("coupler_metrics", []) or []):
+        if not isinstance(c, dict) or "qubits" not in c:
+            continue
+        pr = c.get("qubits")
+        if not (isinstance(pr, (list, tuple)) and len(pr) == 2):
+            continue
+        try:
+            cz_by_pair[frozenset((int(pr[0]), int(pr[1])))] = float(c["cz_fidelity"])
+        except (TypeError, ValueError, KeyError):
+            continue
+
     couplers_info: Dict[str, Dict[str, Any]] = {}
     for idx, pair in enumerate(coupling_map):
         if not (isinstance(pair, (list, tuple)) and len(pair) == 2):
@@ -291,7 +349,8 @@ def load_logicalqubit_chip_info(
             a, b = int(pair[0]), int(pair[1])
         except (TypeError, ValueError):
             continue
-        couplers_info[f"C{idx}"] = {"qubits_index": [a, b], "fidelity": 1.0}
+        fid = cz_by_pair.get(frozenset((a, b)), 1.0)
+        couplers_info[f"C{idx}"] = {"qubits_index": [a, b], "fidelity": fid}
 
     supported = cfg.get("supported_measurement_types")
     supported = list(supported) if isinstance(supported, list) else []
@@ -310,6 +369,25 @@ def load_logicalqubit_chip_info(
         },
         "priority_qubits": None,
     }
+
+
+def _coupling_edges(chip_info: Dict[str, Any]) -> Optional[set]:
+    """Undirected native-coupler edge set ``{frozenset({q0, q1}), ...}`` from
+    ``couplers_info``, or ``None`` when unavailable (permissive fallback)."""
+    couplers = chip_info.get("couplers_info") if isinstance(chip_info, dict) else None
+    if not isinstance(couplers, dict):
+        return None
+    edges: set = set()
+    for c in couplers.values():
+        qi = c.get("qubits_index") if isinstance(c, dict) else None
+        if isinstance(qi, (list, tuple)) and len(qi) == 2:
+            try:
+                a, b = int(qi[0]), int(qi[1])
+            except (TypeError, ValueError):
+                continue
+            if a != b:
+                edges.add(frozenset((a, b)))
+    return edges or None
 
 
 def _two_state_readout(chip_info: Dict[str, Any]) -> bool:
@@ -387,13 +465,20 @@ def _su2_params(mat: np.ndarray) -> List[float]:
     ]
 
 
-def circuit_to_lqcloud_command(qc, *, two_state_readout: bool = False, shots: int = 1024):
+def circuit_to_lqcloud_command(qc, *, two_state_readout: bool = False, shots: int = 1024,
+                               coupling_edges: Optional[set] = None):
     """Convert a transpiled fieldqkit circuit to a ``run_circuit`` command.
 
     The circuit must already be transpiled to the ``cz`` basis on physical
-    (adjacent) qubits — the platform does not route. Physical qubits are
-    compacted to a dense ``0..k-1`` logical range and pinned back via
-    ``initial_layout``; every single-qubit gate becomes one ``su2``.
+    (adjacent) qubits — the platform does not route. Instruction ``qubits``
+    carry the PHYSICAL indices (the server reads them as physical and does not
+    re-map via ``initial_layout``); ``n_qubits`` is the used-qubit count and
+    ``initial_layout`` lists the used physical qubits. Every single-qubit gate
+    becomes one ``su2``.
+
+    When ``coupling_edges`` (a set of ``frozenset({q0, q1})``) is given, every
+    two-qubit gate is checked against it up front so a non-native ``cz`` fails
+    fast client-side instead of after a billed round-trip.
 
     Returns ``(command_dict, effective_shots)``.
     """
@@ -429,15 +514,34 @@ def circuit_to_lqcloud_command(qc, *, two_state_readout: bool = False, shots: in
         elif name == "delay":
             used.update(g[2])
     used_sorted: List[int] = sorted(int(q) for q in used)
-    dense = {q: i for i, q in enumerate(used_sorted)}
     k = len(used_sorted)
     if k == 0:
         raise ValueError("cannot submit an empty circuit to LogicalQubit")
 
+    # Fail fast on any cz that isn't on a native coupling-map edge, before the
+    # billed round-trip (the server would otherwise reject it as non-adjacent).
+    if coupling_edges is not None:
+        for g in qc.gates:
+            if g[0] in two_qubit_gates_available:
+                pair = frozenset((int(g[1]), int(g[2])))
+                if len(pair) == 2 and pair not in coupling_edges:
+                    raise ValueError(
+                        f"cz on non-native qubits {sorted(pair)}: not in the chip "
+                        "coupling map. Transpile onto physical coupling-map edges "
+                        "before submission."
+                    )
+
+    # Instruction qubits carry PHYSICAL indices (matching the vendor SDK's
+    # serialize_circuit, which projects logical->physical via the layout before
+    # sending).  The server reads instruction qubits as physical and validates
+    # couplers against them; it does NOT re-map via initial_layout.  Emitting
+    # compacted/dense indices here makes the executor read them as the wrong
+    # physical qubits -- silently "works" on a contiguous chain (dense 0..k-1 is
+    # itself a valid chain) but fails on any scattered 2-D layout.
     instrs: List[Dict[str, Any]] = []
-    # 2) SDK-parity auto-reset: one reset per (dense) qubit up front.
-    for i in range(k):
-        instrs.append({"name": "reset", "qubits": [i], "clbits": [], "params": []})
+    # 2) SDK-parity auto-reset: one reset per used physical qubit up front.
+    for q in used_sorted:
+        instrs.append({"name": "reset", "qubits": [q], "clbits": [], "params": []})
 
     last_was_barrier = False
     n_clbits = 0
@@ -450,7 +554,7 @@ def circuit_to_lqcloud_command(qc, *, two_state_readout: bool = False, shots: in
         if name in one_qubit_gates_available:
             if name not in gate_matrix_dict:
                 raise NotImplementedError(f"no matrix for single-qubit gate '{name}'")
-            instrs.append({"name": "su2", "qubits": [dense[g[1]]], "clbits": [],
+            instrs.append({"name": "su2", "qubits": [g[1]], "clbits": [],
                            "params": _su2_params(gate_matrix_dict[name])})
             last_was_barrier = False
         elif name in one_qubit_parameter_gates_available:
@@ -458,7 +562,7 @@ def circuit_to_lqcloud_command(qc, *, two_state_readout: bool = False, shots: in
             if factory is None:
                 raise NotImplementedError(f"no matrix factory for gate '{name}'")
             params = list(g[1:-1])
-            instrs.append({"name": "su2", "qubits": [dense[g[-1]]], "clbits": [],
+            instrs.append({"name": "su2", "qubits": [g[-1]], "clbits": [],
                            "params": _su2_params(factory(*params))})
             last_was_barrier = False
         elif name in two_qubit_gates_available:
@@ -466,31 +570,30 @@ def circuit_to_lqcloud_command(qc, *, two_state_readout: bool = False, shots: in
                 raise NotImplementedError(
                     f"two-qubit gate '{name}' must be translated to 'cz' before submission"
                 )
-            instrs.append({"name": "cz", "qubits": [dense[g[1]], dense[g[2]]], "clbits": [], "params": []})
+            instrs.append({"name": "cz", "qubits": [g[1], g[2]], "clbits": [], "params": []})
             last_was_barrier = False
         elif name == "barrier":
-            instrs.append({"name": "barrier", "qubits": [dense[q] for q in g[1]], "clbits": [], "params": []})
+            instrs.append({"name": "barrier", "qubits": [q for q in g[1]], "clbits": [], "params": []})
             last_was_barrier = True
         elif name == "reset":
-            instrs.append({"name": "reset", "qubits": [dense[g[1]]], "clbits": [], "params": []})
+            instrs.append({"name": "reset", "qubits": [g[1]], "clbits": [], "params": []})
             last_was_barrier = False
         elif name == "delay":
             duration_ns = round(float(g[1]) * 1e9)
             for q in g[2]:
-                instrs.append({"name": "delay", "qubits": [dense[q]], "clbits": [], "params": [duration_ns]})
+                instrs.append({"name": "delay", "qubits": [q], "clbits": [], "params": [duration_ns]})
             last_was_barrier = False
         elif name == "measure":
             qubits = list(g[1])
             cbits = list(g[2])
             # Barrier before the readout window (hardware scheduling boundary).
             if not last_was_barrier:
-                instrs.append({"name": "barrier", "qubits": [dense[q] for q in qubits], "clbits": [], "params": []})
+                instrs.append({"name": "barrier", "qubits": [q for q in qubits], "clbits": [], "params": []})
             for q, c in zip(qubits, cbits):
-                dq = dense[q]
                 if two_state_readout:
-                    instrs.append({"name": "x21", "qubits": [dq], "clbits": [], "params": []})
-                instrs.append({"name": "measure", "qubits": [dq], "clbits": [int(c)], "params": []})
-                measured.add(dq)
+                    instrs.append({"name": "x21", "qubits": [q], "clbits": [], "params": []})
+                instrs.append({"name": "measure", "qubits": [q], "clbits": [int(c)], "params": []})
+                measured.add(q)
                 n_clbits = max(n_clbits, int(c) + 1)
             last_was_barrier = False
         elif name in three_qubit_gates_available or name in two_qubit_parameter_gates_available:
@@ -559,9 +662,11 @@ class LogicalQubitTaskAdapter(TaskAdapter):
         platform: LogicalQubitPlatform = backend.metadata.get("platform_obj")
         if platform is None:
             platform = LogicalQubitPlatform(token=self._token)
-        two_state = _two_state_readout(getattr(backend.backend, "chip_info", {}) or {})
+        chip_info = getattr(backend.backend, "chip_info", {}) or {}
+        two_state = _two_state_readout(chip_info)
         command, _ = circuit_to_lqcloud_command(
             submit_request.circuit, two_state_readout=two_state, shots=submit_request.shots,
+            coupling_edges=_coupling_edges(chip_info),
         )
         task_id = platform.submit(command, submit_request.chip_name)
         return ProviderTaskHandle(provider=self.provider, task_id=task_id,
