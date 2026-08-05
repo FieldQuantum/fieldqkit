@@ -13,10 +13,12 @@
 
 - **逻辑比特（LogicalQubit）云平台接入**：作为第 7 家供应商接入
   <https://cloud.logicalqubit.com>，直连其 JSON REST API（不依赖厂商 `lqcloud` SDK）。
-  包含 REST 客户端、线路→IR 转换（单比特门→本征 `su2`、两比特门→`cz`，`measure2`
-  类后端在测量前插入 `x21`，稠密压缩 + `initial_layout`）、`chip_info` 加载，以及
-  从厂商 `measure_f0` / `measure_f1` 预热读出缓存以跳过实机读出校准。
-  新增凭证项 `LOGICALQUBIT_API_TOKEN`。
+  线路→IR 转换将单比特门归一为本征 `su2`、两比特门为 `cz`；指令中的比特下标使用**物理**
+  索引（服务端按物理索引解读并据此校验耦合器），`initial_layout` 列出实际用到的物理比特；
+  `measure2` 类后端在测量前插入 `x21`。`chip_info` 透传真实的耦合器 `cz_fidelity` 与比特
+  `t1` / `t2`，使编译器的保真度感知布局在该平台生效；并从厂商 `measure_f0` / `measure_f1`
+  预热读出缓存，跳过实机读出校准。提交侧带幂等键、大请求体 gzip 压缩与
+  `ChunkedEncodingError` 重试。新增凭证项 `LOGICALQUBIT_API_TOKEN`。
 - **原生线路提交通道**：`TaskAdapter.native_ir` + `NativeCircuitSubmitRequest` +
   `client._submit_native_async`，使 `QuantumCircuit` 对象可不经 OpenQASM / QCIS
   字符串序列化直接抵达适配器。
@@ -37,13 +39,6 @@
 
 ### 修复
 
-- **逻辑比特线路上机结果错误**：指令中的比特下标须为**物理**索引（服务端按物理索引解读，
-  不会用 `initial_layout` 重映射）。此前使用稠密索引，在离散二维布局（AGate）上会算错，
-  仅在连续链式拓扑（MQ02）上碰巧正确。同时改为透传真实的耦合器 `cz_fidelity` 与比特
-  `t1` / `t2`（此前硬编码为 1.0），使保真度感知布局真正生效。
-- **逻辑比特重复计费风险**：重试时复用同一个 `Idempotency-Key`（此前每次尝试都新生成）。
-  另对大请求体启用 gzip 并重试 `ChunkedEncodingError`；校验比特串长度与被测 clbit 数一致；
-  客户端侧预检耦合图邻接关系。
 - **MPS 模拟器在长线路 / 强截断下崩溃**：
   - `ComplexSVD.forward` 在默认 LAPACK `gesdd` 驱动硬失败（`torch._C._LinAlgError`，
     常见于 CPU 上被截断的病态 / 重奇异值 MPS 键）时，回退到
