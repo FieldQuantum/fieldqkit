@@ -6,11 +6,50 @@
 
 ## [0.1.2] - 2026-08-05
 
-本次发布让编译流程默认可复现。此前同一条线路重复编译可能得到差异极大的结果——实测一条
-零 SWAP 需求的 10 比特级联 GHZ，两比特门数在 9 到 40 之间波动，中位数 30。
+本次发布新增第 7 家云平台接入（逻辑比特），让编译流程默认可复现，并提升了模拟器在
+大比特可微分与长线路场景下的稳定性。
+
+### 新增
+
+- **逻辑比特（LogicalQubit）云平台接入**：作为第 7 家供应商接入
+  <https://cloud.logicalqubit.com>，直连其 JSON REST API（不依赖厂商 `lqcloud` SDK）。
+  包含 REST 客户端、线路→IR 转换（单比特门→本征 `su2`、两比特门→`cz`，`measure2`
+  类后端在测量前插入 `x21`，稠密压缩 + `initial_layout`）、`chip_info` 加载，以及
+  从厂商 `measure_f0` / `measure_f1` 预热读出缓存以跳过实机读出校准。
+  新增凭证项 `LOGICALQUBIT_API_TOKEN`。
+- **原生线路提交通道**：`TaskAdapter.native_ir` + `NativeCircuitSubmitRequest` +
+  `client._submit_native_async`，使 `QuantumCircuit` 对象可不经 OpenQASM / QCIS
+  字符串序列化直接抵达适配器。
+- **大比特可微分模拟的梯度检查点**：态矢量与密度矩阵模拟器在比特数达到阈值
+  （`grad_checkpoint_threshold_qubits`，默认 20）且存在需要梯度的参数时，对门循环启用
+  `torch.utils.checkpoint`，反向传播中间量由 O(n_gates) 降至 O(√n_gates)。
+  采样 / 推理路径不受影响。阈值可通过 `set_sim_config()` 调整。
+- 态矢量模拟器新增 `apply_pauli_string()`。
+- `Transpiler.run()`、`SabreRouting`、`Layout` 新增 `seed` 参数。默认配置本身已确定，
+  该参数用于在显式开启 `routing_n_trials > 1`、`routing_initial_mapping="random"`
+  或 `routing_random_choice=True` 时恢复可复现性。
+- `QuantumHardwareClient._transpile_with_backend()` 新增 `routing_initial_mapping`、
+  `routing_random_choice`、`niter`、`seed` 四个参数，以及 `**transpiler_kwargs` 兜底透传。
+  此前走高层 API 的调用方无法关闭路由随机性。
+- `run_vqe_with_backend`、`run_qaoa_with_backend`、`run_pqc_classifier`、
+  `run_qnn_unsupervised`、`run_qnn_conditional`、`build_compression_transform`
+  新增 `transpile_options: dict` 参数，内容原样转发给 `_transpile_with_backend`。
 
 ### 修复
 
+- **逻辑比特线路上机结果错误**：指令中的比特下标须为**物理**索引（服务端按物理索引解读，
+  不会用 `initial_layout` 重映射）。此前使用稠密索引，在离散二维布局（AGate）上会算错，
+  仅在连续链式拓扑（MQ02）上碰巧正确。同时改为透传真实的耦合器 `cz_fidelity` 与比特
+  `t1` / `t2`（此前硬编码为 1.0），使保真度感知布局真正生效。
+- **逻辑比特重复计费风险**：重试时复用同一个 `Idempotency-Key`（此前每次尝试都新生成）。
+  另对大请求体启用 gzip 并重试 `ChunkedEncodingError`；校验比特串长度与被测 clbit 数一致；
+  客户端侧预检耦合图邻接关系。
+- **MPS 模拟器在长线路 / 强截断下崩溃**：
+  - `ComplexSVD.forward` 在默认 LAPACK `gesdd` 驱动硬失败（`torch._C._LinAlgError`，
+    常见于 CPU 上被截断的病态 / 重奇异值 MPS 键）时，回退到
+    `scipy.linalg.svd(lapack_driver="gesvd")`。
+  - `simulate_mps` 每 1000 个门对正则中心张量重新归一化。截断 SVD 不保范数，超长线路上
+    振幅会漂移到非有限值并使下一次 SVD 崩溃。开销 O(χ²)，不影响采样概率。
 - **编译不再污染全局随机数状态**：`SabreRouting` 与 `Layout` 改用实例私有的
   `random.Random` / `numpy.random.Generator`，不再调用模块级 `random.sample`、
   `random.choice`、`np.random.choice`。此前编译会消耗全局 RNG 熵，导致用户自己
@@ -27,18 +66,17 @@
   硬件高效 ansatz：27–30 → 稳定 27）；仅在逻辑交互图接近全连接的稠密线路上
   可能多 2%–9% 的两比特门，此类线路可按需开启 `routing_n_trials` 找回。
   `"random"` 策略仍然保留可用。
+- CUDA 空闲显存查询改用 `pynvml`（原 `torch.cuda.mem_get_info`），与设备利用率查询保持一致；
+  `pynvml` 不可用时自动降级。
+- 移除 VQE 的 `test_empty_hamiltonian_autograd_raises` 边界测试（空哈密顿量在 autograd
+  路径下的报错行为不作为契约保证）。
 
-### 新增
+### 修订
 
-- `Transpiler.run()`、`SabreRouting`、`Layout` 新增 `seed` 参数。默认配置本身已确定，
-  该参数用于在显式开启 `routing_n_trials > 1`、`routing_initial_mapping="random"`
-  或 `routing_random_choice=True` 时恢复可复现性。
-- `QuantumHardwareClient._transpile_with_backend()` 新增 `routing_initial_mapping`、
-  `routing_random_choice`、`niter`、`seed` 四个参数，以及 `**transpiler_kwargs` 兜底透传。
-  此前走高层 API 的调用方无法关闭路由随机性。
-- `run_vqe_with_backend`、`run_qaoa_with_backend`、`run_pqc_classifier`、
-  `run_qnn_unsupervised`、`run_qnn_conditional`、`build_compression_transform`
-  新增 `transpile_options: dict` 参数，内容原样转发给 `_transpile_with_backend`。
+- 继续完善第三方代码署名：在 `api/backend.py`、`circuit/qasm2.py`、`circuit/render.py`
+  中内嵌上游 quarkcircuit 完整 MIT 许可文本并标注 `SPDX-License-Identifier:
+  Apache-2.0 AND MIT`，同步更新 `THIRD_PARTY_NOTICES`。
+- `CITATION.cff` 与 `pyproject.toml` 的作者署名统一为 Yuchen Guo。
 
 ### 升级提示
 
@@ -50,6 +88,14 @@ transpiler.run(qc, routing_initial_mapping="random", routing_random_choice=True)
 
 做 ZNE 等误差缓解实验时，建议**编译一次**后再折叠（见 `apply_zne_cz_tripling`），
 不要对每个噪声缩放因子分别编译——否则各缩放因子会落在不同的物理比特布局上。
+
+大比特（≥20）可微分模拟现在默认启用梯度检查点，以额外的前向重算换取反向传播显存下降。
+若显存不是瓶颈、更在意速度，可关闭：
+
+```python
+from fieldqkit.sim import set_sim_config
+set_sim_config(grad_checkpoint_threshold_qubits=None)
+```
 
 ## [0.1.1] - 2026-06-05
 
