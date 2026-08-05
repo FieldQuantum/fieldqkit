@@ -48,10 +48,11 @@ def run(
     use_sabre_routing: bool = True,
     use_translate_to_basis: bool = True,
     use_gate_compressor: bool = True,
-    routing_initial_mapping: str = "random",
-    routing_random_choice: bool = True,
+    routing_initial_mapping: str | list = "trivial",
+    routing_random_choice: bool = False,
     noise_aware: bool | None = None,
     routing_n_trials: int = 1,
+    seed: int | None = None,
 ) -> QuantumCircuit
 ```
 
@@ -67,15 +68,47 @@ def run(
 | `use_sabre_routing` | `bool` | `True` | 是否启用 SABRE 路由。关闭时不插入 SWAP。 |
 | `use_translate_to_basis` | `bool` | `True` | 是否将所有门翻译到芯片本征门集。 |
 | `use_gate_compressor` | `bool` | `True` | 是否启用门压缩（对易重排 + 单比特合并 + 两比特对消 + DAG 压缩）。 |
-| `routing_initial_mapping` | `str` | `"random"` | 初始映射策略：`"trivial"`（按顺序映射）或 `"random"`（随机映射）。注意：当线路可沿比特分割（`split_qubits` 返回多组）时，`"random"` 会自动降级为 `"trivial"` 并发出 `logger.warning`。 |
-| `routing_random_choice` | `bool` | `True` | SABRE 选择 SWAP 时是否随机（而非确定性贪心选最优）。 |
+| `routing_initial_mapping` | `str \| list` | `"trivial"` | 初始映射策略：`"trivial"`（逻辑 *i* → 第 *i* 个被选中的物理比特）、`"random"`（随机打乱）或显式列表。默认 `"trivial"` 是确定性的，且对交互图贴合芯片拓扑的线路（近邻 ansatz、级联 GHZ 等）通常比随机起点少插很多 SWAP。注意：当线路可沿比特分割（`split_qubits` 返回多组）时，`"random"` 会自动降级为 `"trivial"` 并发出 `logger.warning`。 |
+| `routing_random_choice` | `bool` | `False` | SWAP 候选打分并列时是否随机打破平局。`False`（默认）取第一个，确定性。 |
 | `noise_aware` | `bool \| None` | `None` | 路由时使用 $-\log(f)$ 保真度加权距离；`None` 时自动推断——有真机 backend 时启用，否则关闭。 |
-| `routing_n_trials` | `int` | `1` | SABRE 多随机初始映射试验次数。>1 时，第一次用指定策略，后续用 `"random"`，取 SWAP 数最少的结果。 |
+| `routing_n_trials` | `int` | `1` | SABRE 多起点重启次数，取 SWAP 最少的结果。第 0 次用 `routing_initial_mapping`，之后**强制使用随机映射**——因此 >1 会重新引入随机性，除非同时设置 `seed`。 |
+| `seed` | `int \| None` | `None` | Layout / SABRE 私有随机数生成器的种子。默认配置本身已是确定性的；只有在启用 `routing_n_trials > 1`、`routing_initial_mapping="random"` 或 `routing_random_choice=True` 时才需要它。各 Pass 使用**局部** RNG，既不读取也不推进全局 `random` / `numpy.random` 状态。 |
 
 **返回值：** 编译后的 `QuantumCircuit`。
 
 **异常：**
 - `TypeError`：`qc` 类型不是 `QuantumCircuit`。
+
+---
+
+## 可复现性
+
+自 v0.1.2 起，**默认编译是确定性的**：同一条线路重复编译得到逐门相同的结果。
+
+三个随机性开关（默认全部关闭）：
+
+| 开关 | 打开后的影响 |
+|---|---|
+| `routing_initial_mapping="random"` | 每次编译换一个随机起始布局 |
+| `routing_random_choice=True` | SWAP 打分并列时随机打破平局 |
+| `routing_n_trials > 1` | 第 1 次之后的试验都用随机起点 |
+
+任意一个打开后，若仍需可复现，传 `seed`：
+
+```python
+qct = transpiler.run(qc, routing_n_trials=20, seed=42)   # 搜索 + 可复现
+```
+
+编译不会污染全局随机数状态，因此下面这段代码里 VQE 的参数初始化不受编译影响：
+
+```python
+random.seed(42)
+theta = [random.random() for _ in range(n)]   # 与是否编译、编译什么线路无关
+qct = transpiler.run(qc)
+```
+
+!!! warning "误差缓解场景"
+    做 ZNE 等需要噪声按比例缩放的实验时，务必**编译一次**再折叠，不要对每个缩放因子分别编译——即使编译是确定性的，不同的折叠线路仍会得到不同的布局和 DD 插入量。参见 `apply_zne_cz_tripling`。
 
 ---
 
@@ -198,6 +231,7 @@ compiled = transpiler.run(
     noise_aware=True,
     routing_n_trials=8,
     niter=7,
+    seed=0,          # n_trials > 1 会引入随机性，加 seed 保持可复现
 )
 print(f"SWAP 路径偏好高保真耦合器")
 ```

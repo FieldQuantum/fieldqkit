@@ -43,6 +43,7 @@ class SabreRouting(TranspilerPass):
         max_extended_set_weight: float = 0.5,
         noise_aware: bool = False,
         n_trials: int = 1,
+        seed: int | None = None,
     )
 ```
 
@@ -58,6 +59,7 @@ class SabreRouting(TranspilerPass):
 | `max_extended_set_weight` | `float` | `0.5` | lookahead 启发式中，前瞻集权重系数 $W$ 的上界。实际 $W = \min(0.5,\, |E|/|F|)$。 |
 | `noise_aware` | `bool` | `False` | 是否使用保真度加权距离矩阵。 |
 | `n_trials` | `int` | `1` | 多随机初始映射试验次数。 |
+| `seed` | `int \| None` | `None` | 本实例私有随机数生成器的种子。仅 `initial_mapping="random"`、`do_random_choice=True`、`n_trials > 1` 三种情况会用到随机数；传整数即可复现。生成器是实例局部的，**不读取也不推进全局 `random` 状态**。 |
 
 **异常：**
 - `ValueError`：`initial_mapping` 为列表时，长度与物理比特数不匹配。
@@ -77,6 +79,8 @@ class SabreRouting(TranspilerPass):
 | `n_trials` | `int` | 试验次数 |
 | `initial_mapping` | `str \| list` | 保存的初始映射策略 |
 | `do_random_choice` | `bool` | SWAP 随机选择标志 |
+| `seed` | `int \| None` | 保存的随机种子 |
+| `_rng` | `random.Random` | 实例私有随机数生成器 |
 | `iterations` | `int` | 前后向迭代次数 |
 | `heuristic` | `str` | 启发式函数名 |
 | `extended_successor_set` | `list` | lookahead 前瞻集（运行时动态更新） |
@@ -151,7 +155,16 @@ distance_matrix = floyd_warshall_numpy(wg, weight="weight")
 4. 取插入 SWAP 数最少的结果
 5. 试验完成后恢复 `initial_mapping` 为原始值
 
-**适用场景：** 大线路或复杂拓扑时，不同初始映射可显著影响 SWAP 数。推荐 `n_trials=8~16`。
+**适用场景：** 逻辑交互图接近全连接的稠密线路（QAOA、全连接 ansatz），不同初始映射可显著影响 SWAP 数，推荐 `n_trials=8~16`。
+
+反过来，对交互图贴合芯片拓扑的线路（近邻 ansatz、级联 GHZ、QFT 等），`"trivial"` 起点往往已是最优，多试验只是白白增加耗时。
+
+!!! warning "n_trials > 1 会引入随机性"
+    因为第 1 次之后的试验强制使用随机初始映射，`n_trials > 1` 时结果不再确定。需要可复现就同时传 `seed`：
+
+    ```python
+    routed = SabreRouting(subgraph, n_trials=16, seed=0).run(qc)
+    ```
 
 ---
 

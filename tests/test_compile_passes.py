@@ -1564,9 +1564,11 @@ def test_routing_constrained_topology_forces_swaps():
 
 
 def test_n_trials_reduces_swaps_on_hard_circuit():
-    """More trials should never produce more swaps than a single trial."""
-    import random
+    """More trials should never produce more swaps than a single trial.
 
+    The router owns a private RNG, so the seed is passed explicitly rather than
+    via the global ``random`` module state.
+    """
     g = _make_line_graph(7)
     qc = QuantumCircuit(7, 7)
     pairs = [(0, 6), (1, 5), (2, 4), (0, 3), (1, 6), (2, 5)]
@@ -1574,13 +1576,13 @@ def test_n_trials_reduces_swaps_on_hard_circuit():
         qc.cx(a, b)
     qc.measure(list(range(7)), list(range(7)))
     for seed in range(3):
-        random.seed(seed)
         single = SabreRouting(
-            g, iterations=5, n_trials=1, do_random_choice=True, initial_mapping="random"
+            g, iterations=5, n_trials=1, do_random_choice=True,
+            initial_mapping="random", seed=seed,
         ).run(qc)
-        random.seed(seed)
         multi = SabreRouting(
-            g, iterations=5, n_trials=12, do_random_choice=True, initial_mapping="random"
+            g, iterations=5, n_trials=12, do_random_choice=True,
+            initial_mapping="random", seed=seed,
         ).run(qc)
         s_single = sum(1 for gate in single.gates if gate[0] == "swap")
         s_multi = sum(1 for gate in multi.gates if gate[0] == "swap")

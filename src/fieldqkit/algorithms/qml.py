@@ -22,6 +22,7 @@ from __future__ import annotations
 import logging
 from typing import (
     Callable,
+    Dict,
     List,
     Optional,
     Sequence,
@@ -284,6 +285,7 @@ def run_pqc_classifier(
     target_qubits: Optional[Sequence[int]] = None,
     qasm_version: str = "2.0",
     convert_single_qubit_gate_to_u: bool = True,
+    transpile_options: Optional[Dict[str, object]] = None,
 ) -> QMLResult:
     """Train a parameterized quantum classifier.
 
@@ -320,6 +322,10 @@ def run_pqc_classifier(
         qasm_version: OpenQASM serialisation version (parameter-shift only).
         convert_single_qubit_gate_to_u: Whether to convert single-qubit gates
             to ``U`` during transpilation.
+        transpile_options: Extra keyword arguments forwarded to
+            ``QuantumHardwareClient._transpile_with_backend`` — e.g.
+            ``{"routing_initial_mapping": "trivial", "seed": 0}``.  Defaults to
+            ``None``.
 
     Returns:
         ``QMLResult`` with loss history and accuracy.
@@ -418,6 +424,7 @@ def run_pqc_classifier(
                 full_symbolic_template, backend, target_qubits=target_qubits,
                 use_dd=False, use_gate_compressor=False,
                 convert_single_qubit_gate_to_u=convert_single_qubit_gate_to_u,
+                **(transpile_options or {}),
             )
             target_qubits_in_use = client._ordered_target_qubits_from_layout(
                 compiled_qc=transpiled_template,
@@ -730,6 +737,7 @@ def run_qnn_unsupervised(
     mmd_sigma: float = 1.0,
     # --- generation ---
     gen_shots: int = 1024,
+    transpile_options: Optional[Dict[str, object]] = None,
 ) -> QBMResult:
     """Train a QNN to learn the probability distribution behind given samples.
 
@@ -766,6 +774,10 @@ def run_qnn_unsupervised(
             to ``U`` during transpilation.
         mmd_sigma: RBF kernel bandwidth for MMD (parameter-shift only).
         gen_shots: Number of shots for sample generation at the end.
+        transpile_options: Extra keyword arguments forwarded to
+            ``QuantumHardwareClient._transpile_with_backend`` — e.g.
+            ``{"routing_initial_mapping": "trivial", "seed": 0}``.  Defaults to
+            ``None``.
 
     Returns:
         ``QBMResult`` with loss history and generated samples
@@ -826,6 +838,7 @@ def run_qnn_unsupervised(
                 ansatz_qc, backend, target_qubits=target_qubits,
                 use_dd=False, use_gate_compressor=False,
                 convert_single_qubit_gate_to_u=convert_single_qubit_gate_to_u,
+                **(transpile_options or {}),
             )
             target_qubits_in_use = client._ordered_target_qubits_from_layout(
                 compiled_qc=transpiled_template,
@@ -1019,6 +1032,7 @@ def run_qnn_conditional(
     mmd_sigma: float = 1.0,
     # --- generation ---
     gen_shots: int = 1024,
+    transpile_options: Optional[Dict[str, object]] = None,
 ) -> QBMResult:
     """Train a QNN to learn the conditional distribution P(y|x).
 
@@ -1060,6 +1074,10 @@ def run_qnn_conditional(
             to ``U`` during transpilation.
         mmd_sigma: RBF kernel bandwidth for MMD (parameter-shift only).
         gen_shots: Number of shots for sample generation at the end.
+        transpile_options: Extra keyword arguments forwarded to
+            ``QuantumHardwareClient._transpile_with_backend`` — e.g.
+            ``{"routing_initial_mapping": "trivial", "seed": 0}``.  Defaults to
+            ``None``.
 
     Returns:
         ``QBMResult`` with loss history and generated samples.  The
@@ -1130,6 +1148,7 @@ def run_qnn_conditional(
                 ansatz_qc, backend, target_qubits=target_qubits,
                 use_dd=False, use_gate_compressor=False,
                 convert_single_qubit_gate_to_u=convert_single_qubit_gate_to_u,
+                **(transpile_options or {}),
             )
             target_qubits_in_use = client._ordered_target_qubits_from_layout(
                 compiled_qc=transpiled_ansatz,

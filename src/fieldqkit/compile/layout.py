@@ -51,12 +51,20 @@ logger = logging.getLogger(__name__)
 class Layout:
     """Responsible for selecting suitable qubit layouts from a given chip for a quantum circuit."""
 
-    def __init__(self, chip_backend: Backend):
+    def __init__(self, chip_backend: Backend, seed: int | None = None):
         """Initialize the layout selector with hardware graph, fidelity thresholds, and parallelism settings.
 
         Args:
             chip_backend (Backend): The backend providing hardware connectivity and fidelity data.
+            seed (int | None): Seed for this instance's private random generator. Randomness is used
+                only by the BFS-expansion layout path (circuits wider than
+                ``algorithm_switch_threshold`` qubits), which picks a random start node. The
+                generator is local, so layout selection neither depends on nor advances the global
+                NumPy random state. Defaults to ``None``.
         """
+        # Private RNG: see `seed` above — keeps layout selection out of the global NumPy state.
+        self.seed = seed
+        self._rng = np.random.default_rng(seed)
         self.priority_qubits = chip_backend.priority_qubits
         self.graph = chip_backend.edge_filtered_graph(thres=0.6)
         self.fidelity_mean_threshold = 0.9
@@ -531,7 +539,7 @@ Lower is better.
             raise ValueError(
                 f"The user circuit requires {nqubits} qubits exceeds the qubit capacity of the largest connected subgraph."
             )
-        start_node = np.random.choice(list(one_subgraph.nodes))
+        start_node = int(self._rng.choice(list(one_subgraph.nodes)))
 
         visited = set([start_node])
         queue = [(start_node, 0)]

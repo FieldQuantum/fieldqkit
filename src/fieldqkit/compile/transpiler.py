@@ -73,10 +73,11 @@ class Transpiler:
         use_sabre_routing: bool = True,
         use_translate_to_basis: bool = True,
         use_gate_compressor: bool = True,
-        routing_initial_mapping: str = "random",
-        routing_random_choice: bool = True,
+        routing_initial_mapping: str | list = "trivial",
+        routing_random_choice: bool = False,
         noise_aware: bool | None = None,
         routing_n_trials: int = 1,
+        seed: int | None = None,
     ):
         """Execute the full transpilation pipeline on a quantum circuit.
 
@@ -89,10 +90,11 @@ class Transpiler:
             use_sabre_routing (*bool*): Whether to run SABRE routing for qubit connectivity mapping. Defaults to ``True``.
             use_translate_to_basis (*bool*): Whether to translate gates to the backend's native basis gate set. Defaults to ``True``.
             use_gate_compressor (*bool*): Whether to compress adjacent compatible gates. Defaults to ``True``.
-            routing_initial_mapping (*str*): Initial qubit mapping strategy: ``'trivial'``, ``'random'``, or an explicit list. Defaults to ``'random'``.
-            routing_random_choice (*bool*): Whether to randomly select among equally-scored SWAP candidates. Defaults to ``True``.
+            routing_initial_mapping (*str | list*): Initial qubit mapping strategy: ``'trivial'`` (logical *i* → the *i*-th selected physical qubit), ``'random'``, or an explicit list. Defaults to ``'trivial'``, which is deterministic and, for circuits whose interaction graph matches the chip topology (nearest-neighbour ansätze, cascaded GHZ, …), usually needs far fewer SWAPs than a random start. Note: when the circuit can be split along qubits (``split_qubits`` returns multiple groups), ``'random'`` is downgraded to ``'trivial'`` with a ``logger.warning``.
+            routing_random_choice (*bool*): Whether to break ties randomly among equally-scored SWAP candidates. ``False`` (default) takes the first candidate, which is deterministic.
             noise_aware (*bool | None*): Whether to use noise-aware strategies. Defaults to ``None``.
-            routing_n_trials (*int*): Number of independent SABRE trials to run, keeping the best result. Defaults to ``1``.
+            routing_n_trials (*int*): Number of independent SABRE trials to run, keeping the best result. Trial 0 uses *routing_initial_mapping*; later trials always use a random mapping, so ``> 1`` reintroduces randomness unless *seed* is set. Defaults to ``1``.
+            seed (*int | None*): Seed for the layout and routing passes' private random generators. With the default settings transpilation is already deterministic; set this when enabling ``routing_n_trials > 1``, ``routing_initial_mapping='random'`` or ``routing_random_choice=True`` and you still need reproducible output. Passes never read or advance the global ``random`` / ``numpy.random`` state. Defaults to ``None``.
 
         Returns:
             *QuantumCircuit*: The transpiled quantum circuit ready for hardware execution.
@@ -135,7 +137,7 @@ class Transpiler:
             # Use the backend's basis and topology-aware layout selection.
             self.two_qubit_gate_basis = self.chip_backend.two_qubit_gate_basis
             self.convert_single_qubit_gate_to_u = True if self._convert_single_qubit_gate_to_u_override is None else self._convert_single_qubit_gate_to_u_override
-            subgraph = Layout(self.chip_backend).select_layout(
+            subgraph = Layout(self.chip_backend, seed=seed).select_layout(
                 qc,
                 target_qubits=target_qubits,
                 use_chip_priority=True,
@@ -174,6 +176,7 @@ class Transpiler:
                     iterations=niter,
                     noise_aware=noise_aware,
                     n_trials=routing_n_trials,
+                    seed=seed,
                 )
             )
         if use_translate_to_basis:

@@ -13,7 +13,7 @@
 
 ```python
 class Layout:
-    def __init__(self, chip_backend: Backend)
+    def __init__(self, chip_backend: Backend, seed: int | None = None)
 ```
 
 **参数：**
@@ -21,6 +21,7 @@ class Layout:
 | 参数 | 类型 | 说明 |
 |---|---|---|
 | `chip_backend` | `Backend` | 硬件后端对象，提供芯片拓扑图和校准信息。 |
+| `seed` | `int \| None` | 本实例私有随机数生成器的种子。仅 BFS 扩展路径（比特数 > `algorithm_switch_threshold`，默认 10）会用到随机数——它需要随机选一个起始节点。生成器是实例局部的，**不读取也不推进全局 `numpy.random` 状态**。默认 `None`。 |
 
 ---
 

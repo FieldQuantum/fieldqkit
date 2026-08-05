@@ -744,6 +744,7 @@ def build_compression_transform(
     tag: str = "compress",
     convert_single_qubit_gate_to_u: bool = True,
     transpile: bool = True,
+    transpile_options: Optional[Dict[str, object]] = None,
 ) -> dict:
     """Build a circuit compression transform callable and its associated templates.
 
@@ -775,6 +776,10 @@ def build_compression_transform(
         transpile: Whether to transpile the compressed template on the client
             side.  When ``False`` the template is used as-is and no layout
             mapping is performed.  Defaults to ``True``.
+        transpile_options: Extra keyword arguments forwarded to
+            ``QuantumHardwareClient._transpile_with_backend`` — e.g.
+            ``{"routing_initial_mapping": "trivial", "seed": 0}``.  Defaults to
+            ``None``.
 
     Returns:
         Dict with keys:
@@ -800,6 +805,7 @@ def build_compression_transform(
             compressed_symbolic_qc, backend,
             target_qubits=target_qubits, use_dd=use_dd, use_gate_compressor=False,
             convert_single_qubit_gate_to_u=convert_single_qubit_gate_to_u,
+            **(transpile_options or {}),
         )
         target_qubits_in_use = client._ordered_target_qubits_from_layout(
             compiled_qc=compressed_transpiled_template,

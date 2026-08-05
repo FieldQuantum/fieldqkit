@@ -94,6 +94,7 @@ class SabreRouting(TranspilerPass):
         max_extended_set_weight: float = 0.5,
         noise_aware: bool = False,
         n_trials: int = 1,
+        seed: int | None = None,
     ):
         """Initialize the SABRE router with coupling topology, distance matrices, heuristic parameters, and mapping strategy.
 
@@ -106,6 +107,10 @@ class SabreRouting(TranspilerPass):
             max_extended_set_weight (*float*): Weight factor for the extended successor set in lookahead scoring. Defaults to ``0.5``.
             noise_aware (*bool*): Whether to use noise-aware strategies. Defaults to ``False``.
             n_trials (*int*): Number of independent routing trials (best result kept). Defaults to ``1``.
+            seed (*int | None*): Seed for this pass's private random generator. Randomness is used
+                only by ``initial_mapping='random'``, ``do_random_choice=True`` and ``n_trials > 1``;
+                pass an int to make those reproducible. The generator is local to the instance, so
+                routing neither depends on nor perturbs the global ``random`` state. Defaults to ``None``.
         """
         super().__init__()
         self.coupling_graph = subgraph
@@ -137,6 +142,10 @@ class SabreRouting(TranspilerPass):
         self.physical_qubits_index = dict(zip(list(subgraph.nodes), range(len(subgraph.nodes))))
         self.initial_mapping = initial_mapping
         self.do_random_choice = do_random_choice
+        # Private RNG: keeps routing reproducible under `seed` without reading from
+        # or advancing the global `random` state (which callers may seed themselves).
+        self.seed = seed
+        self._rng = random.Random(seed)
         if isinstance(iterations, bool) or not isinstance(iterations, int) or iterations < 1 or iterations % 2 == 0:
             raise ValueError(
                 f"iterations must be a positive odd integer, got {iterations!r}."
@@ -235,7 +244,7 @@ class SabreRouting(TranspilerPass):
             if self.initial_mapping == "trivial":
                 v2p = dict(zip(virtual_qubits, self.physical_qubits))
             elif self.initial_mapping == "random":
-                shuffle_physical_qubits = random.sample(self.physical_qubits, len(self.physical_qubits))
+                shuffle_physical_qubits = self._rng.sample(self.physical_qubits, len(self.physical_qubits))
                 v2p = dict(zip(virtual_qubits, shuffle_physical_qubits))
             else:
                 raise ValueError(f"There is a spelling error in the input of initial_mapping {self.initial_mapping}.")
@@ -583,7 +592,7 @@ class SabreRouting(TranspilerPass):
                 best_swap = [swap for swap, score in swap_heuristic_score.items() if score == min_score]
                 if len(best_swap) > 1:
                     if self.do_random_choice:
-                        min_score_swap_gate_info = random.choice(best_swap)
+                        min_score_swap_gate_info = self._rng.choice(best_swap)
                     else:
                         min_score_swap_gate_info = best_swap[0]
                 else:

@@ -176,16 +176,35 @@ def _transpile_with_backend(
     use_translate_to_basis=True, use_gate_compressor=True,
     noise_aware=None, routing_n_trials=1,
     convert_single_qubit_gate_to_u=None,
+    niter=5, routing_initial_mapping="trivial",
+    routing_random_choice=False, seed=None,
+    **transpiler_kwargs,
 ) -> QuantumCircuit
 ```
 
 | 参数 | 类型 | 默认值 | 说明 |
 |---|---|---:|---|
 | `noise_aware` | `bool \| None` | `None` | 路由时使用保真度加权距离矩阵。 |
-| `routing_n_trials` | `int` | `1` | SABRE 多随机初始映射试验数。 |
+| `routing_n_trials` | `int` | `1` | SABRE 多起点重启次数，取 SWAP 最少者。第 1 次之后强制随机起点，故 >1 需配 `seed` 才可复现。 |
 | `use_gate_compressor` | `bool` | `True` | 是否启用门压缩（含两比特门对消除）。 |
 | `use_dd` | `bool` | `True` | 是否启用动力学去耦。 |
 | `convert_single_qubit_gate_to_u` | `bool \| None` | `None` | 是否将单比特门转换为 U 门；`None` 时由 Transpiler 自动推断。 |
+| `niter` | `int` | `5` | SABRE 前后向迭代次数，用于精炼初始映射。必须为正奇数。 |
+| `routing_initial_mapping` | `str \| Sequence[int]` | `"trivial"` | 初始映射策略：`"trivial"`、`"random"` 或显式列表。默认确定性。 |
+| `routing_random_choice` | `bool` | `False` | SWAP 打分并列时是否随机打破平局。默认确定性。 |
+| `seed` | `int \| None` | `None` | Layout / 路由私有生成器的种子。仅在显式开启随机性时需要；全局 `random` / `numpy.random` 状态不受影响。 |
+| `**transpiler_kwargs` | — | — | 原样透传给 `Transpiler.run` 的其余关键字参数。 |
+
+!!! note "算法层透传"
+    `run_vqe_with_backend` / `run_qaoa_with_backend` / `run_pqc_classifier` /
+    `run_qnn_unsupervised` / `run_qnn_conditional` / `build_compression_transform`
+    均接受 `transpile_options: dict`，内容会原样转发到这里：
+
+    ```python
+    run_vqe_with_backend(
+        client, ..., transpile_options={"routing_n_trials": 10, "seed": 0},
+    )
+    ```
 
 ### `_normalize_input_circuit(circuit, num_qubits, *, observables=None) -> QuantumCircuit`
 

@@ -345,6 +345,7 @@ def run_vqe_with_backend(
     convert_single_qubit_gate_to_u: bool = True,
     transpile: bool = True,
     submit_options: Optional[Dict[str, object]] = None,
+    transpile_options: Optional[Dict[str, object]] = None,
 ) -> VQEResult:
     """Run VQE optimization on a specific backend.
 
@@ -406,6 +407,11 @@ def run_vqe_with_backend(
             layout mapping is performed.  Defaults to ``True``.
         submit_options: Extra provider submission options (e.g.
             ``max_wait_time`` / ``sleep_time``) forwarded to the task adapter.
+        transpile_options: Extra keyword arguments forwarded to
+            ``QuantumHardwareClient._transpile_with_backend`` — e.g.
+            ``{"routing_initial_mapping": "trivial", "routing_n_trials": 10,
+            "seed": 0}``.  Use it to tune or pin down routing.  Defaults to
+            ``None``.
 
     Returns:
         ``VQEResult`` with best energy, parameters, and full history.
@@ -482,6 +488,7 @@ def run_vqe_with_backend(
                     use_dd=use_dd,
                     use_gate_compressor=False,
                     convert_single_qubit_gate_to_u=convert_single_qubit_gate_to_u,
+                    **(transpile_options or {}),
                 )
                 gradient_param_template = transpiled_template
                 target_qubits_in_use = client._ordered_target_qubits_from_layout(
@@ -515,6 +522,7 @@ def run_vqe_with_backend(
                 tag="vqe",
                 convert_single_qubit_gate_to_u=convert_single_qubit_gate_to_u,
                 transpile=transpile,
+                transpile_options=transpile_options,
             )
             circuit_transform_fn = comp_ctx["transform"]
             compressed_transpiled_template = comp_ctx["compressed_transpiled_template"]

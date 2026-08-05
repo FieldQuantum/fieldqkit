@@ -191,6 +191,11 @@ class QuantumHardwareClient:
 		noise_aware: bool | None = None,
 		routing_n_trials: int = 1,
 		convert_single_qubit_gate_to_u: bool | None = None,
+		niter: int = 5,
+		routing_initial_mapping: str | Sequence[int] = "trivial",
+		routing_random_choice: bool = False,
+		seed: int | None = None,
+		**transpiler_kwargs,
 	) -> QuantumCircuit:
 		"""Transpile with a specific backend and optional target qubits.
 
@@ -204,13 +209,37 @@ class QuantumHardwareClient:
 			use_translate_to_basis (*bool*): Whether to convert gates to the hardware's native basis set. Defaults to ``True``.
 			use_gate_compressor (*bool*): Whether to merge consecutive single-qubit gates. Defaults to ``True``.
 			noise_aware (*bool | None*): Whether to use noise-aware strategies. Defaults to ``None``.
-			routing_n_trials (*int*): Number of independent routing attempts for optimal layout. Defaults to ``1``.
+			routing_n_trials (*int*): Number of independent routing attempts, keeping the fewest-SWAP result. Trials after the first always use a random initial mapping, so ``> 1`` makes output non-reproducible unless *seed* is set. Defaults to ``1``.
 			convert_single_qubit_gate_to_u (*bool | None*): Whether to convert single-qubit gates to U gates. Defaults to ``None``.
+			niter (*int*): SABRE forward/reverse iterations used to refine the initial mapping. Must be a positive odd integer. Defaults to ``5``.
+			routing_initial_mapping (*str | Sequence[int]*): Initial qubit mapping strategy: ``'trivial'``, ``'random'``, or an explicit list. Defaults to ``'trivial'`` (deterministic).
+			routing_random_choice (*bool*): Whether to break ties randomly among equally-scored SWAP candidates. Defaults to ``False`` (deterministic).
+			seed (*int | None*): Seed for the layout/routing passes' private generators. Only needed when randomness is explicitly enabled; the global ``random`` / ``numpy.random`` state is never touched. Defaults to ``None``.
+			**transpiler_kwargs: Extra keyword arguments forwarded verbatim to ``Transpiler.run``.
 
 		Returns:
 			Constructed ``QuantumCircuit``.
 		"""
-		return Transpiler(backend, convert_single_qubit_gate_to_u=convert_single_qubit_gate_to_u).run(qc, target_qubits=list(target_qubits) if target_qubits is not None else None, use_dd=use_dd, use_three_qubit_decompose=use_three_qubit_decompose, use_sabre_routing=use_sabre_routing, use_translate_to_basis=use_translate_to_basis, use_gate_compressor=use_gate_compressor, noise_aware=noise_aware, routing_n_trials=routing_n_trials)
+		return Transpiler(backend, convert_single_qubit_gate_to_u=convert_single_qubit_gate_to_u).run(
+			qc,
+			target_qubits=list(target_qubits) if target_qubits is not None else None,
+			niter=niter,
+			use_dd=use_dd,
+			use_three_qubit_decompose=use_three_qubit_decompose,
+			use_sabre_routing=use_sabre_routing,
+			use_translate_to_basis=use_translate_to_basis,
+			use_gate_compressor=use_gate_compressor,
+			routing_initial_mapping=(
+				routing_initial_mapping
+				if isinstance(routing_initial_mapping, str)
+				else list(routing_initial_mapping)
+			),
+			routing_random_choice=routing_random_choice,
+			noise_aware=noise_aware,
+			routing_n_trials=routing_n_trials,
+			seed=seed,
+			**transpiler_kwargs,
+		)
 
 	def _submit_openqasm_async(
 		self,
