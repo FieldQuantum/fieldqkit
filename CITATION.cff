@@ -15,7 +15,7 @@ authors:
 repository-code: "https://github.com/FieldQuantum/fieldqkit"
 url: "https://fieldquantum.github.io/fieldqkit/"
 license: Apache-2.0
-version: 0.1.1
+version: 0.1.2
 keywords:
   - quantum computing
   - quantum hardware
