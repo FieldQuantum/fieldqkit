@@ -53,6 +53,8 @@ fieldqkit-config-init --path ./my.yaml      # 或指定路径
 fieldqkit-config-init --force               # 覆盖已存在的文件
 ```
 
+如果目标路径是目录、没有写入权限或发生其他文件系统错误，命令会将错误信息写入标准错误（stderr），并以退出码 `1` 结束。
+
 也可以在 Python / Notebook 中调用：
 
 ```python

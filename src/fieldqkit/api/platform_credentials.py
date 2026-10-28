@@ -372,7 +372,8 @@ def _config_init_cli(argv: Optional[list[str]] = None) -> int:
     """Console entry point for ``fieldqkit-config-init``.
 
     Writes a credentials template (default ``~/.quantum_hw.yaml``) for the user
-    to fill in. Returns a process exit code.
+    to fill in. Reports file-system errors on stderr and returns exit code 1;
+    returns 0 on success.
     """
     import argparse
     import sys
@@ -393,7 +394,7 @@ def _config_init_cli(argv: Optional[list[str]] = None) -> int:
 
     try:
         target = write_example_config(args.path, force=args.force)
-    except FileExistsError as exc:
+    except OSError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
 

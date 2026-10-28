@@ -1,6 +1,7 @@
 """Tests for credential configuration: the config-scaffold helper / CLI and
 the per-user config discovery path used by pip-installed users."""
 
+import errno
 from pathlib import Path
 
 import pytest
@@ -88,6 +89,45 @@ class TestConfigInitCli:
         target = tmp_path / "out.yaml"
         assert pc._config_init_cli(["--path", str(target)]) == 0
         assert pc._config_init_cli(["--path", str(target), "--force"]) == 0
+
+    def test_cli_force_reports_directory_target(self, tmp_path, capsys):
+        target = tmp_path / "config-dir"
+        target.mkdir()
+        existing = target / "keep.txt"
+        existing.write_text("keep me", encoding="utf-8")
+
+        rc = pc._config_init_cli(["--path", str(target), "--force"])
+
+        captured = capsys.readouterr()
+        assert rc == 1
+        assert captured.out == ""
+        assert captured.err.startswith("error: ")
+        assert str(target) in captured.err
+        assert existing.read_text(encoding="utf-8") == "keep me"
+
+    @pytest.mark.parametrize(
+        "error",
+        [
+            PermissionError(errno.EACCES, "Permission denied"),
+            OSError(errno.ENOSPC, "No space left on device"),
+        ],
+        ids=["permission-denied", "disk-full"],
+    )
+    def test_cli_reports_write_errors(self, tmp_path, monkeypatch, capsys, error):
+        target = tmp_path / "out.yaml"
+
+        def fail_write(*args, **kwargs):
+            raise error
+
+        monkeypatch.setattr(Path, "write_text", fail_write)
+
+        rc = pc._config_init_cli(["--path", str(target)])
+
+        captured = capsys.readouterr()
+        assert rc == 1
+        assert captured.out == ""
+        assert captured.err.startswith("error: ")
+        assert str(error) in captured.err
 
 
 # ─────────────────────────────────────────────────────────────
