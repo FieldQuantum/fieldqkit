@@ -27,7 +27,9 @@ class TestWriteExampleConfig:
         assert written == target
         text = target.read_text(encoding="utf-8")
         assert "credentials:" in text
-        for platform in ("quafu", "tianyan", "guodun", "tencent", "origin", "fieldquantum"):
+        for platform in (
+            "quafu", "tianyan", "guodun", "tencent", "origin", "fieldquantum", "logicalqubit"
+        ):
             assert f"{platform}:" in text
 
     def test_template_is_valid_yaml_with_empty_tokens(self, tmp_path):
@@ -123,7 +125,8 @@ class TestUserConfigDiscovery:
         )
         monkeypatch.delenv("QUANTUM_HW_CONFIG", raising=False)
         for env in ("QUAFU_API_TOKEN", "TIANYAN_API_TOKEN", "GUODUN_API_TOKEN",
-                    "TENCENT_API_TOKEN", "ORIGIN_API_TOKEN", "FIELDQUANTUM_API_TOKEN"):
+                    "TENCENT_API_TOKEN", "ORIGIN_API_TOKEN", "FIELDQUANTUM_API_TOKEN",
+                    "LOGICALQUBIT_API_TOKEN"):
             monkeypatch.delenv(env, raising=False)
 
         (fake_home / ".quantum_hw.yaml").write_text(
@@ -144,7 +147,7 @@ class TestUserConfigDiscovery:
 #  Credential resolution: precedence, all platforms, boundaries
 # ─────────────────────────────────────────────────────────────
 
-# (getter, platform key, config section, env var) for all six platforms.
+# (getter, platform key, config section, env var) for all seven platforms.
 _PLATFORM_GETTERS = [
     (pc.get_quafu_api_token, "quafu", "quafu", "QUAFU_API_TOKEN"),
     (pc.get_tianyan_api_token, "tianyan", "tianyan", "TIANYAN_API_TOKEN"),
@@ -152,6 +155,7 @@ _PLATFORM_GETTERS = [
     (pc.get_tencent_api_token, "tencent", "tencent", "TENCENT_API_TOKEN"),
     (pc.get_origin_api_token, "origin", "origin", "ORIGIN_API_TOKEN"),
     (pc.get_fieldquantum_api_token, "fieldquantum", "fieldquantum", "FIELDQUANTUM_API_TOKEN"),
+    (pc.get_logicalqubit_api_token, "logicalqubit", "logicalqubit", "LOGICALQUBIT_API_TOKEN"),
 ]
 
 _ALL_ENV_VARS = [env for _, _, _, env in _PLATFORM_GETTERS]
