@@ -24,6 +24,8 @@
 - 作用：将计数字典展开成逐 shot 的二维样本数组。
 - 输出形状：`(nshots, num_qubits)`。
 - 位序：直接按 bitstring 原序映射到样本列，和本项目概率计算位序保持一致。
+- 输入要求：每个位串的长度必须等于 `num_qubits`，包括计数为 `0` 的项；长度不匹配时抛出 `ValueError`，提示实际长度和预期长度。
+- 空计数字典或仅包含合法零计数项时，返回形状为 `(0, num_qubits)` 的整数数组。
 
 ### `get_probabilities_from_samples(samples: np.ndarray, num_qubits: int) -> np.ndarray`
 
@@ -37,6 +39,7 @@
 
 - 作用：`counts -> samples -> probabilities` 的便捷封装。
 - 常用于从硬件/模拟器计数直接得到概率分布。
+- 与 `get_samples` 一样，位串长度不匹配时抛出 `ValueError`。
 
 ### `marginal_samples(samples: np.ndarray, support: Sequence[int]) -> np.ndarray`
 
@@ -55,6 +58,8 @@
 
 ## 常见报错
 
+- `ValueError("bitstring length 1 does not match num_qubits=2")`
+  - 例如将 `{"0": 2}` 传给 `get_samples` 或 `get_probabilities`，同时指定 `num_qubits=2`。
 - `ValueError("samples must be a 2D array with shape (nshots, num_qubits)")`
   - 触发于 `get_probabilities_from_samples` 输入形状不匹配。
 

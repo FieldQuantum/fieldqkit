@@ -16,6 +16,9 @@ def get_probabilities(result: Dict[str, int], num_qubits: int) -> np.ndarray:
 
 	Returns:
 		Probability vector of length ``2**num_qubits``.
+
+	Raises:
+		ValueError: If any bitstring length differs from ``num_qubits``.
 	"""
 	samples = get_samples(result, num_qubits)
 	return get_probabilities_from_samples(samples, num_qubits)
@@ -30,9 +33,17 @@ def get_samples(result: Dict[str, int], num_qubits: int) -> np.ndarray:
 
 	Returns:
 		2-D array of shape ``(total_shots, num_qubits)`` with 0/1 entries.
+
+	Raises:
+		ValueError: If any bitstring length differs from ``num_qubits``,
+			including entries with zero counts.
 	"""
 	samples = []
 	for key, count in result.items():
+		if len(key) != num_qubits:
+			raise ValueError(
+				f"bitstring length {len(key)} does not match num_qubits={num_qubits}"
+			)
 		bits = [int(b) for b in key]
 		# Expand to per-shot rows for downstream estimators.
 		samples.extend([bits] * count)

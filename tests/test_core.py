@@ -560,16 +560,40 @@ class TestZNE:
 
 class TestGetSamples:
     def test_basic(self):
-        result = {"00": 2, "11": 1}
+        result = {"01": 2, "10": 1}
         samples = get_samples(result, 2)
         assert samples.shape == (3, 2)
         assert samples.dtype == int
+        np.testing.assert_array_equal(samples, [[0, 1], [0, 1], [1, 0]])
 
     def test_single_bitstring(self):
         result = {"101": 4}
         samples = get_samples(result, 3)
         assert samples.shape == (4, 3)
         np.testing.assert_array_equal(samples[0], [1, 0, 1])
+
+    @pytest.mark.parametrize(
+        "result, actual_length",
+        [
+            pytest.param({"0": 2}, 1, id="short-bitstring"),
+            pytest.param({"001": 2}, 3, id="long-bitstring"),
+            pytest.param({"": 1}, 0, id="empty-bitstring"),
+            pytest.param({"00": 1, "1": 1}, 1, id="mixed-widths"),
+            pytest.param({"0": 0}, 1, id="zero-count-invalid-width"),
+        ],
+    )
+    def test_invalid_bitstring_length_raises(self, result, actual_length):
+        with pytest.raises(
+            ValueError,
+            match=rf"bitstring length {actual_length} does not match num_qubits=2",
+        ):
+            get_samples(result, 2)
+
+    @pytest.mark.parametrize("result", [{}, {"01": 0}], ids=["empty", "zero-count"])
+    def test_no_samples_preserves_shape(self, result):
+        samples = get_samples(result, 2)
+        assert samples.shape == (0, 2)
+        assert samples.dtype == int
 
 
 class TestGetProbabilities:
@@ -582,6 +606,11 @@ class TestGetProbabilities:
         result = {"10": 100}
         probs = get_probabilities(result, 2)
         assert probs[2] == pytest.approx(1.0)  # "10" = index 2
+
+    @pytest.mark.parametrize("result", [{"0": 2}, {"001": 2}], ids=["short", "long"])
+    def test_invalid_bitstring_length_raises(self, result):
+        with pytest.raises(ValueError, match="bitstring length .* num_qubits=2"):
+            get_probabilities(result, 2)
 
 
 class TestGetProbabilitiesFromSamples:
