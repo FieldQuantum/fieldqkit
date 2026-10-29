@@ -1025,3 +1025,66 @@ class TestResultTypesAppended:
         r = QBMResult(best_loss=0.5, best_params=[0.0], loss_history=[0.9, 0.5])
         assert r.generated_samples is None
         assert r.test_loss_history is None
+
+
+class TestNumpyQubitIndices:
+    @pytest.mark.parametrize(
+        "indices, expected",
+        [
+            pytest.param([0], [[0], [1], [1]], id="qubit-zero"),
+            pytest.param([2, 0], [[1, 0], [0, 1], [1, 1]], id="multiple-qubits"),
+            pytest.param([], [[], [], []], id="empty"),
+        ],
+    )
+    def test_marginal_samples(self, indices, expected):
+        samples = np.array([[0, 1, 1], [1, 0, 0], [1, 1, 1]])
+        result = marginal_samples(samples, np.array(indices, dtype=int))
+        np.testing.assert_array_equal(result, np.array(expected, dtype=int))
+
+    @pytest.mark.parametrize(
+        "indices, probabilities, expected",
+        [
+            pytest.param([0], [0.7, 0.3], 0.4, id="qubit-zero"),
+            pytest.param([0, 1], [0.6, 0.1, 0.1, 0.2], 0.6, id="multiple-qubits"),
+            pytest.param([], [1.0], 1.0, id="empty"),
+        ],
+    )
+    def test_expectation_from_probabilities(self, indices, probabilities, expected):
+        value = expectation_from_probabilities(
+            np.array(probabilities), np.array(indices, dtype=int)
+        )
+        assert value == pytest.approx(expected)
+
+    @pytest.mark.parametrize("indices", [[0], [2, 0]], ids=["qubit-zero", "multiple-qubits"])
+    def test_build_local_confusion_matrix(self, indices):
+        m0 = np.array([[0.9, 0.1], [0.2, 0.8]])
+        m2 = np.array([[0.7, 0.3], [0.4, 0.6]])
+        result = build_local_confusion_matrix({0: m0, 2: m2}, np.array(indices))
+        expected = m0 if len(indices) == 1 else np.kron(m2, m0)
+        np.testing.assert_array_almost_equal(result, expected)
+
+    def test_build_local_confusion_matrix_empty_raises(self):
+        with pytest.raises(ValueError, match="target_qubits is empty"):
+            build_local_confusion_matrix({}, np.array([], dtype=int))
+
+    @pytest.mark.parametrize("threshold", [0, 10], ids=["unbiased", "marginal"])
+    @pytest.mark.parametrize(
+        "indices, expected",
+        [
+            pytest.param([0], -1 / 3, id="qubit-zero"),
+            pytest.param([0, 1], 1 / 3, id="multiple-qubits"),
+            pytest.param([], 1.0, id="empty"),
+        ],
+    )
+    def test_mitigate_observable_from_samples(self, indices, expected, threshold):
+        samples = np.array([[0, 0], [1, 0], [1, 1]])
+        # Perfect readout leaves the directly counted Z-parity unchanged.
+        per_qubit = {3: np.eye(2), 5: np.eye(2)}
+        value = mitigate_observable_from_samples(
+            samples,
+            np.array(indices, dtype=int),
+            per_qubit,
+            [3, 5],
+            marginal_max_support=threshold,
+        )
+        assert value == pytest.approx(expected)

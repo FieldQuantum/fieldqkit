@@ -9,12 +9,16 @@ from .utils import expectation_from_probabilities, get_local_probabilities_from_
 
 
 
-def build_local_confusion_matrix(per_qubit_confusion: Dict[int, np.ndarray], target_qubits: Sequence[int]) -> np.ndarray:
+def build_local_confusion_matrix(
+	per_qubit_confusion: Dict[int, np.ndarray], target_qubits: Sequence[int] | np.ndarray
+) -> np.ndarray:
 	"""Tensor product local per-qubit confusion matrices.
 
 	Args:
 		per_qubit_confusion (*Dict[int, np.ndarray]*): Mapping from qubit index to its 2×2 confusion matrix.
-		target_qubits (*Sequence[int]*): Qubit indices whose per-qubit confusion matrices will be tensored together.
+		target_qubits (*Sequence[int] | np.ndarray*): Qubit indices whose per-qubit
+			confusion matrices will be tensored together, as a sequence or a
+			one-dimensional integer array.
 
 	Returns:
 		Kronecker product confusion matrix of shape ``(2^k, 2^k)``.
@@ -22,7 +26,7 @@ def build_local_confusion_matrix(per_qubit_confusion: Dict[int, np.ndarray], tar
 	Raises:
 		ValueError: target_qubits is empty
 	"""
-	if not target_qubits:
+	if len(target_qubits) == 0:
 		raise ValueError("target_qubits is empty")
 	mats = [per_qubit_confusion[q] for q in target_qubits]
 	out = mats[0]
@@ -108,7 +112,7 @@ def expectation_from_samples_unbiased(local_samples: np.ndarray, local_confusion
 
 def mitigate_observable_from_samples(
 	samples: np.ndarray,
-	support: Sequence[int],
+	support: Sequence[int] | np.ndarray,
 	per_qubit: Dict[int, np.ndarray],
 	target_qubits_group: Sequence[int],
 	marginal_max_support: int = 10,
@@ -117,7 +121,9 @@ def mitigate_observable_from_samples(
 
 	Args:
 		samples (*np.ndarray*): Measurement samples.
-		support (*Sequence[int]*): Logical qubit indices (relative to measurement group) of non-identity Pauli terms.
+		support (*Sequence[int] | np.ndarray*): Logical qubit indices (relative to
+			measurement group) of non-identity Pauli terms, as a sequence or a
+			one-dimensional integer array.
 		per_qubit (*Dict[int, np.ndarray]*): Per-qubit 2×2 confusion matrices.
 		target_qubits_group (*Sequence[int]*): Physical qubit indices corresponding to the measurement group.
 		marginal_max_support (*int*): Maximum support size for exact marginal mitigation; larger supports use the unbiased estimator. Defaults to ``10``.
@@ -125,7 +131,7 @@ def mitigate_observable_from_samples(
 	Returns:
 		Readout-mitigated expectation value for the observable.
 	"""
-	if not support:
+	if len(support) == 0:
 		return 1.0
 	support_phys = [target_qubits_group[i] for i in support]
 	if len(support) <= marginal_max_support:

@@ -65,17 +65,20 @@ def get_probabilities_from_samples(samples: np.ndarray, num_qubits: int) -> np.n
 	return counts / total
 
 
-def marginal_samples(samples: np.ndarray, support: Sequence[int]) -> np.ndarray:
+def marginal_samples(
+	samples: np.ndarray, support: Sequence[int] | np.ndarray
+) -> np.ndarray:
 	"""Extract marginal samples on a subset of qubits.
 
 	Args:
 		samples (*np.ndarray*): 2-D array of shape ``(nshots, num_qubits)`` with 0/1 entries.
-		support (*Sequence[int]*): Qubit column indices to extract.
+		support (*Sequence[int] | np.ndarray*): Qubit column indices to extract,
+			as a sequence or a one-dimensional integer array.
 
 	Returns:
 		2-D NumPy array of shape ``(nshots, len(support))``.
 	"""
-	if not support:
+	if len(support) == 0:
 		return np.zeros((samples.shape[0], 0), dtype=int)
 	return samples[:, support]
 
@@ -97,17 +100,20 @@ def get_local_probabilities_from_samples(samples: np.ndarray, support: Sequence[
 	return get_probabilities_from_samples(local_samples, len(support))
 
 
-def expectation_from_probabilities(probabilities: np.ndarray, support: Sequence[int]) -> float:
+def expectation_from_probabilities(
+	probabilities: np.ndarray, support: Sequence[int] | np.ndarray
+) -> float:
 	"""Compute Z-basis expectation value from probabilities.
 
 	Args:
 		probabilities (*np.ndarray*): 1-D probability vector of length ``2**num_qubits``.
-		support (*Sequence[int]*): Qubit dimension indices over which to compute Z-parity expectation.
+		support (*Sequence[int] | np.ndarray*): Qubit dimension indices over which
+			to compute Z-parity expectation, as a sequence or a one-dimensional integer array.
 
 	Returns:
 		Z-parity expectation value in ``[-1, 1]``.
 	"""
-	if not support:
+	if len(support) == 0:
 		return 1.0
 	num = len(support)
 	probs = probabilities.reshape([2] * num)

@@ -38,9 +38,10 @@
 - 作用：`counts -> samples -> probabilities` 的便捷封装。
 - 常用于从硬件/模拟器计数直接得到概率分布。
 
-### `marginal_samples(samples: np.ndarray, support: Sequence[int]) -> np.ndarray`
+### `marginal_samples(samples: np.ndarray, support: Sequence[int] | np.ndarray) -> np.ndarray`
 
 - 作用：从全量样本抽取 support 子集列。
+- `support` 可使用列表、元组或一维整型 NumPy 数组；例如 `np.array([0])` 表示提取第 `0` 列。
 - 特殊情况：`support` 为空时返回形状 `(nshots, 0)` 的空列数组。
 
 ### `get_local_probabilities_from_samples(samples: np.ndarray, support: Sequence[int]) -> np.ndarray`
@@ -48,9 +49,10 @@
 - 作用：计算 support 上的边缘概率向量。
 - 特殊情况：`support` 为空时返回 `np.array([1.0])`。
 
-### `expectation_from_probabilities(probabilities: np.ndarray, support: Sequence[int]) -> float`
+### `expectation_from_probabilities(probabilities: np.ndarray, support: Sequence[int] | np.ndarray) -> float`
 
 - 作用：从 Z 基概率分布计算 support 上 parity 期望值。
+- `support` 可使用列表、元组或一维整型 NumPy 数组；空选择返回 `1.0`，`np.array([0])` 则按单比特概率计算。
 - 常用于 readout 缓解后，从边缘概率直接得到 observable 期望。
 
 ## 常见报错

@@ -17,6 +17,7 @@
 
 - 作用：对目标比特的单比特 confusion matrix 做 Kronecker 张量积，构造多比特局部 confusion matrix。
 - 要求：`target_qubits` 不能为空。
+- `target_qubits` 可使用列表、元组或一维整型 NumPy 数组；空数组同样抛出 `ValueError("target_qubits is empty")`。
 
 ### `mitigate_readout(probabilities, confusion_matrix) -> np.ndarray`
 
@@ -35,6 +36,7 @@
 ### `mitigate_observable_from_samples(samples, support, per_qubit, target_qubits_group, marginal_max_support=10) -> float`
 
 - 作用：对 observable 做读出缓解的“自适应入口”。
+- `support` 可使用列表、元组或一维整型 NumPy 数组；空选择返回 `1.0`，数组中的编号 `0` 表示第 `0` 个量子比特。
 - 策略：
 	- 当 `|support| <= marginal_max_support`：走边缘概率路径（先构造局部概率，再缓解，再算期望）。
 	- 当 `|support| > marginal_max_support`：走无偏样本估计路径。
