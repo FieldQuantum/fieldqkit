@@ -404,6 +404,49 @@ class TestApplyMeasurementBasisRotations:
         with pytest.raises(ValueError, match="does not match"):
             append_measurement_basis(qc, ["X", "Y"], target_qubits=[0, 1, 2])
 
+    @pytest.mark.parametrize(
+        "helper", [apply_measurement_basis_rotations, append_measurement_basis]
+    )
+    @pytest.mark.parametrize(
+        "basis_pattern",
+        [
+            pytest.param(["X", "Y", "Q"], id="invalid-last"),
+            pytest.param(["I", "X", "Q"], id="identity-prefix"),
+            pytest.param(["Y", "Q", "Z"], id="invalid-middle"),
+        ],
+    )
+    def test_invalid_basis_preserves_circuit(self, helper, basis_pattern):
+        from fieldqkit.circuit import QuantumCircuit
+
+        qc = QuantumCircuit(3)
+        qc.x(1)
+        original_gates = list(qc.gates)
+        original_qubits = list(qc.qubits)
+
+        with pytest.raises(ValueError, match="unsupported basis op: Q"):
+            helper(qc, basis_pattern, target_qubits=[2, 0, 1])
+
+        assert qc.gates == original_gates
+        assert qc.qubits == original_qubits
+
+    @pytest.mark.parametrize(
+        "helper", [apply_measurement_basis_rotations, append_measurement_basis]
+    )
+    def test_valid_basis_preserves_gate_order_and_mapping(self, helper):
+        from fieldqkit.circuit import QuantumCircuit
+
+        qc = QuantumCircuit(4)
+        qc.x(0)
+        helper(qc, ["I", "Y", "X", "Z"], target_qubits=[3, 1, 2, 0])
+
+        expected = [("x", 0), ("sdg", 1), ("h", 1), ("h", 2)]
+        if helper is append_measurement_basis:
+            expected.extend([
+                ("barrier", (0, 1, 2)),
+                ("measure", [3, 1, 2, 0], [0, 1, 2, 3]),
+            ])
+        assert qc.gates == expected
+
 
 # ═══════════════════════════════════════════════════════════
 #  Readout mitigation

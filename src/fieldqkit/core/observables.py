@@ -116,6 +116,8 @@ def pauli_basis_pattern(pauli: str, num_qubits: int) -> List[str]:
 def apply_measurement_basis_rotations(qc, basis_pattern: Sequence[str], target_qubits: Optional[Sequence[int]] = None) -> None:
 	"""Apply only basis rotations for a full I/X/Y/Z pattern.
 
+	All basis labels are validated before any gates are added to ``qc``.
+
 	Args:
 		qc: Quantum circuit.
 		basis_pattern (*Sequence[str]*): Per-qubit measurement basis labels, e.g. ``['X', 'Z', 'Y']``.
@@ -132,16 +134,22 @@ def apply_measurement_basis_rotations(qc, basis_pattern: Sequence[str], target_q
 			f"target_qubits length ({len(target_qubits)}) does not match "
 			f"basis_pattern length ({len(basis_pattern)})"
 		)
-	for idx, op in zip(target_qubits, basis_pattern):
+	# Reject unsupported labels before modifying the caller's circuit.
+	rotation_ops = []
+	for op in basis_pattern:
 		ops = _BASIS_ROTATION_OPS.get(op)
 		if ops is None:
 			raise ValueError(f"unsupported basis op: {op}")
+		rotation_ops.append(ops)
+	for idx, ops in zip(target_qubits, rotation_ops):
 		for gate_op in ops:
 			getattr(qc, gate_op)(idx)
 
 
 def append_measurement_basis(qc, basis_pattern: Sequence[str], target_qubits: Optional[Sequence[int]] = None) -> None:
 	"""Apply basis rotations for a full pattern and append measurements.
+
+	Unsupported basis labels are rejected before the circuit is modified.
 
 	Args:
 		qc: Quantum circuit.

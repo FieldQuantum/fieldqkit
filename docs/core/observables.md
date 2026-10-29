@@ -42,12 +42,18 @@
 - 作用：生成长度为 `num_qubits` 的测量基模式（元素为 `I/X/Y/Z`）。
 - 典型用于可观测量分组与测量基附加。
 
+### `apply_measurement_basis_rotations(qc, basis_pattern, target_qubits=None) -> None`
+
+- 作用：按 `I/X/Y/Z` 测量基添加旋转门，不追加测量。
+- 先检查全部测量基标签，再添加门；若任意标签不受支持，会抛出 `ValueError("unsupported basis op: ...")`，原线路的门和比特记录保持不变。
+
 ### `append_measurement_basis(qc, basis_pattern: Sequence[str], target_qubits: Sequence[int] = None) -> None`
 
 - 作用：按给定基模式先做基变换，再追加测量。
 - 行为：
 	- `target_qubits=None` 时，优先使用 `qc.qubits`（保持线路内记录的 qubit 顺序）；若对象无 `qubits` 属性，再退化为 `range(len(basis_pattern))`。
 	- `target_qubits` 与 `basis_pattern` 长度必须一致，否则抛 `ValueError`。
+	- 全部测量基标签检查通过后才修改线路；不支持的标签会报错，且不会留下部分旋转门、barrier 或测量操作。
 	- 测量映射到紧凑经典位序：`qc.measure(target_qubits, range(len(target_qubits)))`。
 
 ### `group_observables(observables: Sequence[str], num_qubits: int) -> List[Dict[str, object]]`
