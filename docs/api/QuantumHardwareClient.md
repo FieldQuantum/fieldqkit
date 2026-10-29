@@ -74,6 +74,14 @@ run_auto(
 - `observable_values: Dict[str, float]`：处理后的可观测量期望值。
 - `observable_values_raw: Dict[str, float]`：原始期望值。
 
+## 空闲比特与部分测量
+
+- `num_qubits` 表示完整逻辑寄存器的大小，包括没有参与任何门操作的空闲比特；布局和默认全测量均保留这些位置。
+- 例如 `QuantumCircuit(3).x(0)` 默认测得三位 `100`，概率向量长度为 `8`，而不是只返回参与操作的第 `0` 位。观测值 `Z0` 为 `-1`、`Z2` 为 `+1`。
+- 上述规则同时适用于 `QuantumCircuit` 和声明寄存器的 OpenQASM 2.0 输入，以及启用/关闭本地编译的路径。
+- 若用户已经添加显式测量且没有提供 `observables`，仍保留原来的 qubit→cbit 映射和经典位输出宽度，不扩展为全测量。
+- 输入标准化在独立副本上完成，不向调用者线路添加门或修改其比特记录。
+
 ## 关键方法
 
 ### `build_circuit(kind, **kwargs) -> QuantumCircuit`
@@ -211,6 +219,7 @@ def _transpile_with_backend(
 - 作用：将输入标准化为 `QuantumCircuit`，并根据 `observables` 决定是否保留用户测量门。
 - 当 `observables` 不为空且线路已含 `measure` 门时：发出 warning 并移除已有测量（后续由 observable 基变换重新添加）。
 - 当 `observables` 为空或 `None` 时：保留用户指定的测量门不做修改。
+- 在返回的逻辑线路副本中保留 `range(num_qubits)` 全部比特供布局和默认测量使用，包括没有门操作的比特；不需要添加占位门。
 
 ### `_run_with_backend(...) -> RunResult`
 

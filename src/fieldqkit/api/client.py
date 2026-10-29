@@ -110,6 +110,8 @@ class QuantumHardwareClient:
 		measurements, a warning is emitted and the existing measurements are
 		removed so that the correct measurement bases can be appended later.
 		When no observables are given, existing measurements are preserved.
+		The copied logical circuit retains the entire declared register,
+		including qubits that do not occur in any gate.
 
 		Args:
 			circuit (*Union[str, QuantumCircuit]*): Quantum circuit to execute.
@@ -144,6 +146,9 @@ class QuantumHardwareClient:
 		if qc_qubits == 0 and num_qubits > 0:
 			qc.nqubits = num_qubits
 			qc.ncbits = max(int(getattr(qc, "ncbits", 0) or 0), num_qubits)
+		# Layout and automatic measurement must include idle logical qubits,
+		# not just the indices recorded by gate-building methods.
+		qc.qubits = list(range(num_qubits))
 		return qc
 
 	def build_circuit(self, kind: str, **kwargs) -> QuantumCircuit:

@@ -109,8 +109,10 @@ def run(
      不在当前层出现的 qubit：idle_time += max_idle_time
   │
   ▼
-④ dag2qc(dag) → 输出 qc_new
+④ dag2qc(dag, qc.nqubits, qc.ncbits) → 输出 qc_new
 ```
+
+重建线路时保留输入的量子与经典寄存器宽度，不按实际门重新推断。因此完全空闲的线路也能完成调度，稀疏物理布局中未参与门操作的高编号比特不会使寄存器被截短。
 
 ---
 

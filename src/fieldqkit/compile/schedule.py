@@ -228,5 +228,5 @@ class DynamicalDecoupling(TranspilerPass):
             for q in qubit_idle_time.keys():
                 if q not in qubit_node_dic.keys():
                     qubit_idle_time[q]["idle_time"] += max_idle_time
-        qc_new = dag2qc(dag)
+        qc_new = dag2qc(dag, qc.nqubits, qc.ncbits)
         return qc_new
