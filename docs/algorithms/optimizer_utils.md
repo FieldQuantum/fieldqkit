@@ -79,9 +79,17 @@ parameter_shift_gradient(
 ) -> np.ndarray
 ```
 
-- 第 *i* 个分量 `grad[i] = 0.5 · (E(θ_i + shift) − E(θ_i − shift))`。
-- 每次移位都先实例化模板、可选 `circuit_transform`（压缩）、再过 `GateCompressor`，最后调 `evaluate_energy_with_backend`。
-- 缺 `param_template` / `param_names` 抛 `ValueError`。
+- 参数移位针对**独立门角**，不是将同名参数在整条线路中的所有出现位置一起移位。设第 `k` 个门角为 `a_k(θ)`，则按链式法则计算：
+
+  `grad[i] = Σ_k (∂a_k/∂θ_i) · (E(a_k + shift) − E(a_k − shift)) / (2 sin(shift))`。
+
+  每次仅改变该门的该角度，其他门角保持当前绑定值。默认 `shift=π/2` 时分母为 `2`。这种逐门角求导支持 QAOA 中共享的 `gamma` / `beta`，以及 `theta/2`、`-theta`、`theta+phi` 等已有参数表达式。
+- 支持 `RX/RY/RZ/RXX/RYY/RZZ` 和 `U` 的三个角度槽；表达式 Jacobian 复用线路已有的安全表达式解析器计算，只依赖 NumPy，硬件路径无需安装 `[sim]`。
+- 每轮先绑定当前参数；移位后的线路仍依次经过可选 `circuit_transform`、`GateCompressor` 和 `evaluate_energy_with_backend`。模板本身不会被修改。
+- **后端求值次数**：没有 `circuit_transform` 时，每个对训练参数有非零导数的门角需要两次能量求值。一个门角同时依赖多个参数时，复用这对结果；无关参数和局部导数为零的角度不提交任务。有 `circuit_transform` 时，为保留其参数索引约定，按相关参数分别求值。因此共享参数线路的任务数通常高于原来的“每个参数两次”。
+- `shift` 必须有限且 `abs(sin(shift)) >= 1e-12`；零、`π`、NaN 或无穷等无效值会在后端求值前抛出 `ValueError`。缺少模板/参数名、绑定不完整或表达式导数无定义时也会报错。
+
+门角参数移位规则参见 [Schuld et al., Evaluating analytic gradients on quantum hardware](https://arxiv.org/abs/1811.11184)。共享或复合参数的梯度还需要乘上角度表达式的 Jacobian，并累加所有门角的贡献。
 
 ## Adam
 

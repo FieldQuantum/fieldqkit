@@ -19,7 +19,12 @@ import numpy as np
 from ..api.backend import Backend, resolve_provider
 from ..api.quantum_platform import create_provider_runtime
 from ..circuit import QuantumCircuit
+from ..circuit.quantumcircuit_helpers import (
+    one_qubit_parameter_gates_available,
+    two_qubit_parameter_gates_available,
+)
 from ..compile.optimize import GateCompressor
+from ._parameter_shift import parameter_shift_terms
 
 logger = logging.getLogger(__name__)
 
@@ -111,6 +116,17 @@ def instantiate_transpiled_template(
     qc = transpiled_template.deepcopy()
     values = {name: float(params[i]) for i, name in enumerate(param_names)}
     qc.apply_value(values, deep=True)
+    # Deep binding leaves expressions with fixed template symbols unresolved.
+    # Materialize them before compression can rebuild and drop the value table.
+    for gate_index, gate in enumerate(qc.gates):
+        if gate[0] in one_qubit_parameter_gates_available:
+            num_targets = 1
+        elif gate[0] in two_qubit_parameter_gates_available:
+            num_targets = 2
+        else:
+            continue
+        angles = [qc._resolve_param(p) if isinstance(p, str) else p for p in gate[1:-num_targets]]
+        qc.gates[gate_index] = (gate[0], *angles, *gate[-num_targets:])
     return qc
 
 
@@ -600,8 +616,11 @@ def parameter_shift_gradient(
 ) -> np.ndarray:
     """Compute gradients via the parameter-shift rule on hardware.
 
-    For each parameter *i*, evaluates the energy at ``params[i] ± shift``
-    and returns ``grad[i] = 0.5 * (E⁺ - E⁻)``.
+    Shift each independent gate angle separately, then apply the chain rule
+    to accumulate contributions to the named parameters. This is required
+    when a parameter controls several gates (as in QAOA) or appears in an
+    expression such as ``"theta/2"``. Each angle derivative is
+    ``(E(angle + shift) - E(angle - shift)) / (2 * sin(shift))``.
 
     Args:
         client: ``QuantumHardwareClient`` instance.
@@ -612,7 +631,7 @@ def parameter_shift_gradient(
         chip_name: Chip identifier.
         shots: Shots per evaluation.
         hamiltonian: Cost Hamiltonian.
-        shift: Parameter shift (typically ``π/2``).
+        shift: Gate-angle shift (typically ``π/2``), with finite, nonzero sine.
         zne: Enable ZNE.
         readout_mitigation: Enable readout mitigation.
         param_template: Pre-transpiled symbolic circuit template.
@@ -628,61 +647,69 @@ def parameter_shift_gradient(
         Gradient vector with the same shape as *params*.
 
     Raises:
-        ValueError: If *param_template* or *param_names* is ``None``.
+        ValueError: If the template/names are missing, parameter bindings are
+            invalid, or the shift is nonfinite or has a near-zero sine.
     """
     if param_template is None or param_names is None:
         raise ValueError("parameter_shift_gradient requires param_template and param_names")
 
+    shift = float(shift)
+    if not np.isfinite(shift) or abs(np.sin(shift)) < 1e-12:
+        raise ValueError("shift must be finite with a nonzero sine")
+    denominator = 2.0 * np.sin(shift)
+    terms = parameter_shift_terms(param_template, param_names, params)
+    bound_template = instantiate_transpiled_template(param_template, param_names, params)
     _gate_compressor = GateCompressor(convert_single_qubit_gate_to_u=convert_single_qubit_gate_to_u)
     grads = np.zeros_like(params, dtype=float)
-    for i in range(params.size):
-        params_plus = params.copy()
-        params_minus = params.copy()
-        params_plus[i] += shift
-        params_minus[i] -= shift
 
-        qc_plus = instantiate_transpiled_template(param_template, param_names, params_plus)
-        qc_minus = instantiate_transpiled_template(param_template, param_names, params_minus)
-        if circuit_transform is not None:
-            qc_plus = circuit_transform(qc_plus, i)
-            qc_minus = circuit_transform(qc_minus, i)
-        qc_plus = _gate_compressor.run(qc_plus)
-        qc_minus = _gate_compressor.run(qc_minus)
-        e_plus, _ = evaluate_energy_with_backend(
-            client,
-            qc_plus,
-            name=f"{name}_grad_p{i}",
-            num_qubits=num_qubits,
-            backend=backend,
-            chip_name=chip_name,
-            shots=shots,
-            hamiltonian=hamiltonian,
-            zne=zne,
-            readout_mitigation=readout_mitigation,
-            clifford_fit_map=clifford_fit_map,
-            target_qubits=target_qubits,
-            qasm_version=qasm_version,
-            convert_single_qubit_gate_to_u=convert_single_qubit_gate_to_u,
-            submit_options=submit_options,
-        )
-        e_minus, _ = evaluate_energy_with_backend(
-            client,
-            qc_minus,
-            name=f"{name}_grad_m{i}",
-            num_qubits=num_qubits,
-            backend=backend,
-            chip_name=chip_name,
-            shots=shots,
-            hamiltonian=hamiltonian,
-            zne=zne,
-            readout_mitigation=readout_mitigation,
-            clifford_fit_map=clifford_fit_map,
-            target_qubits=target_qubits,
-            qasm_version=qasm_version,
-            convert_single_qubit_gate_to_u=convert_single_qubit_gate_to_u,
-            submit_options=submit_options,
-        )
-        grads[i] = 0.5 * (e_plus - e_minus)
+    def angle_derivative(
+        gate_index: int, angle_index: int, angle: float, param_index: int,
+    ) -> float:
+        """Evaluate one gate-angle derivative without shifting other occurrences."""
+        energies = []
+        for sign, label in ((1.0, "p"), (-1.0, "m")):
+            qc = bound_template.deepcopy()
+            gate = list(qc.gates[gate_index])
+            gate[angle_index] = angle + sign * shift
+            qc.gates[gate_index] = tuple(gate)
+            if circuit_transform is not None:
+                qc = circuit_transform(qc, param_index)
+            qc = _gate_compressor.run(qc)
+            energy, _ = evaluate_energy_with_backend(
+                client,
+                qc,
+                name=f"{name}_grad_{label}{param_index}_g{gate_index}_a{angle_index}",
+                num_qubits=num_qubits,
+                backend=backend,
+                chip_name=chip_name,
+                shots=shots,
+                hamiltonian=hamiltonian,
+                zne=zne,
+                readout_mitigation=readout_mitigation,
+                clifford_fit_map=clifford_fit_map,
+                target_qubits=target_qubits,
+                qasm_version=qasm_version,
+                convert_single_qubit_gate_to_u=convert_single_qubit_gate_to_u,
+                submit_options=submit_options,
+            )
+            energies.append(energy)
+        return (energies[0] - energies[1]) / denominator
+
+    for gate_index, angle_index, angle, jacobian in terms:
+        active_params = np.flatnonzero(jacobian)
+        if circuit_transform is None:
+            # One pair of backend evaluations can contribute to several
+            # parameters when an angle is an expression such as theta + phi.
+            derivative = angle_derivative(
+                gate_index, angle_index, angle, int(active_params[0])
+            )
+            grads += jacobian * derivative
+        else:
+            # Keep the transform's parameter-index contract: it may choose a
+            # different compression path for each changed named parameter.
+            for i in active_params:
+                derivative = angle_derivative(gate_index, angle_index, angle, int(i))
+                grads[i] += jacobian[i] * derivative
     return grads
 
 

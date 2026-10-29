@@ -9,6 +9,8 @@
 - **梯度方式**：`parameter-shift`（硬件兼容）或 `autograd`（Simulator only，基于 torch）。
 - **噪声缓解**：支持 Clifford fitting（仅 parameter-shift 路径）。
 
+`parameter-shift` 模式逐个门角求导，再累加到每层共享的 `gamma` / `beta`。不能将一层所有同名角度一起移位，否则可能把本应非零的混合层梯度算成零，导致优化停滞。修复后的任务数取决于参与求导的门角数，通常高于每个共享参数两次；详见 [梯度规则与求值次数](./optimizer_utils.md#梯度)。
+
 ## 推荐签名（`QAOARunner.run_model`）
 
 ```python

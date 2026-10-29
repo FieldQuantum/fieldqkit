@@ -216,9 +216,9 @@ parameter_shift_gradient(
 ```
 
 - 作用：基于 parameter-shift 规则估计梯度向量。
-- 公式：
-  - 第 `i` 个分量使用 `0.5 * (E(theta_i + shift) - E(theta_i - shift))`。
-- 要求：在当前流程中需要传入 `param_template` 与 `param_names`（用于仅替换参数值、避免重复编译）。
+- 公式：逐个门角执行参数移位，再乘以该角度对训练参数的导数并求和；每个门角的能量差除以 `2*sin(shift)`。共享参数或 `theta/2` 等表达式不能通过全局移动同名参数来求导。
+- 要求：传入 `param_template` 与 `param_names`；`shift` 有限且正弦不接近零。普通单次使用参数、默认 `π/2` 移位时，公式仍为熟悉的半能量差。
+- 任务数：通常每个有非零导数的门角需要两次后端求值，共享参数会增加任务数。完整规则和表达式支持见 [optimizer_utils](./optimizer_utils.md#梯度)。
 - 返回：`np.ndarray`，长度与 `params` 相同。
 
 ### 自动微分路径（`gradient_method="autograd"`）
@@ -335,9 +335,9 @@ result = runner.run_model(
 ## 行为细节 / 注意事项
 
 - 参数维度随 ansatz 不同而变化：`hardwareefficient` 与 `custom` 不同。
-- 每个参数梯度需要两次移位评估（`+shift/-shift`）；单轮理论评估次数约为 `1 + 2 * num_params` 次。
+- 无压缩变换时，单轮能量求值次数为 `1 + 2 * 有非零导数的门角数量`，不是按共享参数个数计算；有压缩变换时还会按相关参数索引分别处理。详见 [梯度求值次数](./optimizer_utils.md#梯度)。
 - 当 `gradient_method="autograd"` 且使用 `Simulator` 时，梯度由 `energy_t.backward()` 回传，不再执行 parameter-shift 线路采样。
-- 当 `gradient_method="parameter-shift"` 时，VQE 会先在内部对参数化 ansatz 做一次预编译，然后每次迭代/移位只替换参数值并提交，避免重复 transpile。
+- 当 `gradient_method="parameter-shift"` 时，VQE 会先在内部对参数化 ansatz 做一次预编译，然后每轮绑定当前参数，逐门角移位并提交，避免重复 transpile。
 - 当 `enable_circuit_compression=True` 时：
   - 仅在 `parameter-shift` 路径生效（`autograd` 路径不走压缩变换）。
   - `compression_block_layers` 必须是单个正整数。
